@@ -175,6 +175,7 @@ func _rebuild_actors() -> void:
 	if _world == null:
 		return
 	_stage.begin_cards()
+	_stage.begin_shadow_casters()
 	for object: Gen2WorldObject in _world.visible_objects():
 		_add_actor(
 			object.sprite, object.palette, object.facing, object.frame,
@@ -186,6 +187,7 @@ func _rebuild_actors() -> void:
 		_world.player_position_cells()
 	)
 	_stage.end_cards()
+	_stage.end_shadow_casters()
 
 
 func _add_actor(
@@ -193,7 +195,11 @@ func _add_actor(
 ) -> void:
 	var texture: Texture2D = _actor_texture(sprite, palette, facing, frame)
 	if texture != null:
-		_stage.add_standing_card(texture, _ground(cells))
+		var ground: Vector3 = _ground(cells)
+		_stage.add_standing_card(texture, ground)
+		# The same drawing again, at the same size, for the sun alone: an actor
+		# turns to the camera and cannot be its own caster.
+		_stage.add_shadow_caster(texture, ground, 1.0)
 
 
 func _actor_texture(

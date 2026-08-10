@@ -265,11 +265,18 @@ func eye() -> Vector3:
 ## lens rather than the distance, because the rig derives its field of view from
 ## the two together and moving the eye alone would change the perspective
 ## without changing the framing.
-func fov() -> float:
+##
+## [param frame_stretch] is how much taller the surface being drawn on is than
+## the hardware screen the anchors are measured in. The stage fills the window
+## and the panels are drawn at a whole-number scale in the middle of it, so the
+## lens has to frame FRAME_HEIGHT across that middle rectangle rather than across
+## the window, or the two layers agree only at the sizes where the letterbox
+## happens to vanish.
+func fov(frame_stretch: float = 1.0) -> float:
 	var distance: float = (eye() - target()).length()
 	if distance < 0.001:
 		return 45.0
-	return rad_to_deg(2.0 * atan((FRAME_HEIGHT * _zoom * 0.5) / distance))
+	return rad_to_deg(2.0 * atan((FRAME_HEIGHT * _zoom * frame_stretch * 0.5) / distance))
 
 
 ## How far round the eye may swing before the picture stops being a battle: to

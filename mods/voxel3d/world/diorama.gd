@@ -169,73 +169,78 @@ func end_cards() -> void:
 		_cards[index].visible = false
 
 
-## A soft blob on the ground under something that is drawn rather than modelled.
+## What a drawing gives the sun: an upright card at its ground point, wearing the
+## same picture at the same size, put into the depth pass and into nothing else.
 ##
-## A battler is a flat picture pinned to the ground it stands on, so it casts no
-## shadow of its own and reads as pasted onto the map. One dark ellipse under it
-## is what puts it back on the floor, and it is what the eye actually reads a
-## contact shadow as anyway.
-func add_blob_shadow(at: Vector3, radius: float) -> void:
-	var blob: Sprite3D = _blob()
-	blob.pixel_size = radius * 2.0 / float(BLOB_PIXELS)
-	# A whisker above the ground: coplanar with it, the two z-fight.
-	blob.position = at + Vector3(0.0, 0.05, 0.0)
-	blob.visible = true
+## Everything drawn on this stage is a flat picture that cannot cast for itself.
+## A battler is not even in the 3D scene, being hardware pixels on the layer
+## above; an actor card is, but it turns to the camera, so its own shadow would
+## be whichever way the shot happened to be pointing. This hands the sun a shape
+## that is nobody's view, and one silhouette in the depth pass buys every case at
+## once: the shadow lands on the floor, climbs a wall behind it and drapes over a
+## ledge, from the same light the terrain already casts by, with no case in the
+## code for any of it. A painted ellipse can do none of that, which is why the
+## reference dropped its squashed decals for a real pass
+## (`.references/DRAMATIC_SHAPE/lib/ShadowMap.lua`).
+##
+## [param pixel_size] is the caller's, because how big the card has to be is a
+## question about where the picture over it was drawn, and only the caller knows
+## that.
+func add_shadow_caster(texture: Texture2D, ground: Vector3, pixel_size: float) -> void:
+	var caster: Sprite3D = _caster()
+	caster.texture = texture
+	caster.pixel_size = pixel_size
+	caster.position = ground + Vector3(0.0, texture.get_height() * pixel_size * 0.5, 0.0)
+	caster.rotation.y = _sun_bearing()
+	caster.visible = true
 
 
-func end_blob_shadows() -> void:
-	for index: int in range(_blobs_used, _blobs.size()):
-		_blobs[index].visible = false
+func begin_shadow_casters() -> void:
+	_casters_used = 0
 
 
-func begin_blob_shadows() -> void:
-	_blobs_used = 0
+func end_shadow_casters() -> void:
+	for index: int in range(_casters_used, _casters.size()):
+		_casters[index].visible = false
 
 
-const BLOB_PIXELS: int = 32
-var _blobs: Array[Sprite3D] = []
-var _blobs_used: int = 0
-var _blob_texture: Texture2D = null
+var _casters: Array[Sprite3D] = []
+var _casters_used: int = 0
 
 
-func _blob() -> Sprite3D:
-	if _blobs_used < _blobs.size():
-		var existing: Sprite3D = _blobs[_blobs_used]
-		_blobs_used += 1
+## Which way a caster stands: upright, turned so its face is square to the way
+## the sunlight travels.
+##
+## Not billboarded, and not turned to the camera either. A card lying in the
+## plane of the rays casts a LINE, and the shot is aimed from very near the sun's
+## own bearing, so a card square to the camera is within a few degrees of exactly
+## that: the first attempt drew a dark streak across the grass instead of a
+## Pokemon. Square to the sun is the other extreme and the stable one, the whole
+## silhouette laid down and stretched along the ground by however low the sun
+## sits, at every angle the shot can be swung to. Nobody ever sees the card, so
+## which way it faces is free.
+func _sun_bearing() -> float:
+	var toward: Vector3 = -_light.transform.basis.z
+	return atan2(toward.x, toward.z)
+
+
+func _caster() -> Sprite3D:
+	if _casters_used < _casters.size():
+		var existing: Sprite3D = _casters[_casters_used]
+		_casters_used += 1
 		return existing
-	var blob := Sprite3D.new()
-	blob.texture = _blob_art()
-	# Laid flat on the ground rather than billboarded, so it is a shadow on the
-	# floor and not a disc following the camera.
-	blob.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
-	blob.shaded = false
-	blob.transparent = true
-	blob.modulate = Color(0.0, 0.0, 0.0, 0.34)
-	# Blended rather than discarded, and never written to depth: a hard-edged
-	# cut-out would read as a painted disc, and a shadow that occludes is not a
-	# shadow.
-	blob.alpha_cut = SpriteBase3D.ALPHA_CUT_DISABLED
-	blob.no_depth_test = false
-	actors.add_child(blob)
-	_blobs.append(blob)
-	_blobs_used += 1
-	return blob
-
-
-func _blob_art() -> Texture2D:
-	if _blob_texture != null:
-		return _blob_texture
-	var image: Image = Image.create(BLOB_PIXELS, BLOB_PIXELS, false, Image.FORMAT_RGBA8)
-	var middle: float = float(BLOB_PIXELS - 1) * 0.5
-	for y: int in BLOB_PIXELS:
-		for x: int in BLOB_PIXELS:
-			var away: float = Vector2(x - middle, y - middle).length() / middle
-			# Squared falloff: a linear one has a visible rim where it reaches
-			# zero, which reads as an outline rather than as a shadow.
-			var strength: float = clampf(1.0 - away, 0.0, 1.0)
-			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, strength * strength))
-	_blob_texture = ImageTexture.create_from_image(image)
-	return _blob_texture
+	var caster := Sprite3D.new()
+	caster.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	# Discarded rather than blended: a blended card writes its whole quad into the
+	# depth pass and the battler's shadow is a rectangle. Discarding is what makes
+	# the drawing's own outline the edge of the shadow.
+	caster.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	caster.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	caster.shaded = false
+	actors.add_child(caster)
+	_casters.append(caster)
+	_casters_used += 1
+	return caster
 
 
 func _card() -> Sprite3D:
@@ -245,6 +250,10 @@ func _card() -> Sprite3D:
 		return existing
 	var card := Sprite3D.new()
 	card.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	# A card turns to the camera, so what it casts is a fact about the shot rather
+	# than about the sun, and swinging the camera round swells and pinches it. The
+	# caster beside it is what stands in the sun's way instead.
+	card.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	card.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	card.shaded = false
 	# Discard rather than blend, so two cards at the same depth cannot erase

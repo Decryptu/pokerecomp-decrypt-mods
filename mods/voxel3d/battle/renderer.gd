@@ -180,8 +180,20 @@ func _build_arena() -> void:
 
 
 func _frame_camera() -> void:
-	_stage.camera.fov = _arena.fov()
+	_stage.camera.fov = _arena.fov(_frame_stretch())
 	_stage.aim_camera(_arena.eye(), _arena.target())
+
+
+## How much taller the stage is than the hardware screen drawn over it.
+##
+## The stage fills the window; the panels fill a 160x144 rectangle at a whole
+## number of window pixels per hardware pixel, centred in it. Stretching the lens
+## by the difference is what makes one window pixel mean the same thing on both
+## layers, so a battler pinned to its patch of ground lands in the hardware slot
+## the rig was solved for at every window size instead of only at the ones where
+## the two happen to coincide.
+func _frame_stretch() -> float:
+	return float(_native.y) / float(Gen2Screen.HEIGHT * _hud_scale())
 
 
 ## The two battlers, and the opposing trainer behind theirs.
@@ -196,7 +208,7 @@ func _frame_camera() -> void:
 ## back picture is placed. There is no intro slide out here, but honouring it is
 ## what keeps the player's Pokemon off the field until it has been sent out.
 func _place_battlers() -> void:
-	_stage.begin_blob_shadows()
+	_stage.begin_shadow_casters()
 	var slot: int = 0
 	if StringName(_view.get("battle_kind", &"wild")) == &"trainer":
 		slot = _pin(
@@ -208,24 +220,51 @@ func _place_battlers() -> void:
 		slot = _pin(slot, _pic(int(_view.get("player_species", 0)), true), _arena.player_ground())
 	for index: int in range(slot, _battlers.size()):
 		_battlers[index].visible = false
-	_stage.end_blob_shadows()
+	_stage.end_shadow_casters()
 
 
 ## One picture standing on [param ground], its feet at that point and its middle
 ## over it, at a whole-number scale so a Game Boy pixel stays square.
+##
+## The place is the STAGE's, not the panels': a pinned picture belongs to the
+## patch of ground under it, so it is drawn where that patch projects to in the
+## 3D view. Both layers are centred on the same window and the rig frames the
+## same world height, so a battler landing on its ground point is also landing in
+## the hardware slot the rig was solved for.
 func _pin(slot: int, texture: Texture2D, ground: Vector3) -> int:
 	if texture == null:
 		return slot
 	var at: Vector2 = _stage.camera.unproject_position(ground)
-	var factor: int = _hud_scale()
-	var drawn := Vector2(texture.get_size()) * float(factor)
+	var drawn := Vector2(texture.get_size()) * float(_hud_scale())
 	var rect: TextureRect = _battler(slot)
 	rect.texture = texture
 	rect.size = drawn
-	rect.position = _hud_origin() + at - Vector2(drawn.x * 0.5, drawn.y)
+	rect.position = at - Vector2(drawn.x * 0.5, drawn.y)
 	rect.visible = true
-	_stage.add_blob_shadow(ground, maxf(texture.get_width(), 16.0) * 0.3)
+	_stage.add_shadow_caster(texture, ground, _caster_scale(ground, texture.get_height()))
 	return slot + 1
+
+
+## How big a card standing on [param ground] has to be for the sun to see the
+## same silhouette the player does: the world height whose projection is the
+## [param height] hardware pixels the picture is drawn at.
+##
+## Measured through the camera rather than derived, because the answer moves with
+## every zoom, climb and swing, and solved twice because it is the card's OWN
+## height that has to project correctly and a pitched camera changes depth up its
+## length. One correction is enough at these sizes; the first pass is already
+## within a few percent.
+func _caster_scale(ground: Vector3, height: int) -> float:
+	var wanted: float = float(height * _hud_scale())
+	var per_pixel: float = 1.0
+	for _step: int in 2:
+		var top: Vector3 = ground + Vector3(0.0, float(height) * per_pixel, 0.0)
+		var projected: float = _stage.camera.unproject_position(ground).y \
+			- _stage.camera.unproject_position(top).y
+		if projected < 0.001:
+			return per_pixel
+		per_pixel *= wanted / projected
+	return per_pixel
 
 
 func _battler(slot: int) -> TextureRect:

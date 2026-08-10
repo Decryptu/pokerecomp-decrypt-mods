@@ -46,6 +46,13 @@ Landing those marks is also what keeps the fight readable. The panels and the
 text box are drawn where the hardware draws them, and a composition that puts
 each battler in its own hardware slot cannot collide with either.
 
+A pinned picture is not in the 3D scene and has nothing to cast, so each battler
+also hands the sun an upright card of the same drawing at the same size, drawn
+into the shadow pass and nowhere else. The shadow that falls is the animal's own
+silhouette, and being a real shadow it lands on the floor, climbs a wall behind
+it and drapes over a ledge from the light the terrain already casts by. Actor
+cards in the overworld are given theirs the same way.
+
 The arena's axis is the map's own north, the foe at the north end, and the eye
 sits east of it: east is what decides which battler is on which side, and it is
 the hardware's layout arrived at by standing in the right place rather than by
