@@ -49,8 +49,16 @@ var _normals := PackedVector3Array()
 var _uvs := PackedVector2Array()
 var _colors := PackedColorArray()
 
+## Art modes, kept per tile as a byte because every tile of every map carries one.
+const ART_FLAT: int = 0
+const ART_TOP: int = 1
+const ART_UPRIGHT: int = 2
+const ART_CUTOUT: int = 3
+
 var _size := Vector2i.ZERO
 var _tiles := PackedInt32Array()
+var _art := PackedByteArray()
+var _depths := PackedByteArray()
 var _heights := PackedInt32Array()
 var _volume := PackedByteArray()
 ## The southernmost map row of the structure each tile belongs to. The fold reads
@@ -126,6 +134,8 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_size = source.size_cells() * RomLayout.MAP_BLOCK_CELL_WIDTH
 	var count: int = _size.x * _size.y
 	_tiles.resize(count)
+	_art.resize(count)
+	_depths.resize(count)
 	_heights.resize(count)
 	_volume.resize(count)
 	_bases.resize(count)
@@ -140,10 +150,14 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			if tile < 0:
 				_heights[at] = 0
 				_volume[at] = 0
+				_art[at] = ART_FLAT
 				continue
 			var permission: int = source.permission_at(Vector2i(tx >> 1, cell_y))
 			var shape_class: StringName = shape.at(tile, permission)
-			var is_volume: bool = shape.art(shape_class) == &"upright"
+			var art: StringName = shape.art(shape_class)
+			_art[at] = _art_mode(art)
+			_depths[at] = clampi(shape.depth(shape_class), 1, 16)
+			var is_volume: bool = art == &"upright"
 			_volume[at] = 1 if is_volume else 0
 			# A pin is authority: it names the height too, and the column
 			# measurement below leaves it alone.
@@ -153,6 +167,20 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 				_heights[at] = shape.height(shape_class)
 
 	_measure_columns()
+
+
+## A cutout stands on the ground rather than raising it, so it measures zero and
+## its neighbours are never skirted up to meet it.
+func _art_mode(art: StringName) -> int:
+	match art:
+		&"top":
+			return ART_TOP
+		&"upright":
+			return ART_UPRIGHT
+		&"cutout":
+			return ART_CUTOUT
+		_:
+			return ART_FLAT
 
 
 ## Every run of unmeasured volume cells in a column takes one height, measured
@@ -260,10 +288,284 @@ func _band_tile(tx: int, ty: int, band: int) -> int:
 	return tile if tile >= 0 else _tiles[ty * _size.x + tx]
 
 
+## The pixels of one CELL that belong to the drawing rather than to the ground
+## behind it, as a 16x16 mask, keyed on the cell's four tiles.
+##
+## A cutout has to answer where the drawing ENDS, and colour cannot say: a
+## bollard is white on a pale path, and a bush is green on grass. What can say it
+## is the border. The ground runs to the edge of the cell and the drawing does
+## not, so the indices making up most of the cell's border ring are the ground,
+## and everything the flood cannot reach through them is the drawing.
+##
+## Most of the ring rather than all of it, because the one place a drawing DOES
+## touch the border is where it stands: a bollard's shadow reaches the bottom
+## edge, and letting its index into the ground set would flood the post away from
+## underneath.
+const RING_SHARE: float = 0.7
+var _masks: Dictionary = {}
+
+
+func _cell_mask(cell_tiles: Array, atlas: RefCounted) -> PackedByteArray:
+	var key: String = "%d,%d,%d,%d" % cell_tiles
+	if _masks.has(key):
+		return _masks[key]
+
+	var size: int = CELL_TILES * int(TILE)
+	var indices := PackedInt32Array()
+	indices.resize(size * size)
+	for py: int in size:
+		for px: int in size:
+			@warning_ignore("integer_division")
+			var tile: int = cell_tiles[(py / int(TILE)) * CELL_TILES + px / int(TILE)]
+			indices[py * size + px] = atlas.pixel(tile, px % int(TILE), py % int(TILE))
+
+	var ring: Dictionary = {}
+	var ring_count: int = 0
+	for step: int in size:
+		for at: int in [step, (size - 1) * size + step, step * size, step * size + size - 1]:
+			ring[indices[at]] = int(ring.get(indices[at], 0)) + 1
+			ring_count += 1
+	var ranked: Array = ring.keys()
+	ranked.sort_custom(func(a: int, b: int) -> bool: return ring[a] > ring[b])
+	var ground: Dictionary = {}
+	var covered: int = 0
+	for index: int in ranked:
+		if covered >= float(ring_count) * RING_SHARE:
+			break
+		ground[index] = true
+		covered += int(ring[index])
+
+	var mask := PackedByteArray()
+	mask.resize(size * size)
+	mask.fill(1)
+	var stack := PackedInt32Array()
+	for step: int in size:
+		for at: int in [step, (size - 1) * size + step, step * size, step * size + size - 1]:
+			stack.append(at)
+	while not stack.is_empty():
+		var at: int = stack[stack.size() - 1]
+		stack.remove_at(stack.size() - 1)
+		if mask[at] == 0 or not ground.has(indices[at]):
+			continue
+		mask[at] = 0
+		@warning_ignore("integer_division")
+		var py: int = at / size
+		var px: int = at % size
+		if px > 0:
+			stack.append(at - 1)
+		if px < size - 1:
+			stack.append(at + 1)
+		if py > 0:
+			stack.append(at - size)
+		if py < size - 1:
+			stack.append(at + size)
+
+	_masks[key] = mask
+	return mask
+
+
+## One tile's share of a standing cutout: the drawing's own pixels, standing up.
+##
+## Not a quad per pixel and not a quad per row. The mask is cut into the largest
+## RECTANGLES that fit inside it, greedily from the top left, and each rectangle
+## is one box: a front, a back, and a face along each edge the drawing does not
+## continue past. A bush is a dozen boxes rather than sixteen rows of runs, which
+## is the difference between a town costing 107k triangles and costing a quarter
+## of that, and the picture is identical because a rectangle of pixels maps onto
+## a rectangle of texels exactly.
+##
+## The cell's sixteen rows stand from the ground up, so the drawing's bottom row
+## is the ground contact and its top row is the top of the object. Counting the
+## height off the art is the whole point: a bollard came out 15 px and a sign 14,
+## and no class constant would have found either.
+func _cutout(tx: int, ty: int, depth: float, atlas: RefCounted) -> void:
+	var cell := Vector2i(tx >> 1, ty >> 1)
+	var cell_tiles: Array = []
+	for row: int in CELL_TILES:
+		for column: int in CELL_TILES:
+			cell_tiles.append(_tile_at(cell.x * CELL_TILES + column, cell.y * CELL_TILES + row))
+	var mask: PackedByteArray = _cell_mask(cell_tiles, atlas)
+
+	var span: int = CELL_TILES * int(TILE)
+	var edge: int = int(TILE)
+	var tile: int = _tiles[ty * _size.x + tx]
+	var origin := Vector2i((tx & 1) * edge, (ty & 1) * edge)
+	var mid: float = float(cell.y) * CELL_TILES * TILE + CELL_TILES * TILE * 0.5
+	var back: float = mid - depth * 0.5
+	var front: float = mid + depth * 0.5
+
+	var taken := PackedByteArray()
+	taken.resize(edge * edge)
+	for row: int in edge:
+		for column: int in edge:
+			if taken[row * edge + column] == 1 \
+					or not _drawn(mask, span, origin.x + column, origin.y + row):
+				continue
+			var wide: int = 1
+			while column + wide < edge and taken[row * edge + column + wide] == 0 \
+					and _drawn(mask, span, origin.x + column + wide, origin.y + row):
+				wide += 1
+			var tall: int = 1
+			while row + tall < edge:
+				var whole: bool = true
+				for step: int in wide:
+					if taken[(row + tall) * edge + column + step] == 1 \
+							or not _drawn(mask, span, origin.x + column + step, origin.y + row + tall):
+						whole = false
+						break
+				if not whole:
+					break
+				tall += 1
+			for down: int in tall:
+				for across: int in wide:
+					taken[(row + down) * edge + column + across] = 1
+			_cutout_box(
+				tx, tile, atlas, mask, origin, span,
+				Rect2i(column, row, wide, tall), back, front
+			)
+
+
+## One rectangle of a cutout, as a box wearing its own texels.
+##
+## Every face along an edge the drawing continues past is left out, and the ones
+## along an edge it does not are cut into the RUNS that are actually exposed. A
+## face emitted whole where the drawing continues under half of it would be
+## hidden anyway; cutting it is what keeps a silhouette's edge exactly the
+## drawing's, and what lets the end walls wear their own end pixel's colour so a
+## cut edge is never a foreign one.
+func _drawn(mask: PackedByteArray, span: int, px: int, py: int) -> bool:
+	if px < 0 or py < 0 or px >= span or py >= span:
+		return false
+	return mask[py * span + px] == 1
+
+
+func _cutout_box(
+	tx: int, tile: int, atlas: RefCounted, mask: PackedByteArray,
+	origin: Vector2i, span: int, box: Rect2i, back: float, front: float
+) -> void:
+	var x0: float = float(tx) * TILE + float(box.position.x)
+	var x1: float = x0 + float(box.size.x)
+	var high: float = float(span - (origin.y + box.position.y))
+	var low: float = high - float(box.size.y)
+	var uv: Rect2 = atlas.uv_box(tile, box)
+
+	_quad(
+		Vector3(x0, low, front), Vector3(x1, low, front),
+		Vector3(x1, high, front), Vector3(x0, high, front),
+		Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
+	)
+	_quad(
+		Vector3(x1, low, back), Vector3(x0, low, back),
+		Vector3(x0, high, back), Vector3(x1, high, back),
+		Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
+	)
+
+	# Along the top and the bottom, in columns; along the sides, in rows.
+	for horizontal: bool in [true, false]:
+		for near: bool in [true, false]:
+			var run: int = -1
+			var length: int = box.size.x if horizontal else box.size.y
+			for step: int in length + 1:
+				var open: bool = false
+				if step < length:
+					var at := Vector2i(
+						origin.x + box.position.x + (step if horizontal else (0 if near else box.size.x - 1)),
+						origin.y + box.position.y + ((0 if near else box.size.y - 1) if horizontal else step)
+					)
+					var beyond := Vector2i(
+						at.x + (0 if horizontal else (-1 if near else 1)),
+						at.y + ((-1 if near else 1) if horizontal else 0)
+					)
+					open = not _drawn(mask, span, beyond.x, beyond.y)
+				if open and run < 0:
+					run = step
+				elif not open and run >= 0:
+					_cutout_edge(
+						tx, tile, atlas, origin, span, box, back, front,
+						horizontal, near, run, step
+					)
+					run = -1
+
+
+func _cutout_edge(
+	tx: int, tile: int, atlas: RefCounted, origin: Vector2i, span: int, box: Rect2i,
+	back: float, front: float, horizontal: bool, near: bool, from: int, to: int
+) -> void:
+	if horizontal:
+		var x0: float = float(tx) * TILE + float(box.position.x + from)
+		var x1: float = float(tx) * TILE + float(box.position.x + to)
+		var y: float = float(span - (origin.y + box.position.y)) \
+			- (0.0 if near else float(box.size.y))
+		var uv: Rect2 = atlas.uv_box(
+			tile, Rect2i(box.position.x + from, box.position.y + (0 if near else box.size.y - 1),
+				to - from, 1)
+		)
+		if near:
+			_quad(
+				Vector3(x0, y, front), Vector3(x1, y, front),
+				Vector3(x1, y, back), Vector3(x0, y, back),
+				Vector3.UP, uv, SHADE_TOP_VOLUME
+			)
+		else:
+			_quad(
+				Vector3(x0, y, back), Vector3(x1, y, back),
+				Vector3(x1, y, front), Vector3(x0, y, front),
+				Vector3.DOWN, uv, SHADE_NORTH
+			)
+		return
+
+	var x: float = float(tx) * TILE + float(box.position.x + (0 if near else box.size.x))
+	var high: float = float(span - (origin.y + box.position.y + from))
+	var low: float = float(span - (origin.y + box.position.y + to))
+	var uv: Rect2 = atlas.uv_box(
+		tile, Rect2i(box.position.x + (0 if near else box.size.x - 1),
+			box.position.y + from, 1, to - from)
+	)
+	if near:
+		_quad(
+			Vector3(x, low, back), Vector3(x, low, front),
+			Vector3(x, high, front), Vector3(x, high, back),
+			Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
+		)
+	else:
+		_quad(
+			Vector3(x, low, front), Vector3(x, low, back),
+			Vector3(x, high, back), Vector3(x, high, front),
+			Vector3(1.0, 0.0, 0.0), uv, SHADE_SIDE
+		)
+
+
+func _tile_at(tx: int, ty: int) -> int:
+	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
+		return 0
+	return maxi(_tiles[ty * _size.x + tx], 0)
+
+
+## The art a cutout stands ON: the nearest neighbouring tile that is flat ground,
+## because a cutout's own drawing is the object and painting it on the floor as
+## well would leave a bollard lying under itself.
+func _ground_art(tx: int, ty: int) -> int:
+	for step: Vector2i in [
+		Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0),
+		Vector2i(0, 2), Vector2i(0, -2), Vector2i(2, 0), Vector2i(-2, 0),
+	]:
+		var at := Vector2i(tx + step.x, ty + step.y)
+		if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
+			continue
+		var index: int = at.y * _size.x + at.x
+		if _art[index] == ART_FLAT and _heights[index] == 0:
+			return maxi(_tiles[index], 0)
+	return maxi(_tiles[ty * _size.x + tx], 0)
+
+
 func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	var at: int = ty * _size.x + tx
 	var tile: int = _tiles[at]
 	if tile < 0:
+		return
+	if _art[at] == ART_CUTOUT:
+		_face_top(tx, ty, 0.0, atlas.uv(_ground_art(tx, ty)), SHADE_TOP_FLAT)
+		_cutout(tx, ty, float(_depths[at]), atlas)
 		return
 	var here: int = _heights[at]
 	var is_volume: bool = _volume[at] == 1

@@ -60,6 +60,10 @@ func art(shape_class: StringName) -> StringName:
 	return _profile.art_of(shape_class)
 
 
+func depth(shape_class: StringName) -> int:
+	return _profile.depth_of(shape_class)
+
+
 func _pin(tile: int) -> StringName:
 	if _pinned.has(tile):
 		return _pinned[tile]

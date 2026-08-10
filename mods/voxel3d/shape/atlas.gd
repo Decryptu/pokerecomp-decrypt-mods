@@ -25,6 +25,9 @@ var texture: ImageTexture = null
 ## tiles it rewrote instead of recolouring the whole sheet.
 var _image: Image = null
 var _tile_count: int = 0
+## The tileset's own pixels, in palette indices, kept for the geometry that is
+## cut per pixel rather than textured per tile.
+var _source: PackedByteArray = PackedByteArray()
 var _background: Color = Color("#f5f1d8")
 
 
@@ -43,10 +46,12 @@ func build(
 	texture = null
 	_image = null
 	_tile_count = 0
+	_source = PackedByteArray()
 	if data == null or map == null or tileset == null:
 		return false
 
 	var indices: PackedByteArray = _indices(data, tileset, animation)
+	_source = indices
 	var palettes: Array = _palettes(data, map, tileset, time_of_day, animation)
 	var count: int = tileset.tile_count
 	if indices.size() < count * TILE * TILE:
@@ -114,6 +119,32 @@ func uv(tile: int) -> Rect2:
 		Vector2((origin.x + INSET) / width, (origin.y + INSET) / height),
 		Vector2((TILE - INSET * 2.0) / width, (TILE - INSET * 2.0) / height)
 	)
+
+
+## The uv rectangle of a pixel box inside one tile, for geometry cut finer than a
+## tile. Same sliver inset as [method uv] and for the same reason.
+func uv_box(tile: int, box: Rect2i) -> Rect2:
+	var whole: Rect2 = uv(tile)
+	if whole.size == Vector2.ZERO:
+		return whole
+	var texel: Vector2 = whole.size / float(TILE)
+	return Rect2(whole.position + Vector2(box.position) * texel, Vector2(box.size) * texel)
+
+
+## The palette index of one pixel of one tile, or -1 outside.
+##
+## The INDEX rather than the colour, because what a cutout has to answer is
+## whether a pixel is part of the drawing or part of the ground behind it, and
+## that is a question about which of the four entries the cartridge chose. Two
+## palettes make the same index two different colours and it is still the same
+## drawing.
+func pixel(tile: int, x: int, y: int) -> int:
+	if _source.is_empty() or tile < 0 or tile >= _tile_count:
+		return -1
+	if x < 0 or y < 0 or x >= TILE or y >= TILE:
+		return -1
+	var at: int = y * _tile_count * TILE + tile * TILE + x
+	return int(_source[at]) if at < _source.size() else -1
 
 
 func background() -> Color:
