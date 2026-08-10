@@ -39,6 +39,12 @@ const HEIGHTS: Dictionary = {
 	&"desk": 16,
 	&"bed": 8,
 	&"bookcase": 24,
+	# A building is measured off its own drawing the way a volume is, so these
+	# are only what a stray one falls back to: a facade stands as many bands as
+	# its column has wall rows and a roof lies on top of whatever that came to.
+	&"facade": 16,
+	&"roof_edge": 24,
+	&"roof_corner": 24,
 	# A cutout carries no height of its own: how tall it stands is COUNTED off the
 	# drawing, because the drawing is what the reviewer measured. A concrete
 	# bollard is 15 px of art on a 16 px cell and a wooden sign is 14, and no
@@ -89,6 +95,36 @@ const FILLED: Dictionary = {
 	&"sign_post": true,
 }
 
+## Which part of a BUILDING a class depicts, and how far a sloped roof tile has
+## fallen from the flat section beside it, in 8px bands.
+##
+## A Generation II building packs several surfaces into one drawing: the bottom
+## rows are the facade seen face-on, the rows above are the roof seen from above,
+## and the roof's sides fall away by a band or two per column at the gable. No
+## single class covers that, and a tile id is not a band: what decides a height
+## is where a tile sits in the building's own grid, which `mesher.gd` measures.
+## These say only which of the two surfaces a drawing is, and how far down the
+## slope it sits, both of which are facts about the drawing alone.
+const BUILDING: Dictionary = {
+	&"facade": &"wall",
+	&"roof": &"roof",
+	&"roof_edge": &"roof",
+	&"roof_corner": &"roof",
+}
+const ROOF_DROP: Dictionary = {
+	&"roof_edge": 1,
+	&"roof_corner": 2,
+}
+
+## The cutouts that MERGE with their own kind in the cell in front or behind.
+##
+## A bush is one cell and a hedge is several ranks of the same bush, so each cell
+## pinching its depth to nothing at its own edges leaves a gap between rank and
+## rank and the hedge reads as corduroy. A merged class runs through at full cell
+## depth wherever its neighbour is the same class, and only the ends of the run
+## are rounded. Empty until the reviewer has said which reads better.
+const MERGED: Dictionary = {}
+
 ## How the mesher draws each class.
 ##
 ##   flat     one quad, no box. Ground, water, the void past a map edge.
@@ -113,6 +149,9 @@ const ART: Dictionary = {
 	&"table": &"upright",
 	&"desk": &"upright",
 	&"bookcase": &"upright",
+	&"facade": &"upright",
+	&"roof_edge": &"top",
+	&"roof_corner": &"top",
 	# cutout: not a box at all. The drawing's own silhouette stands up one run of
 	# pixels at a time, on ground taken from the walkable cell beside it, which is
 	# what a thing with a shape rather than a face wants.
@@ -147,6 +186,22 @@ const TILESETS: Dictionary = {
 		&"ground": [17, 44, 57],
 		# A jumping ledge is drawn from above and lies low.
 		&"ledge": [52, 54],
+		# The house facade, face-on: brick, plain and plank walls, the shadow row
+		# under them, both wall edges and both bottom corners, the windows, the
+		# four tiles of a door, and the lettering and boards that are painted
+		# straight onto the wall.
+		&"facade": [
+			10, 11, 12, 15, 26, 27, 28, 29, 31, 34, 35, 47, 50, 60, 63,
+			66, 67, 68, 69, 74, 75,
+		],
+		# The roof seen from above, flat section: the middle, all four corners
+		# and every straight edge.
+		&"roof": [7, 18, 23, 76, 77, 78, 83, 90, 92, 93, 94, 95],
+		# The gable: one band down beside the flat section, two at the corner of
+		# the house. 56 is drawn for both sides and only its neighbours could say
+		# which, so it takes the shallower fall.
+		&"roof_edge": [6, 8, 22, 24, 38, 40, 56],
+		&"roof_corner": [5, 9, 21, 25, 37, 41],
 	},
 	# Pokemon Centers, shops and houses, on 57 maps.
 	5: {

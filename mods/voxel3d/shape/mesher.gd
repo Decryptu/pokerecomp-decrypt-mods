@@ -63,6 +63,20 @@ var _depths := PackedByteArray()
 ## solid body the border flood cannot be trusted with.
 var _round := PackedByteArray()
 var _filled := PackedByteArray()
+## Per tile: whether its cutout MERGES with the same class in the cell in front
+## or behind, and which class it is. A hedge is several cells of the same bush
+## drawing, and each cell pinching its own depth to nothing is what makes a rank
+## of them read as corduroy rather than as one mass.
+var _merged := PackedByteArray()
+var _klass := PackedInt32Array()
+var _class_ids: Dictionary = {}
+## Per tile: which surface of a building it depicts, and how many bands a sloped
+## roof tile has fallen from the flat section beside it.
+const PART_NONE: int = 0
+const PART_WALL: int = 1
+const PART_ROOF: int = 2
+var _part := PackedByteArray()
+var _drop := PackedByteArray()
 var _heights := PackedInt32Array()
 var _volume := PackedByteArray()
 ## The southernmost map row of the structure each tile belongs to. The fold reads
@@ -142,6 +156,10 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_depths.resize(count)
 	_round.resize(count)
 	_filled.resize(count)
+	_merged.resize(count)
+	_klass.resize(count)
+	_part.resize(count)
+	_drop.resize(count)
 	_heights.resize(count)
 	_volume.resize(count)
 	_bases.resize(count)
@@ -157,6 +175,8 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 				_heights[at] = 0
 				_volume[at] = 0
 				_art[at] = ART_FLAT
+				_klass[at] = -1
+				_part[at] = PART_NONE
 				continue
 			var permission: int = source.permission_at(Vector2i(tx >> 1, cell_y))
 			var shape_class: StringName = shape.at(tile, permission)
@@ -165,6 +185,18 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_depths[at] = clampi(shape.depth(shape_class), 1, 16)
 			_round[at] = 1 if shape.is_round(shape_class) else 0
 			_filled[at] = 1 if shape.is_filled(shape_class) else 0
+			_merged[at] = 1 if shape.is_merged(shape_class) else 0
+			if not _class_ids.has(shape_class):
+				_class_ids[shape_class] = _class_ids.size()
+			_klass[at] = int(_class_ids[shape_class])
+			match shape.building_part(shape_class):
+				&"wall":
+					_part[at] = PART_WALL
+				&"roof":
+					_part[at] = PART_ROOF
+				_:
+					_part[at] = PART_NONE
+			_drop[at] = shape.roof_drop(shape_class)
 			var is_volume: bool = art == &"upright"
 			_volume[at] = 1 if is_volume else 0
 			# A pin is authority: it names the height too, and the column
@@ -175,6 +207,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 				_heights[at] = shape.height(shape_class)
 
 	_measure_columns()
+	_measure_buildings()
 
 
 ## A cutout stands on the ground rather than raising it, so it measures zero and
@@ -233,6 +266,128 @@ func _measure_columns() -> void:
 							_heights[at] = height
 							_bases[at] = base
 			cell_y += run
+
+
+## A building is measured off its own drawing's GRID, not off its tile ids.
+##
+## One Generation II drawing packs several surfaces at once: the bottom rows are
+## the facade seen face-on, the rows above them are the roof seen from above, and
+## a taller section behind can put another facade above that roof again. So the
+## height of a tile is decided by what is UNDER it in the same column, and the
+## profile only says which of the two surfaces each drawing is.
+##
+## Rows run from the bottom of the map up, so every column knows what it is
+## standing on before it is asked how high it reaches:
+##
+##   a wall run  folds face-on the way any volume does. The whole run is one
+##               height, so a facade is a wall and not a staircase, and its fold
+##               starts at the run's own bottom row lifted by what is beneath it.
+##   a roof row  lies flat at the height its own row agrees on, and passes that
+##               height up to whatever stands on it.
+##
+## The row agrees rather than the column, because the columns carrying a gable
+## have no wall under them at all: the flat section is what knows how high the
+## roof is, and a sloped tile is that height less the band or two the drawing
+## says it has fallen. A run is broken at every column that is not roof, so two
+## buildings in one map row never agree with each other. A roof never falls below
+## what its own column already stands at, or a gable meeting a low wing would
+## drive its corner into the ground.
+func _measure_buildings() -> void:
+	var column := PackedInt32Array()
+	column.resize(_size.x)
+	var placed := PackedByteArray()
+	placed.resize(_size.x * _size.y)
+
+	for ty: int in range(_size.y - 1, -1, -1):
+		var wall: int = 0
+		while wall < _size.x:
+			var at: int = ty * _size.x + wall
+			if _part[at] != PART_WALL or placed[at] == 1:
+				wall += 1
+				continue
+			var last: int = wall
+			while last + 1 < _size.x and _part[ty * _size.x + last + 1] == PART_WALL \
+					and placed[ty * _size.x + last + 1] == 0:
+				last += 1
+			# The stretch agrees on one height, or a facade whose columns measure
+			# differently comes out as a staircase rather than as a wall.
+			var runs: PackedInt32Array = PackedInt32Array()
+			var bands: int = 0
+			for tx: int in range(wall, last + 1):
+				var run: int = 1
+				while ty - run >= 0 and _part[(ty - run) * _size.x + tx] == PART_WALL:
+					run += 1
+				runs.append(run)
+				bands = maxi(bands, _facade_period(tx, ty, run))
+			for tx: int in range(wall, last + 1):
+				var under: int = column[tx]
+				var top: int = under + bands * BAND
+				for step: int in runs[tx - wall]:
+					var index: int = (ty - step) * _size.x + tx
+					_heights[index] = top
+					@warning_ignore("integer_division")
+					_bases[index] = ty + under / BAND
+					_volume[index] = 1
+					placed[index] = 1
+				column[tx] = top
+			wall = last + 1
+
+		var tx: int = 0
+		while tx < _size.x:
+			if _part[ty * _size.x + tx] != PART_ROOF:
+				tx += 1
+				continue
+			var last: int = tx
+			while last + 1 < _size.x and _part[ty * _size.x + last + 1] == PART_ROOF:
+				last += 1
+			_roof_row(ty, tx, last, column)
+			tx = last + 1
+
+		for reset: int in _size.x:
+			if _part[ty * _size.x + reset] == PART_NONE:
+				column[reset] = 0
+
+
+## How many bands of a facade run are the drawing, in tile rows.
+##
+## The same question `_period` answers for a volume, and it has to be asked here
+## too: a plaza's brick pavement is eight rows of the one tile and reading its
+## length would stand a monolith where there is a low wall. A house facade of
+## four different rows has no repeat in it and is four bands tall.
+func _facade_period(tx: int, bottom: int, run: int) -> int:
+	@warning_ignore("integer_division")
+	for length: int in range(1, run / 2 + 1):
+		var repeats: bool = true
+		for step: int in range(length, length * 2):
+			if _tiles[(bottom - step) * _size.x + tx] \
+					!= _tiles[(bottom - step + length) * _size.x + tx]:
+				repeats = false
+				break
+		if repeats:
+			return length
+	return run
+
+
+## One unbroken stretch of roof across one map row.
+func _roof_row(ty: int, from: int, to: int, column: PackedInt32Array) -> void:
+	var flat: int = -1
+	var anywhere: int = 0
+	for tx: int in range(from, to + 1):
+		var at: int = ty * _size.x + tx
+		anywhere = maxi(anywhere, column[tx])
+		if _drop[at] == 0:
+			flat = maxi(flat, column[tx])
+	var agreed: int = flat if flat >= 0 else anywhere
+	for tx: int in range(from, to + 1):
+		var at: int = ty * _size.x + tx
+		var height: int = maxi(agreed - int(_drop[at]) * BAND, column[tx])
+		_heights[at] = height
+		_volume[at] = 0
+		# The exposed side of a roof step is one band tall, so the row it folds
+		# is the roof tile's own.
+		@warning_ignore("integer_division")
+		_bases[at] = ty + maxi(height / BAND - 1, 0)
+		column[tx] = height
 
 
 func _cell_unmeasured(cell_x: int, cell_y: int) -> bool:
@@ -447,7 +602,8 @@ func _cell_levels(mask: PackedByteArray, span: int, round_plan: bool) -> PackedB
 ## height off the art is the whole point: a bollard came out 15 px and a sign 14,
 ## and no class constant would have found either.
 func _cutout(
-	tx: int, ty: int, depth: float, round_plan: bool, filled: bool, atlas: RefCounted
+	tx: int, ty: int, depth: float, round_plan: bool, filled: bool, merged: bool,
+	atlas: RefCounted
 ) -> void:
 	var cell := Vector2i(tx >> 1, ty >> 1)
 	var cell_tiles: Array = []
@@ -456,6 +612,16 @@ func _cutout(
 			cell_tiles.append(_tile_at(cell.x * CELL_TILES + column, cell.y * CELL_TILES + row))
 	var mask: PackedByteArray = _cell_mask(cell_tiles, atlas, filled)
 	var levels: PackedByteArray = _cell_levels(mask, CELL_TILES * int(TILE), round_plan)
+
+	# A merged class does not pinch its depth towards a neighbour of its own
+	# kind: the rank runs through at full cell depth and only the ends of the run
+	# are rounded, which is what makes a hedge one mass rather than a row of
+	# blobs. The neighbour's own mask says which faces are interior.
+	var north := PackedByteArray()
+	var south := PackedByteArray()
+	if merged:
+		north = _neighbour_mask(tx, ty, -1, atlas, filled)
+		south = _neighbour_mask(tx, ty, 1, atlas, filled)
 
 	var span: int = CELL_TILES * int(TILE)
 	var edge: int = int(TILE)
@@ -492,9 +658,12 @@ func _cutout(
 				for across: int in wide:
 					taken[(row + down) * edge + column + across] = 1
 			var half: float = depth * 0.5 * float(level) / float(LEVELS)
+			var reach: float = CELL_TILES * TILE * 0.5
 			_cutout_box(
-				tx, tile, atlas, mask, origin, span,
-				Rect2i(column, row, wide, tall), mid - half, mid + half
+				tx, tile, atlas, mask, origin, span, Rect2i(column, row, wide, tall),
+				mid - (reach if not north.is_empty() else half),
+				mid + (reach if not south.is_empty() else half),
+				north, south
 			)
 
 
@@ -506,6 +675,42 @@ func _cutout(
 ## hidden anyway; cutting it is what keeps a silhouette's edge exactly the
 ## drawing's, and what lets the end walls wear their own end pixel's colour so a
 ## cut edge is never a foreign one.
+## The mask of the cell one step north or south, when that cell carries the same
+## merging class and so is part of the same mass. Empty otherwise, which is what
+## the caller reads as "this side is the end of the run".
+func _neighbour_mask(
+	tx: int, ty: int, step: int, atlas: RefCounted, filled: bool
+) -> PackedByteArray:
+	var at: int = ty * _size.x + tx
+	var ny: int = ty + step * CELL_TILES
+	if ny < 0 or ny >= _size.y:
+		return PackedByteArray()
+	var beyond: int = ny * _size.x + tx
+	if _merged[beyond] == 0 or _klass[beyond] != _klass[at]:
+		return PackedByteArray()
+	var cell := Vector2i(tx >> 1, ny >> 1)
+	var cell_tiles: Array = []
+	for row: int in CELL_TILES:
+		for column: int in CELL_TILES:
+			cell_tiles.append(_tile_at(cell.x * CELL_TILES + column, cell.y * CELL_TILES + row))
+	return _cell_mask(cell_tiles, atlas, filled)
+
+
+## Whether a neighbour's own drawing covers every pixel of this box, which makes
+## the face between them interior and not worth emitting.
+func _covered(
+	neighbour: PackedByteArray, origin: Vector2i, span: int, box: Rect2i
+) -> bool:
+	if neighbour.is_empty():
+		return false
+	for row: int in box.size.y:
+		for column: int in box.size.x:
+			if not _drawn(neighbour, span, origin.x + box.position.x + column,
+					origin.y + box.position.y + row):
+				return false
+	return true
+
+
 func _drawn(mask: PackedByteArray, span: int, px: int, py: int) -> bool:
 	if px < 0 or py < 0 or px >= span or py >= span:
 		return false
@@ -514,7 +719,9 @@ func _drawn(mask: PackedByteArray, span: int, px: int, py: int) -> bool:
 
 func _cutout_box(
 	tx: int, tile: int, atlas: RefCounted, mask: PackedByteArray,
-	origin: Vector2i, span: int, box: Rect2i, back: float, front: float
+	origin: Vector2i, span: int, box: Rect2i, back: float, front: float,
+	north: PackedByteArray = PackedByteArray(),
+	south: PackedByteArray = PackedByteArray()
 ) -> void:
 	var x0: float = float(tx) * TILE + float(box.position.x)
 	var x1: float = x0 + float(box.size.x)
@@ -522,16 +729,18 @@ func _cutout_box(
 	var low: float = high - float(box.size.y)
 	var uv: Rect2 = atlas.uv_box(tile, box)
 
-	_quad(
-		Vector3(x0, low, front), Vector3(x1, low, front),
-		Vector3(x1, high, front), Vector3(x0, high, front),
-		Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
-	)
-	_quad(
-		Vector3(x1, low, back), Vector3(x0, low, back),
-		Vector3(x0, high, back), Vector3(x1, high, back),
-		Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
-	)
+	if not _covered(south, origin, span, box):
+		_quad(
+			Vector3(x0, low, front), Vector3(x1, low, front),
+			Vector3(x1, high, front), Vector3(x0, high, front),
+			Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
+		)
+	if not _covered(north, origin, span, box):
+		_quad(
+			Vector3(x1, low, back), Vector3(x0, low, back),
+			Vector3(x0, high, back), Vector3(x1, high, back),
+			Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
+		)
 
 	# Along the top and the bottom, in columns; along the sides, in rows.
 	for horizontal: bool in [true, false]:
@@ -642,7 +851,8 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	if _art[at] == ART_CUTOUT:
 		_face_top(tx, ty, 0.0, atlas.uv(_ground_art(tx, ty)), SHADE_TOP_FLAT)
 		_cutout(
-			tx, ty, float(_depths[at]), _round[at] == 1, _filled[at] == 1, atlas
+			tx, ty, float(_depths[at]), _round[at] == 1, _filled[at] == 1,
+			_merged[at] == 1, atlas
 		)
 		return
 	var here: int = _heights[at]

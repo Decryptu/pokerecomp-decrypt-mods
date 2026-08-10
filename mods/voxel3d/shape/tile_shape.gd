@@ -72,6 +72,20 @@ func is_filled(shape_class: StringName) -> bool:
 	return bool(_profile.FILLED.get(shape_class, false))
 
 
+## Which surface of a building a class depicts, empty for everything that is not
+## one, and how far a sloped roof tile has fallen, in bands.
+func building_part(shape_class: StringName) -> StringName:
+	return StringName(_profile.BUILDING.get(shape_class, &""))
+
+
+func roof_drop(shape_class: StringName) -> int:
+	return int(_profile.ROOF_DROP.get(shape_class, 0))
+
+
+func is_merged(shape_class: StringName) -> bool:
+	return bool(_profile.MERGED.get(shape_class, false))
+
+
 func _pin(tile: int) -> StringName:
 	if _pinned.has(tile):
 		return _pinned[tile]

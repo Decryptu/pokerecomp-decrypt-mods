@@ -132,6 +132,26 @@ Three models come out of that, and `shape/mesher.gd` builds them:
 The fold is the whole trick. Most of Generation II is drawn face-on, so standing
 the drawing up is what turns a wall into a wall.
 
+## A building is several of those at once
+
+One house drawing packs the lot: the bottom rows are the facade seen face-on,
+the rows above are the roof seen from above, and a taller section behind can put
+another facade above that roof again. So no single model covers a building, and
+a tile id is not a band. The profile says only which of the two surfaces each
+drawing is, and how far a sloped roof tile has fallen from the flat section
+beside it; where it ends up is measured off the building's own grid.
+
+Rows are read from the bottom of the map up, so a column knows what it stands on
+before it is asked how high it reaches. A run of facade rows folds face-on as one
+wall, lifted by whatever is under it. A roof row lies flat at the height its own
+row agrees on and passes that height up to whatever stands on it.
+
+The row agrees, not the column, because the columns carrying a gable have no wall
+under them at all: the flat section is what knows how high the roof is, and a
+sloped tile is that height less the band or two its drawing has fallen. A run
+breaks at every column that is not roof, so two buildings never agree with each
+other.
+
 ## Where a shape comes from
 
 `shape/tile_shape.gd` resolves every tile, in this order:
@@ -158,6 +178,10 @@ house of three different cells has no repeat and stands three cells tall. A fenc
 line running north is one cell repeated twenty times, and stands one cell tall
 however far it runs. Reading the run's raw length instead is what turns a town
 into a maze of 48px walls.
+
+A facade is measured the same way, in tile rows rather than in cells: a plaza's
+brick pavement is eight rows of the one tile, and its length would stand a
+monolith where there is a low wall.
 
 ## Surveying a tileset
 
