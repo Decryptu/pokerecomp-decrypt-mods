@@ -16,6 +16,11 @@ extends RefCounted
 ##
 ## Pins are per tileset number, because a tile id means nothing without one.
 ## Surveying a tileset is the procedure in `../README.md`.
+##
+## Two tables, and this file holds the first. `profile_pass.gd` holds the second,
+## generated from a full pass over every tileset in the game, and this one wins
+## wherever both name a tile.
+const PASS: GDScript = preload("profile_pass.gd")
 
 ## Class heights in world pixels. A walk cell is 16x16 and a graphics tile 8x8,
 ## so a height is a whole number of 8px bands and everything on this list is one.
@@ -56,6 +61,12 @@ const HEIGHTS: Dictionary = {
 	&"tombstone": 0,
 	&"flowers": 0,
 	&"planter": 0,
+	&"statue": 0,
+	&"stand": 0,
+	&"lie": 0,
+	# A raised flat surface seen from above: a counter, a table top, a stool. One
+	# cell, because that is what a counter is in a game built on 16px cells.
+	&"surface": 16,
 }
 
 ## How thick a cutout stands, in world pixels.
@@ -75,6 +86,11 @@ const DEPTHS: Dictionary = {
 	&"tombstone": 5,
 	&"flowers": 12,
 	&"planter": 12,
+	&"statue": 10,
+	# The two the full pass falls back to when its words name no known thing:
+	# something standing, and something low with an outline.
+	&"stand": 8,
+	&"lie": 12,
 }
 
 ## The cutouts that are ROUND IN PLAN rather than flat slabs.
@@ -90,6 +106,9 @@ const ROUND: Dictionary = {
 	&"sapling": true,
 	&"flowers": true,
 	&"planter": true,
+	&"statue": true,
+	&"stand": true,
+	&"lie": true,
 }
 
 ## How many walk cells a cutout's DRAWING covers, where it is more than one.
@@ -118,6 +137,7 @@ const SPANS: Dictionary = {
 ## border for the flood to come in through.
 const LYING: Dictionary = {
 	&"flowers": true,
+	&"lie": true,
 }
 
 ## The cutouts whose drawing is a solid body the flood cannot be trusted with.
@@ -188,6 +208,10 @@ const ART: Dictionary = {
 	&"tombstone": &"cutout",
 	&"flowers": &"cutout",
 	&"planter": &"cutout",
+	&"statue": &"cutout",
+	&"stand": &"cutout",
+	&"lie": &"cutout",
+	&"surface": &"top",
 }
 
 ## Tileset number -> class -> the tile ids that class claims.
@@ -248,17 +272,22 @@ const TILESETS: Dictionary = {
 
 
 ## The class a tile is pinned to, or an empty StringName when it is not pinned.
+##
+## The hand table above first, then the full pass in `profile_pass.gd`. The order
+## is the point: the table above was authored from the reviewer's own
+## measurements off the drawing, and the pass is a machine reading the same
+## pictures, so where they disagree the person is right and the pass can be
+## regenerated under them.
 static func pinned_class(tileset_number: int, tile: int) -> StringName:
 	var groups: Variant = TILESETS.get(tileset_number, null)
-	if not groups is Dictionary:
-		return &""
-	for shape_class: StringName in (groups as Dictionary):
-		var tiles: Variant = (groups as Dictionary)[shape_class]
-		# A plain Array, because a PackedInt32Array literal is not a constant
-		# expression and this whole table has to be one.
-		if tiles is Array and (tiles as Array).has(tile):
-			return shape_class
-	return &""
+	if groups is Dictionary:
+		for shape_class: StringName in (groups as Dictionary):
+			var tiles: Variant = (groups as Dictionary)[shape_class]
+			# A plain Array, because a PackedInt32Array literal is not a constant
+			# expression and this whole table has to be one.
+			if tiles is Array and (tiles as Array).has(tile):
+				return shape_class
+	return PASS.pinned_class(tileset_number, tile)
 
 
 static func height_of(shape_class: StringName) -> int:

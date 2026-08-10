@@ -9,15 +9,23 @@ extends SceneTree
 ## actually uses it, renders the map around it exactly as the 2D view draws it,
 ## and rings the tile in red.
 ##
-## Asks about the tiles that EXTRUDE: a tile placed in a blocked cell and not
-## already pinned is a tile the mesher is standing up as a wall, which is the
-## only kind that can be wrong in a way worth a reviewer's time. Ground is
-## ground.
+## Two modes, because two different readers ask for two different things.
 ##
-##   Godot --path <gen2recomp> -s tools/survey_context.gd -- <cache> <ts|all> <out>
+##   unpinned  the tiles that EXTRUDE: placed in a blocked cell and not already
+##             pinned, which is the only kind that can be wrong in a way worth a
+##             human's time. Ground is ground.
+##   all       every tile the tileset places anywhere, with how often each is
+##             found in a walkable cell and in a blocked one. That is the full
+##             pass, and it is for an agent reading the pictures itself: a floor
+##             tile is worth a second of a machine's time and not of a person's.
 ##
-## Emits `ctx_ts<n>_<tile>.png` per tile and `ask_ts<n>.json` beside them.
-## `tools/survey_tiles.py` builds the page from those.
+##   Godot --path <gen2recomp> -s tools/survey_context.gd -- \
+##       <cache> <ts|all> <out> [unpinned|all]
+##
+## Emits `ctx_ts<n>_<tile>.png` per tile and `ask_ts<n>.json` beside them, or
+## `pass_ts<n>.json` in the full mode. `tools/survey_tiles.py` builds the human
+## page from the first; `tools/survey_pass.py` builds an agent's packet from the
+## second.
 
 const MOD := "user://mods/voxel3d"
 const TILE: int = 8
@@ -28,15 +36,20 @@ const BLOCK_CELLS: int = 2
 ## which is the frame the drawing was composed to be read in.
 const WINDOW: int = 15
 const RING := Color(1.0, 0.16, 0.18)
+## Screen pixels per art pixel in the full pass's crops.
+const SCALE: int = 4
 
 var _data: GameData = null
 var _out: String = ""
+## Whether to ask about every tile the tileset places, or only the ones standing
+## up unpinned.
+var _every: bool = false
 
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.size() < 3:
-		print("usage: <cache> <tileset|all> <out dir>")
+		print("usage: <cache> <tileset|all> <out dir> [unpinned|all]")
 		quit(1)
 		return
 	_data = GameData.open_directory(args[0])
@@ -45,6 +58,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_out = args[2]
+	_every = args.size() > 3 and args[3] == "all"
 	DirAccess.make_dir_recursive_absolute(_out)
 
 	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
@@ -100,12 +114,28 @@ func _ask(number: int, profile: GDScript) -> void:
 				var permission: int = Gen2WorldCollision.permission_for(
 					map.collision_at(tx >> 1, ty >> 1)
 				)
-				if permission != Gen2WorldCollision.WALL_TILE:
-					continue
-				if profile.pinned_class(number, tile) != &"":
-					continue
-				var entry: Dictionary = seen.get(tile, {"count": 0})
+				if not _every:
+					if permission != Gen2WorldCollision.WALL_TILE:
+						continue
+					if profile.pinned_class(number, tile) != &"":
+						continue
+				var entry: Dictionary = seen.get(tile, {
+					"count": 0, "blocked": 0, "walkable": 0, "water": 0,
+				})
 				entry["count"] = int(entry["count"]) + 1
+				match permission:
+					Gen2WorldCollision.WALL_TILE:
+						entry["blocked"] = int(entry["blocked"]) + 1
+					Gen2WorldCollision.WATER_TILE:
+						entry["water"] = int(entry["water"]) + 1
+					Gen2WorldCollision.LAND_TILE:
+						entry["walkable"] = int(entry["walkable"]) + 1
+				# The most CENTRAL placement is the one photographed, but a tile
+				# that stands up anywhere is worth photographing where it does.
+				if _every and permission == Gen2WorldCollision.WALL_TILE \
+						and not entry.has("blocked_at"):
+					entry["blocked_at"] = Vector2i(tx, ty)
+					entry["blocked_map"] = map
 				# The most central placement, so the window is full of map
 				# rather than half off the edge.
 				var away: float = (
@@ -127,16 +157,24 @@ func _ask(number: int, profile: GDScript) -> void:
 		var key: String = "%d,%d" % [map.group, map.number]
 		if not painted.has(key):
 			painted[key] = _paint(map, tileset)
-		records.append({
+		var record: Dictionary = {
 			"tile": tile,
 			"count": entry["count"],
 			"map": [map.group, map.number],
 			"file": _crop(painted[key], entry["at"], number, tile),
-		})
+		}
+		if _every:
+			record["blocked"] = entry["blocked"]
+			record["walkable"] = entry["walkable"]
+			record["water"] = entry["water"]
+			record["pinned"] = String(profile.pinned_class(number, tile))
+		records.append(record)
 	records.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return int(a["count"]) > int(b["count"]))
 
-	var file: FileAccess = FileAccess.open("%s/ask_ts%d.json" % [_out, number], FileAccess.WRITE)
+	var file: FileAccess = FileAccess.open(
+		"%s/%s_ts%d.json" % [_out, "pass" if _every else "ask", number], FileAccess.WRITE
+	)
 	file.store_string(JSON.stringify({
 		"tileset": number, "window": WINDOW, "tile": TILE, "tiles": records
 	}, "  "))
@@ -197,6 +235,12 @@ func _crop(map_image: Image, at: Vector2i, number: int, tile: int) -> String:
 		for x: int in [ring.position.x, ring.end.x - 1]:
 			if x >= 0 and y >= 0 and x < out.get_width() and y < out.get_height():
 				out.set_pixel(x, y, RING)
+
+	# Blown up for the full pass, because a 120px crop is unreadable and every
+	# reader of one would otherwise scale it themselves. Nearest, or the ring and
+	# the art both turn to soup.
+	if _every:
+		out.resize(out.get_width() * SCALE, out.get_height() * SCALE, Image.INTERPOLATE_NEAREST)
 
 	var name: String = "ctx_ts%d_%d.png" % [number, tile]
 	out.save_png("%s/%s" % [_out, name])
