@@ -67,6 +67,7 @@ var _filled := PackedByteArray()
 ## is, which is what the mask is cut over, and which class it is.
 var _span_x := PackedByteArray()
 var _span_y := PackedByteArray()
+var _lying := PackedByteArray()
 var _klass := PackedInt32Array()
 var _class_ids: Dictionary = {}
 ## Per tile: which surface of a building it depicts, and how many bands a sloped
@@ -139,9 +140,8 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	_ready = []
 	if _size == Vector2i.ZERO:
 		return false
-	var box := Rect2i(
-		-Vector2i(BORDER_TILES, BORDER_TILES), _size + Vector2i(BORDER_TILES, BORDER_TILES) * 2
-	)
+	var reach: int = BORDER_TILES if _outside else 0
+	var box := Rect2i(-Vector2i(reach, reach), _size + Vector2i(reach, reach) * 2)
 	if window.size.x > 0 and window.size.y > 0:
 		box = box.intersection(window)
 	if box.size.x <= 0 or box.size.y <= 0:
@@ -262,6 +262,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_border.clear()
 	if source == null or not source.valid():
 		return
+	_outside = source.outside()
 	_size = source.size_cells() * RomLayout.MAP_BLOCK_CELL_WIDTH
 	var count: int = _size.x * _size.y
 	_tiles.resize(count)
@@ -271,6 +272,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_filled.resize(count)
 	_span_x.resize(count)
 	_span_y.resize(count)
+	_lying.resize(count)
 	_klass.resize(count)
 	_part.resize(count)
 	_drop.resize(count)
@@ -298,6 +300,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_depths[at] = clampi(shape.depth(shape_class), 1, 16)
 			_round[at] = 1 if shape.is_round(shape_class) else 0
 			_filled[at] = 1 if shape.is_filled(shape_class) else 0
+			_lying[at] = 1 if shape.is_lying(shape_class) else 0
 			var span: Vector2i = shape.span_cells(shape_class)
 			_span_x[at] = maxi(span.x, 1)
 			_span_y[at] = maxi(span.y, 1)
@@ -776,12 +779,29 @@ func _cutout(
 	var edge: int = int(TILE)
 	var tile: int = _tiles[at]
 	var origin := Vector2i(tx - start.x, ty - start.y) * edge
-	# Every tile of the structure stands at the FOOT's depth, not at its own row's:
-	# what the drawing's upper rows depict is the top of the thing standing on the
-	# ground, and giving each row its own cell's depth is what would leave the
-	# leaves beside the pot rather than over it.
-	var mid: float = float((start.y + across.y - 1) >> 1) * CELL_TILES * TILE \
-		+ CELL_TILES * TILE * 0.5
+
+	# Where the drawing's own rows GO in three dimensions, which is the whole
+	# difference between the two drawings this size.
+	#
+	# The potted plant STANDS: its four rows are leaves above a pot, so the
+	# structure is one column of art as tall as the drawing, and every tile of it
+	# sits at the depth of the foot. Giving each row its own cell's depth is what
+	# left the leaves beside the pot rather than over it.
+	#
+	# The long flower bed LIES: its four rows are the same bed carrying on away
+	# from the eye, so it is no taller than the small one, and each cell stands
+	# its own two rows at its own depth. Only the mask is cut over the whole
+	# thing, because a cell in the middle of the bed has no ground on its border
+	# for the flood to come in through.
+	var mid: float = 0.0
+	var top: float = 0.0
+	if _lying[at] == 1:
+		mid = float(ty >> 1) * CELL_TILES * TILE + CELL_TILES * TILE * 0.5
+		top = CELL_TILES * TILE - float((ty & 1) * edge)
+	else:
+		mid = float((start.y + across.y - 1) >> 1) * CELL_TILES * TILE \
+			+ CELL_TILES * TILE * 0.5
+		top = float(span.y - origin.y)
 
 	var taken := PackedByteArray()
 	taken.resize(edge * edge)
@@ -813,7 +833,7 @@ func _cutout(
 					taken[(row + down) * edge + column + across_step] = 1
 			var half: float = depth * 0.5 * float(level) / float(LEVELS)
 			_cutout_box(
-				tx, tile, atlas, mask, origin, span,
+				tx, tile, atlas, mask, origin, span, top,
 				Rect2i(column, row, wide, tall), mid - half, mid + half
 			)
 
@@ -834,11 +854,11 @@ func _drawn(mask: PackedByteArray, span: Vector2i, px: int, py: int) -> bool:
 
 func _cutout_box(
 	tx: int, tile: int, atlas: RefCounted, mask: PackedByteArray,
-	origin: Vector2i, span: Vector2i, box: Rect2i, back: float, front: float
+	origin: Vector2i, span: Vector2i, top: float, box: Rect2i, back: float, front: float
 ) -> void:
 	var x0: float = float(tx) * TILE + float(box.position.x)
 	var x1: float = x0 + float(box.size.x)
-	var high: float = float(span.y - (origin.y + box.position.y))
+	var high: float = top - float(box.position.y)
 	var low: float = high - float(box.size.y)
 	var uv: Rect2 = atlas.uv_box(tile, box)
 
@@ -874,20 +894,20 @@ func _cutout_box(
 					run = step
 				elif not open and run >= 0:
 					_cutout_edge(
-						tx, tile, atlas, origin, span, box, back, front,
+						tx, tile, atlas, origin, span, top, box, back, front,
 						horizontal, near, run, step
 					)
 					run = -1
 
 
 func _cutout_edge(
-	tx: int, tile: int, atlas: RefCounted, origin: Vector2i, span: Vector2i, box: Rect2i,
-	back: float, front: float, horizontal: bool, near: bool, from: int, to: int
+	tx: int, tile: int, atlas: RefCounted, origin: Vector2i, span: Vector2i, top: float,
+	box: Rect2i, back: float, front: float, horizontal: bool, near: bool, from: int, to: int
 ) -> void:
 	if horizontal:
 		var x0: float = float(tx) * TILE + float(box.position.x + from)
 		var x1: float = float(tx) * TILE + float(box.position.x + to)
-		var y: float = float(span.y - (origin.y + box.position.y)) \
+		var y: float = top - float(box.position.y) \
 			- (0.0 if near else float(box.size.y))
 		# One row INSIDE the body where there is one. The drawing's own outline is
 		# what an upward face would otherwise wear, and a bush whose every top
@@ -911,8 +931,8 @@ func _cutout_edge(
 		return
 
 	var x: float = float(tx) * TILE + float(box.position.x + (0 if near else box.size.x))
-	var high: float = float(span.y - (origin.y + box.position.y + from))
-	var low: float = float(span.y - (origin.y + box.position.y + to))
+	var high: float = top - float(box.position.y + from)
+	var low: float = top - float(box.position.y + to)
 	var uv: Rect2 = atlas.uv_box(
 		tile, Rect2i(box.position.x + (0 if near else box.size.x - 1),
 			box.position.y + from, 1, to - from)
@@ -994,10 +1014,15 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 ##
 ## The nearest flat tile inward from the edge is that floor, which is why a
 ## shoreline carries the water out rather than the beach.
+##
+## OUT OF DOORS ONLY. A room ends at its walls and there is nothing past them:
+## carrying a floor out of a house would lay its lino across the void it is
+## drawn against. The host is what says which a map is.
 const BORDER_TILES: int = 32
 ## How far in from the edge to look for it before giving up.
 const BORDER_REACH: int = 8
 var _border: Dictionary = {}
+var _outside: bool = false
 
 
 func _emit_border(tx: int, ty: int, atlas: RefCounted) -> void:

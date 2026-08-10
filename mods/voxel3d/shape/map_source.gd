@@ -71,6 +71,13 @@ func tile_at(tile_x: int, tile_y: int) -> int:
 	)
 
 
+## Whether the map is out of doors, which is the host's own question to answer:
+## `Gen2WorldPhoneHost.is_outside_environment` is what the game asks before it
+## lets a phone call through or clears a Flash.
+func outside() -> bool:
+	return _map != null and Gen2WorldPhoneHost.is_outside_environment(_map.environment)
+
+
 ## The walk cell's collision permission, which is what decides a shape.
 func permission_at(cell: Vector2i) -> int:
 	if _world != null:

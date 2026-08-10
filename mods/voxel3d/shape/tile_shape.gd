@@ -83,6 +83,12 @@ func span_cells(shape_class: StringName) -> Vector2i:
 	return _profile.SPANS.get(shape_class, Vector2i.ONE)
 
 
+## Whether the drawing's extra cells are depth rather than height: a long flower
+## bed is no taller than a short one.
+func is_lying(shape_class: StringName) -> bool:
+	return bool(_profile.LYING.get(shape_class, false))
+
+
 func is_filled(shape_class: StringName) -> bool:
 	return bool(_profile.FILLED.get(shape_class, false))
 

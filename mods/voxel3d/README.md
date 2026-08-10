@@ -166,13 +166,18 @@ other.
 
 ## Past the edge of the map
 
-The ground runs on for another thirty-two tiles rather than stopping dead, so a
-route ends at a horizon instead of at a cliff of nothing, and a fight staged near
+Out of doors, the ground runs on for another thirty-two tiles rather than
+stopping dead, so a route ends at a horizon instead of at a cliff of nothing, and a fight staged near
 an edge is not shot against sky. What is carried out is the FLOOR at that edge
 and nothing else: the tree line or the fence a map ends in is a thing standing on
 the floor, and repeating it outward would build a wall around the world. The
 floor is the nearest flat tile inward from the edge, which is why a shoreline
 carries the water out and not the beach.
+
+Out of doors only: a room ends at its walls and there is nothing past them, so
+carrying a floor out of a house would lay its lino across the void it is drawn
+against. `Gen2WorldPhoneHost.is_outside_environment` is the host's own answer to
+which a map is.
 
 At any draw distance short of FULL the window clips most of it. At FULL it is
 paid for whole, and on a large route that is about as much geometry again as the
@@ -181,17 +186,22 @@ map itself.
 ## A drawing bigger than one cell
 
 A cutout stands the drawing's own silhouette up, and some drawings are bigger
-than the cell they start in: the potted plant is two tiles wide and four tall,
-and so is the tall brick flower bed. The mask is cut over the whole drawing, or
-the flood runs along the seam between its cells and each half ends up standing on
-the floor by itself, leaves beside the pot rather than on top of it. Every tile
-of one drawing also stands at the depth of its FOOT rather than of its own row,
-which is what keeps it one object.
+than the cell they start in. The mask is cut over the whole drawing, or the flood
+runs along the seam between its cells: a cell in the middle of a flower bed has
+no ground on its own border for the flood to come in through, and would be eaten
+whole.
 
-How big a drawing is comes from the class, and whether a given placement is that
-big comes from the placement: the small flower bed and the tall one are drawn out
-of the same top and bottom tiles, so the class says how large it can get and the
-map says whether this one is.
+What those extra rows MEAN is the drawing's own business, and two drawings of the
+same size mean opposite things. The potted plant's four rows are leaves above a
+pot, so it stands as tall as the drawing and every tile of it sits at the depth
+of the foot; giving each row its own depth would leave the leaves beside the pot.
+The long flower bed's four rows are the same bed carrying on away from the eye,
+so it is no taller than the short bed beside it and each of its cells stands its
+own two rows at its own depth.
+
+How big a drawing can be comes from the class; whether a given placement is that
+big comes from the map, because the short bed and the long one are drawn out of
+the same top and bottom tiles.
 
 ## Where a shape comes from
 

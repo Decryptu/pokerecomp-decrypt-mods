@@ -107,6 +107,19 @@ const SPANS: Dictionary = {
 	&"flowers": Vector2i(1, 2),
 }
 
+## The cutouts whose extra cells are DEPTH rather than height.
+##
+## Two drawings this size and they mean opposite things. The potted plant's four
+## rows are leaves above a pot: it stands, as tall as the drawing. The long
+## flower bed's four rows are the same bed carrying on away from the eye: it is
+## no taller than the small bed beside it, only longer, so each of its cells
+## stands its own two rows at its own depth. Only the mask is cut over the whole
+## drawing, because a cell in the middle of the bed has no ground on its own
+## border for the flood to come in through.
+const LYING: Dictionary = {
+	&"flowers": true,
+}
+
 ## The cutouts whose drawing is a solid body the flood cannot be trusted with.
 ##
 ## The wooden sign is the case: its board is painted the same palette index as
