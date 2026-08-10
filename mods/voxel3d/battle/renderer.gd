@@ -20,13 +20,6 @@ extends Control
 ## field the panels already imply.
 
 const CELL: float = 16.0
-## Species pics are up to 56 pixels across and stand about three walk cells tall
-## on the map, which is the scale that reads as a creature rather than a poster.
-const PIC_SCALE: float = 0.86
-## A trainer is drawn at the same 56 pixels as a big Pokemon but is a person, so
-## they stand a little over three cells: taller than most of what they send out,
-## which is what makes the pair read as a trainer and their Pokemon.
-const TRAINER_SCALE: float = 0.92
 
 var _data: GameData = null
 var _view: Dictionary = {}
@@ -62,6 +55,7 @@ const PANEL_TINT := Color(1.0, 1.0, 1.0, 0.52)
 var _hud: Gen2BattleHud = null
 var _panels_backing: Array[ColorRect] = []
 var _hud_layers: Array[TextureRect] = []
+var _battlers: Array[TextureRect] = []
 var _pic_textures: Dictionary = {}
 var _native := Vector2i(Gen2Screen.WIDTH, Gen2Screen.HEIGHT)
 
@@ -120,8 +114,8 @@ func set_view(view: Dictionary) -> void:
 
 
 func refresh() -> void:
-	_place_battlers()
 	_frame_camera()
+	_place_battlers()
 	_draw_hud()
 
 
@@ -136,6 +130,7 @@ func handle_battle_input(event: InputEvent) -> bool:
 func _process(delta: float) -> void:
 	_arena.advance(delta)
 	_frame_camera()
+	_place_battlers()
 
 
 func _load_modules() -> Dictionary:
@@ -167,9 +162,6 @@ func _build_arena() -> void:
 		return
 
 	var source: RefCounted = _map_source_script.new(null, map, tileset)
-	# The arena is composed against the same collision the mesh is built from,
-	# so the ground the two battlers stand on is ground in the geometry too.
-	_arena.stage(_context, source)
 	_stage.set_time_of_day(_context.time_of_day)
 	if _atlas.build(_data, map, tileset, _context.time_of_day):
 		_stage.set_texture(_atlas.texture)
@@ -177,108 +169,76 @@ func _build_arena() -> void:
 	_stage.set_terrain(_mesher.build(
 		source, _tile_shape_script.new(_profile, tileset.number), _atlas
 	))
+	# Staged AFTER the mesh, because choosing where the fight goes asks how tall
+	# the things around it turned out to be, and only the mesh knows that.
+	_arena.stage(_context, source, _mesher)
 	# The arena has just moved, so the shot has to. Waiting for the next view
 	# leaves the camera wherever it was last framed, which before any battle is
 	# the map's own origin: a corner of the map with the fight nowhere in it.
 	_frame_camera()
-
-
-## How the boom is shortened, in samples from the shot's own eye back toward the
-## arena, and how far above a wall the eye has to clear to count as outside it.
-const BOOM_SAMPLES: int = 14
-const BOOM_CLEARANCE: float = 5.0
-## Where along the sight line testing starts. The end nearest the arena is meant
-## to be close to the ground, and testing it rejects every shot there is.
-const BOOM_SKIP: float = 0.3
-## Never closer to the arena than this, or the eye ends up inside a battler.
-const BOOM_MINIMUM: float = 0.4
-## How far the eye may climb to see over what is behind the player, in world
-## pixels. The last rung clears a three-cell structure, which is the tallest
-## anything unpinned is ever measured at.
-const BOOM_LIFTS: Array[float] = [0.0, 10.0, 22.0, 38.0, 58.0]
+	_place_battlers()
 
 
 func _frame_camera() -> void:
 	_stage.camera.fov = _arena.fov()
-	var target: Vector3 = _arena.target()
-	_stage.aim_camera(_boom(target, _arena.eye()), target)
+	_stage.aim_camera(_arena.eye(), _arena.target())
 
 
-## The eye moved until nothing stands between it and the arena.
+## The two battlers, and the opposing trainer behind theirs.
 ##
-## A fight is often started with a wall, a tree line or a house at the player's
-## back, and an eye composed several cells behind them ends up looking at the
-## inside of a facade.
-##
-## CLIMBING over what is in the way is tried before shortening, because the two
-## cost different things. Shortening keeps the angle and wrecks the composition:
-## the near battler is the closest thing to the eye, so pulling in a third swells
-## it to half the frame and pushes the pair it is fighting into the top edge.
-## Rising keeps every distance and only steepens the shot, which a diorama can
-## afford. Only when no height clears it does the boom come in.
-func _boom(target: Vector3, eye: Vector3) -> Vector3:
-	if _mesher == null:
-		return eye
-	for lift: float in BOOM_LIFTS:
-		var raised: Vector3 = eye + Vector3(0.0, lift, 0.0)
-		if _segment_clear(target, raised, 1.0):
-			return raised
-
-	var top: Vector3 = eye + Vector3(0.0, BOOM_LIFTS[BOOM_LIFTS.size() - 1], 0.0)
-	var clear: float = BOOM_MINIMUM
-	for step: int in range(1, BOOM_SAMPLES + 1):
-		var fraction: float = float(step) / float(BOOM_SAMPLES)
-		if fraction < BOOM_MINIMUM or not _segment_clear(target, top, fraction):
-			break
-		clear = fraction
-	var seat: Vector3 = target + (top - target) * clear
-	# A fight started in a walled-in cell has nowhere for the boom to go at all,
-	# and the minimum leaves the eye inside whatever is there. Lifting it clear
-	# of that column turns the worst case into a shot from above rather than one
-	# from inside a wall.
-	seat.y = maxf(seat.y, float(_mesher.height_at_position(seat)) + BOOM_CLEARANCE)
-	return seat
-
-
-## Whether the terrain stays below the line from the arena out to [param eye],
-## as far as [param fraction] of the way. Sampling the whole segment is the part
-## that matters: an eye high enough to clear every wall in the game can still
-## have one standing between it and what it is looking at.
-func _segment_clear(target: Vector3, eye: Vector3, fraction: float) -> bool:
-	for step: int in range(1, BOOM_SAMPLES + 1):
-		var along: float = fraction * float(step) / float(BOOM_SAMPLES)
-		if along < BOOM_SKIP:
-			continue
-		var at: Vector3 = target + (eye - target) * along
-		if at.y <= float(_mesher.height_at_position(at)) + BOOM_CLEARANCE:
-			return false
-	return true
-
-
-## The two battlers, as cards standing on the arena's ground.
+## Each picture is PINNED to its patch of ground: it is drawn in hardware pixels
+## at the place that patch projects to, at the size the cartridge drew it. That
+## is what keeps a battler crisp, and it is what the rig was solved to land in
+## the hardware's own picture slots, so nothing here can wander under a panel or
+## the text box.
 ##
 ## `player_pic_visible` is the cartridge's own answer for the stretch before the
-## back pic is placed, which is the intro slide; there is no slide out here, but
-## honouring it is what keeps the player's Pokemon off the field until it has
-## been sent out.
+## back picture is placed. There is no intro slide out here, but honouring it is
+## what keeps the player's Pokemon off the field until it has been sent out.
 func _place_battlers() -> void:
-	_stage.begin_cards()
-	# The trainer first, so their own Pokemon draws in front of them when the two
-	# cards overlap.
+	_stage.begin_blob_shadows()
+	var slot: int = 0
 	if StringName(_view.get("battle_kind", &"wild")) == &"trainer":
-		var trainer: Texture2D = _trainer_pic(int(_view.get("trainer_class", 0)))
-		if trainer != null:
-			_stage.add_standing_card(
-				trainer, _arena.enemy_trainer_ground(), TRAINER_SCALE
-			)
-	var enemy: Texture2D = _pic(int(_view.get("enemy_species", 0)), false)
-	if enemy != null:
-		_stage.add_standing_card(enemy, _arena.enemy_ground(), PIC_SCALE)
+		slot = _pin(
+			slot, _trainer_pic(int(_view.get("trainer_class", 0))),
+			_arena.enemy_trainer_ground()
+		)
+	slot = _pin(slot, _pic(int(_view.get("enemy_species", 0)), false), _arena.enemy_ground())
 	if bool(_view.get("player_pic_visible", true)):
-		var player: Texture2D = _pic(int(_view.get("player_species", 0)), true)
-		if player != null:
-			_stage.add_standing_card(player, _arena.player_ground(), PIC_SCALE)
-	_stage.end_cards()
+		slot = _pin(slot, _pic(int(_view.get("player_species", 0)), true), _arena.player_ground())
+	for index: int in range(slot, _battlers.size()):
+		_battlers[index].visible = false
+	_stage.end_blob_shadows()
+
+
+## One picture standing on [param ground], its feet at that point and its middle
+## over it, at a whole-number scale so a Game Boy pixel stays square.
+func _pin(slot: int, texture: Texture2D, ground: Vector3) -> int:
+	if texture == null:
+		return slot
+	var at: Vector2 = _stage.camera.unproject_position(ground)
+	var factor: int = _hud_scale()
+	var drawn := Vector2(texture.get_size()) * float(factor)
+	var rect: TextureRect = _battler(slot)
+	rect.texture = texture
+	rect.size = drawn
+	rect.position = _hud_origin() + at - Vector2(drawn.x * 0.5, drawn.y)
+	rect.visible = true
+	_stage.add_blob_shadow(ground, maxf(texture.get_width(), 16.0) * 0.3)
+	return slot + 1
+
+
+func _battler(slot: int) -> TextureRect:
+	while slot >= _battlers.size():
+		var rect := TextureRect.new()
+		rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# Under the panels, over the map: the hardware draws its pictures into
+		# the same background layer the panels sit on top of.
+		add_child(rect)
+		move_child(rect, 1 + _battlers.size())
+		_battlers.append(rect)
+	return _battlers[slot]
 
 
 ## One battler's picture, cropped to what it fills and cut out of its field, so

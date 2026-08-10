@@ -56,6 +56,14 @@ func _init() -> void:
 
 	_light = DirectionalLight3D.new()
 	_light.rotation_degrees = Vector3(-58.0, -35.0, 0.0)
+	# A diorama with no shadows reads as flat colour: the whole point of standing
+	# the drawings up is that they sit ON something.
+	_light.shadow_enabled = true
+	_light.directional_shadow_max_distance = 600.0
+	# The geometry is axis-aligned boxes on a flat plane, which is the shape that
+	# shows shadow acne worst; a normal bias rather than a depth one keeps the
+	# contact edge where the box meets the ground.
+	_light.shadow_normal_bias = 1.5
 	viewport.add_child(_light)
 
 	camera = Camera3D.new()
@@ -159,6 +167,75 @@ func add_standing_card(
 func end_cards() -> void:
 	for index: int in range(_cards_used, _cards.size()):
 		_cards[index].visible = false
+
+
+## A soft blob on the ground under something that is drawn rather than modelled.
+##
+## A battler is a flat picture pinned to the ground it stands on, so it casts no
+## shadow of its own and reads as pasted onto the map. One dark ellipse under it
+## is what puts it back on the floor, and it is what the eye actually reads a
+## contact shadow as anyway.
+func add_blob_shadow(at: Vector3, radius: float) -> void:
+	var blob: Sprite3D = _blob()
+	blob.pixel_size = radius * 2.0 / float(BLOB_PIXELS)
+	# A whisker above the ground: coplanar with it, the two z-fight.
+	blob.position = at + Vector3(0.0, 0.05, 0.0)
+	blob.visible = true
+
+
+func end_blob_shadows() -> void:
+	for index: int in range(_blobs_used, _blobs.size()):
+		_blobs[index].visible = false
+
+
+func begin_blob_shadows() -> void:
+	_blobs_used = 0
+
+
+const BLOB_PIXELS: int = 32
+var _blobs: Array[Sprite3D] = []
+var _blobs_used: int = 0
+var _blob_texture: Texture2D = null
+
+
+func _blob() -> Sprite3D:
+	if _blobs_used < _blobs.size():
+		var existing: Sprite3D = _blobs[_blobs_used]
+		_blobs_used += 1
+		return existing
+	var blob := Sprite3D.new()
+	blob.texture = _blob_art()
+	# Laid flat on the ground rather than billboarded, so it is a shadow on the
+	# floor and not a disc following the camera.
+	blob.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	blob.shaded = false
+	blob.transparent = true
+	blob.modulate = Color(0.0, 0.0, 0.0, 0.34)
+	# Blended rather than discarded, and never written to depth: a hard-edged
+	# cut-out would read as a painted disc, and a shadow that occludes is not a
+	# shadow.
+	blob.alpha_cut = SpriteBase3D.ALPHA_CUT_DISABLED
+	blob.no_depth_test = false
+	actors.add_child(blob)
+	_blobs.append(blob)
+	_blobs_used += 1
+	return blob
+
+
+func _blob_art() -> Texture2D:
+	if _blob_texture != null:
+		return _blob_texture
+	var image: Image = Image.create(BLOB_PIXELS, BLOB_PIXELS, false, Image.FORMAT_RGBA8)
+	var middle: float = float(BLOB_PIXELS - 1) * 0.5
+	for y: int in BLOB_PIXELS:
+		for x: int in BLOB_PIXELS:
+			var away: float = Vector2(x - middle, y - middle).length() / middle
+			# Squared falloff: a linear one has a visible rim where it reaches
+			# zero, which reads as an outline rather than as a shadow.
+			var strength: float = clampf(1.0 - away, 0.0, 1.0)
+			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, strength * strength))
+	_blob_texture = ImageTexture.create_from_image(image)
+	return _blob_texture
 
 
 func _card() -> Sprite3D:

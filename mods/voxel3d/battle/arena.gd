@@ -1,91 +1,108 @@
 extends RefCounted
 
-## Where a fight is staged on the map, and where it is shot from.
+## Where a fight is staged on the map, and the camera that shoots it.
 ##
-## `Gen2BattleWorldContext` says which cell the player was standing on and which
-## way they were facing when the encounter started. Everything below is derived
-## from that one line and the map's own collision: the two battlers stand on the
-## ground the player was walking toward, and the camera sits behind the player's
-## shoulder looking down the same axis.
+## The two battlers are PINNED to their patch of ground: each picture is drawn
+## wherever its cell projects to, not at a fixed place on the screen. So the
+## camera is not decoration. It is the thing that decides where the fight
+## appears, and it has to put those two patches exactly where the hardware puts
+## its two pictures:
 ##
-## Purely a composition. Nothing here reaches the battle, and the battle reaches
-## nothing here: a renderer that ignored all of it would draw the fight on a
-## white field, which is what the cartridge does.
+##     the player's, bottom centre of its 6x6 slot     (40, 96)
+##     the foe's,    bottom centre of its 7x7 slot     (124, 56)
+##
+## Four screen coordinates, so four equations. The rig below is their solution:
+## SIDE, BACK and HEIGHT place the eye relative to the arena's midpoint, LOOK
+## aims it, and FRAME_HEIGHT sets the lens. They are not numbers that looked
+## about right; they came out of a solver and they land both marks to within a
+## hundredth of a pixel. Changing the gap between the two battlers invalidates
+## every one of them.
+##
+## Landing those marks is also what keeps the fight readable: the panels and the
+## text box are drawn where the hardware draws them, and a composition that puts
+## each battler in its own hardware slot cannot collide with either.
+##
+## EAST is what decides which battler is on which side. The arena's axis runs
+## north to south with the foe at the north end, and an eye east of that axis
+## sees the near end swing left and the far end right. That is the layout
+## arrived at by standing in the right place rather than by mirroring anything,
+## which is why the axis is the map's own north and not the way the player
+## happened to be walking.
+##
+## Purely a composition: the camera looks at the map, and nothing here reaches
+## collision, movement, triggers or scripts.
 
 const CELL: float = 16.0
 
-## How far along the axis each battler stands, as a fraction of the clear run
-## found in front of the player, and the run the composition is drawn for.
-const PLAYER_ALONG: float = 0.2
-const ENEMY_ALONG: float = 0.72
-const IDEAL_RUN_CELLS: int = 6
-const MIN_RUN_CELLS: int = 2
-## How far each side stands off the arena's axis, in world pixels.
+## The gap between the two battlers, and the shape of ground that fits them.
 ##
-## The signs matter more than the sizes, and they are the hardware's. On the flat
-## view each panel sits OPPOSITE its own battler: the foe's picture is top right
-## under a panel top left, the player's is bottom left under a panel bottom
-## right. The panels are still drawn where the hardware puts them, so staging
-## each battler on its panel's side is what lands a block squarely on the Pokemon
-## it belongs to.
-const ENEMY_ASIDE: float = 13.0
-const PLAYER_ASIDE: float = -13.0
+## Three cells apart down one column, with a one-cell apron all round so the
+## camera looks across floor rather than into a wall:
+##
+##     x x x
+##     x O x     the foe
+##     x x x
+##     x x x
+##     x P x     the player's
+##     x x x
+##
+## When nowhere has room for that, the apron is given up and the bare column
+## will do, because a corridor or a shop floor has room for the fight but not
+## for the apron. If even the column will not fit, the fight is staged on the
+## player's own cell and the camera takes what it can get.
+const GAP: float = 48.0
+const GAP_CELLS: int = 3
+const APRON_CELLS: int = 1
+## How far from the player the search looks for that shape.
+const SEARCH_CELLS: int = 6
 
-## How far behind their Pokemon the opposing trainer stands, and how much further
-## out from the axis, which keeps them clear of what they sent out.
-const TRAINER_BEHIND: float = 26.0
-const TRAINER_ASIDE: float = 13.0
+## The rig, in world pixels, solved against the four anchors above with the two
+## battlers three cells apart: a 23.6 degree lens from about five cells back and
+## two above the floor, which is what a 48 pixel picture standing on a 16 pixel
+## cell forces on a 160 pixel screen.
+const SIDE: float = 54.43
+const BACK: float = 87.38
+const HEIGHT: float = 32.78
+const LOOK_X: float = -3.54
+const LOOK_Y: float = -0.47
+## How much world the frame is tall enough to hold at the aim distance. Together
+## with that distance it is the lens, and it is what the zoom multiplies: moving
+## the eye alone would change the perspective without changing the framing.
+const FRAME_HEIGHT: float = 45.95
 
-## How many places along the axis a battler is tried before it gives up and
-## stands on the arena's own cell.
-const SETTLE_STEPS: int = 6
+## Where the opposing trainer stands: behind their own Pokemon and off its
+## shoulder, so the pair reads as one side of the fight and neither hides the
+## other.
+const TRAINER_BEHIND: float = 14.0
+const TRAINER_ASIDE: float = -22.0
 
-## How far to look for clear ground before giving up and staging on the spot.
-const SEARCH_CELLS: int = 8
-## How far the arena may move from the player's own cell to find room.
-const RELOCATE_CELLS: int = 4
+## How the shot is checked against the map. Walkable ground is not the same
+## question as being able to SEE the two of them: the eye is low and a long way
+## back, so a hedge, a ledge lip or a building corner anywhere along that line
+## hides a battler completely while the cells it stands on are perfectly
+## walkable. Every candidate arena is tested by looking down both sight lines.
+const CLEARANCE_SAMPLES: int = 12
+const CLEARANCE: float = 4.0
+## How high up each battler has to be visible, which is about the middle of a
+## picture: a shot that can see its feet and nothing else is not a shot.
+const CLEARANCE_HEIGHT: float = 24.0
 
-## The eye, relative to the player's cell: behind it, off to one side, and above.
-## The offset to one side is what makes it a shot over a shoulder rather than a
-## line through both battlers, and it is what the lens is aimed back across.
-const EYE_BACK: float = 150.0
-const EYE_SIDE: float = 26.0
-const EYE_HEIGHT: float = 62.0
-## Where the lens looks, along the axis and above the ground. Biased toward the
-## foe, because the shot is of what is being fought.
-const LOOK_ALONG: float = 0.5
-## Below the pair's own middle rather than level with it. Whatever the lens is
-## aimed at sits in the middle of the frame, and the middle is not free here: the
-## text box owns the bottom third of the hardware screen and is drawn over this
-## view, so aiming low rides the pair up into the part that is still visible. Not
-## the ground itself, though, or the sight line the boom tests starts underneath
-## the terrain and reads as blocked wherever it is.
-const LOOK_HEIGHT: float = 20.0
-
-## How far the eye may swing around the arena and climb above its own seat, in
-## degrees, and the step a key or a drag moves it by. Right ends side on, with
-## both battlers the same distance away instead of one behind the other; left
-## stops at the shot the rig was composed for, because there is nothing to the
-## left of it.
-const SWING_LIMITS := Vector2(0.0, 90.0)
-const CLIMB_LIMITS := Vector2(0.0, 45.0)
-const SWING_STEP: float = 7.5
-const CLIMB_STEP: float = 5.0
-## The lens, and how far it opens as the shot swings away from the composed one:
-## swinging the eye round spreads the two battlers apart, so the frame has to
-## widen by the amount they spread or one of them leaves it.
-const FOV_BASE: float = 34.0
-const FOV_SWING: float = 16.0
-
-const ZOOM_LIMITS := Vector2(0.55, 1.8)
+## What the player may do to the shot. Zero swing is the composition the rig was
+## solved for and the stop, because past it the two battlers start swapping sides
+## and the panels stop belonging to them. One swing ends square to the axis,
+## where both stand at the same distance; one climb ends 45 degrees above the
+## rig's own stance.
+const CLIMB_RANGE: float = 45.0
+const SWING_STEP: float = 0.08
+const CLIMB_STEP: float = 0.08
+const ZOOM_LIMITS := Vector2(0.55, 2.0)
 const ZOOM_STEP: float = 0.12
 const TWEEN_TIME: float = 0.22
 
-## Where the arena is, resolved once per battle.
 var _source: RefCounted = null
-var _origin := Vector3.ZERO
-var _forward := Vector3(0.0, 0.0, 1.0)
-var _right := Vector3(1.0, 0.0, 0.0)
+var _heights: RefCounted = null
+## The arena's midpoint, halfway between the two battlers.
+var _mid := Vector3.ZERO
 
 var _swing: float = 0.0
 var _climb: float = 0.0
@@ -99,58 +116,40 @@ var _zoom_goal: float = 1.0
 var _t: float = 1.0
 
 
-## How far the arena reaches down its axis, in world pixels.
-var _run: float = float(IDEAL_RUN_CELLS) * CELL
-
-
-## A battle is staged down the axis the player was walking, which is the
-## direction whatever they ran into is standing in, on the clear ground that
-## direction actually has.
-##
-## The facing is only the preference. A player who meets something with their
-## back to a wall has no room that way, and standing the foe inside a building is
-## worse than turning the shot: so each cardinal direction is measured for how
-## far it runs over walkable ground, and the longest wins with the facing
-## breaking ties. [param source] is a `map_source.gd` and may be null, which
-## stages on the spot.
-func stage(context: Gen2BattleWorldContext, source: RefCounted = null) -> void:
+## Finds the ground this fight is shot on. [param source] is a `map_source.gd`
+## and may be null, which stages on the player's own cell.
+## [param heights] is the built `mesher.gd`, which is what answers how tall the
+## thing standing in a cell turned out to be. Staging happens after the mesh for
+## exactly that reason.
+func stage(
+	context: Gen2BattleWorldContext,
+	source: RefCounted = null,
+	heights: RefCounted = null,
+) -> void:
 	_source = source
-	_run = float(IDEAL_RUN_CELLS) * CELL
+	_heights = heights
 	if context == null:
-		_origin = Vector3.ZERO
-		_forward = Vector3(0.0, 0.0, 1.0)
-		_right = Vector3(1.0, 0.0, 0.0)
+		_mid = Vector3.ZERO
 		return
-
-	_origin = Vector3(
-		context.player_cell.x * CELL + CELL * 0.5,
-		0.0,
-		context.player_cell.y * CELL + CELL * 0.5
-	)
-	_forward = _direction(context.player_facing)
+	var at: Vector2i = context.player_cell
 	if source != null:
-		var found: Dictionary = _find_ground(source, context.player_cell, context.player_facing)
-		_origin = Vector3(
-			int(found["cell"].x) * CELL + CELL * 0.5,
-			0.0,
-			int(found["cell"].y) * CELL + CELL * 0.5
-		)
-		_forward = _direction(int(found["facing"]))
-		_run = float(maxi(int(found["run"]), MIN_RUN_CELLS)) * CELL
-	_right = Vector3(-_forward.z, 0.0, _forward.x)
+		at = _find_ground(source, context.player_cell)
+	# The cell the shape matched at is where the player's own battler stands, so
+	# the midpoint is half the gap north of it.
+	_mid = _centre(at) + Vector3(0.0, 0.0, -GAP * 0.5)
 
 
-## The nearest cell with room to fight in, and the direction that room runs.
+## The nearest cell the arena's shape fits on, with the player's battler standing
+## there and the foe three cells north.
 ##
-## The player's own cell is the first candidate and wins any tie, so the ordinary
-## fight is staged exactly where they stopped. A player boxed into a walled yard
-## has no arena there at all, though, and no camera placement rescues a shot with
-## a fence through the middle of it: so the search widens by rings until it finds
-## ground with a clear run, which is what puts the fight on the path outside
-## rather than inside the wall.
-func _find_ground(source: RefCounted, from: Vector2i, facing: int) -> Dictionary:
-	var best := {"cell": from, "facing": facing, "run": 0}
-	for radius: int in range(0, RELOCATE_CELLS + 1):
+## The player's own cell is tried first and wins any tie, so an ordinary fight is
+## staged where they stopped. The search then widens by rings, preferring the
+## full shape with its apron and keeping the best bare column it saw in case
+## nothing has room for one.
+func _find_ground(source: RefCounted, from: Vector2i) -> Vector2i:
+	var fallback: Vector2i = from
+	var found_column: bool = false
+	for radius: int in range(0, SEARCH_CELLS + 1):
 		for offset_y: int in range(-radius, radius + 1):
 			for offset_x: int in range(-radius, radius + 1):
 				# Only the ring itself: the inside was searched at a smaller
@@ -158,132 +157,136 @@ func _find_ground(source: RefCounted, from: Vector2i, facing: int) -> Dictionary
 				if radius > 0 and absi(offset_x) != radius and absi(offset_y) != radius:
 					continue
 				var cell: Vector2i = from + Vector2i(offset_x, offset_y)
-				if source.permission_at(cell) != Gen2WorldCollision.LAND_TILE:
-					continue
-				for candidate: int in 4:
-					# The player's facing is tried first at every cell, so an
-					# equal run keeps the direction they were walking.
-					var try_facing: int = facing if candidate == 0 \
-						else (candidate - 1 if candidate - 1 < facing else candidate)
-					var run: int = _clear_run(source, cell, try_facing)
-					if run > int(best["run"]):
-						best = {"cell": cell, "facing": try_facing, "run": run}
-		if int(best["run"]) >= IDEAL_RUN_CELLS:
-			break
-	return best
+				if _fits(source, cell, APRON_CELLS) and _in_shot(cell):
+					return cell
+				if not found_column and _fits(source, cell, 0) and _in_shot(cell):
+					fallback = cell
+					found_column = true
+	return fallback
 
 
-## Walkable cells in a straight line from the player, capped: past the ideal run
-## a longer corridor is no better a stage, and measuring the whole of a route
-## would let one open direction always win.
-func _clear_run(source: RefCounted, from: Vector2i, facing: int) -> int:
-	var step := Vector2i(
-		int(_direction(facing).x), int(_direction(facing).z)
-	)
-	var run: int = 0
-	while run < SEARCH_CELLS:
-		var cell: Vector2i = from + step * (run + 1)
-		if source.permission_at(cell) != Gen2WorldCollision.LAND_TILE:
-			break
-		run += 1
-	return mini(run, IDEAL_RUN_CELLS)
+## Whether the shot this arena would be given can actually see both battlers.
+##
+## Answered against the canonical rig rather than wherever the player last left
+## the camera: whether a fight can be staged somewhere is a fact about the
+## ground, and reading it through a steered angle would pick a different arena
+## depending on where the camera was swung an hour ago.
+func _in_shot(cell: Vector2i) -> bool:
+	if _heights == null:
+		return true
+	var mid: Vector3 = _centre(cell) + Vector3(0.0, 0.0, -GAP * 0.5)
+	var seat: Vector3 = mid + Vector3(SIDE, HEIGHT, BACK)
+	if seat.y <= float(_heights.height_at_position(seat)) + CLEARANCE:
+		return false
+	for ground: Vector3 in [
+		mid + Vector3(0.0, 0.0, -GAP * 0.5), mid + Vector3(0.0, 0.0, GAP * 0.5)
+	]:
+		if not _sight_line(seat, ground + Vector3(0.0, CLEARANCE_HEIGHT, 0.0)):
+			return false
+	return true
 
 
-static func _direction(facing: int) -> Vector3:
-	match facing:
-		Gen2WorldSprite.FACING_UP:
-			return Vector3(0.0, 0.0, -1.0)
-		Gen2WorldSprite.FACING_LEFT:
-			return Vector3(-1.0, 0.0, 0.0)
-		Gen2WorldSprite.FACING_RIGHT:
-			return Vector3(1.0, 0.0, 0.0)
-	return Vector3(0.0, 0.0, 1.0)
+func _sight_line(from: Vector3, to: Vector3) -> bool:
+	for step: int in range(1, CLEARANCE_SAMPLES):
+		var at: Vector3 = to + (from - to) * (float(step) / float(CLEARANCE_SAMPLES))
+		if at.y <= float(_heights.height_at_position(at)) + CLEARANCE:
+			return false
+	return true
 
 
-## Where each battler's feet are. The player's own Pokemon stands between the
-## player and the foe, on the near side of the axis, which is the arrangement
-## the flat view draws from the side.
-func player_ground() -> Vector3:
-	return _settle(_run * PLAYER_ALONG, PLAYER_ASIDE)
+## Whether the arena's column stands on walkable ground at [param cell], with
+## [param apron] cells of walkable ground to each side of it. Collision is read
+## here and never written.
+func _fits(source: RefCounted, cell: Vector2i, apron: int) -> bool:
+	for step: int in range(-apron, GAP_CELLS + 1 + apron):
+		for across: int in range(-apron, apron + 1):
+			var at := Vector2i(cell.x + across, cell.y - step)
+			if source.permission_at(at) != Gen2WorldCollision.LAND_TILE:
+				return false
+	return true
 
 
+func _centre(cell: Vector2i) -> Vector3:
+	return Vector3(cell.x * CELL + CELL * 0.5, 0.0, cell.y * CELL + CELL * 0.5)
+
+
+## The foe stands at the north end of the axis and the player's own at the south.
 func enemy_ground() -> Vector3:
-	return _settle(_run * ENEMY_ALONG, ENEMY_ASIDE)
+	return _mid + Vector3(0.0, 0.0, -GAP * 0.5)
 
 
-## Where the opposing trainer stands: behind their own Pokemon and off its
-## shoulder, so the pair reads as one side of the fight and neither hides the
-## other. The flat view has the trainer occupy the enemy slot until the first
-## Pokemon is sent out and then slide away; out here there is room for both, and
-## keeping them is what makes a trainer battle look like one.
+func player_ground() -> Vector3:
+	return _mid + Vector3(0.0, 0.0, GAP * 0.5)
+
+
 func enemy_trainer_ground() -> Vector3:
-	return _settle(_run * ENEMY_ALONG + TRAINER_BEHIND, ENEMY_ASIDE + TRAINER_ASIDE)
+	return enemy_ground() + Vector3(TRAINER_ASIDE, 0.0, -TRAINER_BEHIND)
 
 
-## A place on the axis pulled back onto ground somebody could stand on.
-##
-## The composition is arithmetic: so many pixels along, so many to the side. The
-## map is not, and a fence post or a house corner sits in the middle of a clear
-## run often enough that placing a battler by arithmetic alone stands it inside a
-## wall. The offsets are preferences, so give up the side offset first, then walk
-## back along the axis toward the player, and take the first cell the map says is
-## walkable.
-##
-## Collision is only read here, never written: this decides where a drawing
-## stands and nothing else.
-func _settle(along: float, aside: float) -> Vector3:
-	var at: Vector3 = _origin + _forward * along + _right * aside
-	if _source == null:
-		return at
-	for side: float in [aside, aside * 0.5, 0.0]:
-		for step: int in SETTLE_STEPS:
-			var distance: float = along * (1.0 - float(step) / float(SETTLE_STEPS))
-			var candidate: Vector3 = _origin + _forward * distance + _right * side
-			if _walkable(candidate):
-				return candidate
-	# Nothing on the axis is standable, which means the arena itself is not. The
-	# origin was chosen as walkable ground, so it always is.
-	return _origin
-
-
-func _walkable(at: Vector3) -> bool:
-	return _source.permission_at(Vector2i(
-		floori(at.x / CELL), floori(at.z / CELL)
-	)) == Gen2WorldCollision.LAND_TILE
-
-
-## The eye, swung around the arena's centre and raised by whatever the player has
-## asked for. The swing turns the whole seat about the axis rather than sliding
-## it sideways, so the two battlers stay the same distance apart in the frame.
-func eye() -> Vector3:
-	var seat: Vector3 = -_forward * EYE_BACK + _right * EYE_SIDE
-	var swung: Vector3 = seat.rotated(Vector3.UP, deg_to_rad(_swing))
-	var pivot: Vector3 = target()
-	var from_pivot: Vector3 = _origin + swung + Vector3(0.0, EYE_HEIGHT, 0.0) - pivot
-	var climbed: Vector3 = from_pivot.rotated(
-		_right.rotated(Vector3.UP, deg_to_rad(_swing)), -deg_to_rad(_climb)
-	)
-	return pivot + climbed * _zoom
-
-
+## What the lens is aimed at, which is also what the eye swings and climbs about.
 func target() -> Vector3:
-	return _origin + _forward * (_run * LOOK_ALONG) + Vector3(0.0, LOOK_HEIGHT, 0.0)
+	return _mid + Vector3(LOOK_X, LOOK_Y, 0.0)
 
 
+## The eye. Zero swing, zero climb and one zoom is exactly the shot the rig was
+## solved for; the steer moves out from it and never past its stops.
+func eye() -> Vector3:
+	var yaw: float = -_swing * deg_to_rad(_swing_range())
+	var seat: Vector3 = _mid + Vector3(
+		SIDE * cos(yaw) - BACK * sin(yaw),
+		HEIGHT,
+		SIDE * sin(yaw) + BACK * cos(yaw)
+	)
+	if _climb <= 0.0:
+		return seat
+
+	# Climbed about the FOCUS at a constant radius, so the aim stays nailed to
+	# the pair and only the seat moves. How big anything is is the lens's job,
+	# and a rig doing both at once could do neither on purpose.
+	var focus: Vector3 = target()
+	var arm: Vector3 = seat - focus
+	var flat: float = Vector2(arm.x, arm.z).length()
+	var radius: float = arm.length()
+	if flat < 0.001 or radius < 0.001:
+		return seat
+	# Short of straight down, always: the placed camera's up vector is world up,
+	# which has no basis against a view looking along it.
+	var angle: float = minf(
+		atan2(arm.y, flat) + _climb * deg_to_rad(CLIMB_RANGE), deg_to_rad(85.0)
+	)
+	var reach: float = radius * cos(angle)
+	return focus + Vector3(
+		arm.x / flat * reach, radius * sin(angle), arm.z / flat * reach
+	)
+
+
+## The vertical field of view that frames FRAME_HEIGHT of world at the aim
+## distance, which is the lens the anchors were solved with. The zoom is the
+## lens rather than the distance, because the rig derives its field of view from
+## the two together and moving the eye alone would change the perspective
+## without changing the framing.
 func fov() -> float:
-	return FOV_BASE + FOV_SWING * (_swing / maxf(SWING_LIMITS.y, 1.0))
+	var distance: float = (eye() - target()).length()
+	if distance < 0.001:
+		return 45.0
+	return rad_to_deg(2.0 * atan((FRAME_HEIGHT * _zoom * 0.5) / distance))
 
 
-## The keys the battle screen does not read. `V` is the host's, so it never
-## arrives, and neither does anything the menu or the text box wants.
+## How far round the eye may swing before the picture stops being a battle: to
+## square-on with the axis, where both battlers stand at one distance.
+func _swing_range() -> float:
+	return 90.0 - rad_to_deg(atan2(SIDE, BACK))
+
+
+## The keys the battle screen does not claim. A Gen2Button never arrives here.
 func handle_input(event: InputEvent) -> bool:
 	var key := event as InputEventKey
 	if key != null and key.pressed:
 		match key.keycode:
-			KEY_A:
-				_aim(_swing_goal - SWING_STEP, _climb_goal, _zoom_goal)
 			KEY_D:
 				_aim(_swing_goal + SWING_STEP, _climb_goal, _zoom_goal)
+			KEY_A:
+				_aim(_swing_goal - SWING_STEP, _climb_goal, _zoom_goal)
 			KEY_W:
 				_aim(_swing_goal, _climb_goal + CLIMB_STEP, _zoom_goal)
 			KEY_S:
@@ -309,6 +312,7 @@ func handle_input(event: InputEvent) -> bool:
 	return false
 
 
+## Real frame time, so a fast-forwarded battle never spins the camera.
 func advance(delta: float) -> bool:
 	if _t >= 1.0:
 		return false
@@ -324,7 +328,7 @@ func _aim(swing: float, climb: float, zoom: float) -> void:
 	_swing_from = _swing
 	_climb_from = _climb
 	_zoom_from = _zoom
-	_swing_goal = clampf(swing, SWING_LIMITS.x, SWING_LIMITS.y)
-	_climb_goal = clampf(climb, CLIMB_LIMITS.x, CLIMB_LIMITS.y)
+	_swing_goal = clampf(swing, 0.0, 1.0)
+	_climb_goal = clampf(climb, 0.0, 1.0)
 	_zoom_goal = clampf(zoom, ZOOM_LIMITS.x, ZOOM_LIMITS.y)
 	_t = 0.0

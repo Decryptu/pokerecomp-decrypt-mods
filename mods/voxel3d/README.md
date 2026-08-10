@@ -19,8 +19,8 @@ of the player's own cartridge.
 Both axes of the battle camera stop where the composition does. Left stops at the
 shot the rig was solved for, because there is nothing to the left of it; right
 ends side on, with both battlers the same distance away instead of one behind the
-other. The lens opens as you swing, by the amount the pair spreads apart, so they
-stay framed at every angle.
+other. Down stops at the rig's own low stance and up is 45 degrees above it, taken
+about what the lens is aimed at so the pair stays framed the whole way.
 
 Movement and interaction keys never reach the mod: the world screen claims what
 it needs and offers the rest, so the camera can be steered while the game is
@@ -33,25 +33,27 @@ still played on the grid it always was.
 rebuild the map from its records with the same mesher the overworld uses and
 stand the two battlers on it.
 
-The shot is composed, not fixed. The arena runs down the axis the player was
-walking, because that is the direction whatever they ran into is standing in;
-each cardinal direction is measured for how far it runs over walkable ground and
-the longest wins, with the facing breaking ties. A player boxed into a walled
-yard has no arena where they stand, so the search widens by rings until it finds
-ground with room, which puts the fight on the path outside rather than inside the
-wall.
+The shot is a solve, not a taste. Each battler is pinned to its patch of ground
+and drawn in hardware pixels at the size the cartridge drew it, wherever that
+patch projects to, so the camera is what decides where the fight appears. It has
+to land those two patches on the hardware's own picture slots, bottom centre of
+the 6x6 for the player's and of the 7x7 for the foe's. Four coordinates, four
+equations, and `battle/arena.gd`'s rig is their solution: a 23.6 degree lens from
+about five cells back and two above the floor, with the two battlers three cells
+apart.
 
-The camera sits behind the player's shoulder looking down that axis. When
-something stands between it and the arena it climbs over it rather than pulling
-in, because the near battler is the closest thing to the eye and shortening a
-boom by a third swells it to half the frame; only a cell nothing clears makes it
-come in.
+Landing those marks is also what keeps the fight readable. The panels and the
+text box are drawn where the hardware draws them, and a composition that puts
+each battler in its own hardware slot cannot collide with either.
 
-Each battler is staged on its own panel's side. On the flat view a panel sits
-opposite its battler, the foe drawn top right under a panel top left, and the
-panels here are still drawn where the hardware puts them, so matching that is
-what keeps a block off the Pokemon it belongs to. A trainer's fight stands the
-opposing trainer behind their own Pokemon, in the cartridge's picture of them.
+The arena's axis is the map's own north, the foe at the north end, and the eye
+sits east of it: east is what decides which battler is on which side, and it is
+the hardware's layout arrived at by standing in the right place rather than by
+mirroring anything. Ground is chosen by the shape the fight needs, three cells
+down a column with a one-cell apron, and every candidate is tested down both
+sight lines, because walkable is not the same question as visible: a fence or a
+building corner hides a battler completely while the cells it stands on are
+perfectly walkable.
 
 Two layers, because a battle is two things at once. The map is geometry at window
 resolution; the panels, the bars and the text box stay hardware pixels, drawn at
