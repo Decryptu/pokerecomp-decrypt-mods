@@ -348,6 +348,7 @@ func _build(number: int) -> bool:
 		"crop": [CROP.x, CROP.y],
 		"crop_ground": [CROP_GROUND.x, CROP_GROUND.y],
 		"map": [source.group, source.number],
+		"maps_using": (entry["maps"] as Dictionary).size(),
 		"filler_block": grid["filler"],
 		"blocks": records,
 	}
