@@ -65,7 +65,11 @@ const HEIGHTS: Dictionary = {
 const DEPTHS: Dictionary = {
 	&"post": 8,
 	&"sign_post": 3,
-	&"bush": 14,
+	# Half a cell, and the reviewer's own pick between three renders of a real
+	# hedge: a bush as deep as it is wide leaves a gap between rank and rank, and
+	# a hedge several cells deep reads as corduroy. Shallower closes the gap
+	# without making a hedge one solid mass, which was the other candidate.
+	&"bush": 7,
 	&"sapling": 14,
 	&"tombstone": 5,
 	&"flowers": 12,
@@ -115,15 +119,6 @@ const ROOF_DROP: Dictionary = {
 	&"roof_edge": 1,
 	&"roof_corner": 2,
 }
-
-## The cutouts that MERGE with their own kind in the cell in front or behind.
-##
-## A bush is one cell and a hedge is several ranks of the same bush, so each cell
-## pinching its depth to nothing at its own edges leaves a gap between rank and
-## rank and the hedge reads as corduroy. A merged class runs through at full cell
-## depth wherever its neighbour is the same class, and only the ends of the run
-## are rounded. Empty until the reviewer has said which reads better.
-const MERGED: Dictionary = {}
 
 ## How the mesher draws each class.
 ##

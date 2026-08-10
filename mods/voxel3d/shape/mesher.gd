@@ -63,13 +63,6 @@ var _depths := PackedByteArray()
 ## solid body the border flood cannot be trusted with.
 var _round := PackedByteArray()
 var _filled := PackedByteArray()
-## Per tile: whether its cutout MERGES with the same class in the cell in front
-## or behind, and which class it is. A hedge is several cells of the same bush
-## drawing, and each cell pinching its own depth to nothing is what makes a rank
-## of them read as corduroy rather than as one mass.
-var _merged := PackedByteArray()
-var _klass := PackedInt32Array()
-var _class_ids: Dictionary = {}
 ## Per tile: which surface of a building it depicts, and how many bands a sloped
 ## roof tile has fallen from the flat section beside it.
 const PART_NONE: int = 0
@@ -197,8 +190,6 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_depths.resize(count)
 	_round.resize(count)
 	_filled.resize(count)
-	_merged.resize(count)
-	_klass.resize(count)
 	_part.resize(count)
 	_drop.resize(count)
 	_heights.resize(count)
@@ -216,7 +207,6 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 				_heights[at] = 0
 				_volume[at] = 0
 				_art[at] = ART_FLAT
-				_klass[at] = -1
 				_part[at] = PART_NONE
 				continue
 			var permission: int = source.permission_at(Vector2i(tx >> 1, cell_y))
@@ -226,10 +216,6 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_depths[at] = clampi(shape.depth(shape_class), 1, 16)
 			_round[at] = 1 if shape.is_round(shape_class) else 0
 			_filled[at] = 1 if shape.is_filled(shape_class) else 0
-			_merged[at] = 1 if shape.is_merged(shape_class) else 0
-			if not _class_ids.has(shape_class):
-				_class_ids[shape_class] = _class_ids.size()
-			_klass[at] = int(_class_ids[shape_class])
 			match shape.building_part(shape_class):
 				&"wall":
 					_part[at] = PART_WALL
@@ -643,8 +629,7 @@ func _cell_levels(mask: PackedByteArray, span: int, round_plan: bool) -> PackedB
 ## height off the art is the whole point: a bollard came out 15 px and a sign 14,
 ## and no class constant would have found either.
 func _cutout(
-	tx: int, ty: int, depth: float, round_plan: bool, filled: bool, merged: bool,
-	atlas: RefCounted
+	tx: int, ty: int, depth: float, round_plan: bool, filled: bool, atlas: RefCounted
 ) -> void:
 	var cell := Vector2i(tx >> 1, ty >> 1)
 	var cell_tiles: Array = []
@@ -653,16 +638,6 @@ func _cutout(
 			cell_tiles.append(_tile_at(cell.x * CELL_TILES + column, cell.y * CELL_TILES + row))
 	var mask: PackedByteArray = _cell_mask(cell_tiles, atlas, filled)
 	var levels: PackedByteArray = _cell_levels(mask, CELL_TILES * int(TILE), round_plan)
-
-	# A merged class does not pinch its depth towards a neighbour of its own
-	# kind: the rank runs through at full cell depth and only the ends of the run
-	# are rounded, which is what makes a hedge one mass rather than a row of
-	# blobs. The neighbour's own mask says which faces are interior.
-	var north := PackedByteArray()
-	var south := PackedByteArray()
-	if merged:
-		north = _neighbour_mask(tx, ty, -1, atlas, filled)
-		south = _neighbour_mask(tx, ty, 1, atlas, filled)
 
 	var span: int = CELL_TILES * int(TILE)
 	var edge: int = int(TILE)
@@ -699,12 +674,9 @@ func _cutout(
 				for across: int in wide:
 					taken[(row + down) * edge + column + across] = 1
 			var half: float = depth * 0.5 * float(level) / float(LEVELS)
-			var reach: float = CELL_TILES * TILE * 0.5
 			_cutout_box(
-				tx, tile, atlas, mask, origin, span, Rect2i(column, row, wide, tall),
-				mid - (reach if not north.is_empty() else half),
-				mid + (reach if not south.is_empty() else half),
-				north, south
+				tx, tile, atlas, mask, origin, span,
+				Rect2i(column, row, wide, tall), mid - half, mid + half
 			)
 
 
@@ -716,42 +688,6 @@ func _cutout(
 ## hidden anyway; cutting it is what keeps a silhouette's edge exactly the
 ## drawing's, and what lets the end walls wear their own end pixel's colour so a
 ## cut edge is never a foreign one.
-## The mask of the cell one step north or south, when that cell carries the same
-## merging class and so is part of the same mass. Empty otherwise, which is what
-## the caller reads as "this side is the end of the run".
-func _neighbour_mask(
-	tx: int, ty: int, step: int, atlas: RefCounted, filled: bool
-) -> PackedByteArray:
-	var at: int = ty * _size.x + tx
-	var ny: int = ty + step * CELL_TILES
-	if ny < 0 or ny >= _size.y:
-		return PackedByteArray()
-	var beyond: int = ny * _size.x + tx
-	if _merged[beyond] == 0 or _klass[beyond] != _klass[at]:
-		return PackedByteArray()
-	var cell := Vector2i(tx >> 1, ny >> 1)
-	var cell_tiles: Array = []
-	for row: int in CELL_TILES:
-		for column: int in CELL_TILES:
-			cell_tiles.append(_tile_at(cell.x * CELL_TILES + column, cell.y * CELL_TILES + row))
-	return _cell_mask(cell_tiles, atlas, filled)
-
-
-## Whether a neighbour's own drawing covers every pixel of this box, which makes
-## the face between them interior and not worth emitting.
-func _covered(
-	neighbour: PackedByteArray, origin: Vector2i, span: int, box: Rect2i
-) -> bool:
-	if neighbour.is_empty():
-		return false
-	for row: int in box.size.y:
-		for column: int in box.size.x:
-			if not _drawn(neighbour, span, origin.x + box.position.x + column,
-					origin.y + box.position.y + row):
-				return false
-	return true
-
-
 func _drawn(mask: PackedByteArray, span: int, px: int, py: int) -> bool:
 	if px < 0 or py < 0 or px >= span or py >= span:
 		return false
@@ -760,9 +696,7 @@ func _drawn(mask: PackedByteArray, span: int, px: int, py: int) -> bool:
 
 func _cutout_box(
 	tx: int, tile: int, atlas: RefCounted, mask: PackedByteArray,
-	origin: Vector2i, span: int, box: Rect2i, back: float, front: float,
-	north: PackedByteArray = PackedByteArray(),
-	south: PackedByteArray = PackedByteArray()
+	origin: Vector2i, span: int, box: Rect2i, back: float, front: float
 ) -> void:
 	var x0: float = float(tx) * TILE + float(box.position.x)
 	var x1: float = x0 + float(box.size.x)
@@ -770,18 +704,16 @@ func _cutout_box(
 	var low: float = high - float(box.size.y)
 	var uv: Rect2 = atlas.uv_box(tile, box)
 
-	if not _covered(south, origin, span, box):
-		_quad(
-			Vector3(x0, low, front), Vector3(x1, low, front),
-			Vector3(x1, high, front), Vector3(x0, high, front),
-			Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
-		)
-	if not _covered(north, origin, span, box):
-		_quad(
-			Vector3(x1, low, back), Vector3(x0, low, back),
-			Vector3(x0, high, back), Vector3(x1, high, back),
-			Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
-		)
+	_quad(
+		Vector3(x0, low, front), Vector3(x1, low, front),
+		Vector3(x1, high, front), Vector3(x0, high, front),
+		Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
+	)
+	_quad(
+		Vector3(x1, low, back), Vector3(x0, low, back),
+		Vector3(x0, high, back), Vector3(x1, high, back),
+		Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
+	)
 
 	# Along the top and the bottom, in columns; along the sides, in rows.
 	for horizontal: bool in [true, false]:
@@ -892,8 +824,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	if _art[at] == ART_CUTOUT:
 		_face_top(tx, ty, 0.0, atlas.uv(_ground_art(tx, ty)), SHADE_TOP_FLAT)
 		_cutout(
-			tx, ty, float(_depths[at]), _round[at] == 1, _filled[at] == 1,
-			_merged[at] == 1, atlas
+			tx, ty, float(_depths[at]), _round[at] == 1, _filled[at] == 1, atlas
 		)
 		return
 	var here: int = _heights[at]

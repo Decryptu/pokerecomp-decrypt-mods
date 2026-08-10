@@ -4,7 +4,9 @@ extends RefCounted
 ##
 ## Resolution order, and the order matters:
 ##
-##   per tile   1. a pin in `profile.gd`                          (authored)
+##   per tile   1. a pin in `profile.gd`, except a BUILDING pin in a walkable
+##                 cell, which is the pavement wearing the wall's own tile
+##                                                                 (authored)
 ##   per CELL   2. the cell's collision permission is water    -> "water"
 ##              3. the cell's collision permission is walkable -> "ground"
 ##   per tile   4. anything left                                -> "wall"
@@ -37,6 +39,13 @@ func _init(profile: GDScript, tileset_number: int) -> void:
 func at(tile: int, permission: int) -> StringName:
 	var pinned: StringName = _pin(tile)
 	if pinned != &"":
+		# A building is never walked on, and the one plain tile draws both a house
+		# wall and the pavement in front of it: tileset 3's tile 35 is most of a
+		# town's paving and also the blank part of a wall. The cell is what tells
+		# them apart, so this pin alone does not override collision, and the
+		# pavement lies flat instead of standing a band above the floor beside it.
+		if permission == Gen2WorldCollision.LAND_TILE and building_part(pinned) != &"":
+			return &"ground"
 		return pinned
 	match permission:
 		Gen2WorldCollision.WATER_TILE:
@@ -81,9 +90,6 @@ func building_part(shape_class: StringName) -> StringName:
 func roof_drop(shape_class: StringName) -> int:
 	return int(_profile.ROOF_DROP.get(shape_class, 0))
 
-
-func is_merged(shape_class: StringName) -> bool:
-	return bool(_profile.MERGED.get(shape_class, false))
 
 
 func _pin(tile: int) -> StringName:
