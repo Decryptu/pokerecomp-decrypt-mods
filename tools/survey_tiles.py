@@ -7,11 +7,16 @@ because nothing has claimed them. A tile on its own is unreadable, so each one
 is shown where the cartridge actually uses it, ringed in red, with most of a
 Game Boy screen around it.
 
-Ends with the open questions that are not about any one tile, because the answer
-to "should a bush be round" is worth more than fifty tile names and there is
-nowhere else to put it.
+Ends with the open questions that are not about any one tile, each with the
+mod's own picture of the place it is about. That is where the best of every
+round has come from: one round's four boxes returned three real faults, worth
+more than its hundred and thirty tile names.
 
-    tools/survey_tiles.py <survey dir>       # writes <survey dir>/tiles.html
+    tools/survey_tiles.py <survey dir> [all] # writes <survey dir>/tiles.html
+
+Only the tilesets carrying the most maps are asked about, in that order, because
+all thirty-five is two and a half thousand tiles and nobody is answering that in
+one sitting. Pass `all` to include the rest anyway.
 
 SAVE writes `tiles.txt`: `ts<n> <tile> <words>` a line, then `Q <id> <words>`
 for the questions.
@@ -26,20 +31,33 @@ QUICK = [
     "tree", "bush", "fence", "sign", "part of a building", "roof",
 ]
 
-# Asked once, at the end, in their own boxes. Each is something the geometry
-# cannot decide and one sentence settles.
+# The tilesets worth a reviewer's time first, by how many maps place them. Four
+# at a time: a round of about a hundred and fifty is what one sitting has held,
+# and 1 and 12 are the next round.
+PRIORITY = [5, 3, 7, 8]
+
+# Asked once, at the end, in their own boxes, each with the mod's own picture of
+# the place it is about. Each is something the geometry cannot decide and one
+# sentence settles.
 QUESTIONS = [
-    ("sign", "The wooden route sign: its board is the same colour as the floor, "
-             "so the cut-out ate it and only the letters survived. Describe the "
-             "sign as you see it: how many pixels wide is the board, which rows "
-             "are the board, which are the posts, and is there anything under it?"),
-    ("round", "Bush, cuttable tree, bollard and wooden pole are to be made ROUND. "
-              "Their outline is dark, so revolving them naively paints them dark "
-              "all the way round. Is it better to keep the front face's own "
-              "colours and only round the SILHOUETTE, or to accept a dark rim?"),
-    ("tops", "The tops of the bushes read very dark, because the drawing's own "
-             "black outline lands on every upward face. Lighten them, or leave?"),
-    ("next", "Anything else you noticed that is wrong and I have not asked about."),
+    ("cliff", "The rock wall and what is behind it. You said a rock wall is two "
+              "tiles high and then the higher flat floor. In this picture the "
+              "stone floor behind the wall is at ground level, not on top of it, "
+              "so the wall reads as a fence in a field. How should this look: how "
+              "far above the lower ground does the upper floor sit, and is the "
+              "brown expanse behind the buildings that upper floor or something "
+              "else?", "ask_cliff.png"),
+    ("roof", "The buildings. Roofs are built from your descriptions: flat "
+             "sections lie flat, the gable falls a band per column, and the wall "
+             "under them stands as many bands as it has rows. The gable is "
+             "STEPPED, one 8 pixel drop at a time, because a roof face here is "
+             "always flat. Does that read acceptably, or is anything about these "
+             "buildings plainly wrong?", "ask_center.png"),
+    ("town", "A whole town. Anything here that is not what the drawing means?",
+             "ask_town.png"),
+    ("room", "Inside a house. Same question: anything plainly wrong?",
+             "ask_room.png"),
+    ("next", "Anything else you noticed and I have not asked about.", ""),
 ]
 
 PAGE = """<!doctype html>
@@ -104,7 +122,13 @@ PAGE = """<!doctype html>
     <p class="hint">
       <kbd>Enter</kbd> files it and moves on, empty <kbd>Enter</kbd> skips,
       <kbd>Shift</kbd>+<kbd>Enter</kbd> goes back. Only the red box matters;
-      ignore the rest of the picture. Skip anything that is part of a building.
+      ignore the rest of the picture.
+    </p>
+    <p class="hint">
+      Say what it is in your own words, and if it is a thing rather than floor,
+      say how it SITS in a real world: tall like a wall, or low and flat like a
+      bed or a table. A drawing being tall on the screen does not mean the thing
+      is tall, and that has caught me out twice.
     </p>
   </div>
 </main>
@@ -140,10 +164,11 @@ function build() {
     const b = e.target.closest("button");
     if (b) { $("answer").value = b.dataset.w; $("answer").focus(); }
   };
-  $("questions").innerHTML = QUESTIONS.map(([id, text]) => `
+  $("questions").innerHTML = QUESTIONS.map(([id, text, shot]) => `
     <section>
       <h2>${id}</h2>
       <p>${text}</p>
+      ${shot ? `<img src="${shot}" width="760" style="margin: 0 0 10px">` : ""}
       <textarea data-q="${id}"></textarea>
     </section>`).join("");
   for (const box of document.querySelectorAll("textarea")) {
@@ -214,6 +239,12 @@ def main():
     if not sheets:
         print("no ask_ts*.json in %s: run tools/survey_context.gd first" % directory)
         return 1
+    everything = len(sys.argv) > 2 and sys.argv[2] == "all"
+    order = {number: at for at, number in enumerate(PRIORITY)}
+    sheets = [s for s in sheets if everything or s["tileset"] in order]
+    sheets.sort(key=lambda s: (order.get(s["tileset"], len(order)), s["tileset"]))
+    print("%d tiles over %d tilesets" % (
+        sum(len(s["tiles"]) for s in sheets), len(sheets)))
     page = (PAGE.replace("__DATA__", json.dumps(sheets))
                 .replace("__QUICK__", json.dumps(QUICK))
                 .replace("__QUESTIONS__", json.dumps(QUESTIONS)))
