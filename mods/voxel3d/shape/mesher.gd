@@ -117,7 +117,9 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	_emit_atlas = null
 	if _size == Vector2i.ZERO:
 		return false
-	var box := Rect2i(Vector2i.ZERO, _size)
+	var box := Rect2i(
+		-Vector2i(BORDER_TILES, BORDER_TILES), _size + Vector2i(BORDER_TILES, BORDER_TILES) * 2
+	)
 	if window.size.x > 0 and window.size.y > 0:
 		box = box.intersection(window)
 	if box.size.x <= 0 or box.size.y <= 0:
@@ -140,7 +142,10 @@ func emit_step(budget_usec: int) -> bool:
 	var until: int = Time.get_ticks_usec() + budget_usec
 	while _emit_row < _emit_box.end.y:
 		for tx: int in range(_emit_box.position.x, _emit_box.end.x):
-			_emit(tx, _emit_row, _emit_atlas)
+			if tx < 0 or _emit_row < 0 or tx >= _size.x or _emit_row >= _size.y:
+				_emit_border(tx, _emit_row, _emit_atlas)
+			else:
+				_emit(tx, _emit_row, _emit_atlas)
 		_emit_row += 1
 		# Checked a row at a time: a row of a town is well under a millisecond,
 		# and asking the clock per tile costs more than the tile does.
@@ -181,6 +186,10 @@ func size_tiles() -> Vector2i:
 ## thing is drawn is not a property of one tile.
 func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_size = Vector2i.ZERO
+	# Both are keyed by tile id, which means nothing without the tileset it came
+	# from, so a warp to a map on another tileset has to drop them.
+	_masks.clear()
+	_border.clear()
 	if source == null or not source.valid():
 		return
 	_size = source.size_cells() * RomLayout.MAP_BLOCK_CELL_WIDTH
@@ -844,6 +853,51 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	_side(tx, ty, here, _height_at(tx, ty - 1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
 	_side(tx, ty, here, _height_at(tx + 1, ty), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 	_side(tx, ty, here, _height_at(tx - 1, ty), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
+
+
+## What lies past the edge of the map: the FLOOR at that edge, carried outward.
+##
+## A route that stops dead a few cells past its edge is the one thing a
+## perspective view shows that a tile page never had to answer for, and a fight
+## staged near an edge is shot against sky. So the ground runs on. Only the
+## ground: the tree line or the fence a map ends in is a thing standing ON the
+## floor, and repeating it outward would build a wall around the world.
+##
+## The nearest flat tile inward from the edge is that floor, which is why a
+## shoreline carries the water out rather than the beach.
+const BORDER_TILES: int = 32
+## How far in from the edge to look for it before giving up.
+const BORDER_REACH: int = 8
+var _border: Dictionary = {}
+
+
+func _emit_border(tx: int, ty: int, atlas: RefCounted) -> void:
+	var edge := Vector2i(clampi(tx, 0, _size.x - 1), clampi(ty, 0, _size.y - 1))
+	var key: int = edge.y * _size.x + edge.x
+	if not _border.has(key):
+		_border[key] = _border_floor(edge)
+	var floor_at: Vector2i = _border[key]
+	if floor_at.x < 0:
+		return
+	_face_top(tx, ty, float(floor_at.y), atlas.uv(floor_at.x), SHADE_TOP_FLAT)
+
+
+## The tile id and height of the floor at one edge position, as a Vector2i, or a
+## negative tile where the edge is nothing but structures for as far as this
+## looks.
+func _border_floor(edge: Vector2i) -> Vector2i:
+	var inward := Vector2i(
+		1 if edge.x == 0 else (-1 if edge.x == _size.x - 1 else 0),
+		1 if edge.y == 0 else (-1 if edge.y == _size.y - 1 else 0)
+	)
+	for step: int in BORDER_REACH:
+		var at := edge + inward * step
+		if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
+			break
+		var index: int = at.y * _size.x + at.x
+		if _art[index] == ART_FLAT and _tiles[index] >= 0:
+			return Vector2i(_tiles[index], _heights[index])
+	return Vector2i(-1, 0)
 
 
 func _face_top(tx: int, ty: int, y: float, uv: Rect2, shade: Color) -> void:

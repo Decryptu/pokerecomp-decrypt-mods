@@ -158,11 +158,27 @@ sloped tile is that height less the band or two its drawing has fallen. A run
 breaks at every column that is not roof, so two buildings never agree with each
 other.
 
+## Past the edge of the map
+
+The ground runs on for another thirty-two tiles rather than stopping dead, so a
+route ends at a horizon instead of at a cliff of nothing, and a fight staged near
+an edge is not shot against sky. What is carried out is the FLOOR at that edge
+and nothing else: the tree line or the fence a map ends in is a thing standing on
+the floor, and repeating it outward would build a wall around the world. The
+floor is the nearest flat tile inward from the edge, which is why a shoreline
+carries the water out and not the beach.
+
+At any draw distance short of FULL the window clips most of it. At FULL it is
+paid for whole, and on a large route that is about as much geometry again as the
+map itself.
+
 ## Where a shape comes from
 
 `shape/tile_shape.gd` resolves every tile, in this order:
 
-1. a pin in `shape/profile.gd`
+1. a pin in `shape/profile.gd`, except a building pin in a walkable cell: one
+   plain tile draws both a house wall and the pavement in front of it, and a
+   building is never walked on
 2. the walk cell's collision permission is water, so the tile is water
 3. the walk cell's collision permission is walkable, so the tile is ground
 4. anything left is a volume
