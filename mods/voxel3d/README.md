@@ -122,17 +122,25 @@ into a maze of 48px walls.
 ## Surveying a tileset
 
 The measurement is right for most of the world and wrong for the drawings that
-depict something other than a wall. Finding those is a loop:
+depict something other than a wall. Finding those is a loop, and its unit is the
+BLOCK: 4x4 tiles on 2x2 walk cells, which is what Generation II authors the world
+out of. A tree, a sign, a fence corner or a stretch of path is one block.
 
-1. Stand somewhere and compare the diorama against the 2D view at several camera
-   pitches. The 2D view is the authority for what an object IS.
-2. Name the failure. Furniture at wall height, a prop lying flat, a bed standing
-   upright, a house wearing its own elevation as a cube.
-3. Pin the tiles in `shape/profile.gd` under the tileset's number, with the class
-   whose art mode matches what the drawing depicts.
-4. Re-check, and check the neighbours too: heights are measured per column, so a
-   pin changes what the columns beside it measure.
-5. Every map sharing that tileset inherits the pins. Check one other.
+```bash
+Godot --path <gen2recomp> -s tools/survey.gd -- <cache> all out/
+python3 tools/survey_sheet.py out/
+```
+
+That lays every block a tileset places beside the mod's own build of it, numbered,
+one sheet per tileset and about eight seconds for the whole game.
+
+1. Read the sheet. The cartridge's drawing is the authority for what a thing IS.
+2. Write the failures as a list: `#4 bookcase, #6 planter, #22 bed`.
+3. Pin them in `shape/profile.gd` under the tileset's number, with the class whose
+   art mode matches what the drawing depicts.
+4. Re-shoot the whole tileset, not the blocks that were pinned: heights are
+   measured per column, so a pin changes what its neighbours measure.
+5. Every map sharing that tileset inherits the pins.
 
 A pin is presentational and can only ever be. Collision, warps, triggers and
 scripts read the same data they always did, and a fix that seems to need a
