@@ -16,10 +16,25 @@ const DAY_LIGHT: Array[Color] = [
 	Color(1.0, 0.94, 0.86), Color(1.0, 1.0, 0.98),
 	Color(0.72, 0.76, 1.0), Color(0.45, 0.5, 0.7),
 ]
-const DAY_ENERGY: Array[float] = [1.05, 1.15, 0.7, 0.5]
+## METERED AGAINST THE DRAWING, not chosen for brightness.
+##
+## Flat ground carries vertex colour 1.0 and the cartridge's own texel, so what
+## lands on it is exactly how far the picture is pushed past the art. At the
+## first values it measured about 1.25, and a path texel is already white at 1.0:
+## a third of the day frame came out pinned at 255 with nothing above it left to
+## draw, which is what reads as a burnt, over-exposed screen.
+##
+## These put the brightest thing in the frame just under the top. They look like
+## a large cut because the output is sRGB encoded, where halving the light
+## darkens the picture by about a quarter; nothing here is dim, it is exposed.
+const DAY_ENERGY: Array[float] = [0.47, 0.52, 0.32, 0.23]
 const DAY_AMBIENT: Array[Color] = [
 	Color("#8b8298"), Color("#9aa2b4"), Color("#4a5478"), Color("#2b3350"),
 ]
+## The sky's share. Low on purpose: ambient lands on every face equally, so it is
+## the term that flattens the shading and lifts the floor of the picture, and the
+## sun is what should be paying for the light.
+const AMBIENT_ENERGY: float = 0.28
 
 var container: SubViewportContainer = null
 var viewport: SubViewport = null
@@ -50,7 +65,7 @@ func _init() -> void:
 	_environment = Environment.new()
 	_environment.background_mode = Environment.BG_COLOR
 	_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	_environment.ambient_light_energy = 0.75
+	_environment.ambient_light_energy = AMBIENT_ENERGY
 	holder.environment = _environment
 	viewport.add_child(holder)
 
