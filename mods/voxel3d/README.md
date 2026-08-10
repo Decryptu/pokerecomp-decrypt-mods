@@ -1,21 +1,45 @@
 # Voxel 3D
 
-The overworld as a voxel diorama. The same map, the same collision, the same
-palettes: geometry extruded from what the game already decoded, textured with the
-cartridge's own tileset art. No 3D assets ship with this mod, and none could,
-because everything it draws comes out of the player's own cartridge.
+The overworld as a voxel diorama, and the fight staged on the map it started on.
+The same map, the same collision, the same palettes: geometry extruded from what
+the game already decoded, textured with the cartridge's own tileset art. No 3D
+assets ship with this mod, and none could, because everything it draws comes out
+of the player's own cartridge.
 
 ## Controls
 
 | Key | Does |
 | --- | --- |
-| `V` | Switch between this and the Game Boy Color view. The host owns this key |
+| `V` | Switch between this and the Game Boy Color view. The host owns this key, in the overworld and in a battle alike |
 | `Q` / `E` | Lower and raise the camera |
 | `-` / `=`, or the wheel | Pull the camera back and push it in |
 
 Movement and interaction keys never reach the mod: the world screen claims what
 it needs and offers the rest, so the camera can be steered while the game is
 still played on the grid it always was.
+
+## The battle
+
+`Gen2BattleScreen` hands over display values and, once per battle, a
+`Gen2BattleWorldContext` saying where the encounter happened. That is enough to
+rebuild the map from its records with the same mesher the overworld uses and
+stand the two battlers on it.
+
+The shot is composed, not fixed. The arena runs down the axis the player was
+walking, because that is the direction whatever they ran into is standing in;
+each cardinal direction is measured for how far it runs over walkable ground and
+the longest wins, with the facing breaking ties. A player boxed into a walled
+yard has no arena where they stand, so the search widens by rings until it finds
+ground with room, which puts the fight on the path outside rather than inside the
+wall.
+
+The camera sits behind the player's shoulder looking down that axis, and its boom
+shortens against whatever is between it and the arena: backing into a wall walks
+the eye up to the battlers' shoulders instead of through it.
+
+Two layers, because a battle is two things at once. The map is geometry at window
+resolution; the panels, the bars and the text box stay hardware pixels, drawn at
+whole-number scale over the top so a Game Boy pixel is still a square.
 
 ## How a flat drawing becomes a solid
 
@@ -84,13 +108,17 @@ collision change is the wrong fix.
 ## Layout
 
 ```
-mod.gd              registers the renderer and returns
-world/renderer.gd   the Node the host builds: viewport, camera, lights, actors
-world/camera_rig.gd pitch, distance and the ease between settings
-shape/atlas.gd      the tileset as a texture, palettes and tile animation
-shape/tile_shape.gd tile -> shape class
-shape/profile.gd    hand-authored pins and the class table
-shape/mesher.gd     map -> one static mesh
+mod.gd               registers both renderers and returns
+world/renderer.gd    the overworld Node the host builds
+world/diorama.gd     the 3D stage both views share: viewport, daylight, cards
+world/camera_rig.gd  pitch, distance and the ease between settings
+battle/renderer.gd   the battle Node: the arena, the battlers and the panels
+battle/arena.gd      where the fight is staged and where it is shot from
+shape/atlas.gd       the tileset as a texture, palettes and tile animation
+shape/map_source.gd  the map, live from the world or read from its records
+shape/tile_shape.gd  tile -> shape class
+shape/profile.gd     hand-authored pins and the class table
+shape/mesher.gd      map -> one static mesh
 ```
 
 ## Credits

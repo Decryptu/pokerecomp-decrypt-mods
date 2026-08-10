@@ -30,16 +30,25 @@ var _background: Color = Color("#f5f1d8")
 
 ## Rebuilds the whole sheet. Called when the map, the palette or the time of day
 ## changes, which is the only time every tile's colour can move at once.
-func build(world: Gen2WorldAPI, time_of_day: int, animation: Gen2WorldAnimation) -> bool:
+##
+## Takes the records rather than a world, because a battle staged on the map has
+## the map and its tileset by number and no world to read them through.
+func build(
+	data: GameData,
+	map: Gen2WorldMap,
+	tileset: Gen2WorldTileset,
+	time_of_day: int,
+	animation: Gen2WorldAnimation = null,
+) -> bool:
 	texture = null
 	_image = null
 	_tile_count = 0
-	if world == null or world.data == null or world.current_tileset == null:
+	if data == null or map == null or tileset == null:
 		return false
 
-	var indices: PackedByteArray = _indices(world, animation)
-	var palettes: Array = _palettes(world, time_of_day, animation)
-	var count: int = world.current_tileset.tile_count
+	var indices: PackedByteArray = _indices(data, tileset, animation)
+	var palettes: Array = _palettes(data, map, tileset, time_of_day, animation)
+	var count: int = tileset.tile_count
 	if indices.size() < count * TILE * TILE:
 		return false
 	if not palettes.is_empty() and (palettes[0] as PackedColorArray).size() >= 1:
@@ -59,17 +68,21 @@ func build(world: Gen2WorldAPI, time_of_day: int, animation: Gen2WorldAnimation)
 ## the exception: it changes every tile drawn with that row, so the caller
 ## rebuilds instead.
 func refresh_animation(
-	world: Gen2WorldAPI, time_of_day: int, animation: Gen2WorldAnimation
+	data: GameData,
+	map: Gen2WorldMap,
+	tileset: Gen2WorldTileset,
+	time_of_day: int,
+	animation: Gen2WorldAnimation,
 ) -> bool:
 	if _image == null or texture == null or animation == null:
 		return false
 	if animation.palette_changed():
-		return build(world, time_of_day, animation)
+		return build(data, map, tileset, time_of_day, animation)
 	var changed: PackedInt32Array = animation.changed_tiles()
 	if changed.is_empty():
 		return false
 	var indices: PackedByteArray = animation.current_indices()
-	var palettes: Array = _palettes(world, time_of_day, animation)
+	var palettes: Array = _palettes(data, map, tileset, time_of_day, animation)
 	for tile: int in changed:
 		if tile >= 0 and tile < _tile_count:
 			_paint(indices, palettes, tile)
@@ -107,19 +120,25 @@ func background() -> Color:
 	return _background
 
 
-func _indices(world: Gen2WorldAPI, animation: Gen2WorldAnimation) -> PackedByteArray:
+func _indices(
+	data: GameData, tileset: Gen2WorldTileset, animation: Gen2WorldAnimation
+) -> PackedByteArray:
 	if animation != null and not animation.current_indices().is_empty():
 		return animation.current_indices()
-	return world.data.world_tileset_indices(world.current_tileset.number)
+	return data.world_tileset_indices(tileset.number)
 
 
 func _palettes(
-	world: Gen2WorldAPI, time_of_day: int, animation: Gen2WorldAnimation
+	data: GameData,
+	map: Gen2WorldMap,
+	tileset: Gen2WorldTileset,
+	time_of_day: int,
+	animation: Gen2WorldAnimation,
 ) -> Array:
 	return Gen2WorldPalette.tile_palettes(
-		world.data,
-		world.current_map,
-		world.current_tileset,
+		data,
+		map,
+		tileset,
 		time_of_day,
 		animation.water_palette_color() if animation != null else -1,
 		animation.cave_palette_color() if animation != null else -1,

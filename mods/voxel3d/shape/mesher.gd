@@ -61,8 +61,9 @@ var _bases := PackedInt32Array()
 
 
 ## Builds the whole map. Returns null when there is nothing to draw.
-func build(world: Gen2WorldAPI, shape: RefCounted, atlas: RefCounted) -> ArrayMesh:
-	_resolve(world, shape)
+## [param source] is a `map_source.gd`, over the live world or over records.
+func build(source: RefCounted, shape: RefCounted, atlas: RefCounted) -> ArrayMesh:
+	_resolve(source, shape)
 	if _size == Vector2i.ZERO:
 		return null
 
@@ -98,12 +99,11 @@ func size_pixels() -> Vector2:
 ## the four tiles of a cell all see the same permission and only a pin can split
 ## them. The second measures each unpinned volume column, because how tall a
 ## thing is drawn is not a property of one tile.
-func _resolve(world: Gen2WorldAPI, shape: RefCounted) -> void:
+func _resolve(source: RefCounted, shape: RefCounted) -> void:
 	_size = Vector2i.ZERO
-	if world == null or world.current_map == null or world.current_tileset == null:
+	if source == null or not source.valid():
 		return
-	var cells: Vector2i = world.map_size_cells()
-	_size = cells * RomLayout.MAP_BLOCK_CELL_WIDTH
+	_size = source.size_cells() * RomLayout.MAP_BLOCK_CELL_WIDTH
 	var count: int = _size.x * _size.y
 	_tiles.resize(count)
 	_heights.resize(count)
@@ -114,14 +114,14 @@ func _resolve(world: Gen2WorldAPI, shape: RefCounted) -> void:
 		var cell_y: int = ty >> 1
 		for tx: int in _size.x:
 			var at: int = ty * _size.x + tx
-			var tile: int = world.tile_index_at(tx, ty)
+			var tile: int = source.tile_at(tx, ty)
 			_tiles[at] = tile
 			_bases[at] = ty
 			if tile < 0:
 				_heights[at] = 0
 				_volume[at] = 0
 				continue
-			var permission: int = world.collision_permission_at(Vector2i(tx >> 1, cell_y))
+			var permission: int = source.permission_at(Vector2i(tx >> 1, cell_y))
 			var shape_class: StringName = shape.at(tile, permission)
 			var is_volume: bool = shape.art(shape_class) == &"upright"
 			_volume[at] = 1 if is_volume else 0
@@ -212,6 +212,13 @@ func _cells_match(cell_x: int, first_y: int, second_y: int) -> bool:
 			if _tiles[first + column] != _tiles[second + column]:
 				return false
 	return true
+
+
+## The resolved top of the column at a world position, in world pixels. Outside
+## the map the ground plane is the answer, which is what a camera looking past a
+## map edge should clear.
+func height_at_position(position: Vector3) -> int:
+	return _height_at(floori(position.x / TILE), floori(position.z / TILE))
 
 
 func _height_at(tx: int, ty: int) -> int:

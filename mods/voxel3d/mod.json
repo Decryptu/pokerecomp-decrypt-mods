@@ -1,8 +1,8 @@
 {
 	"id": "voxel3d",
 	"name": "Voxel 3D",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"api_version": 1,
 	"entry": "mod.gd",
-	"description": "Rebuilds the overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution. Press V to switch between it and the Game Boy Color view, Q and E to steer the camera."
+	"description": "Rebuilds the overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and stages a battle on the map it was started on. Press V to switch between this and the Game Boy Color view, Q and E to steer the camera."
 }
