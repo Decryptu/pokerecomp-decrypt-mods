@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+
+# Godot, if a mod is ever opened as a throwaway project for a probe
+.godot/
+
+# ---------------------------------------------------------------------------
+# Bring-your-own-ROM. A mod reads cartridge content through the host's public
+# API and ships none of it. Nothing derived from a commercial cartridge may
+# ever be committed: not the ROM, not a save, not the host's extracted cache.
+# ---------------------------------------------------------------------------
+*.gb
+*.gbc
+*.gba
+*.sav
+*.srm
+*.rom
+*.ips
+*.bps
+*.ups
+
+# Local checkouts of other projects, kept for comparison only and never
+# project content.
+/.references/
+
+# Local build and verification output
+/artifacts/
+/dist/

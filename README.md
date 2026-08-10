@@ -1,0 +1,51 @@
+# pokerecomp mods
+
+Mods for [gen2recomp](https://github.com/Decryptu/gen2recomp), the Pokemon Gold,
+Silver and Crystal recompilation. Each one is interpreted GDScript under
+`mods/<id>/` and installs as a `.zip` on every platform the game runs on.
+
+## The mods
+
+| Mod | Version | What it does |
+| --- | --- | --- |
+| [`voxel3d`](mods/voxel3d/) | 0.1.0 | The overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution. `V` switches views, `Q` and `E` steer the camera. |
+
+## Installing
+
+Two routes, both ending in the same installer:
+
+**Follow this index.** In the game's launcher, on its mods page, add
+`Decryptu/pokerecomp-decrypt-mods`. The launcher resolves that to
+`https://decryptu.github.io/pokerecomp-decrypt-mods/index.json` and lists
+everything above; picking one downloads and installs it.
+
+**Or install a `.zip` by hand.** Take an archive from
+[Releases](https://github.com/Decryptu/pokerecomp-decrypt-mods/releases) and use
+**Install** on the same page, or drop it on the window where the OS offers that.
+
+Following an index is trusting whoever publishes it, so the game follows none
+until you add one. Nothing here asks for a permission a hand-picked `.zip` would
+not.
+
+## Building an archive
+
+An archive holds one mod, at its root or in a single folder, and the manifest id
+inside has to match what the index advertised:
+
+```sh
+sh tools/package.sh voxel3d
+```
+
+The result lands in `dist/`.
+
+## Developing
+
+See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) for the local loop: linking a
+mod directory into the game's `user://mods/` so an edit is one restart away, and
+the boundary a mod is allowed to reach through.
+
+## License
+
+MIT, in [`LICENSE`](LICENSE). No cartridge data, artwork or audio is included in
+this repository or in any mod it publishes: geometry, colour and text all come
+from what the host game decoded from the player's own cartridge.
