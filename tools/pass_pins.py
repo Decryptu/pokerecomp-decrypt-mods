@@ -16,7 +16,6 @@ NOT pin:
                        up, and it MEASURES the height off the drawing where a
                        pin would force one. A pin that agrees with the default
                        is worse than no pin.
-  on_top_of_furniture  nothing can build it yet; it is collected into a list.
   unsure               goes in front of the human instead.
 """
 
@@ -38,6 +37,8 @@ DIRECT = {
     "roof_edge": "roof_edge",
     "roof_corner": "roof_corner",
     "top": "surface",
+    "on_top_of_furniture": "on_furniture",
+    "stairs": "stairs",
 }
 STANDING = [
     (("bollard", "pole", "post"), "post"),
@@ -51,7 +52,7 @@ LYING = [
     (("plant pot", "potted", "planter"), "planter"),
     (("flower", "basket", "bed"), "flowers"),
 ]
-SKIP = {"wall", "on_top_of_furniture", "unsure"}
+SKIP = {"wall", "unsure"}
 
 HEADER = '''extends RefCounted
 
@@ -125,7 +126,6 @@ def main():
                 continue
             if word == "on_top_of_furniture":
                 furniture.append((number, tile, words))
-                continue
             shape_class = classify(word, words)
             if shape_class is None:
                 continue
@@ -157,7 +157,7 @@ def main():
     print("%d pins over %d tilesets" % (total, len(pins)))
     print("words:", dict(counts))
     print("left to the human (unsure): %d" % doubts)
-    print("standing on furniture, unbuildable: %d" % len(furniture))
+    print("standing on furniture: %d" % len(furniture))
     if "--write" not in sys.argv:
         print("\n(dry run; pass --write to write profile_pass.gd)")
         return 0

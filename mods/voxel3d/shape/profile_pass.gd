@@ -10,7 +10,7 @@ extends RefCounted
 ## Nothing here is extracted from a cartridge. A pin can only ever change how a
 ## tile LOOKS: collision, warps, triggers and scripts read what they always did.
 ##
-## 980 tiles over 24 tilesets. A tile the pass read as a plain standing
+## 1076 tiles over 24 tilesets. A tile the pass read as a plain standing
 ## wall is deliberately absent: the automatic resolution already stands it up,
 ## and it measures the height off the drawing where a pin would force one.
 
@@ -67,6 +67,10 @@ const TILESETS: Dictionary = {
 	5: {
 		&"flowers": [42, 43, 84, 85, 94, 95],
 		&"ground": [1, 4, 20, 76, 77, 80, 81, 92, 93],
+		&"on_furniture": [
+			6, 7, 12, 13, 22, 23, 28, 29, 32, 33, 34, 35, 37, 53, 64, 65, 66, 67, 70, 71, 82,
+			83, 86, 87,
+		],
 		&"stand": [8, 9, 10, 11, 24, 25, 26, 27],
 		&"surface": [2, 3, 5, 18, 19, 21, 38, 39, 41, 47, 50, 51, 54, 57],
 		&"tombstone": [40, 55, 56, 63, 78],
@@ -83,12 +87,14 @@ const TILESETS: Dictionary = {
 	},
 	7: {
 		&"ground": [1, 17, 66, 67, 68, 69, 80, 81, 82, 83, 84, 85],
+		&"on_furniture": [3, 4, 5, 10, 11, 12, 19, 20, 21, 26, 27, 37, 53],
 		&"roof_edge": [6, 7],
 		&"surface": [13, 14, 22, 23, 31, 45, 46, 52, 72, 73, 88, 89],
 		&"void": [61],
 	},
 	8: {
 		&"ground": [1, 4, 17, 20, 38, 39, 40, 41, 52, 54, 55, 66, 67, 68, 69, 70, 71],
+		&"on_furniture": [14, 15, 32, 33, 48, 49, 50, 51, 72, 73, 74, 75, 78, 79],
 		&"planter": [5, 6, 21, 22, 56, 57],
 		&"stand": [42, 43, 44, 45, 46, 47, 58, 59, 60, 61, 62, 63, 64, 65, 84, 85, 86, 87],
 		&"surface": [7, 8, 9, 24, 25],
@@ -108,6 +114,7 @@ const TILESETS: Dictionary = {
 	},
 	10: {
 		&"ground": [2, 16, 18, 36, 55],
+		&"on_furniture": [10, 11, 15, 21, 26, 27, 28, 29],
 		&"stand": [
 			64, 65, 66, 67, 68, 69, 70, 71, 73, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87,
 			88, 89, 92, 93, 94, 95,
@@ -116,12 +123,14 @@ const TILESETS: Dictionary = {
 	},
 	11: {
 		&"ground": [1, 12, 13, 28, 38, 39, 55, 56, 57],
+		&"on_furniture": [2, 3, 4, 5, 18, 19, 20, 21, 72, 73],
 		&"sapling": [44, 45, 46, 47, 60, 61, 62, 63],
 		&"stand": [14, 15, 22, 23, 30, 31, 92, 93, 94, 95],
 		&"surface": [35, 36, 37, 64, 65, 66, 80, 81, 82, 87, 88, 89],
 	},
 	12: {
 		&"ground": [1, 11, 27, 70, 71, 72],
+		&"on_furniture": [32, 33, 48, 49],
 		&"stand": [8, 9, 74, 75, 137, 138, 167, 168],
 		&"surface": [34, 35, 36, 37, 46, 47, 50, 51, 52, 53],
 	},
@@ -134,6 +143,7 @@ const TILESETS: Dictionary = {
 	14: {
 		&"bush": [70, 71, 86, 87],
 		&"ground": [1, 3, 16, 17, 18, 19],
+		&"on_furniture": [32, 33, 48, 49, 52, 53, 64, 65],
 		&"sapling": [15, 25, 36, 37, 41, 44, 57, 60],
 		&"stand": [66, 67, 68, 69, 82, 83, 84, 85],
 		&"surface": [5, 10, 11, 12, 13, 14, 21, 26, 27, 28, 29, 46, 47, 62, 63, 78, 79, 80],
@@ -157,6 +167,7 @@ const TILESETS: Dictionary = {
 		&"ground": [1, 2, 3, 4, 18, 19, 20, 37, 38, 54, 68, 69, 70, 80, 81, 84, 85, 86],
 		&"ledge": [16],
 		&"lie": [14],
+		&"on_furniture": [12, 13, 26, 27, 28, 29],
 		&"surface": [21, 34, 35, 36, 50, 51, 52, 66, 67],
 	},
 	20: {
@@ -168,6 +179,7 @@ const TILESETS: Dictionary = {
 			1, 17, 33, 34, 35, 36, 37, 48, 49, 50, 51, 52, 59, 64, 70, 71, 75, 76, 86, 87, 89,
 			90,
 		],
+		&"on_furniture": [42, 43, 56, 57],
 		&"stand": [14, 15, 30, 31],
 		&"surface": [6, 10, 11, 40, 41, 53, 79, 95],
 		&"void": [55],
@@ -197,6 +209,7 @@ const TILESETS: Dictionary = {
 	28: {
 		&"bush": [30],
 		&"ground": [2, 16, 18, 34, 35, 50, 51, 52],
+		&"on_furniture": [78, 79, 93, 94, 95],
 		&"stand": [
 			7, 8, 9, 23, 24, 25, 26, 27, 28, 29, 31, 46, 47, 48, 49, 62, 63, 67, 68, 69, 70, 83,
 			84, 85, 86,

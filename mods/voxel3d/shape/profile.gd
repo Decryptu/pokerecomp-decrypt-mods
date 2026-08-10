@@ -67,6 +67,14 @@ const HEIGHTS: Dictionary = {
 	# A raised flat surface seen from above: a counter, a table top, a stool. One
 	# cell, because that is what a counter is in a game built on 16px cells.
 	&"surface": 16,
+	# A thing standing ON furniture carries no height of its own either: how tall
+	# it is comes from its own rows and where it starts comes from the table.
+	&"on_furniture": 0,
+	# Stairs. Flat for now, and the class exists so a pass can RECORD them: a
+	# step built as a lip in the middle of a walkable path is worse than a step
+	# built flat, and the ramp needs the ground on both sides of it to have a
+	# height first, which is open work.
+	&"stairs": 0,
 }
 
 ## How thick a cutout stands, in world pixels.
@@ -196,6 +204,8 @@ const ART: Dictionary = {
 	&"desk": &"upright",
 	&"bookcase": &"upright",
 	&"facade": &"upright",
+	&"on_furniture": &"upright",
+	&"stairs": &"flat",
 	&"roof_edge": &"top",
 	&"roof_corner": &"top",
 	# cutout: not a box at all. The drawing's own silhouette stands up one run of

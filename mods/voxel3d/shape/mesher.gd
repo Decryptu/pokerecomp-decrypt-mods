@@ -68,6 +68,8 @@ var _filled := PackedByteArray()
 var _span_x := PackedByteArray()
 var _span_y := PackedByteArray()
 var _lying := PackedByteArray()
+## Per tile: whether the drawing stands on FURNITURE rather than on the ground.
+var _on_furniture := PackedByteArray()
 var _klass := PackedInt32Array()
 var _class_ids: Dictionary = {}
 ## Per tile: which surface of a building it depicts, and how many bands a sloped
@@ -273,6 +275,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_span_x.resize(count)
 	_span_y.resize(count)
 	_lying.resize(count)
+	_on_furniture.resize(count)
 	_klass.resize(count)
 	_part.resize(count)
 	_drop.resize(count)
@@ -301,6 +304,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_round[at] = 1 if shape.is_round(shape_class) else 0
 			_filled[at] = 1 if shape.is_filled(shape_class) else 0
 			_lying[at] = 1 if shape.is_lying(shape_class) else 0
+			_on_furniture[at] = 1 if shape_class == &"on_furniture" else 0
 			var span: Vector2i = shape.span_cells(shape_class)
 			_span_x[at] = maxi(span.x, 1)
 			_span_y[at] = maxi(span.y, 1)
@@ -326,6 +330,10 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 
 	_measure_columns()
 	_measure_buildings()
+	# Before the furniture, which asks what the height of the thing under it came
+	# to and would read an unsettled -1 as standing on the floor.
+	_settle_unmeasured()
+	_measure_furniture()
 	_measure_cutouts()
 
 
@@ -385,6 +393,73 @@ func _measure_columns() -> void:
 							_heights[at] = height
 							_bases[at] = base
 			cell_y += run
+
+
+## Anything the measuring passes never reached, given a height at last.
+##
+## `_measure_columns` works in whole CELLS and reads one tile to decide whether a
+## cell is unmeasured, so a cell holding a pin and an unpinned tile together is
+## skipped and the unpinned one keeps the -1 it was marked with. That was rare
+## while the profile held a handful of pins by hand and is common now that a pass
+## over the game has written a thousand: a -1 is a face drawn a pixel below the
+## floor, which reads as a seam of black around the furniture.
+##
+## The cell it sits in is the answer: whatever else in that cell did get
+## measured, and one cell tall when nothing did.
+func _settle_unmeasured() -> void:
+	for ty: int in _size.y:
+		for tx: int in _size.x:
+			var at: int = ty * _size.x + tx
+			if _heights[at] != -1:
+				continue
+			var settled: int = -1
+			var cell := Vector2i((tx >> 1) * CELL_TILES, (ty >> 1) * CELL_TILES)
+			for row: int in CELL_TILES:
+				for column: int in CELL_TILES:
+					var here: int = (cell.y + row) * _size.x + cell.x + column
+					if here < _heights.size() and _heights[here] > settled:
+						settled = _heights[here]
+			_heights[at] = settled if settled > 0 else CELL_TILES * BAND
+
+
+## A thing standing ON furniture starts at the furniture's own top.
+##
+## A radio, a television, a computer, a statue, a book: the reviewer named a
+## dozen of them and every one is drawn sitting on a desk or a table. Every class
+## carries a height off the GROUND, so all of them stood up through the desk from
+## the floor instead.
+##
+## What they stand on is whatever the mesher already resolved for the cell in
+## front, which for a table is its top: the run of them takes that as its base
+## and stacks its own rows above it. The same shape of answer as a facade
+## standing on a porch roof, and for the same reason.
+func _measure_furniture() -> void:
+	var placed := PackedByteArray()
+	placed.resize(_size.x * _size.y)
+	for ty: int in range(_size.y - 1, -1, -1):
+		for tx: int in _size.x:
+			var at: int = ty * _size.x + tx
+			if _on_furniture[at] == 0 or placed[at] == 1:
+				continue
+			# The bottom of the run is this tile, since rows are walked upward.
+			# What it stands on is the cell in front of it, whatever the rest of
+			# the resolve made that: a table top, a counter, the floor.
+			var under: int = 0
+			if ty + 1 < _size.y:
+				under = maxi(_heights[(ty + 1) * _size.x + tx], 0)
+			var run: int = 1
+			while ty - run >= 0 and _on_furniture[(ty - run) * _size.x + tx] == 1:
+				run += 1
+			# One height for the whole object, or a television comes out as a
+			# staircase of its own rows.
+			var top: int = under + run * BAND
+			for step: int in run:
+				var index: int = at - step * _size.x
+				_heights[index] = top
+				@warning_ignore("integer_division")
+				_bases[index] = ty + under / BAND
+				_volume[index] = 1
+				placed[index] = 1
 
 
 ## How big each cutout's drawing actually is where it is PLACED.

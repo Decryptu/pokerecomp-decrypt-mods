@@ -46,7 +46,8 @@ CLASSES = """
 | `top` | a raised flat surface seen from above: a counter top, a table top, a bed | a box wearing its art on top |
 | `stand` | a thing with its own outline standing on the ground: a post, a sign, a bush, a sapling, a tombstone, a statue | the drawing's own silhouette, cut out and stood up |
 | `lie` | a low thing with its own outline: a flower bed, a planter, a basket | the silhouette, lying at the height of one cell |
-| `on_top_of_furniture` | an object sitting ON a table, desk or counter: a radio, a television, a computer, a book | NOT BUILDABLE YET. Say it anyway; it is a list I owe the mod |
+| `on_top_of_furniture` | an object sitting ON a table, desk or counter: a radio, a television, a computer, a book | stands up like a wall, but starting at the top of whatever is in front of it rather than at the floor |
+| `stairs` | a stair or a ladder, anything walked up or down | flat for now, and recorded as stairs so it can be built as a ramp later. Use it rather than `floor` |
 | `unsure` | you cannot tell, or it is two things at once | goes to the human |
 """
 
