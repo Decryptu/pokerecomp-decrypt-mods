@@ -16,8 +16,8 @@ const CELL: float = 16.0
 
 ## How far along the axis each battler stands, as a fraction of the clear run
 ## found in front of the player, and the run the composition is drawn for.
-const PLAYER_ALONG: float = 0.25
-const ENEMY_ALONG: float = 0.9
+const PLAYER_ALONG: float = 0.2
+const ENEMY_ALONG: float = 0.72
 const IDEAL_RUN_CELLS: int = 6
 const MIN_RUN_CELLS: int = 2
 ## How far each side stands off the arena's axis, in world pixels.
@@ -36,6 +36,10 @@ const PLAYER_ASIDE: float = -13.0
 const TRAINER_BEHIND: float = 26.0
 const TRAINER_ASIDE: float = 13.0
 
+## How many places along the axis a battler is tried before it gives up and
+## stands on the arena's own cell.
+const SETTLE_STEPS: int = 6
+
 ## How far to look for clear ground before giving up and staging on the spot.
 const SEARCH_CELLS: int = 8
 ## How far the arena may move from the player's own cell to find room.
@@ -44,15 +48,19 @@ const RELOCATE_CELLS: int = 4
 ## The eye, relative to the player's cell: behind it, off to one side, and above.
 ## The offset to one side is what makes it a shot over a shoulder rather than a
 ## line through both battlers, and it is what the lens is aimed back across.
-const EYE_BACK: float = 110.0
+const EYE_BACK: float = 150.0
 const EYE_SIDE: float = 26.0
-const EYE_HEIGHT: float = 68.0
+const EYE_HEIGHT: float = 62.0
 ## Where the lens looks, along the axis and above the ground. Biased toward the
 ## foe, because the shot is of what is being fought.
-const LOOK_ALONG: float = 0.6
-## Chest height on a battler rather than the ground they stand on, so the pair
-## sits in the middle of the frame instead of along its bottom edge.
-const LOOK_HEIGHT: float = 28.0
+const LOOK_ALONG: float = 0.5
+## Below the pair's own middle rather than level with it. Whatever the lens is
+## aimed at sits in the middle of the frame, and the middle is not free here: the
+## text box owns the bottom third of the hardware screen and is drawn over this
+## view, so aiming low rides the pair up into the part that is still visible. Not
+## the ground itself, though, or the sight line the boom tests starts underneath
+## the terrain and reads as blocked wherever it is.
+const LOOK_HEIGHT: float = 20.0
 
 ## How far the eye may swing around the arena and climb above its own seat, in
 ## degrees, and the step a key or a drag moves it by. Right ends side on, with
@@ -66,7 +74,7 @@ const CLIMB_STEP: float = 5.0
 ## The lens, and how far it opens as the shot swings away from the composed one:
 ## swinging the eye round spreads the two battlers apart, so the frame has to
 ## widen by the amount they spread or one of them leaves it.
-const FOV_BASE: float = 42.0
+const FOV_BASE: float = 34.0
 const FOV_SWING: float = 16.0
 
 const ZOOM_LIMITS := Vector2(0.55, 1.8)
@@ -74,6 +82,7 @@ const ZOOM_STEP: float = 0.12
 const TWEEN_TIME: float = 0.22
 
 ## Where the arena is, resolved once per battle.
+var _source: RefCounted = null
 var _origin := Vector3.ZERO
 var _forward := Vector3(0.0, 0.0, 1.0)
 var _right := Vector3(1.0, 0.0, 0.0)
@@ -105,6 +114,7 @@ var _run: float = float(IDEAL_RUN_CELLS) * CELL
 ## breaking ties. [param source] is a `map_source.gd` and may be null, which
 ## stages on the spot.
 func stage(context: Gen2BattleWorldContext, source: RefCounted = null) -> void:
+	_source = source
 	_run = float(IDEAL_RUN_CELLS) * CELL
 	if context == null:
 		_origin = Vector3.ZERO
@@ -194,11 +204,11 @@ static func _direction(facing: int) -> Vector3:
 ## player and the foe, on the near side of the axis, which is the arrangement
 ## the flat view draws from the side.
 func player_ground() -> Vector3:
-	return _origin + _forward * (_run * PLAYER_ALONG) + _right * PLAYER_ASIDE
+	return _settle(_run * PLAYER_ALONG, PLAYER_ASIDE)
 
 
 func enemy_ground() -> Vector3:
-	return _origin + _forward * (_run * ENEMY_ALONG) + _right * ENEMY_ASIDE
+	return _settle(_run * ENEMY_ALONG, ENEMY_ASIDE)
 
 
 ## Where the opposing trainer stands: behind their own Pokemon and off its
@@ -207,8 +217,39 @@ func enemy_ground() -> Vector3:
 ## Pokemon is sent out and then slide away; out here there is room for both, and
 ## keeping them is what makes a trainer battle look like one.
 func enemy_trainer_ground() -> Vector3:
-	return _origin + _forward * (_run * ENEMY_ALONG + TRAINER_BEHIND) \
-		+ _right * (ENEMY_ASIDE + TRAINER_ASIDE)
+	return _settle(_run * ENEMY_ALONG + TRAINER_BEHIND, ENEMY_ASIDE + TRAINER_ASIDE)
+
+
+## A place on the axis pulled back onto ground somebody could stand on.
+##
+## The composition is arithmetic: so many pixels along, so many to the side. The
+## map is not, and a fence post or a house corner sits in the middle of a clear
+## run often enough that placing a battler by arithmetic alone stands it inside a
+## wall. The offsets are preferences, so give up the side offset first, then walk
+## back along the axis toward the player, and take the first cell the map says is
+## walkable.
+##
+## Collision is only read here, never written: this decides where a drawing
+## stands and nothing else.
+func _settle(along: float, aside: float) -> Vector3:
+	var at: Vector3 = _origin + _forward * along + _right * aside
+	if _source == null:
+		return at
+	for side: float in [aside, aside * 0.5, 0.0]:
+		for step: int in SETTLE_STEPS:
+			var distance: float = along * (1.0 - float(step) / float(SETTLE_STEPS))
+			var candidate: Vector3 = _origin + _forward * distance + _right * side
+			if _walkable(candidate):
+				return candidate
+	# Nothing on the axis is standable, which means the arena itself is not. The
+	# origin was chosen as walkable ground, so it always is.
+	return _origin
+
+
+func _walkable(at: Vector3) -> bool:
+	return _source.permission_at(Vector2i(
+		floori(at.x / CELL), floori(at.z / CELL)
+	)) == Gen2WorldCollision.LAND_TILE
 
 
 ## The eye, swung around the arena's centre and raised by whatever the player has

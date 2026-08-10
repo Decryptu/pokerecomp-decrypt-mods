@@ -131,9 +131,11 @@ func handle_battle_input(event: InputEvent) -> bool:
 	return _arena.handle_input(event)
 
 
+## Framed every frame rather than only when the tween is running, so no ordering
+## between the context, the first view and the tree can leave the shot stale.
 func _process(delta: float) -> void:
-	if _arena.advance(delta):
-		_frame_camera()
+	_arena.advance(delta)
+	_frame_camera()
 
 
 func _load_modules() -> Dictionary:
@@ -175,18 +177,25 @@ func _build_arena() -> void:
 	_stage.set_terrain(_mesher.build(
 		source, _tile_shape_script.new(_profile, tileset.number), _atlas
 	))
+	# The arena has just moved, so the shot has to. Waiting for the next view
+	# leaves the camera wherever it was last framed, which before any battle is
+	# the map's own origin: a corner of the map with the fight nowhere in it.
+	_frame_camera()
 
 
 ## How the boom is shortened, in samples from the shot's own eye back toward the
 ## arena, and how far above a wall the eye has to clear to count as outside it.
 const BOOM_SAMPLES: int = 14
-const BOOM_CLEARANCE: float = 10.0
+const BOOM_CLEARANCE: float = 5.0
+## Where along the sight line testing starts. The end nearest the arena is meant
+## to be close to the ground, and testing it rejects every shot there is.
+const BOOM_SKIP: float = 0.3
 ## Never closer to the arena than this, or the eye ends up inside a battler.
 const BOOM_MINIMUM: float = 0.4
 ## How far the eye may climb to see over what is behind the player, in world
 ## pixels. The last rung clears a three-cell structure, which is the tallest
 ## anything unpinned is ever measured at.
-const BOOM_LIFTS: Array[float] = [0.0, 14.0, 30.0, 48.0, 70.0]
+const BOOM_LIFTS: Array[float] = [0.0, 10.0, 22.0, 38.0, 58.0]
 
 
 func _frame_camera() -> void:
@@ -238,6 +247,8 @@ func _boom(target: Vector3, eye: Vector3) -> Vector3:
 func _segment_clear(target: Vector3, eye: Vector3, fraction: float) -> bool:
 	for step: int in range(1, BOOM_SAMPLES + 1):
 		var along: float = fraction * float(step) / float(BOOM_SAMPLES)
+		if along < BOOM_SKIP:
+			continue
 		var at: Vector3 = target + (eye - target) * along
 		if at.y <= float(_mesher.height_at_position(at)) + BOOM_CLEARANCE:
 			return false
