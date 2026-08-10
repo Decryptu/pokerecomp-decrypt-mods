@@ -111,6 +111,7 @@ func emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> ArrayMesh:
 var _emit_atlas: RefCounted = null
 var _emit_box := Rect2i()
 var _emit_row: int = 0
+var _emit_column: int = 0
 
 
 func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
@@ -127,6 +128,7 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	_emit_atlas = atlas
 	_emit_box = box
 	_emit_row = box.position.y
+	_emit_column = box.position.x
 	_vertices = PackedVector3Array()
 	_normals = PackedVector3Array()
 	_uvs = PackedVector2Array()
@@ -141,16 +143,22 @@ func emit_step(budget_usec: int) -> bool:
 		return true
 	var until: int = Time.get_ticks_usec() + budget_usec
 	while _emit_row < _emit_box.end.y:
-		for tx: int in range(_emit_box.position.x, _emit_box.end.x):
-			if tx < 0 or _emit_row < 0 or tx >= _size.x or _emit_row >= _size.y:
-				_emit_border(tx, _emit_row, _emit_atlas)
+		while _emit_column < _emit_box.end.x:
+			if _emit_column < 0 or _emit_row < 0 \
+					or _emit_column >= _size.x or _emit_row >= _size.y:
+				_emit_border(_emit_column, _emit_row, _emit_atlas)
 			else:
-				_emit(tx, _emit_row, _emit_atlas)
+				_emit(_emit_column, _emit_row, _emit_atlas)
+			_emit_column += 1
+			# Checked every 64 tiles rather than every one: asking the clock per
+			# tile costs more than a tile does, and a whole row is too coarse
+			# because a row with the border ring on both ends is the longest
+			# thing here.
+			if budget_usec > 0 and (_emit_column & 63) == 0 \
+					and Time.get_ticks_usec() >= until:
+				return false
+		_emit_column = _emit_box.position.x
 		_emit_row += 1
-		# Checked a row at a time: a row of a town is well under a millisecond,
-		# and asking the clock per tile costs more than the tile does.
-		if budget_usec > 0 and Time.get_ticks_usec() >= until:
-			return _emit_row >= _emit_box.end.y
 	return true
 
 
