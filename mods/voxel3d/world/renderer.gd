@@ -18,7 +18,18 @@ extends Control
 ## It reads the world and never writes it. That is what lets `V` swap the two
 ## views mid-step without either one being able to tell the other what changed.
 
+const Options: GDScript = preload("../options.gd")
+
 const CELL: float = 16.0
+
+## How opaque the screen draws the FIELD of its own text box over this view.
+##
+## The cartridge draws that box opaque because the field behind it is opaque
+## white; over a map it is a slab across the bottom third of the screen. The
+## frame's lines and the glyphs are ink and stay solid whatever this asks for, so
+## the text is exactly as readable and the map is still there behind it. See
+## Gen2ModHost.RENDERER_INTERFACE_OPACITY_METHOD.
+const FIELD_OPACITY: float = 0.75
 
 var _world: Gen2WorldAPI = null
 var _animation: Gen2WorldAnimation = null
@@ -39,17 +50,44 @@ var _actor_textures: Dictionary = {}
 ## whether the resolver has to be replaced too.
 var _shape_tileset: int = -1
 
+## How far out the mesh is built, in walk cells, and the cell the built window is
+## centred on. Zero cells is the whole map and no window at all;
+## [constant Vector2i.MAX] is nothing built yet.
+var _draw_cells: int = 0
+var _window_centre := Vector2i.MAX
+
 
 func _init() -> void:
 	var modules: Dictionary = _load_modules()
 	_stage = (modules["diorama"] as GDScript).new()
 	add_child(_stage.container)
+	_read_options()
+	# On the press rather than by polling: the host owns the surfaces the player
+	# changes a setting on, and says so.
+	Options.listen(_on_option_changed)
 
 
 ## This view is not made of hardware pixels, so it asks for the layer that is not
 ## either. See Gen2ModHost.RENDERER_SURFACE_METHOD.
 func uses_hardware_viewport() -> bool:
 	return false
+
+
+## The field of the screen's own text box, drawn through rather than over the
+## map. See FIELD_OPACITY.
+func interface_opacity() -> float:
+	return FIELD_OPACITY
+
+
+## Where that box is, in hardware pixels, on every change and empty when none is
+## up. A box covers the bottom third of the screen and the player stands in the
+## middle of it, so the shot is pushed up the frame by half of what the box takes
+## and the player is in the middle of what is left. The pan eases like any other
+## steer. See Gen2ModHost.RENDERER_TEXT_BOX_METHOD.
+func set_text_box_rect(rect: Rect2i) -> void:
+	_rig.pan_for_text_box(
+		0 if rect.size.y <= 0 else rect.position.y, Gen2Screen.HEIGHT
+	)
 
 
 func set_native_size(size_pixels: Vector2i) -> void:
@@ -108,8 +146,34 @@ func handle_world_input(event: InputEvent) -> bool:
 ## rebuilt with it so a walk frame advances while a step is being drawn.
 func _process(delta: float) -> void:
 	_rig.advance(delta)
+	_recentre_window()
 	_frame_camera()
 	_rebuild_actors()
+
+
+## The fallbacks are what a renderer built outside the game gets: a probe or a
+## survey tool never ran the entry script, and wants the whole map rather than a
+## window around a player it does not have.
+func _read_options() -> void:
+	_draw_cells = int(Options.value(Options.DISTANCE, 0))
+	_rig.set_wheel_sign(int(Options.value(Options.WHEEL, 1)))
+	_rig.set_default_pitch(float(Options.value(Options.CAMERA, Options.CAMERA_VALUES[1])))
+
+
+func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void:
+	if id != Options.MOD_ID:
+		return
+	match key:
+		Options.DISTANCE:
+			_draw_cells = int(value)
+			# Straight to the emit: how far the mesh reaches is the only thing
+			# that changed, and what a tile is was resolved once for this map.
+			_window_centre = Vector2i.MAX
+			_recentre_window()
+		Options.WHEEL:
+			_rig.set_wheel_sign(int(value))
+		Options.CAMERA:
+			_rig.set_default_pitch(float(value))
 
 
 func _load_modules() -> Dictionary:
@@ -146,15 +210,56 @@ func _rebuild() -> void:
 	if _build_atlas():
 		_stage.set_texture(_atlas.texture)
 	_stage.set_time_of_day(_time_of_day)
-	_stage.set_terrain(_mesher.build(_map_source_script.new(_world), _shape, _atlas))
+	# Resolved once per map, emitted per window: what a tile is and how tall it
+	# stands is a fact about the map, and measuring it through the window would
+	# make a structure's height depend on where the player was standing.
+	_mesher.resolve(_map_source_script.new(_world), _shape)
+	_window_centre = Vector2i.MAX
+	_recentre_window()
 	refresh()
+
+
+## Rebuilds the mesh around the player when they have walked out of the middle of
+## what was built, and does nothing at all at FULL distance.
+##
+## The margin is what keeps this off most steps: a window rebuilt every cell
+## would cost more than the whole map does. Emitting is about two thirds of a
+## build and resolving is the other third, so a recentre inside one map is the
+## cheap part of it. Open work 5 in the handoff, slicing the emit across frames,
+## is what takes the last hitch out.
+func _recentre_window() -> void:
+	if _world == null or _mesher.size_tiles() == Vector2i.ZERO:
+		return
+	if _draw_cells <= 0:
+		if _window_centre == Vector2i.MAX:
+			_window_centre = Vector2i.ZERO
+			_stage.set_view_distance(0.0)
+			_stage.set_terrain(_mesher.emit(_atlas))
+		return
+	var at := Vector2i(_world.player_position_cells().floor())
+	var margin: int = maxi(4, _draw_cells / 3)
+	if _window_centre != Vector2i.MAX \
+			and absi(at.x - _window_centre.x) <= margin \
+			and absi(at.y - _window_centre.y) <= margin:
+		return
+	_window_centre = at
+	var span: int = _draw_cells * 2 + 1
+	_stage.set_view_distance(float(_draw_cells) * CELL)
+	_stage.set_terrain(_mesher.emit(_atlas, Rect2i(
+		(at - Vector2i(_draw_cells, _draw_cells)) * RomLayout.MAP_BLOCK_CELL_WIDTH,
+		Vector2i(span, span) * RomLayout.MAP_BLOCK_CELL_WIDTH
+	)))
 
 
 func _frame_camera() -> void:
 	if _world == null:
 		return
 	var here: Vector3 = _ground(_world.player_position_cells())
-	_stage.aim_camera(here + _rig.offset(), here)
+	_stage.camera.fov = _rig.fov()
+	# A pan moves the eye and what it looks at together, so the picture slides up
+	# the frame without the horizon swinging.
+	var pan: Vector3 = _rig.pan()
+	_stage.aim_camera(here + pan + _rig.offset(), here + pan)
 
 
 ## The committed cell plus any in-flight step, so the view eases into a new cell

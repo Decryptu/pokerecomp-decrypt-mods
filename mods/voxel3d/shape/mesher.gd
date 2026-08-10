@@ -60,20 +60,36 @@ var _volume := PackedByteArray()
 var _bases := PackedInt32Array()
 
 
-## Builds the whole map. Returns null when there is nothing to draw.
+## Resolves a map and builds it. Returns null when there is nothing to draw.
 ## [param source] is a `map_source.gd`, over the live world or over records.
-func build(source: RefCounted, shape: RefCounted, atlas: RefCounted) -> ArrayMesh:
-	_resolve(source, shape)
+## [param window] is a rectangle in TILES, empty for the whole map.
+func build(
+	source: RefCounted, shape: RefCounted, atlas: RefCounted, window: Rect2i = Rect2i()
+) -> ArrayMesh:
+	resolve(source, shape)
+	return emit(atlas, window)
+
+
+## The geometry for [param window], out of what [method resolve] already worked
+## out. Nothing is measured again: what a tile is and how tall it stands is a
+## fact about the MAP, and reading it through the window would make a structure's
+## height depend on where the player was standing when the mesh was built.
+##
+## An empty window is the whole map; anything else is clipped to it.
+func emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> ArrayMesh:
 	if _size == Vector2i.ZERO:
 		return null
+	var box := Rect2i(Vector2i.ZERO, _size)
+	if window.size.x > 0 and window.size.y > 0:
+		box = box.intersection(window)
 
 	_vertices = PackedVector3Array()
 	_normals = PackedVector3Array()
 	_uvs = PackedVector2Array()
 	_colors = PackedColorArray()
 
-	for ty: int in _size.y:
-		for tx: int in _size.x:
+	for ty: int in range(box.position.y, box.end.y):
+		for tx: int in range(box.position.x, box.end.x):
 			_emit(tx, ty, atlas)
 
 	if _vertices.is_empty():
@@ -93,13 +109,17 @@ func size_pixels() -> Vector2:
 	return Vector2(_size) * TILE
 
 
+func size_tiles() -> Vector2i:
+	return _size
+
+
 ## Resolves every tile to a class and a height, in two passes.
 ##
 ## The first pass reads the shape of each tile: collision is per walk cell, so
 ## the four tiles of a cell all see the same permission and only a pin can split
 ## them. The second measures each unpinned volume column, because how tall a
 ## thing is drawn is not a property of one tile.
-func _resolve(source: RefCounted, shape: RefCounted) -> void:
+func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_size = Vector2i.ZERO
 	if source == null or not source.valid():
 		return

@@ -32,6 +32,8 @@ extends RefCounted
 ## Purely a composition: the camera looks at the map, and nothing here reaches
 ## collision, movement, triggers or scripts.
 
+const Steering: GDScript = preload("../steering.gd")
+
 const CELL: float = 16.0
 
 ## The gap between the two battlers, and the shape of ground that fits them.
@@ -95,9 +97,6 @@ const CLEARANCE_HEIGHT: float = 24.0
 const CLIMB_RANGE: float = 45.0
 const SWING_STEP: float = 0.08
 const CLIMB_STEP: float = 0.08
-const ZOOM_LIMITS := Vector2(0.55, 2.0)
-const ZOOM_STEP: float = 0.12
-const TWEEN_TIME: float = 0.22
 
 var _source: RefCounted = null
 var _heights: RefCounted = null
@@ -114,6 +113,8 @@ var _swing_goal: float = 0.0
 var _climb_goal: float = 0.0
 var _zoom_goal: float = 1.0
 var _t: float = 1.0
+## Which way a wheel notch zooms, from the player's own setting.
+var _wheel_sign: int = 1
 
 
 ## Finds the ground this fight is shot on. [param source] is a `map_source.gd`
@@ -285,45 +286,39 @@ func _swing_range() -> float:
 	return 90.0 - rad_to_deg(atan2(SIDE, BACK))
 
 
-## The keys the battle screen does not claim. A Gen2Button never arrives here.
+## The events the battle screen does not claim. A Gen2Button never arrives here.
+##
+## The binding is `steering.gd`'s, shared with the overworld, so a wheel notch
+## means one thing in the mod. A dolly is refused: this seat is solved against
+## the hardware's own picture slots and moving it is what the zoom is for.
 func handle_input(event: InputEvent) -> bool:
-	var key := event as InputEventKey
-	if key != null and key.pressed:
-		match key.keycode:
-			KEY_D:
-				_aim(_swing_goal + SWING_STEP, _climb_goal, _zoom_goal)
-			KEY_A:
-				_aim(_swing_goal - SWING_STEP, _climb_goal, _zoom_goal)
-			KEY_W:
-				_aim(_swing_goal, _climb_goal + CLIMB_STEP, _zoom_goal)
-			KEY_S:
-				_aim(_swing_goal, _climb_goal - CLIMB_STEP, _zoom_goal)
-			KEY_Q:
-				_aim(_swing_goal, _climb_goal, _zoom_goal + ZOOM_STEP)
-			KEY_E:
-				_aim(_swing_goal, _climb_goal, _zoom_goal - ZOOM_STEP)
-			_:
-				return false
-		return true
+	match Steering.command(event, _wheel_sign):
+		Steering.ZOOM_IN:
+			_aim(_swing_goal, _climb_goal, _zoom_goal - Steering.ZOOM_STEP)
+		Steering.ZOOM_OUT:
+			_aim(_swing_goal, _climb_goal, _zoom_goal + Steering.ZOOM_STEP)
+		Steering.PITCH_UP:
+			_aim(_swing_goal, _climb_goal + CLIMB_STEP, _zoom_goal)
+		Steering.PITCH_DOWN:
+			_aim(_swing_goal, _climb_goal - CLIMB_STEP, _zoom_goal)
+		Steering.SWING_RIGHT:
+			_aim(_swing_goal + SWING_STEP, _climb_goal, _zoom_goal)
+		Steering.SWING_LEFT:
+			_aim(_swing_goal - SWING_STEP, _climb_goal, _zoom_goal)
+		_:
+			return false
+	return true
 
-	var wheel := event as InputEventMouseButton
-	if wheel != null and wheel.pressed:
-		match wheel.button_index:
-			MOUSE_BUTTON_WHEEL_UP:
-				_aim(_swing_goal, _climb_goal, _zoom_goal - ZOOM_STEP)
-			MOUSE_BUTTON_WHEEL_DOWN:
-				_aim(_swing_goal, _climb_goal, _zoom_goal + ZOOM_STEP)
-			_:
-				return false
-		return true
-	return false
+
+func set_wheel_sign(sign_of_wheel: int) -> void:
+	_wheel_sign = 1 if sign_of_wheel >= 0 else -1
 
 
 ## Real frame time, so a fast-forwarded battle never spins the camera.
 func advance(delta: float) -> bool:
 	if _t >= 1.0:
 		return false
-	_t = minf(1.0, _t + delta / TWEEN_TIME)
+	_t = minf(1.0, _t + delta / Steering.TWEEN_TIME)
 	var eased: float = _t * _t * (3.0 - 2.0 * _t)
 	_swing = _swing_from + (_swing_goal - _swing_from) * eased
 	_climb = _climb_from + (_climb_goal - _climb_from) * eased
@@ -337,5 +332,5 @@ func _aim(swing: float, climb: float, zoom: float) -> void:
 	_zoom_from = _zoom
 	_swing_goal = clampf(swing, 0.0, 1.0)
 	_climb_goal = clampf(climb, 0.0, 1.0)
-	_zoom_goal = clampf(zoom, ZOOM_LIMITS.x, ZOOM_LIMITS.y)
+	_zoom_goal = clampf(zoom, Steering.ZOOM_LIMITS.x, Steering.ZOOM_LIMITS.y)
 	_t = 0.0

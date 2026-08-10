@@ -11,10 +11,17 @@ of the player's own cartridge.
 | Key | Does |
 | --- | --- |
 | `V` | Switch between this and the Game Boy Color view. The host owns this key, in the overworld and in a battle alike |
-| `Q` / `E` | Overworld: lower and raise the camera. Battle: the lens |
-| `-` / `=`, or the wheel | Overworld: pull the camera back and push it in |
+| `Q` / `E`, or the wheel | Zoom the lens, in both views |
+| `W` / `S` | Raise and lower the camera, in both views |
 | `A` / `D` | Battle: swing the shot around the arena |
-| `W` / `S` | Battle: raise and lower the seat |
+| `-` / `=` | Overworld: pull the camera back and push it in |
+
+One binding, in `steering.gd`, and both views read it, so a wheel notch means
+one thing in the mod. Both views zoom the LENS and never the distance: a rig
+derives its field of view from where the eye sits, so moving the eye instead
+would change the perspective without changing the framing. The dolly is the
+overworld's alone, because the battle's seat is solved against the hardware's
+own picture slots and moving it is what breaks them.
 
 Both axes of the battle camera stop where the composition does. Left stops at the
 shot the rig was solved for, because there is nothing to the left of it; right
@@ -25,6 +32,39 @@ about what the lens is aimed at so the pair stays framed the whole way.
 Movement and interaction keys never reach the mod: the world screen claims what
 it needs and offers the rest, so the camera can be steered while the game is
 still played on the grid it always was.
+
+## Settings
+
+Three, in the start menu's MODS entry and on this mod's card in the launcher.
+Both surfaces are built by the host out of one registration in `options.gd`, so
+this mod writes no settings screen. Values are per installation and not per save:
+a draw distance must not change when a slot is loaded.
+
+| Setting | Rungs | Does |
+| --- | --- | --- |
+| DISTANCE | 12, 16, 24, FULL | How far out the map is meshed, in walk cells |
+| WHEEL | NORMAL, INVERTED | Which way a wheel notch zooms |
+| CAMERA | LOW, MID, HIGH | The pitch the overworld camera opens at |
+
+DISTANCE is where the frame time is. The biggest map meshes whole in 39 ms of
+geometry and in 13 ms at sixteen cells, for the same picture: at the default
+pitch the eye frames about sixteen cells of ground and no more. A LOW camera is
+the case that sees past a window, because its top edge runs nearly level and
+reaches ninety cells out, and there the cut edge shows. FULL is for that.
+
+Walking out of the middle of the window rebuilds it around you. The map is
+resolved once and only the geometry is emitted again, so a recentre is the cheap
+two thirds of a build, and the margin is a third of the distance so it is not
+most steps.
+
+## The text box
+
+Over this view the screen's own text box is drawn with its FIELD at 0.75 and its
+frame and glyphs solid, so a prompt reads exactly as well and the map is still
+there behind it. The overworld also pans the shot up by half of what the box
+covers, so the player stands in the middle of what is left rather than behind it.
+The battle does not: each battler is pinned to its own hardware picture slot,
+which is what makes a collision with the box impossible in the first place.
 
 ## The battle
 
@@ -127,7 +167,7 @@ BLOCK: 4x4 tiles on 2x2 walk cells, which is what Generation II authors the worl
 out of. A tree, a sign, a fence corner or a stretch of path is one block.
 
 ```bash
-Godot --path <gen2recomp> -s tools/survey.gd -- <cache> all out/
+Godot --path <gen2recomp> -s <this checkout>/tools/survey.gd -- <cache> all out/
 python3 tools/survey_sheet.py out/
 ```
 
@@ -149,10 +189,12 @@ collision change is the wrong fix.
 ## Layout
 
 ```
-mod.gd               registers both renderers and returns
+mod.gd               registers both renderers and the settings, and returns
+options.gd           the settings, named once, registered and read back here
+steering.gd          what a key or a wheel notch means, in either view
 world/renderer.gd    the overworld Node the host builds
 world/diorama.gd     the 3D stage both views share: viewport, daylight, cards
-world/camera_rig.gd  pitch, distance and the ease between settings
+world/camera_rig.gd  pitch, distance, lens and the ease between settings
 battle/renderer.gd   the battle Node: the arena, the battlers and the panels
 battle/arena.gd      where the fight is staged and where it is shot from
 shape/atlas.gd       the tileset as a texture, palettes and tile animation

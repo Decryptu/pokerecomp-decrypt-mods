@@ -36,6 +36,12 @@ const DAY_AMBIENT: Array[Color] = [
 ## sun is what should be paying for the light.
 const AMBIENT_ENERGY: float = 0.28
 
+## How far the eye sees and how far shadows are cast when the whole map is
+## meshed. A route is a couple of thousand world pixels across, so the engine's
+## own 4000 unit far plane would clip its far edge.
+const FAR_DEFAULT: float = 8000.0
+const SHADOW_DISTANCE_DEFAULT: float = 600.0
+
 var container: SubViewportContainer = null
 var viewport: SubViewport = null
 var camera: Camera3D = null
@@ -74,7 +80,7 @@ func _init() -> void:
 	# A diorama with no shadows reads as flat colour: the whole point of standing
 	# the drawings up is that they sit ON something.
 	_light.shadow_enabled = true
-	_light.directional_shadow_max_distance = 600.0
+	_light.directional_shadow_max_distance = SHADOW_DISTANCE_DEFAULT
 	# The geometry is axis-aligned boxes on a flat plane, which is the shape that
 	# shows shadow acne worst; a normal bias rather than a depth one keeps the
 	# contact edge where the box meets the ground.
@@ -83,9 +89,7 @@ func _init() -> void:
 
 	camera = Camera3D.new()
 	camera.fov = 42.0
-	# A route is a couple of thousand world pixels across, so the default 4000
-	# unit limit would clip its far edge.
-	camera.far = 8000.0
+	camera.far = FAR_DEFAULT
 	viewport.add_child(camera)
 
 	_material = StandardMaterial3D.new()
@@ -116,6 +120,23 @@ func set_time_of_day(time_of_day: int) -> void:
 
 func time_of_day() -> int:
 	return _time_of_day
+
+
+## How far the eye is allowed to see, in world pixels, following whatever the
+## mesh was actually built out to. Zero is the whole map.
+##
+## The far plane is set past the window rather than at it, so the cut edge of a
+## windowed mesh is somewhere in the frame rather than in the middle of it, and
+## the shadow pass is held to the same reach: shadows are cast per frame, so
+## asking for them across a route no view distance is drawing is the part of a
+## draw distance that actually pays.
+func set_view_distance(pixels: float) -> void:
+	if pixels <= 0.0:
+		camera.far = FAR_DEFAULT
+		_light.directional_shadow_max_distance = SHADOW_DISTANCE_DEFAULT
+		return
+	camera.far = minf(FAR_DEFAULT, pixels * 2.0)
+	_light.directional_shadow_max_distance = minf(SHADOW_DISTANCE_DEFAULT, pixels)
 
 
 func set_terrain(mesh: ArrayMesh) -> void:

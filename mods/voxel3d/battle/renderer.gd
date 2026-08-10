@@ -19,7 +19,18 @@ extends Control
 ## A battle started outside the world gets no context and is drawn on the flat
 ## field the panels already imply.
 
+const Options: GDScript = preload("../options.gd")
+
 const CELL: float = 16.0
+
+## How opaque the screen draws the FIELD of its own text box over this view, and
+## the same judgement the overworld makes: the frame's lines and the glyphs are
+## ink and stay solid, so the prompt reads exactly as well and the fight is still
+## visible behind it. Every prompt in a battle is that one box.
+##
+## The panels above it are this renderer's own and are tinted separately; see
+## PANEL_TINT.
+const FIELD_OPACITY: float = 0.75
 
 var _data: GameData = null
 var _view: Dictionary = {}
@@ -58,6 +69,9 @@ var _hud_layers: Array[TextureRect] = []
 var _battlers: Array[TextureRect] = []
 var _pic_textures: Dictionary = {}
 var _native := Vector2i(Gen2Screen.WIDTH, Gen2Screen.HEIGHT)
+## How far out from the fight the map is meshed, in walk cells. Zero is all of
+## it. The player's own DISTANCE setting, shared with the overworld.
+var _draw_cells: int = 0
 
 
 func _init() -> void:
@@ -79,10 +93,38 @@ func _init() -> void:
 		layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(layer)
 		_hud_layers.append(layer)
+	_read_options()
+	Options.listen(_on_option_changed)
 
 
 func uses_hardware_viewport() -> bool:
 	return false
+
+
+## See FIELD_OPACITY. `set_text_box_rect` is deliberately not answered here: the
+## rig pins each battler to its own hardware picture slot, which is what makes a
+## collision with the box impossible, so there is nothing left for this view to
+## compose around it.
+func interface_opacity() -> float:
+	return FIELD_OPACITY
+
+
+## The fallback is the whole map, which is what a probe or a tool building this
+## renderer outside the game wants.
+func _read_options() -> void:
+	_draw_cells = int(Options.value(Options.DISTANCE, 0))
+	_arena.set_wheel_sign(int(Options.value(Options.WHEEL, 1)))
+
+
+func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void:
+	if id != Options.MOD_ID:
+		return
+	match key:
+		Options.DISTANCE:
+			_draw_cells = int(value)
+			_build_arena()
+		Options.WHEEL:
+			_arena.set_wheel_sign(int(value))
 
 
 func set_native_size(size_pixels: Vector2i) -> void:
@@ -166,9 +208,13 @@ func _build_arena() -> void:
 	if _atlas.build(_data, map, tileset, _context.time_of_day):
 		_stage.set_texture(_atlas.texture)
 		_stage.set_background(_atlas.background())
-	_stage.set_terrain(_mesher.build(
-		source, _tile_shape_script.new(_profile, tileset.number), _atlas
-	))
+	# Resolved whole and emitted around the fight. A fight does not move, so the
+	# window is built once and never recentred; the sight lines the arena is
+	# chosen by read the resolved heights, which are the whole map's whatever is
+	# drawn of it.
+	_mesher.resolve(source, _tile_shape_script.new(_profile, tileset.number))
+	_stage.set_view_distance(float(_draw_cells) * CELL)
+	_stage.set_terrain(_mesher.emit(_atlas, _window(_context.player_cell)))
 	# Staged AFTER the mesh, because choosing where the fight goes asks how tall
 	# the things around it turned out to be, and only the mesh knows that.
 	_arena.stage(_context, source, _mesher)
@@ -177,6 +223,22 @@ func _build_arena() -> void:
 	# the map's own origin: a corner of the map with the fight nowhere in it.
 	_frame_camera()
 	_place_battlers()
+
+
+## The rectangle of map the fight is drawn out of, in TILES, or empty for the
+## whole of it at FULL distance.
+##
+## The battle's lens is a 23.6 degree cone across a 46 pixel frame, so what it
+## can see of a map is a narrow wedge and a window costs the shot far less than
+## it costs the overworld's wide one.
+func _window(cell: Vector2i) -> Rect2i:
+	if _draw_cells <= 0:
+		return Rect2i()
+	var span: int = _draw_cells * 2 + 1
+	return Rect2i(
+		(cell - Vector2i(_draw_cells, _draw_cells)) * RomLayout.MAP_BLOCK_CELL_WIDTH,
+		Vector2i(span, span) * RomLayout.MAP_BLOCK_CELL_WIDTH
+	)
 
 
 func _frame_camera() -> void:
