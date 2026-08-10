@@ -14,6 +14,12 @@ more than its hundred and thirty tile names.
 
     tools/survey_tiles.py <survey dir> [all] # writes <survey dir>/tiles.html
 
+A tile already ANSWERED in a previous round is never asked about again, whether
+or not anything was pinned from that answer. Those are two different questions:
+`survey_context.gd` drops what is pinned, because a pin is what stops the mesher
+guessing, but an answer that has not been acted on yet is still an answer and
+asking for it twice wastes the one thing this loop cannot make more of.
+
 Only the tilesets carrying the most maps are asked about, in that order, because
 all thirty-five is two and a half thousand tiles and nobody is answering that in
 one sitting. Pass `all` to include the rest anyway.
@@ -230,6 +236,20 @@ build();
 """
 
 
+## Every `ts<n> <tile> ...` line of every answer file kept beside the renders.
+def read_answers(directory):
+    seen = set()
+    for path in sorted(directory.glob("answers*.txt")):
+        for line in path.read_text().splitlines():
+            words = line.split()
+            if len(words) >= 2 and words[0].startswith("ts") and words[1].isdigit():
+                try:
+                    seen.add((int(words[0][2:]), int(words[1])))
+                except ValueError:
+                    pass
+    return seen
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -240,6 +260,13 @@ def main():
         print("no ask_ts*.json in %s: run tools/survey_context.gd first" % directory)
         return 1
     everything = len(sys.argv) > 2 and sys.argv[2] == "all"
+    answered = read_answers(directory)
+    for sheet in sheets:
+        sheet["tiles"] = [
+            t for t in sheet["tiles"]
+            if (sheet["tileset"], t["tile"]) not in answered
+        ]
+    sheets = [s for s in sheets if s["tiles"]]
     order = {number: at for at, number in enumerate(PRIORITY)}
     sheets = [s for s in sheets if everything or s["tileset"] in order]
     sheets.sort(key=lambda s: (order.get(s["tileset"], len(order)), s["tileset"]))
