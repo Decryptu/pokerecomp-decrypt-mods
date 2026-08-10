@@ -10,7 +10,7 @@ extends RefCounted
 ## Nothing here is extracted from a cartridge. A pin can only ever change how a
 ## tile LOOKS: collision, warps, triggers and scripts read what they always did.
 ##
-## 945 tiles over 23 tilesets. A tile the pass read as a plain standing
+## 980 tiles over 24 tilesets. A tile the pass read as a plain standing
 ## wall is deliberately absent: the automatic resolution already stands it up,
 ## and it measures the height off the drawing where a pin would force one.
 
@@ -162,6 +162,15 @@ const TILESETS: Dictionary = {
 	20: {
 		&"ground": [1, 48, 49, 50],
 		&"surface": [16, 17, 18, 32, 33, 34],
+	},
+	22: {
+		&"ground": [
+			1, 17, 33, 34, 35, 36, 37, 48, 49, 50, 51, 52, 59, 64, 70, 71, 75, 76, 86, 87, 89,
+			90,
+		],
+		&"stand": [14, 15, 30, 31],
+		&"surface": [6, 10, 11, 40, 41, 53, 79, 95],
+		&"void": [55],
 	},
 	23: {
 		&"bush": [39],
