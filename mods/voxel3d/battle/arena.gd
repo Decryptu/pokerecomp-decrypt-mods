@@ -20,6 +20,22 @@ const PLAYER_ALONG: float = 0.25
 const ENEMY_ALONG: float = 0.9
 const IDEAL_RUN_CELLS: int = 6
 const MIN_RUN_CELLS: int = 2
+## How far each side stands off the arena's axis, in world pixels.
+##
+## The signs matter more than the sizes, and they are the hardware's. On the flat
+## view each panel sits OPPOSITE its own battler: the foe's picture is top right
+## under a panel top left, the player's is bottom left under a panel bottom
+## right. The panels are still drawn where the hardware puts them, so staging
+## each battler on its panel's side is what lands a block squarely on the Pokemon
+## it belongs to.
+const ENEMY_ASIDE: float = 13.0
+const PLAYER_ASIDE: float = -13.0
+
+## How far behind their Pokemon the opposing trainer stands, and how much further
+## out from the axis, which keeps them clear of what they sent out.
+const TRAINER_BEHIND: float = 26.0
+const TRAINER_ASIDE: float = 13.0
+
 ## How far to look for clear ground before giving up and staging on the spot.
 const SEARCH_CELLS: int = 8
 ## How far the arena may move from the player's own cell to find room.
@@ -34,7 +50,9 @@ const EYE_HEIGHT: float = 68.0
 ## Where the lens looks, along the axis and above the ground. Biased toward the
 ## foe, because the shot is of what is being fought.
 const LOOK_ALONG: float = 0.6
-const LOOK_HEIGHT: float = 18.0
+## Chest height on a battler rather than the ground they stand on, so the pair
+## sits in the middle of the frame instead of along its bottom edge.
+const LOOK_HEIGHT: float = 28.0
 
 ## How far the eye may swing around the arena and climb above its own seat, in
 ## degrees, and the step a key or a drag moves it by. Right ends side on, with
@@ -176,11 +194,21 @@ static func _direction(facing: int) -> Vector3:
 ## player and the foe, on the near side of the axis, which is the arrangement
 ## the flat view draws from the side.
 func player_ground() -> Vector3:
-	return _origin + _forward * (_run * PLAYER_ALONG) - _right * 7.0
+	return _origin + _forward * (_run * PLAYER_ALONG) + _right * PLAYER_ASIDE
 
 
 func enemy_ground() -> Vector3:
-	return _origin + _forward * (_run * ENEMY_ALONG) + _right * 7.0
+	return _origin + _forward * (_run * ENEMY_ALONG) + _right * ENEMY_ASIDE
+
+
+## Where the opposing trainer stands: behind their own Pokemon and off its
+## shoulder, so the pair reads as one side of the fight and neither hides the
+## other. The flat view has the trainer occupy the enemy slot until the first
+## Pokemon is sent out and then slide away; out here there is room for both, and
+## keeping them is what makes a trainer battle look like one.
+func enemy_trainer_ground() -> Vector3:
+	return _origin + _forward * (_run * ENEMY_ALONG + TRAINER_BEHIND) \
+		+ _right * (ENEMY_ASIDE + TRAINER_ASIDE)
 
 
 ## The eye, swung around the arena's centre and raised by whatever the player has

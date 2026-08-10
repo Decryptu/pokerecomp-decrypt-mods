@@ -23,6 +23,10 @@ const CELL: float = 16.0
 ## Species pics are up to 56 pixels across and stand about three walk cells tall
 ## on the map, which is the scale that reads as a creature rather than a poster.
 const PIC_SCALE: float = 0.86
+## A trainer is drawn at the same 56 pixels as a big Pokemon but is a person, so
+## they stand a little over three cells: taller than most of what they send out,
+## which is what makes the pair read as a trainer and their Pokemon.
+const TRAINER_SCALE: float = 0.92
 
 var _data: GameData = null
 var _view: Dictionary = {}
@@ -53,7 +57,7 @@ const PANEL_PAD: int = 2
 ## each block gets one, and deliberately a light one: the point of this view is
 ## seeing where you are standing, and an opaque slab in the corner of the frame
 ## is the white field back again under another name.
-const PANEL_TINT := Color(1.0, 1.0, 1.0, 0.66)
+const PANEL_TINT := Color(1.0, 1.0, 1.0, 0.52)
 
 var _hud: Gen2BattleHud = null
 var _panels_backing: Array[ColorRect] = []
@@ -179,6 +183,10 @@ const BOOM_SAMPLES: int = 14
 const BOOM_CLEARANCE: float = 10.0
 ## Never closer to the arena than this, or the eye ends up inside a battler.
 const BOOM_MINIMUM: float = 0.4
+## How far the eye may climb to see over what is behind the player, in world
+## pixels. The last rung clears a three-cell structure, which is the tallest
+## anything unpinned is ever measured at.
+const BOOM_LIFTS: Array[float] = [0.0, 14.0, 30.0, 48.0, 70.0]
 
 
 func _frame_camera() -> void:
@@ -187,36 +195,53 @@ func _frame_camera() -> void:
 	_stage.aim_camera(_boom(target, _arena.eye()), target)
 
 
-## The eye pulled in until nothing stands between it and the arena.
+## The eye moved until nothing stands between it and the arena.
 ##
 ## A fight is often started with a wall, a tree line or a house at the player's
 ## back, and an eye composed several cells behind them ends up looking at the
-## inside of a facade. Walking OUT from the arena and stopping at the first
-## sample the terrain rises through is what makes backing into a wall walk the
-## camera up to the battlers' shoulders instead of through it.
+## inside of a facade.
 ##
-## Testing the whole segment rather than the seat alone is the part that matters:
-## an eye composed high enough clears every wall in the game and still has one
-## between it and what it is looking at.
+## CLIMBING over what is in the way is tried before shortening, because the two
+## cost different things. Shortening keeps the angle and wrecks the composition:
+## the near battler is the closest thing to the eye, so pulling in a third swells
+## it to half the frame and pushes the pair it is fighting into the top edge.
+## Rising keeps every distance and only steepens the shot, which a diorama can
+## afford. Only when no height clears it does the boom come in.
 func _boom(target: Vector3, eye: Vector3) -> Vector3:
 	if _mesher == null:
 		return eye
+	for lift: float in BOOM_LIFTS:
+		var raised: Vector3 = eye + Vector3(0.0, lift, 0.0)
+		if _segment_clear(target, raised, 1.0):
+			return raised
+
+	var top: Vector3 = eye + Vector3(0.0, BOOM_LIFTS[BOOM_LIFTS.size() - 1], 0.0)
 	var clear: float = BOOM_MINIMUM
 	for step: int in range(1, BOOM_SAMPLES + 1):
 		var fraction: float = float(step) / float(BOOM_SAMPLES)
-		if fraction < BOOM_MINIMUM:
-			continue
-		var at: Vector3 = target + (eye - target) * fraction
-		if at.y <= float(_mesher.height_at_position(at)) + BOOM_CLEARANCE:
+		if fraction < BOOM_MINIMUM or not _segment_clear(target, top, fraction):
 			break
 		clear = fraction
-	var seat: Vector3 = target + (eye - target) * clear
-	# A fight started in a walled-in cell has nowhere for the boom to go, and the
-	# minimum leaves the eye inside whatever is there. Lifting it clear of that
-	# column turns the worst case into a shot from above rather than one from
-	# inside a wall.
+	var seat: Vector3 = target + (top - target) * clear
+	# A fight started in a walled-in cell has nowhere for the boom to go at all,
+	# and the minimum leaves the eye inside whatever is there. Lifting it clear
+	# of that column turns the worst case into a shot from above rather than one
+	# from inside a wall.
 	seat.y = maxf(seat.y, float(_mesher.height_at_position(seat)) + BOOM_CLEARANCE)
 	return seat
+
+
+## Whether the terrain stays below the line from the arena out to [param eye],
+## as far as [param fraction] of the way. Sampling the whole segment is the part
+## that matters: an eye high enough to clear every wall in the game can still
+## have one standing between it and what it is looking at.
+func _segment_clear(target: Vector3, eye: Vector3, fraction: float) -> bool:
+	for step: int in range(1, BOOM_SAMPLES + 1):
+		var along: float = fraction * float(step) / float(BOOM_SAMPLES)
+		var at: Vector3 = target + (eye - target) * along
+		if at.y <= float(_mesher.height_at_position(at)) + BOOM_CLEARANCE:
+			return false
+	return true
 
 
 ## The two battlers, as cards standing on the arena's ground.
@@ -227,6 +252,14 @@ func _boom(target: Vector3, eye: Vector3) -> Vector3:
 ## been sent out.
 func _place_battlers() -> void:
 	_stage.begin_cards()
+	# The trainer first, so their own Pokemon draws in front of them when the two
+	# cards overlap.
+	if StringName(_view.get("battle_kind", &"wild")) == &"trainer":
+		var trainer: Texture2D = _trainer_pic(int(_view.get("trainer_class", 0)))
+		if trainer != null:
+			_stage.add_standing_card(
+				trainer, _arena.enemy_trainer_ground(), TRAINER_SCALE
+			)
 	var enemy: Texture2D = _pic(int(_view.get("enemy_species", 0)), false)
 	if enemy != null:
 		_stage.add_standing_card(enemy, _arena.enemy_ground(), PIC_SCALE)
@@ -242,10 +275,30 @@ func _place_battlers() -> void:
 func _pic(species: int, back: bool) -> Texture2D:
 	if _data == null or species <= 0:
 		return null
-	var key: String = "%d:%d" % [species, 1 if back else 0]
+	return _texture(
+		"%d:%d" % [species, 1 if back else 0],
+		_data.species_pic(species, back),
+		_data.palette(species),
+	)
+
+
+## The opposing trainer's own picture, in the cartridge's art. A class number is
+## what the pic and the palette are both keyed on, and a wild battle carries
+## class 0, which is what makes this answer nothing there.
+func _trainer_pic(trainer_class: int) -> Texture2D:
+	if _data == null or trainer_class <= 0:
+		return null
+	return _texture(
+		"t%d" % trainer_class,
+		_data.trainer_pic(trainer_class),
+		_data.trainer_palette(trainer_class),
+	)
+
+
+func _texture(key: String, pic: Dictionary, palette: PackedColorArray) -> Texture2D:
 	if _pic_textures.has(key):
 		return _pic_textures[key]
-	var image: Image = _cut_out(species, back)
+	var image: Image = _cut_out(pic, palette)
 	if image == null:
 		return null
 	var texture: Texture2D = ImageTexture.create_from_image(image)
@@ -267,9 +320,8 @@ func _pic(species: int, back: bool) -> Texture2D:
 ## sealed inside it survive and only the field is cut away. A drawing whose
 ## silhouette touches the border simply keeps the corner the flood cannot reach,
 ## which is the safe way round.
-func _cut_out(species: int, back: bool) -> Image:
-	var pic: Dictionary = _data.species_pic(species, back)
-	if pic.is_empty():
+func _cut_out(pic: Dictionary, palette: PackedColorArray) -> Image:
+	if pic.is_empty() or not pic.has("atlas"):
 		return null
 	var name: String = String(pic["atlas"])
 	var atlas: Dictionary = _data.atlas(name)
@@ -298,7 +350,6 @@ func _cut_out(species: int, back: bool) -> Image:
 			pixels[y * width + x] = indices[from + x]
 
 	var field: PackedByteArray = _field(pixels, width, height)
-	var palette: PackedColorArray = _data.palette(species)
 	var image: Image = Image.create(width, height, false, Image.FORMAT_RGBA8)
 	for y: int in height:
 		for x: int in width:
@@ -308,7 +359,15 @@ func _cut_out(species: int, back: bool) -> Image:
 			if field[at] == 1:
 				color.a = 0.0
 			image.set_pixel(x, y, color)
-	return image
+
+	# Trimmed to what is actually drawn. A pic sits in the top-left of a cell
+	# sized for the largest of its kind, and a trainer's own drawing rarely
+	# reaches the bottom of one, so a card standing on its cell stands on blank
+	# rows and the figure floats above the ground.
+	var used: Rect2i = image.get_used_rect()
+	if used.size.x <= 0 or used.size.y <= 0:
+		return null
+	return image.get_region(used)
 
 
 ## The index 0 reachable from the border, four-connected: everything the drawing

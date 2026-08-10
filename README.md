@@ -8,7 +8,7 @@ Silver and Crystal recompilation. Each one is interpreted GDScript under
 
 | Mod | Version | What it does |
 | --- | --- | --- |
-| [`voxel3d`](mods/voxel3d/) | 0.2.0 | The overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and the fight staged on the map it started on. `V` switches views, `Q` and `E` steer the camera. |
+| [`voxel3d`](mods/voxel3d/) | 0.3.0 | The overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and the fight staged on the map it started on with a steerable over-the-shoulder camera. `V` switches views. |
 
 ## Installing
 

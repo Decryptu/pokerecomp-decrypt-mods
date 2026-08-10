@@ -11,8 +11,16 @@ of the player's own cartridge.
 | Key | Does |
 | --- | --- |
 | `V` | Switch between this and the Game Boy Color view. The host owns this key, in the overworld and in a battle alike |
-| `Q` / `E` | Lower and raise the camera |
-| `-` / `=`, or the wheel | Pull the camera back and push it in |
+| `Q` / `E` | Overworld: lower and raise the camera. Battle: the lens |
+| `-` / `=`, or the wheel | Overworld: pull the camera back and push it in |
+| `A` / `D` | Battle: swing the shot around the arena |
+| `W` / `S` | Battle: raise and lower the seat |
+
+Both axes of the battle camera stop where the composition does. Left stops at the
+shot the rig was solved for, because there is nothing to the left of it; right
+ends side on, with both battlers the same distance away instead of one behind the
+other. The lens opens as you swing, by the amount the pair spreads apart, so they
+stay framed at every angle.
 
 Movement and interaction keys never reach the mod: the world screen claims what
 it needs and offers the rest, so the camera can be steered while the game is
@@ -33,9 +41,17 @@ yard has no arena where they stand, so the search widens by rings until it finds
 ground with room, which puts the fight on the path outside rather than inside the
 wall.
 
-The camera sits behind the player's shoulder looking down that axis, and its boom
-shortens against whatever is between it and the arena: backing into a wall walks
-the eye up to the battlers' shoulders instead of through it.
+The camera sits behind the player's shoulder looking down that axis. When
+something stands between it and the arena it climbs over it rather than pulling
+in, because the near battler is the closest thing to the eye and shortening a
+boom by a third swells it to half the frame; only a cell nothing clears makes it
+come in.
+
+Each battler is staged on its own panel's side. On the flat view a panel sits
+opposite its battler, the foe drawn top right under a panel top left, and the
+panels here are still drawn where the hardware puts them, so matching that is
+what keeps a block off the Pokemon it belongs to. A trainer's fight stands the
+opposing trainer behind their own Pokemon, in the cartridge's picture of them.
 
 Two layers, because a battle is two things at once. The map is geometry at window
 resolution; the panels, the bars and the text box stay hardware pixels, drawn at

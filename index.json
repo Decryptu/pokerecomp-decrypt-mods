@@ -5,9 +5,9 @@
 		{
 			"id": "voxel3d",
 			"name": "Voxel 3D",
-			"version": "0.2.0",
-			"description": "Rebuilds the overworld as a voxel diorama textured from the cartridge's own tileset, at the window's resolution, and stages a battle on the map it was started on. Press V to switch between it and the Game Boy Color view.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.2.0/voxel3d-0.2.0.zip"
+			"version": "0.3.0",
+			"description": "Rebuilds the overworld as a voxel diorama textured from the cartridge's own tileset, at the window's resolution, stages a battle on the map it was started on, and stands the opposing trainer behind their Pokemon. Press V to switch between it and the Game Boy Color view.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.3.0/voxel3d-0.3.0.zip"
 		}
 	]
 }
