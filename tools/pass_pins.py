@@ -110,7 +110,8 @@ def main():
     counts = collections.Counter()
     furniture = []
     doubts = 0
-    for path in sorted(directory.glob("pass_ts*.txt")):
+    for path in sorted(p for p in directory.glob("pass_ts*.txt")
+                       if p.stem[7:].isdigit()):
         for line in path.read_text().splitlines():
             fields = line.split(None, 4)
             if len(fields) < 4 or not fields[0].startswith("ts"):

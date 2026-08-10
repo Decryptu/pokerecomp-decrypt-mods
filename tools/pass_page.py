@@ -12,6 +12,9 @@ and much cheaper act.
 By default only `unsure` is asked about. Add `likely` to include those too,
 which is the thorough round.
 
+Tiles past the tile bank are never asked about: they are not imported, so every
+picture of one is flat background and nobody can name it, human or otherwise.
+
 SAVE writes `verdict.txt` in the shape every other answer file uses, so it feeds
 straight back in and those tiles are never asked about again.
 """
@@ -19,6 +22,9 @@ straight back in and those tiles are never asked about again.
 import json
 import pathlib
 import sys
+
+## The first tile index the import does not reach. See the engine request.
+UNIMPORTED = 128
 
 PAGE = """<!doctype html>
 <meta charset="utf-8">
@@ -180,8 +186,8 @@ def main():
             placed[(sheet["tileset"], tile["tile"])] = tile
 
     sheets = []
-    for path in sorted(directory.glob("pass_ts*.txt"),
-                       key=lambda p: int(p.stem[7:])):
+    files = [p for p in directory.glob("pass_ts*.txt") if p.stem[7:].isdigit()]
+    for path in sorted(files, key=lambda p: int(p.stem[7:])):
         number = int(path.stem[7:])
         tiles = []
         for line in path.read_text().splitlines():
@@ -189,6 +195,11 @@ def main():
             if len(fields) < 4 or not fields[0].startswith("ts"):
                 continue
             if fields[3] not in wanted and fields[2] != "unsure":
+                continue
+            # Nothing past the tile bank can be judged by anyone: those tiles are
+            # not imported, so every picture of one is flat background colour.
+            # They come back when the engine imports the second bank.
+            if int(fields[1]) >= UNIMPORTED:
                 continue
             known = placed.get((number, int(fields[1])), {})
             tiles.append({

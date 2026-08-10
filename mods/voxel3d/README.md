@@ -263,6 +263,19 @@ A pin is presentational and can only ever be. Collision, warps, triggers and
 scripts read the same data they always did, and a fix that seems to need a
 collision change is the wrong fix.
 
+## Two tables of pins
+
+`shape/profile.gd` is hand-authored from the reviewer's own measurements off the
+drawing. `shape/profile_pass.gd` is generated from a full pass over every tileset
+in the game, where the same ringed picture that makes a tileset answerable by a
+person is read tile by tile, and the answers become pins. The hand table wins
+wherever both name a tile, and the generated one can be thrown away and rebuilt.
+
+The pass is measured rather than trusted: run blind against a tileset the
+reviewer had already answered, it agreed on 66 of the 69 tiles they had settled,
+and every miss was one it had marked short of sure. What it cannot settle goes
+back to a person with its own description already written in.
+
 ## Layout
 
 ```
@@ -278,6 +291,7 @@ shape/atlas.gd       the tileset as a texture, palettes and tile animation
 shape/map_source.gd  the map, live from the world or read from its records
 shape/tile_shape.gd  tile -> shape class
 shape/profile.gd     hand-authored pins and the class table
+shape/profile_pass.gd  the generated second table, one pin per tile of the game
 shape/mesher.gd      map -> one static mesh
 ```
 
