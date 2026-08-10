@@ -47,6 +47,8 @@ const HEIGHTS: Dictionary = {
 	&"sign_post": 0,
 	&"bush": 0,
 	&"sapling": 0,
+	&"tombstone": 0,
+	&"flowers": 0,
 }
 
 ## How thick a cutout stands, in world pixels.
@@ -55,10 +57,36 @@ const HEIGHTS: Dictionary = {
 ## stick and reads wrong at any depth; a bollard is a round post and wants enough
 ## to be one; a bush is nearly as deep as it is wide.
 const DEPTHS: Dictionary = {
-	&"post": 6,
-	&"sign_post": 2,
-	&"bush": 12,
-	&"sapling": 12,
+	&"post": 8,
+	&"sign_post": 3,
+	&"bush": 14,
+	&"sapling": 14,
+	&"tombstone": 5,
+	&"flowers": 12,
+}
+
+## The cutouts that are ROUND IN PLAN rather than flat slabs.
+##
+## A bollard, a bush and a tree are round things and a slab of them reads as a
+## sheet of paper from above. The plan is an ellipse across each row's own run,
+## and every face still wears the FRONT drawing's texel at its own column: the
+## reviewer's call, and the right one, because the drawing's outline is dark and
+## a naive revolve would paint the whole object its own outline colour.
+const ROUND: Dictionary = {
+	&"post": true,
+	&"bush": true,
+	&"sapling": true,
+	&"flowers": true,
+}
+
+## The cutouts whose drawing is a solid body the flood cannot be trusted with.
+##
+## The wooden sign is the case: its board is painted the same palette index as
+## the floor, so the flood walks straight through the board and leaves the
+## letters standing in mid air. Filling each column between its topmost and
+## bottommost drawn pixel puts the board back, and the poles under it with it.
+const FILLED: Dictionary = {
+	&"sign_post": true,
 }
 
 ## How the mesher draws each class.
@@ -92,6 +120,8 @@ const ART: Dictionary = {
 	&"sign_post": &"cutout",
 	&"bush": &"cutout",
 	&"sapling": &"cutout",
+	&"tombstone": &"cutout",
+	&"flowers": &"cutout",
 }
 
 ## Tileset number -> class -> the tile ids that class claims.
@@ -111,6 +141,22 @@ const TILESETS: Dictionary = {
 		# A cell each, and both about as tall as the player.
 		&"bush": [64, 65, 80, 81],
 		&"sapling": [45, 46, 61, 62],
+		# Ground the detector was standing up because its cell is blocked by
+		# what stands NEXT to it: grass under a ledge lip, and the stone floor
+		# of a plateau.
+		&"ground": [17, 44, 57],
+		# A jumping ledge is drawn from above and lies low.
+		&"ledge": [52, 54],
+	},
+	# Pokemon Centers, shops and houses, on 57 maps.
+	5: {
+		&"table": [5, 21, 38, 39, 41, 47, 50, 51, 54, 57, 58, 59, 60],
+		# Three tiles tall, which is what `bookcase` already is.
+		&"bookcase": [14, 15, 48, 49],
+		&"tombstone": [40, 55, 56, 63, 78],
+		# The small brick flower bed, one cell square. The tall one is four
+		# tiles high and needs a cutout that spans two cells, which is open work.
+		&"flowers": [42, 43, 94, 95],
 	},
 }
 

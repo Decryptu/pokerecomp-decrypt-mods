@@ -59,6 +59,10 @@ var _size := Vector2i.ZERO
 var _tiles := PackedInt32Array()
 var _art := PackedByteArray()
 var _depths := PackedByteArray()
+## Per tile: whether its cutout is round in plan, and whether its drawing is a
+## solid body the border flood cannot be trusted with.
+var _round := PackedByteArray()
+var _filled := PackedByteArray()
 var _heights := PackedInt32Array()
 var _volume := PackedByteArray()
 ## The southernmost map row of the structure each tile belongs to. The fold reads
@@ -136,6 +140,8 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_tiles.resize(count)
 	_art.resize(count)
 	_depths.resize(count)
+	_round.resize(count)
+	_filled.resize(count)
 	_heights.resize(count)
 	_volume.resize(count)
 	_bases.resize(count)
@@ -157,6 +163,8 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			var art: StringName = shape.art(shape_class)
 			_art[at] = _art_mode(art)
 			_depths[at] = clampi(shape.depth(shape_class), 1, 16)
+			_round[at] = 1 if shape.is_round(shape_class) else 0
+			_filled[at] = 1 if shape.is_filled(shape_class) else 0
 			var is_volume: bool = art == &"upright"
 			_volume[at] = 1 if is_volume else 0
 			# A pin is authority: it names the height too, and the column
@@ -305,8 +313,10 @@ const RING_SHARE: float = 0.7
 var _masks: Dictionary = {}
 
 
-func _cell_mask(cell_tiles: Array, atlas: RefCounted) -> PackedByteArray:
-	var key: String = "%d,%d,%d,%d" % cell_tiles
+func _cell_mask(cell_tiles: Array, atlas: RefCounted, filled: bool) -> PackedByteArray:
+	var key: String = "%d,%d,%d,%d,%d" % [
+		cell_tiles[0], cell_tiles[1], cell_tiles[2], cell_tiles[3], 1 if filled else 0
+	]
 	if _masks.has(key):
 		return _masks[key]
 
@@ -360,8 +370,66 @@ func _cell_mask(cell_tiles: Array, atlas: RefCounted) -> PackedByteArray:
 		if py < size - 1:
 			stack.append(at + size)
 
+	# A drawing whose body is painted the ground's own index defeats the flood:
+	# the wooden sign's board is exactly the floor's colour, so the flood walks
+	# through the board and leaves the letters standing in mid air. Filling each
+	# column between its topmost and bottommost drawn pixel puts the body back.
+	if filled:
+		for px: int in size:
+			var first: int = -1
+			var last: int = -1
+			for py: int in size:
+				if mask[py * size + px] == 1:
+					if first < 0:
+						first = py
+					last = py
+			for py: int in range(first, last + 1):
+				if first >= 0:
+					mask[py * size + px] = 1
+
 	_masks[key] = mask
 	return mask
+
+
+## How deep each drawn pixel stands, as a step from 1 to LEVELS.
+##
+## A slab of a bollard or a bush reads as a sheet of paper from above, so a round
+## class takes an ELLIPTICAL plan: each row's own run of pixels is a circle seen
+## from above, deepest at its middle and pinched to nothing at its ends. Stepped
+## rather than smooth, because a step is what lets neighbouring pixels merge into
+## one rectangle, and three steps is already round enough at this scale to cost
+## an eighth of the geometry a per-pixel curve would.
+##
+## Every face still wears the FRONT drawing's texel at its own column, which is
+## the reviewer's call and the right one: the outline of these drawings is dark,
+## and a naive revolve would paint the whole object its own outline colour.
+const LEVELS: int = 3
+
+
+func _cell_levels(mask: PackedByteArray, span: int, round_plan: bool) -> PackedByteArray:
+	var levels := PackedByteArray()
+	levels.resize(mask.size())
+	if not round_plan:
+		for at: int in mask.size():
+			levels[at] = LEVELS if mask[at] == 1 else 0
+		return levels
+	for py: int in span:
+		var px: int = 0
+		while px < span:
+			if mask[py * span + px] == 0:
+				px += 1
+				continue
+			var last: int = px
+			while last + 1 < span and mask[py * span + last + 1] == 1:
+				last += 1
+			var middle: float = (float(px) + float(last) + 1.0) * 0.5
+			var radius: float = maxf((float(last) + 1.0 - float(px)) * 0.5, 0.5)
+			for step: int in range(px, last + 1):
+				var away: float = (float(step) + 0.5 - middle) / radius
+				var half: float = sqrt(maxf(1.0 - away * away, 0.0))
+				levels[py * span + step] = clampi(ceili(half * LEVELS), 1, LEVELS)
+			px = last + 1
+	return levels
 
 
 ## One tile's share of a standing cutout: the drawing's own pixels, standing up.
@@ -378,21 +446,22 @@ func _cell_mask(cell_tiles: Array, atlas: RefCounted) -> PackedByteArray:
 ## is the ground contact and its top row is the top of the object. Counting the
 ## height off the art is the whole point: a bollard came out 15 px and a sign 14,
 ## and no class constant would have found either.
-func _cutout(tx: int, ty: int, depth: float, atlas: RefCounted) -> void:
+func _cutout(
+	tx: int, ty: int, depth: float, round_plan: bool, filled: bool, atlas: RefCounted
+) -> void:
 	var cell := Vector2i(tx >> 1, ty >> 1)
 	var cell_tiles: Array = []
 	for row: int in CELL_TILES:
 		for column: int in CELL_TILES:
 			cell_tiles.append(_tile_at(cell.x * CELL_TILES + column, cell.y * CELL_TILES + row))
-	var mask: PackedByteArray = _cell_mask(cell_tiles, atlas)
+	var mask: PackedByteArray = _cell_mask(cell_tiles, atlas, filled)
+	var levels: PackedByteArray = _cell_levels(mask, CELL_TILES * int(TILE), round_plan)
 
 	var span: int = CELL_TILES * int(TILE)
 	var edge: int = int(TILE)
 	var tile: int = _tiles[ty * _size.x + tx]
 	var origin := Vector2i((tx & 1) * edge, (ty & 1) * edge)
 	var mid: float = float(cell.y) * CELL_TILES * TILE + CELL_TILES * TILE * 0.5
-	var back: float = mid - depth * 0.5
-	var front: float = mid + depth * 0.5
 
 	var taken := PackedByteArray()
 	taken.resize(edge * edge)
@@ -401,16 +470,19 @@ func _cutout(tx: int, ty: int, depth: float, atlas: RefCounted) -> void:
 			if taken[row * edge + column] == 1 \
 					or not _drawn(mask, span, origin.x + column, origin.y + row):
 				continue
+			var level: int = levels[(origin.y + row) * span + origin.x + column]
 			var wide: int = 1
 			while column + wide < edge and taken[row * edge + column + wide] == 0 \
-					and _drawn(mask, span, origin.x + column + wide, origin.y + row):
+					and _drawn(mask, span, origin.x + column + wide, origin.y + row) \
+					and levels[(origin.y + row) * span + origin.x + column + wide] == level:
 				wide += 1
 			var tall: int = 1
 			while row + tall < edge:
 				var whole: bool = true
 				for step: int in wide:
 					if taken[(row + tall) * edge + column + step] == 1 \
-							or not _drawn(mask, span, origin.x + column + step, origin.y + row + tall):
+							or not _drawn(mask, span, origin.x + column + step, origin.y + row + tall) \
+							or levels[(origin.y + row + tall) * span + origin.x + column + step] != level:
 						whole = false
 						break
 				if not whole:
@@ -419,9 +491,10 @@ func _cutout(tx: int, ty: int, depth: float, atlas: RefCounted) -> void:
 			for down: int in tall:
 				for across: int in wide:
 					taken[(row + down) * edge + column + across] = 1
+			var half: float = depth * 0.5 * float(level) / float(LEVELS)
 			_cutout_box(
 				tx, tile, atlas, mask, origin, span,
-				Rect2i(column, row, wide, tall), back, front
+				Rect2i(column, row, wide, tall), mid - half, mid + half
 			)
 
 
@@ -496,10 +569,13 @@ func _cutout_edge(
 		var x1: float = float(tx) * TILE + float(box.position.x + to)
 		var y: float = float(span - (origin.y + box.position.y)) \
 			- (0.0 if near else float(box.size.y))
-		var uv: Rect2 = atlas.uv_box(
-			tile, Rect2i(box.position.x + from, box.position.y + (0 if near else box.size.y - 1),
-				to - from, 1)
-		)
+		# One row INSIDE the body where there is one. The drawing's own outline is
+		# what an upward face would otherwise wear, and a bush whose every top
+		# face is its black outline reads as a lump of coal.
+		var sample: int = box.position.y + (0 if near else box.size.y - 1)
+		if box.size.y > 1:
+			sample += 1 if near else -1
+		var uv: Rect2 = atlas.uv_box(tile, Rect2i(box.position.x + from, sample, to - from, 1))
 		if near:
 			_quad(
 				Vector3(x0, y, front), Vector3(x1, y, front),
@@ -565,7 +641,9 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		return
 	if _art[at] == ART_CUTOUT:
 		_face_top(tx, ty, 0.0, atlas.uv(_ground_art(tx, ty)), SHADE_TOP_FLAT)
-		_cutout(tx, ty, float(_depths[at]), atlas)
+		_cutout(
+			tx, ty, float(_depths[at]), _round[at] == 1, _filled[at] == 1, atlas
+		)
 		return
 	var here: int = _heights[at]
 	var is_volume: bool = _volume[at] == 1

@@ -64,6 +64,14 @@ func depth(shape_class: StringName) -> int:
 	return _profile.depth_of(shape_class)
 
 
+func is_round(shape_class: StringName) -> bool:
+	return bool(_profile.ROUND.get(shape_class, false))
+
+
+func is_filled(shape_class: StringName) -> bool:
+	return bool(_profile.FILLED.get(shape_class, false))
+
+
 func _pin(tile: int) -> StringName:
 	if _pinned.has(tile):
 		return _pinned[tile]
