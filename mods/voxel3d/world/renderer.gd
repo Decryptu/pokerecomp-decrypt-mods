@@ -56,6 +56,19 @@ var _shape_tileset: int = -1
 var _draw_cells: int = 0
 var _window_centre := Vector2i.MAX
 
+## How much of a frame the geometry may take while a build is in flight, in
+## microseconds. A town is 200 ms whole, which is a visible stop on every warp
+## and at the start of every fight; spread over a few frames at four milliseconds
+## it is a build nobody can point at. What is already on screen keeps being drawn
+## while it runs, so the cost of slicing is that the new map arrives a moment
+## late rather than that anything flickers.
+const BUILD_BUDGET_USEC: int = 4000
+## Whether a slice is in flight, and whether anything at all is on screen to keep
+## drawing while it runs. A warp has nothing, so a warp publishes each slice as
+## it lands and the map fills in rather than showing a hole.
+var _building: bool = false
+var _standing: bool = false
+
 
 func _init() -> void:
 	var modules: Dictionary = _load_modules()
@@ -146,6 +159,7 @@ func handle_world_input(event: InputEvent) -> bool:
 ## rebuilt with it so a walk frame advances while a step is being drawn.
 func _process(delta: float) -> void:
 	_rig.advance(delta)
+	_advance_build()
 	_recentre_window()
 	_frame_camera()
 	_rebuild_actors()
@@ -200,6 +214,10 @@ func _build_atlas() -> bool:
 
 
 func _rebuild() -> void:
+	# Whatever is on screen belongs to the map being left, so it is not something
+	# to keep drawing over: the next build publishes each slice as it lands.
+	_building = false
+	_standing = false
 	if _world == null or _world.current_map == null or _world.current_tileset == null:
 		_stage.set_terrain(null)
 		return
@@ -228,13 +246,13 @@ func _rebuild() -> void:
 ## cheap part of it. Open work 5 in the handoff, slicing the emit across frames,
 ## is what takes the last hitch out.
 func _recentre_window() -> void:
-	if _world == null or _mesher.size_tiles() == Vector2i.ZERO:
+	if _world == null or _building or _mesher.size_tiles() == Vector2i.ZERO:
 		return
 	if _draw_cells <= 0:
 		if _window_centre == Vector2i.MAX:
 			_window_centre = Vector2i.ZERO
 			_stage.set_view_distance(0.0)
-			_stage.set_terrain(_mesher.emit(_atlas))
+			_begin_terrain(Rect2i())
 		return
 	var at := Vector2i(_world.player_position_cells().floor())
 	var margin: int = maxi(4, _draw_cells / 3)
@@ -245,10 +263,34 @@ func _recentre_window() -> void:
 	_window_centre = at
 	var span: int = _draw_cells * 2 + 1
 	_stage.set_view_distance(float(_draw_cells) * CELL)
-	_stage.set_terrain(_mesher.emit(_atlas, Rect2i(
+	_begin_terrain(Rect2i(
 		(at - Vector2i(_draw_cells, _draw_cells)) * RomLayout.MAP_BLOCK_CELL_WIDTH,
 		Vector2i(span, span) * RomLayout.MAP_BLOCK_CELL_WIDTH
-	)))
+	))
+
+
+## Starts a sliced build of [param window], and finishes it in `_process`.
+func _begin_terrain(window: Rect2i) -> void:
+	if not _mesher.begin_emit(_atlas, window):
+		_stage.set_terrain(null)
+		_standing = false
+		return
+	_building = true
+	_advance_build()
+
+
+func _advance_build() -> void:
+	if not _building:
+		return
+	var done: bool = _mesher.emit_step(BUILD_BUDGET_USEC)
+	# Mid-build the mesh is published only when there is nothing else to look at,
+	# because swapping a half-built map in over a whole one is a hole opening in
+	# the middle of the frame rather than a map arriving.
+	if done or not _standing:
+		_stage.set_terrain(_mesher.emit_mesh())
+	if done:
+		_building = false
+		_standing = true
 
 
 func _frame_camera() -> void:

@@ -103,21 +103,62 @@ func build(
 ##
 ## An empty window is the whole map; anything else is clipped to it.
 func emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> ArrayMesh:
-	if _size == Vector2i.ZERO:
+	if not begin_emit(atlas, window):
 		return null
+	while not emit_step(0):
+		pass
+	return emit_mesh()
+
+
+## The three calls above, taken one at a time, so a caller with a frame to keep
+## can spend part of it here and the rest on drawing. A whole town is 200 ms of
+## geometry and that lands on every warp and at the start of every fight.
+##
+## Returns false when there is nothing to draw at all.
+var _emit_atlas: RefCounted = null
+var _emit_box := Rect2i()
+var _emit_row: int = 0
+
+
+func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
+	_emit_atlas = null
+	if _size == Vector2i.ZERO:
+		return false
 	var box := Rect2i(Vector2i.ZERO, _size)
 	if window.size.x > 0 and window.size.y > 0:
 		box = box.intersection(window)
-
+	if box.size.x <= 0 or box.size.y <= 0:
+		return false
+	_emit_atlas = atlas
+	_emit_box = box
+	_emit_row = box.position.y
 	_vertices = PackedVector3Array()
 	_normals = PackedVector3Array()
 	_uvs = PackedVector2Array()
 	_colors = PackedColorArray()
+	return true
 
-	for ty: int in range(box.position.y, box.end.y):
-		for tx: int in range(box.position.x, box.end.x):
-			_emit(tx, ty, atlas)
 
+## One slice, up to [param budget_usec] of work, or the whole thing at zero.
+## True once the window is finished, and true forever after that.
+func emit_step(budget_usec: int) -> bool:
+	if _emit_atlas == null:
+		return true
+	var until: int = Time.get_ticks_usec() + budget_usec
+	while _emit_row < _emit_box.end.y:
+		for tx: int in range(_emit_box.position.x, _emit_box.end.x):
+			_emit(tx, _emit_row, _emit_atlas)
+		_emit_row += 1
+		# Checked a row at a time: a row of a town is well under a millisecond,
+		# and asking the clock per tile costs more than the tile does.
+		if budget_usec > 0 and Time.get_ticks_usec() >= until:
+			return _emit_row >= _emit_box.end.y
+	return true
+
+
+## What has been emitted so far, whole or in part. Null when that is nothing,
+## which is what an empty window and a map of pure void both come to.
+func emit_mesh() -> ArrayMesh:
 	if _vertices.is_empty():
 		return null
 	var arrays: Array = []

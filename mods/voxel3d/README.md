@@ -57,6 +57,12 @@ resolved once and only the geometry is emitted again, so a recentre is the cheap
 two thirds of a build, and the margin is a third of the distance so it is not
 most steps.
 
+A build is spread over frames rather than taken in one: a surveyed town is 200 ms
+of geometry, which was a visible stop on every warp. Whatever is already on
+screen keeps being drawn while the next map builds, so the map arrives a moment
+late instead of the frame stopping. A battle also keeps the map it resolved, so a
+second fight on the same route pays for the geometry alone.
+
 ## The text box
 
 Over this view the screen's own text box is drawn with its FIELD at 0.75 and its

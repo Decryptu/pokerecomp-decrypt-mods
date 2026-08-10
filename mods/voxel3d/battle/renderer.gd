@@ -175,13 +175,16 @@ func _process(delta: float) -> void:
 	_place_battlers()
 
 
+func _root() -> String:
+	return (get_script() as Script).resource_path.get_base_dir().get_base_dir()
+
+
 func _load_modules() -> Dictionary:
-	var root: String = (get_script() as Script).resource_path.get_base_dir().get_base_dir()
+	var root: String = _root()
 	_profile = load("%s/shape/profile.gd" % root)
 	_tile_shape_script = load("%s/shape/tile_shape.gd" % root)
 	_map_source_script = load("%s/shape/map_source.gd" % root)
 	_atlas = (load("%s/shape/atlas.gd" % root) as GDScript).new()
-	_mesher = (load("%s/shape/mesher.gd" % root) as GDScript).new()
 	_arena = (load("%s/battle/arena.gd" % root) as GDScript).new()
 	return {"diorama": load("%s/world/diorama.gd" % root)}
 
@@ -212,7 +215,7 @@ func _build_arena() -> void:
 	# window is built once and never recentred; the sight lines the arena is
 	# chosen by read the resolved heights, which are the whole map's whatever is
 	# drawn of it.
-	_mesher.resolve(source, _tile_shape_script.new(_profile, tileset.number))
+	_mesher = _resolved_for(map, tileset, source)
 	_stage.set_view_distance(float(_draw_cells) * CELL)
 	_stage.set_terrain(_mesher.emit(_atlas, _window(_context.player_cell)))
 	# Staged AFTER the mesh, because choosing where the fight goes asks how tall
@@ -223,6 +226,33 @@ func _build_arena() -> void:
 	# the map's own origin: a corner of the map with the fight nowhere in it.
 	_frame_camera()
 	_place_battlers()
+
+
+## The map resolved, from a fight earlier in the same session where there was
+## one. Resolving is the third of a build that does not depend on where anything
+## is standing, and a trainer battled on the same route twice pays it twice
+## otherwise. Kept per installation of this script, so it survives the renderer
+## being built again between fights.
+##
+## Only the battle caches. The overworld resolves from the LIVE world, which
+## `changeblock` rewrites under the player, and a cache with no word from the
+## host about that would draw a boulder that has been pushed away.
+static var _resolved: Dictionary = {}
+const RESOLVED_KEPT: int = 2
+
+
+func _resolved_for(
+	map: Gen2WorldMap, tileset: Gen2WorldTileset, source: RefCounted
+) -> RefCounted:
+	var key: String = "%d,%d,%d" % [map.group, map.number, tileset.number]
+	if _resolved.has(key):
+		return _resolved[key]
+	var mesher: RefCounted = (load("%s/shape/mesher.gd" % _root()) as GDScript).new()
+	mesher.resolve(source, _tile_shape_script.new(_profile, tileset.number))
+	if _resolved.size() >= RESOLVED_KEPT:
+		_resolved.erase(_resolved.keys()[0])
+	_resolved[key] = mesher
+	return mesher
 
 
 ## The rectangle of map the fight is drawn out of, in TILES, or empty for the
