@@ -243,8 +243,8 @@ func _rebuild() -> void:
 ## The margin is what keeps this off most steps: a window rebuilt every cell
 ## would cost more than the whole map does. Emitting is about two thirds of a
 ## build and resolving is the other third, so a recentre inside one map is the
-## cheap part of it. Open work 5 in the handoff, slicing the emit across frames,
-## is what takes the last hitch out.
+## cheap part of it, and it is spread over frames on top of that: see
+## `_advance_build`.
 func _recentre_window() -> void:
 	if _world == null or _building or _mesher.size_tiles() == Vector2i.ZERO:
 		return
