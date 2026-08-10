@@ -55,6 +55,7 @@ const HEIGHTS: Dictionary = {
 	&"sapling": 0,
 	&"tombstone": 0,
 	&"flowers": 0,
+	&"planter": 0,
 }
 
 ## How thick a cutout stands, in world pixels.
@@ -73,6 +74,7 @@ const DEPTHS: Dictionary = {
 	&"sapling": 14,
 	&"tombstone": 5,
 	&"flowers": 12,
+	&"planter": 12,
 }
 
 ## The cutouts that are ROUND IN PLAN rather than flat slabs.
@@ -87,6 +89,22 @@ const ROUND: Dictionary = {
 	&"bush": true,
 	&"sapling": true,
 	&"flowers": true,
+	&"planter": true,
+}
+
+## How many walk cells a cutout's DRAWING covers, where it is more than one.
+##
+## The mask is cut over the whole drawing rather than over each cell, because a
+## flood run cell by cell walks along the seam between them and stands each half
+## on the floor by itself: the potted plant's leaves would sit beside the pot
+## instead of on top of it. Measured off the drawing, never off a tile id: the
+## reviewer counted the plant as "8 tiles, 2 horizontal and 4 vertical".
+## The largest the drawing gets, in walk cells, and the placement is what says
+## whether a given one is that big: the small brick flower bed and the tall one
+## are drawn out of the same top and bottom tiles.
+const SPANS: Dictionary = {
+	&"planter": Vector2i(1, 2),
+	&"flowers": Vector2i(1, 2),
 }
 
 ## The cutouts whose drawing is a solid body the flood cannot be trusted with.
@@ -156,6 +174,7 @@ const ART: Dictionary = {
 	&"sapling": &"cutout",
 	&"tombstone": &"cutout",
 	&"flowers": &"cutout",
+	&"planter": &"cutout",
 }
 
 ## Tileset number -> class -> the tile ids that class claims.
@@ -206,7 +225,11 @@ const TILESETS: Dictionary = {
 		&"tombstone": [40, 55, 56, 63, 78],
 		# The small brick flower bed, one cell square. The tall one is four
 		# tiles high and needs a cutout that spans two cells, which is open work.
-		&"flowers": [42, 43, 94, 95],
+		# The brick flower bed, in both sizes: the same top and bottom tiles, with
+		# the tall one's two middle rows between them.
+		&"flowers": [42, 43, 94, 95, 84, 85],
+		# The potted plant, eight tiles: two wide and four tall, leaves over pot.
+		&"planter": [8, 9, 10, 11, 24, 25, 26, 27],
 	},
 }
 

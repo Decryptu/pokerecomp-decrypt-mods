@@ -63,6 +63,12 @@ var _depths := PackedByteArray()
 ## solid body the border flood cannot be trusted with.
 var _round := PackedByteArray()
 var _filled := PackedByteArray()
+## Per tile: how many cells across and down the drawing this cutout belongs to
+## is, which is what the mask is cut over, and which class it is.
+var _span_x := PackedByteArray()
+var _span_y := PackedByteArray()
+var _klass := PackedInt32Array()
+var _class_ids: Dictionary = {}
 ## Per tile: which surface of a building it depicts, and how many bands a sloped
 ## roof tile has fallen from the flat section beside it.
 const PART_NONE: int = 0
@@ -263,6 +269,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_depths.resize(count)
 	_round.resize(count)
 	_filled.resize(count)
+	_span_x.resize(count)
+	_span_y.resize(count)
+	_klass.resize(count)
 	_part.resize(count)
 	_drop.resize(count)
 	_heights.resize(count)
@@ -289,6 +298,12 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_depths[at] = clampi(shape.depth(shape_class), 1, 16)
 			_round[at] = 1 if shape.is_round(shape_class) else 0
 			_filled[at] = 1 if shape.is_filled(shape_class) else 0
+			var span: Vector2i = shape.span_cells(shape_class)
+			_span_x[at] = maxi(span.x, 1)
+			_span_y[at] = maxi(span.y, 1)
+			if not _class_ids.has(shape_class):
+				_class_ids[shape_class] = _class_ids.size()
+			_klass[at] = int(_class_ids[shape_class])
 			match shape.building_part(shape_class):
 				&"wall":
 					_part[at] = PART_WALL
@@ -308,6 +323,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 
 	_measure_columns()
 	_measure_buildings()
+	_measure_cutouts()
 
 
 ## A cutout stands on the ground rather than raising it, so it measures zero and
@@ -366,6 +382,36 @@ func _measure_columns() -> void:
 							_heights[at] = height
 							_bases[at] = base
 			cell_y += run
+
+
+## How big each cutout's drawing actually is where it is PLACED.
+##
+## A class declares the largest its drawing gets, and the placement is what says
+## whether this one is that big: the small brick flower bed and the tall one are
+## drawn out of the same top and bottom tiles, one cell of them and two, and no
+## tile id can tell those apart. So the class's own box is taken where every cell
+## in it carries that class, and one cell otherwise.
+func _measure_cutouts() -> void:
+	for ty: int in _size.y:
+		for tx: int in _size.x:
+			var at: int = ty * _size.x + tx
+			if _art[at] != ART_CUTOUT or (_span_x[at] == 1 and _span_y[at] == 1):
+				continue
+			var across := Vector2i(int(_span_x[at]), int(_span_y[at])) * CELL_TILES
+			var start := Vector2i(tx - posmod(tx, across.x), ty - posmod(ty, across.y))
+			var whole: bool = true
+			for row: int in across.y:
+				for column: int in across.x:
+					var here := Vector2i(start.x + column, start.y + row)
+					if here.x >= _size.x or here.y >= _size.y \
+							or _klass[here.y * _size.x + here.x] != _klass[at]:
+						whole = false
+						break
+				if not whole:
+					break
+			if not whole:
+				_span_x[at] = 1
+				_span_y[at] = 1
 
 
 ## A building is measured off its own drawing's GRID, not off its tile ids.
@@ -551,8 +597,14 @@ func _band_tile(tx: int, ty: int, band: int) -> int:
 	return tile if tile >= 0 else _tiles[ty * _size.x + tx]
 
 
-## The pixels of one CELL that belong to the drawing rather than to the ground
-## behind it, as a 16x16 mask, keyed on the cell's four tiles.
+## The pixels of one STRUCTURE that belong to the drawing rather than to the
+## ground behind it, as a mask of its own size, keyed on its tiles.
+##
+## A structure is as many cells as the class says its drawing is: one for a
+## bollard or a bush, one by two for the potted plant and the tall flower bed,
+## which are two tiles wide and four tall. Cutting the mask over the whole thing
+## is what puts the leaves on top of the pot: cut cell by cell, the flood runs
+## along the seam between them and each half stands on the floor by itself.
 ##
 ## A cutout has to answer where the drawing ENDS, and colour cannot say: a
 ## bollard is white on a pale path, and a bush is green on grass. What can say it
@@ -568,28 +620,34 @@ const RING_SHARE: float = 0.7
 var _masks: Dictionary = {}
 
 
-func _cell_mask(cell_tiles: Array, atlas: RefCounted, filled: bool) -> PackedByteArray:
-	var key: String = "%d,%d,%d,%d,%d" % [
-		cell_tiles[0], cell_tiles[1], cell_tiles[2], cell_tiles[3], 1 if filled else 0
-	]
+func _structure_mask(
+	tiles: Array, across: Vector2i, atlas: RefCounted, filled: bool
+) -> PackedByteArray:
+	var key: String = "%s,%d" % [str(tiles), 1 if filled else 0]
 	if _masks.has(key):
 		return _masks[key]
 
-	var size: int = CELL_TILES * int(TILE)
+	var size := Vector2i(across.x * int(TILE), across.y * int(TILE))
 	var indices := PackedInt32Array()
-	indices.resize(size * size)
-	for py: int in size:
-		for px: int in size:
+	indices.resize(size.x * size.y)
+	for py: int in size.y:
+		for px: int in size.x:
 			@warning_ignore("integer_division")
-			var tile: int = cell_tiles[(py / int(TILE)) * CELL_TILES + px / int(TILE)]
-			indices[py * size + px] = atlas.pixel(tile, px % int(TILE), py % int(TILE))
+			var tile: int = tiles[(py / int(TILE)) * across.x + px / int(TILE)]
+			indices[py * size.x + px] = atlas.pixel(tile, px % int(TILE), py % int(TILE))
 
 	var ring: Dictionary = {}
 	var ring_count: int = 0
-	for step: int in size:
-		for at: int in [step, (size - 1) * size + step, step * size, step * size + size - 1]:
-			ring[indices[at]] = int(ring.get(indices[at], 0)) + 1
-			ring_count += 1
+	var edges := PackedInt32Array()
+	for px: int in size.x:
+		edges.append(px)
+		edges.append((size.y - 1) * size.x + px)
+	for py: int in size.y:
+		edges.append(py * size.x)
+		edges.append(py * size.x + size.x - 1)
+	for at: int in edges:
+		ring[indices[at]] = int(ring.get(indices[at], 0)) + 1
+		ring_count += 1
 	var ranked: Array = ring.keys()
 	ranked.sort_custom(func(a: int, b: int) -> bool: return ring[a] > ring[b])
 	var ground: Dictionary = {}
@@ -601,12 +659,10 @@ func _cell_mask(cell_tiles: Array, atlas: RefCounted, filled: bool) -> PackedByt
 		covered += int(ring[index])
 
 	var mask := PackedByteArray()
-	mask.resize(size * size)
+	mask.resize(size.x * size.y)
 	mask.fill(1)
 	var stack := PackedInt32Array()
-	for step: int in size:
-		for at: int in [step, (size - 1) * size + step, step * size, step * size + size - 1]:
-			stack.append(at)
+	stack.append_array(edges)
 	while not stack.is_empty():
 		var at: int = stack[stack.size() - 1]
 		stack.remove_at(stack.size() - 1)
@@ -614,33 +670,33 @@ func _cell_mask(cell_tiles: Array, atlas: RefCounted, filled: bool) -> PackedByt
 			continue
 		mask[at] = 0
 		@warning_ignore("integer_division")
-		var py: int = at / size
-		var px: int = at % size
+		var py: int = at / size.x
+		var px: int = at % size.x
 		if px > 0:
 			stack.append(at - 1)
-		if px < size - 1:
+		if px < size.x - 1:
 			stack.append(at + 1)
 		if py > 0:
-			stack.append(at - size)
-		if py < size - 1:
-			stack.append(at + size)
+			stack.append(at - size.x)
+		if py < size.y - 1:
+			stack.append(at + size.x)
 
 	# A drawing whose body is painted the ground's own index defeats the flood:
 	# the wooden sign's board is exactly the floor's colour, so the flood walks
 	# through the board and leaves the letters standing in mid air. Filling each
 	# column between its topmost and bottommost drawn pixel puts the body back.
 	if filled:
-		for px: int in size:
+		for px: int in size.x:
 			var first: int = -1
 			var last: int = -1
-			for py: int in size:
-				if mask[py * size + px] == 1:
+			for py: int in size.y:
+				if mask[py * size.x + px] == 1:
 					if first < 0:
 						first = py
 					last = py
 			for py: int in range(first, last + 1):
 				if first >= 0:
-					mask[py * size + px] = 1
+					mask[py * size.x + px] = 1
 
 	_masks[key] = mask
 	return mask
@@ -661,28 +717,28 @@ func _cell_mask(cell_tiles: Array, atlas: RefCounted, filled: bool) -> PackedByt
 const LEVELS: int = 3
 
 
-func _cell_levels(mask: PackedByteArray, span: int, round_plan: bool) -> PackedByteArray:
+func _cell_levels(mask: PackedByteArray, span: Vector2i, round_plan: bool) -> PackedByteArray:
 	var levels := PackedByteArray()
 	levels.resize(mask.size())
 	if not round_plan:
 		for at: int in mask.size():
 			levels[at] = LEVELS if mask[at] == 1 else 0
 		return levels
-	for py: int in span:
+	for py: int in span.y:
 		var px: int = 0
-		while px < span:
-			if mask[py * span + px] == 0:
+		while px < span.x:
+			if mask[py * span.x + px] == 0:
 				px += 1
 				continue
 			var last: int = px
-			while last + 1 < span and mask[py * span + last + 1] == 1:
+			while last + 1 < span.x and mask[py * span.x + last + 1] == 1:
 				last += 1
 			var middle: float = (float(px) + float(last) + 1.0) * 0.5
 			var radius: float = maxf((float(last) + 1.0 - float(px)) * 0.5, 0.5)
 			for step: int in range(px, last + 1):
 				var away: float = (float(step) + 0.5 - middle) / radius
 				var half: float = sqrt(maxf(1.0 - away * away, 0.0))
-				levels[py * span + step] = clampi(ceili(half * LEVELS), 1, LEVELS)
+				levels[py * span.x + step] = clampi(ceili(half * LEVELS), 1, LEVELS)
 			px = last + 1
 	return levels
 
@@ -704,19 +760,28 @@ func _cell_levels(mask: PackedByteArray, span: int, round_plan: bool) -> PackedB
 func _cutout(
 	tx: int, ty: int, depth: float, round_plan: bool, filled: bool, atlas: RefCounted
 ) -> void:
-	var cell := Vector2i(tx >> 1, ty >> 1)
-	var cell_tiles: Array = []
-	for row: int in CELL_TILES:
-		for column: int in CELL_TILES:
-			cell_tiles.append(_tile_at(cell.x * CELL_TILES + column, cell.y * CELL_TILES + row))
-	var mask: PackedByteArray = _cell_mask(cell_tiles, atlas, filled)
-	var levels: PackedByteArray = _cell_levels(mask, CELL_TILES * int(TILE), round_plan)
+	var at: int = ty * _size.x + tx
+	var across := Vector2i(int(_span_x[at]), int(_span_y[at])) * CELL_TILES
+	# The structure's own grid, which is the block grid: a drawing one cell wide
+	# and two tall fills half a block across and the whole of it down.
+	var start := Vector2i(tx - posmod(tx, across.x), ty - posmod(ty, across.y))
+	var tiles: Array = []
+	for row: int in across.y:
+		for column: int in across.x:
+			tiles.append(_tile_at(start.x + column, start.y + row))
+	var span := across * int(TILE)
+	var mask: PackedByteArray = _structure_mask(tiles, across, atlas, filled)
+	var levels: PackedByteArray = _cell_levels(mask, span, round_plan)
 
-	var span: int = CELL_TILES * int(TILE)
 	var edge: int = int(TILE)
-	var tile: int = _tiles[ty * _size.x + tx]
-	var origin := Vector2i((tx & 1) * edge, (ty & 1) * edge)
-	var mid: float = float(cell.y) * CELL_TILES * TILE + CELL_TILES * TILE * 0.5
+	var tile: int = _tiles[at]
+	var origin := Vector2i(tx - start.x, ty - start.y) * edge
+	# Every tile of the structure stands at the FOOT's depth, not at its own row's:
+	# what the drawing's upper rows depict is the top of the thing standing on the
+	# ground, and giving each row its own cell's depth is what would leave the
+	# leaves beside the pot rather than over it.
+	var mid: float = float((start.y + across.y - 1) >> 1) * CELL_TILES * TILE \
+		+ CELL_TILES * TILE * 0.5
 
 	var taken := PackedByteArray()
 	taken.resize(edge * edge)
@@ -725,11 +790,11 @@ func _cutout(
 			if taken[row * edge + column] == 1 \
 					or not _drawn(mask, span, origin.x + column, origin.y + row):
 				continue
-			var level: int = levels[(origin.y + row) * span + origin.x + column]
+			var level: int = levels[(origin.y + row) * span.x + origin.x + column]
 			var wide: int = 1
 			while column + wide < edge and taken[row * edge + column + wide] == 0 \
 					and _drawn(mask, span, origin.x + column + wide, origin.y + row) \
-					and levels[(origin.y + row) * span + origin.x + column + wide] == level:
+					and levels[(origin.y + row) * span.x + origin.x + column + wide] == level:
 				wide += 1
 			var tall: int = 1
 			while row + tall < edge:
@@ -737,15 +802,15 @@ func _cutout(
 				for step: int in wide:
 					if taken[(row + tall) * edge + column + step] == 1 \
 							or not _drawn(mask, span, origin.x + column + step, origin.y + row + tall) \
-							or levels[(origin.y + row + tall) * span + origin.x + column + step] != level:
+							or levels[(origin.y + row + tall) * span.x + origin.x + column + step] != level:
 						whole = false
 						break
 				if not whole:
 					break
 				tall += 1
 			for down: int in tall:
-				for across: int in wide:
-					taken[(row + down) * edge + column + across] = 1
+				for across_step: int in wide:
+					taken[(row + down) * edge + column + across_step] = 1
 			var half: float = depth * 0.5 * float(level) / float(LEVELS)
 			_cutout_box(
 				tx, tile, atlas, mask, origin, span,
@@ -761,19 +826,19 @@ func _cutout(
 ## hidden anyway; cutting it is what keeps a silhouette's edge exactly the
 ## drawing's, and what lets the end walls wear their own end pixel's colour so a
 ## cut edge is never a foreign one.
-func _drawn(mask: PackedByteArray, span: int, px: int, py: int) -> bool:
-	if px < 0 or py < 0 or px >= span or py >= span:
+func _drawn(mask: PackedByteArray, span: Vector2i, px: int, py: int) -> bool:
+	if px < 0 or py < 0 or px >= span.x or py >= span.y:
 		return false
-	return mask[py * span + px] == 1
+	return mask[py * span.x + px] == 1
 
 
 func _cutout_box(
 	tx: int, tile: int, atlas: RefCounted, mask: PackedByteArray,
-	origin: Vector2i, span: int, box: Rect2i, back: float, front: float
+	origin: Vector2i, span: Vector2i, box: Rect2i, back: float, front: float
 ) -> void:
 	var x0: float = float(tx) * TILE + float(box.position.x)
 	var x1: float = x0 + float(box.size.x)
-	var high: float = float(span - (origin.y + box.position.y))
+	var high: float = float(span.y - (origin.y + box.position.y))
 	var low: float = high - float(box.size.y)
 	var uv: Rect2 = atlas.uv_box(tile, box)
 
@@ -816,13 +881,13 @@ func _cutout_box(
 
 
 func _cutout_edge(
-	tx: int, tile: int, atlas: RefCounted, origin: Vector2i, span: int, box: Rect2i,
+	tx: int, tile: int, atlas: RefCounted, origin: Vector2i, span: Vector2i, box: Rect2i,
 	back: float, front: float, horizontal: bool, near: bool, from: int, to: int
 ) -> void:
 	if horizontal:
 		var x0: float = float(tx) * TILE + float(box.position.x + from)
 		var x1: float = float(tx) * TILE + float(box.position.x + to)
-		var y: float = float(span - (origin.y + box.position.y)) \
+		var y: float = float(span.y - (origin.y + box.position.y)) \
 			- (0.0 if near else float(box.size.y))
 		# One row INSIDE the body where there is one. The drawing's own outline is
 		# what an upward face would otherwise wear, and a bush whose every top
@@ -846,8 +911,8 @@ func _cutout_edge(
 		return
 
 	var x: float = float(tx) * TILE + float(box.position.x + (0 if near else box.size.x))
-	var high: float = float(span - (origin.y + box.position.y + from))
-	var low: float = float(span - (origin.y + box.position.y + to))
+	var high: float = float(span.y - (origin.y + box.position.y + from))
+	var low: float = float(span.y - (origin.y + box.position.y + to))
 	var uv: Rect2 = atlas.uv_box(
 		tile, Rect2i(box.position.x + (0 if near else box.size.x - 1),
 			box.position.y + from, 1, to - from)

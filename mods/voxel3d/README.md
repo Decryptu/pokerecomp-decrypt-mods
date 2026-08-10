@@ -178,6 +178,21 @@ At any draw distance short of FULL the window clips most of it. At FULL it is
 paid for whole, and on a large route that is about as much geometry again as the
 map itself.
 
+## A drawing bigger than one cell
+
+A cutout stands the drawing's own silhouette up, and some drawings are bigger
+than the cell they start in: the potted plant is two tiles wide and four tall,
+and so is the tall brick flower bed. The mask is cut over the whole drawing, or
+the flood runs along the seam between its cells and each half ends up standing on
+the floor by itself, leaves beside the pot rather than on top of it. Every tile
+of one drawing also stands at the depth of its FOOT rather than of its own row,
+which is what keeps it one object.
+
+How big a drawing is comes from the class, and whether a given placement is that
+big comes from the placement: the small flower bed and the tall one are drawn out
+of the same top and bottom tiles, so the class says how large it can get and the
+map says whether this one is.
+
 ## Where a shape comes from
 
 `shape/tile_shape.gd` resolves every tile, in this order:
