@@ -232,6 +232,7 @@ func _verdict(
 	var classes: Dictionary = {}
 	var permissions: Array = []
 	var heights: Array = []
+	var tiles: Array = []
 	for cell_y: int in BLOCK_CELLS:
 		for cell_x: int in BLOCK_CELLS:
 			var cell := Vector2i(at.x * BLOCK_CELLS + cell_x, at.y * BLOCK_CELLS + cell_y)
@@ -250,11 +251,14 @@ func _verdict(
 			(tile_index / BLOCK_TILES / BLOCK_CELLS) * BLOCK_CELLS
 			+ (tile_index % BLOCK_TILES) / BLOCK_CELLS
 		]
-		var resolved: StringName = shape.at(
-			_map_tile(map, tileset, tile_x, tile_y), permission
-		)
+		var tile: int = _map_tile(map, tileset, tile_x, tile_y)
+		tiles.append(tile)
+		var resolved: StringName = shape.at(tile, permission)
 		classes[String(resolved)] = int(classes.get(String(resolved), 0)) + 1
-	return {"permissions": permissions, "heights": heights, "classes": classes}
+	return {
+		"permissions": permissions, "heights": heights,
+		"classes": classes, "tiles": tiles,
+	}
 
 
 func _map_tile(map: Gen2WorldMap, tileset: Gen2WorldTileset, tile_x: int, tile_y: int) -> int:
