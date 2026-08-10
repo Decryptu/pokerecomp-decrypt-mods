@@ -63,11 +63,13 @@ var _window_centre := Vector2i.MAX
 ## while it runs, so the cost of slicing is that the new map arrives a moment
 ## late rather than that anything flickers.
 const BUILD_BUDGET_USEC: int = 4000
-## Whether a slice is in flight, and whether anything at all is on screen to keep
-## drawing while it runs. A warp has nothing, so a warp publishes each slice as
-## it lands and the map fills in rather than showing a hole.
+## Whether a slice is in flight, the chunks it has finished so far, and whether
+## anything at all is on screen to keep drawing meanwhile. A warp has nothing, so
+## a warp shows each chunk as it lands and the map fills in rather than showing a
+## hole.
 var _building: bool = false
 var _standing: bool = false
+var _chunks: Array = []
 
 
 func _init() -> void:
@@ -219,7 +221,7 @@ func _rebuild() -> void:
 	_building = false
 	_standing = false
 	if _world == null or _world.current_map == null or _world.current_tileset == null:
-		_stage.set_terrain(null)
+		_stage.set_terrain([])
 		return
 	var tileset: int = _world.current_tileset.number
 	if _shape == null or tileset != _shape_tileset:
@@ -271,8 +273,9 @@ func _recentre_window() -> void:
 
 ## Starts a sliced build of [param window], and finishes it in `_process`.
 func _begin_terrain(window: Rect2i) -> void:
+	_chunks = []
 	if not _mesher.begin_emit(_atlas, window):
-		_stage.set_terrain(null)
+		_stage.set_terrain([])
 		_standing = false
 		return
 	_building = true
@@ -283,11 +286,12 @@ func _advance_build() -> void:
 	if not _building:
 		return
 	var done: bool = _mesher.emit_step(BUILD_BUDGET_USEC)
-	# Mid-build the mesh is published only when there is nothing else to look at,
-	# because swapping a half-built map in over a whole one is a hole opening in
-	# the middle of the frame rather than a map arriving.
+	_chunks.append_array(_mesher.take_chunks())
+	# Mid-build the new chunks are shown only when there is nothing else to look
+	# at, because a half-built map swapped in over a whole one is a hole opening
+	# in the middle of the frame rather than a map arriving.
 	if done or not _standing:
-		_stage.set_terrain(_mesher.emit_mesh())
+		_stage.set_terrain(_chunks)
 	if done:
 		_building = false
 		_standing = true

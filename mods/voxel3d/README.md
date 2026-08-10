@@ -57,6 +57,12 @@ resolved once and only the geometry is emitted again, so a recentre is the cheap
 two thirds of a build, and the margin is a third of the distance so it is not
 most steps.
 
+The map is built in CHUNKS of 16 tiles square, one mesh each, because the engine
+culls per instance: as one mesh a map can only be accepted or rejected whole, and
+at any camera angle most of it is behind the eye. Measured on the default shot,
+about half the geometry falls outside the frustum on a town and on the largest
+route alike.
+
 A build is spread over frames rather than taken in one: a surveyed town is 200 ms
 of geometry, which was a visible stop on every warp. Whatever is already on
 screen keeps being drawn while the next map builds, so the map arrives a moment

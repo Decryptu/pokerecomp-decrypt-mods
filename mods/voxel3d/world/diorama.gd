@@ -49,7 +49,7 @@ var actors: Node3D = null
 
 var _light: DirectionalLight3D = null
 var _environment: Environment = null
-var _terrain: MeshInstance3D = null
+var _terrain: Array[MeshInstance3D] = []
 var _material: StandardMaterial3D = null
 var _time_of_day: int = Gen2WorldPalette.TIME_MORNING
 
@@ -101,10 +101,6 @@ func _init() -> void:
 	_material.roughness = 1.0
 	_material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 
-	_terrain = MeshInstance3D.new()
-	_terrain.material_override = _material
-	viewport.add_child(_terrain)
-
 	actors = Node3D.new()
 	viewport.add_child(actors)
 
@@ -139,8 +135,25 @@ func set_view_distance(pixels: float) -> void:
 	_light.directional_shadow_max_distance = minf(SHADOW_DISTANCE_DEFAULT, pixels)
 
 
-func set_terrain(mesh: ArrayMesh) -> void:
-	_terrain.mesh = mesh
+## The terrain, as one instance per CHUNK.
+##
+## Not one instance for the map: the engine culls per instance, so a single mesh
+## can only be accepted or rejected whole, and at any camera angle most of a
+## route is behind the eye. Instances are pooled and re-pointed rather than
+## rebuilt, because a recentre replaces the set every time the player leaves the
+## middle of the window.
+func set_terrain(meshes: Array) -> void:
+	for index: int in meshes.size():
+		if index >= _terrain.size():
+			var instance := MeshInstance3D.new()
+			instance.material_override = _material
+			viewport.add_child(instance)
+			_terrain.append(instance)
+		_terrain[index].mesh = meshes[index]
+		_terrain[index].visible = true
+	for index: int in range(meshes.size(), _terrain.size()):
+		_terrain[index].mesh = null
+		_terrain[index].visible = false
 
 
 func set_texture(texture: Texture2D) -> void:

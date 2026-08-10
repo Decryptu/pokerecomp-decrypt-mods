@@ -196,13 +196,13 @@ func _load_modules() -> Dictionary:
 ## already given and meshes them exactly as the overworld does.
 func _build_arena() -> void:
 	if _data == null or _context == null:
-		_stage.set_terrain(null)
+		_stage.set_terrain([])
 		_arena.stage(null)
 		return
 	var map: Gen2WorldMap = _data.world_map(_context.map_group(), _context.map_number())
 	var tileset: Gen2WorldTileset = _data.world_tileset(_context.tileset)
 	if map == null or tileset == null:
-		_stage.set_terrain(null)
+		_stage.set_terrain([])
 		_arena.stage(null)
 		return
 

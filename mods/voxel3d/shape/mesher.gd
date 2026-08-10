@@ -79,12 +79,13 @@ var _volume := PackedByteArray()
 var _bases := PackedInt32Array()
 
 
-## Resolves a map and builds it. Returns null when there is nothing to draw.
+## Resolves a map and builds it, as one mesh per chunk. Empty when there is
+## nothing to draw.
 ## [param source] is a `map_source.gd`, over the live world or over records.
 ## [param window] is a rectangle in TILES, empty for the whole map.
 func build(
 	source: RefCounted, shape: RefCounted, atlas: RefCounted, window: Rect2i = Rect2i()
-) -> ArrayMesh:
+) -> Array:
 	resolve(source, shape)
 	return emit(atlas, window)
 
@@ -95,27 +96,41 @@ func build(
 ## height depend on where the player was standing when the mesh was built.
 ##
 ## An empty window is the whole map; anything else is clipped to it.
-func emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> ArrayMesh:
+##
+## The answer is a LIST of meshes, one per chunk, because the engine culls per
+## instance: one mesh for a whole map means the frustum test can only accept or
+## reject all of it at once.
+func emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> Array:
 	if not begin_emit(atlas, window):
-		return null
+		return []
 	while not emit_step(0):
 		pass
-	return emit_mesh()
+	return take_chunks()
 
 
-## The three calls above, taken one at a time, so a caller with a frame to keep
-## can spend part of it here and the rest on drawing. A whole town is 200 ms of
-## geometry and that lands on every warp and at the start of every fight.
+## The three calls below, taken one chunk at a time, so a caller with a frame to
+## keep can spend part of it here and the rest on drawing. A whole town is 200 ms
+## of geometry and that used to land on every warp and at the start of every
+## fight.
 ##
-## Returns false when there is nothing to draw at all.
+## The chunk is the unit of both jobs at once: it is what the engine can cull,
+## and it is a bounded piece of work, where a row grew with the map and one row
+## of a big route took three times the whole frame budget on its own.
+const CHUNK_TILES: int = 16
+
 var _emit_atlas: RefCounted = null
-var _emit_box := Rect2i()
-var _emit_row: int = 0
-var _emit_column: int = 0
+var _chunks: Array[Rect2i] = []
+var _chunk_at: int = 0
+var _chunk_cursor := Vector2i.ZERO
+var _ready: Array = []
 
 
+## False when there is nothing to draw at all.
 func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	_emit_atlas = null
+	_chunks = []
+	_chunk_at = 0
+	_ready = []
 	if _size == Vector2i.ZERO:
 		return false
 	var box := Rect2i(
@@ -126,47 +141,88 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	if box.size.x <= 0 or box.size.y <= 0:
 		return false
 	_emit_atlas = atlas
-	_emit_box = box
-	_emit_row = box.position.y
-	_emit_column = box.position.x
-	_vertices = PackedVector3Array()
-	_normals = PackedVector3Array()
-	_uvs = PackedVector2Array()
-	_colors = PackedColorArray()
+	# Chunks are cut on the world's own grid rather than on the window's corner,
+	# so walking one cell east recentres the window onto the SAME chunks and the
+	# ones already built come out identical.
+	var first := Vector2i(
+		floori(float(box.position.x) / CHUNK_TILES), floori(float(box.position.y) / CHUNK_TILES)
+	)
+	var last := Vector2i(
+		floori(float(box.end.x - 1) / CHUNK_TILES), floori(float(box.end.y - 1) / CHUNK_TILES)
+	)
+	for cy: int in range(first.y, last.y + 1):
+		for cx: int in range(first.x, last.x + 1):
+			var chunk := Rect2i(
+				Vector2i(cx, cy) * CHUNK_TILES, Vector2i(CHUNK_TILES, CHUNK_TILES)
+			).intersection(box)
+			if chunk.size.x > 0 and chunk.size.y > 0:
+				_chunks.append(chunk)
+	if _chunks.is_empty():
+		return false
+	_open_chunk()
 	return true
 
 
-## One slice, up to [param budget_usec] of work, or the whole thing at zero.
-## True once the window is finished, and true forever after that.
+## One slice, up to [param budget_usec] of work, or the whole window at zero.
+## True once the window is finished, and true forever after that. What the slice
+## finished is waiting in [method take_chunks].
 func emit_step(budget_usec: int) -> bool:
 	if _emit_atlas == null:
 		return true
 	var until: int = Time.get_ticks_usec() + budget_usec
-	while _emit_row < _emit_box.end.y:
-		while _emit_column < _emit_box.end.x:
-			if _emit_column < 0 or _emit_row < 0 \
-					or _emit_column >= _size.x or _emit_row >= _size.y:
-				_emit_border(_emit_column, _emit_row, _emit_atlas)
-			else:
-				_emit(_emit_column, _emit_row, _emit_atlas)
-			_emit_column += 1
-			# Checked every 64 tiles rather than every one: asking the clock per
-			# tile costs more than a tile does, and a whole row is too coarse
-			# because a row with the border ring on both ends is the longest
-			# thing here.
-			if budget_usec > 0 and (_emit_column & 63) == 0 \
-					and Time.get_ticks_usec() >= until:
-				return false
-		_emit_column = _emit_box.position.x
-		_emit_row += 1
+	var done_tiles: int = 0
+	while _chunk_at < _chunks.size():
+		var box: Rect2i = _chunks[_chunk_at]
+		while _chunk_cursor.y < box.end.y:
+			while _chunk_cursor.x < box.end.x:
+				if _chunk_cursor.x < 0 or _chunk_cursor.y < 0 \
+						or _chunk_cursor.x >= _size.x or _chunk_cursor.y >= _size.y:
+					_emit_border(_chunk_cursor.x, _chunk_cursor.y, _emit_atlas)
+				else:
+					_emit(_chunk_cursor.x, _chunk_cursor.y, _emit_atlas)
+				_chunk_cursor.x += 1
+				# A chunk is 256 tiles and a dense one is thirty milliseconds of
+				# them the first time its cutout masks are cut, so the slice has
+				# to be able to stop INSIDE a chunk. Counted over the slice rather
+				# than off the column, which inside a 16 wide chunk would come
+				# round about once a chunk and never stop anything. Sixteen holds
+				# the worst slice to 6 ms where sixty four let it reach ten: a
+				# stretch of cutouts is milliseconds of work either way.
+				done_tiles += 1
+				if budget_usec > 0 and (done_tiles & 15) == 0 \
+						and Time.get_ticks_usec() >= until:
+					return false
+			_chunk_cursor.x = box.position.x
+			_chunk_cursor.y += 1
+		_close_chunk()
+		_chunk_at += 1
+		if _chunk_at < _chunks.size():
+			_open_chunk()
+		if budget_usec > 0 and Time.get_ticks_usec() >= until:
+			return _chunk_at >= _chunks.size()
 	return true
 
 
-## What has been emitted so far, whole or in part. Null when that is nothing,
-## which is what an empty window and a map of pure void both come to.
-func emit_mesh() -> ArrayMesh:
+## The chunks finished since this was last asked, and each is asked for once.
+func take_chunks() -> Array:
+	var out: Array = _ready
+	_ready = []
+	return out
+
+
+func _open_chunk() -> void:
+	_chunk_cursor = _chunks[_chunk_at].position
+	_vertices = PackedVector3Array()
+	_normals = PackedVector3Array()
+	_uvs = PackedVector2Array()
+	_colors = PackedColorArray()
+
+
+func _close_chunk() -> void:
+	# A chunk of nothing is most of the sky above a route edge and all of a map's
+	# void; an empty mesh is an instance the engine still has to cull.
 	if _vertices.is_empty():
-		return null
+		return
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = _vertices
@@ -175,7 +231,7 @@ func emit_mesh() -> ArrayMesh:
 	arrays[Mesh.ARRAY_COLOR] = _colors
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh
+	_ready.append(mesh)
 
 
 func size_pixels() -> Vector2:
