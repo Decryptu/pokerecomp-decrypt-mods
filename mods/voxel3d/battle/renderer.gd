@@ -36,7 +36,27 @@ var _profile: GDScript = null
 var _tile_shape_script: GDScript = null
 var _map_source_script: GDScript = null
 
+## The two HUD blocks, in hardware tiles, and how far past the drawing their
+## backing reaches. Derived from `Gen2BattleHud`'s own positions: the enemy's
+## name, level and bar sit between column 1 and its edge tile, the player's
+## between its bottom-left corner and the right edge, with the exp bar sunk into
+## the last row.
+const ENEMY_PANEL := Rect2i(1, 0, 11, 4)
+const PLAYER_PANEL := Rect2i(9, 7, 11, 5)
+const PANEL_PAD: int = 2
+
+## How solid the backing is over the world behind it.
+##
+## The cartridge draws its panels as black glyphs straight onto the white field,
+## with no box: the field IS the backing. Take the field away and put a route
+## under it and the name, the level and the HP numbers are black on grass. So
+## each block gets one, and deliberately a light one: the point of this view is
+## seeing where you are standing, and an opaque slab in the corner of the frame
+## is the white field back again under another name.
+const PANEL_TINT := Color(1.0, 1.0, 1.0, 0.66)
+
 var _hud: Gen2BattleHud = null
+var _panels_backing: Array[ColorRect] = []
 var _hud_layers: Array[TextureRect] = []
 var _pic_textures: Dictionary = {}
 var _native := Vector2i(Gen2Screen.WIDTH, Gen2Screen.HEIGHT)
@@ -46,6 +66,14 @@ func _init() -> void:
 	var modules: Dictionary = _load_modules()
 	_stage = (modules["diorama"] as GDScript).new()
 	add_child(_stage.container)
+	# The backing goes in first, so both panels sit under every drawn layer.
+	for panel: Rect2i in [ENEMY_PANEL, PLAYER_PANEL]:
+		var backing := ColorRect.new()
+		backing.color = PANEL_TINT
+		backing.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		backing.set_meta(&"tiles", panel)
+		add_child(backing)
+		_panels_backing.append(backing)
 	for index: int in 4:
 		var layer := TextureRect.new()
 		# Nearest, or the hardware pixels stop being square on the last hop.
@@ -209,28 +237,111 @@ func _place_battlers() -> void:
 	_stage.end_cards()
 
 
-## One battler's picture, cropped to what it actually fills and with the
-## cartridge's own background index made transparent, so it stands on the map
-## rather than in a white box.
+## One battler's picture, cropped to what it fills and cut out of its field, so
+## it stands on the map rather than in a white box.
 func _pic(species: int, back: bool) -> Texture2D:
 	if _data == null or species <= 0:
 		return null
 	var key: String = "%d:%d" % [species, 1 if back else 0]
 	if _pic_textures.has(key):
 		return _pic_textures[key]
-	var pic: Dictionary = _data.species_pic(species, back)
-	if pic.is_empty():
+	var image: Image = _cut_out(species, back)
+	if image == null:
 		return null
-	var image: Image = Gen2PicImage.from_atlas(
-		_data.atlas_indices(String(pic["atlas"])),
-		_data.atlas(String(pic["atlas"])),
-		pic,
-		_data.palette(species),
-		true,
-	)
 	var texture: Texture2D = ImageTexture.create_from_image(image)
 	_pic_textures[key] = texture
 	return texture
+
+
+## The pic with its FIELD removed, rather than its background colour.
+##
+## A battle pic is drawn on the white field, and the field is colour index 0. So
+## is every white inside the drawing: an eye highlight, a tooth, a Marill's belly,
+## the whole of a white Pokemon. Making index 0 transparent wherever it appears
+## punches holes straight through the animal, which is what the cartridge never
+## has to care about because it draws the field behind it.
+##
+## What is outside is not a colour, it is a REGION: the field is the index 0 that
+## connects to the edge of the picture. Flooding in from the border through index
+## 0 alone stops dead at the drawing's own black outline, so the highlights
+## sealed inside it survive and only the field is cut away. A drawing whose
+## silhouette touches the border simply keeps the corner the flood cannot reach,
+## which is the safe way round.
+func _cut_out(species: int, back: bool) -> Image:
+	var pic: Dictionary = _data.species_pic(species, back)
+	if pic.is_empty():
+		return null
+	var name: String = String(pic["atlas"])
+	var atlas: Dictionary = _data.atlas(name)
+	var indices: PackedByteArray = _data.atlas_indices(name)
+	var cell: int = int(atlas.get("cell", 0))
+	var columns: int = int(atlas.get("columns", 0))
+	var atlas_width: int = int(atlas.get("width", 0))
+	var slot: int = int(pic.get("slot", -1))
+	if cell <= 0 or columns <= 0 or atlas_width <= 0 or slot < 0:
+		return null
+	var width: int = mini(int(pic.get("width", cell)), cell)
+	var height: int = mini(int(pic.get("height", cell)), cell)
+	if width <= 0 or height <= 0:
+		return null
+
+	var left: int = (slot % columns) * cell
+	@warning_ignore("integer_division")
+	var top: int = (slot / columns) * cell
+	var pixels := PackedByteArray()
+	pixels.resize(width * height)
+	for y: int in height:
+		var from: int = (top + y) * atlas_width + left
+		if from + width > indices.size():
+			break
+		for x: int in width:
+			pixels[y * width + x] = indices[from + x]
+
+	var field: PackedByteArray = _field(pixels, width, height)
+	var palette: PackedColorArray = _data.palette(species)
+	var image: Image = Image.create(width, height, false, Image.FORMAT_RGBA8)
+	for y: int in height:
+		for x: int in width:
+			var at: int = y * width + x
+			var index: int = int(pixels[at])
+			var color: Color = palette[index] if index < palette.size() else Color.MAGENTA
+			if field[at] == 1:
+				color.a = 0.0
+			image.set_pixel(x, y, color)
+	return image
+
+
+## The index 0 reachable from the border, four-connected: everything the drawing
+## does not enclose.
+func _field(pixels: PackedByteArray, width: int, height: int) -> PackedByteArray:
+	var field := PackedByteArray()
+	field.resize(width * height)
+	var stack := PackedInt32Array()
+	for x: int in width:
+		stack.append(x)
+		stack.append((height - 1) * width + x)
+	for y: int in height:
+		stack.append(y * width)
+		stack.append(y * width + width - 1)
+
+	while not stack.is_empty():
+		var at: int = stack[stack.size() - 1]
+		stack.remove_at(stack.size() - 1)
+		if field[at] == 1 or pixels[at] != 0:
+			continue
+		field[at] = 1
+		@warning_ignore("integer_division")
+		var y: int = at / width
+		var x: int = at % width
+		if x > 0:
+			stack.append(at - 1)
+		if x < width - 1:
+			stack.append(at + 1)
+		if y > 0:
+			stack.append(at - width)
+		if y < height - 1:
+			stack.append(at + width)
+	return field
 
 
 ## The panels and the three bars, each in its own palette because the hardware
@@ -245,7 +356,11 @@ func _draw_hud() -> void:
 	if not bool(_view.get("hud_visible", true)):
 		for layer: TextureRect in _hud_layers:
 			layer.texture = null
+		for backing: ColorRect in _panels_backing:
+			backing.visible = false
 		return
+	for backing: ColorRect in _panels_backing:
+		backing.visible = true
 
 	var enemy_hp: int = int(_view.get("enemy_hp", 0))
 	var enemy_max_hp: int = int(_view.get("enemy_max_hp", 0))
@@ -303,17 +418,32 @@ func _show(index: int, indices: PackedByteArray, palette: PackedColorArray) -> v
 func _layout_hud() -> void:
 	for layer: TextureRect in _hud_layers:
 		_layout_layer(layer)
+	for backing: ColorRect in _panels_backing:
+		var tiles: Rect2i = backing.get_meta(&"tiles")
+		var factor: int = _hud_scale()
+		var pad: float = float(PANEL_PAD * factor)
+		backing.size = Vector2(tiles.size * Gen2BattleHud.TILE * factor) + Vector2(pad, pad) * 2.0
+		backing.position = _hud_origin() \
+			+ Vector2(tiles.position * Gen2BattleHud.TILE * factor) - Vector2(pad, pad)
 
 
 func _layout_layer(layer: TextureRect) -> void:
-	var scale_factor: int = maxi(1, mini(
+	var factor: int = _hud_scale()
+	layer.size = Vector2(Gen2Screen.WIDTH * factor, Gen2Screen.HEIGHT * factor)
+	layer.position = _hud_origin()
+
+
+func _hud_scale() -> int:
+	@warning_ignore("integer_division")
+	return maxi(1, mini(
 		_native.x / Gen2Screen.WIDTH, _native.y / Gen2Screen.HEIGHT
 	))
-	var drawn := Vector2(
-		Gen2Screen.WIDTH * scale_factor, Gen2Screen.HEIGHT * scale_factor
-	)
-	layer.size = drawn
-	layer.position = ((Vector2(_native) - drawn) * 0.5).floor()
+
+
+func _hud_origin() -> Vector2:
+	var factor: int = _hud_scale()
+	var drawn := Vector2(Gen2Screen.WIDTH * factor, Gen2Screen.HEIGHT * factor)
+	return ((Vector2(_native) - drawn) * 0.5).floor()
 
 
 ## An HP bar is green, yellow or red by how much of it is lit rather than by the

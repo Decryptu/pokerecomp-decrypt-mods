@@ -39,7 +39,15 @@ the eye up to the battlers' shoulders instead of through it.
 
 Two layers, because a battle is two things at once. The map is geometry at window
 resolution; the panels, the bars and the text box stay hardware pixels, drawn at
-whole-number scale over the top so a Game Boy pixel is still a square.
+whole-number scale over the top so a Game Boy pixel is still a square. Each panel
+gets a light translucent backing, because the cartridge draws black glyphs
+straight onto the white field and over a route they would be black on grass.
+
+A battler is cut out of that field by region rather than by colour. The field is
+colour index 0, and so is every white inside the drawing: an eye highlight, a
+tooth, Marill's belly. The cut floods in from the border through index 0 alone
+and stops at the drawing's own black outline, so what the outline encloses
+survives and only the field is removed.
 
 ## How a flat drawing becomes a solid
 
