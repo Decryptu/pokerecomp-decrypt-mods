@@ -158,6 +158,70 @@ const FILLED: Dictionary = {
 	&"sign_post": true,
 }
 
+## The tiles that draw the FACE of a terrain cliff, per tileset number.
+##
+## Not a class and deliberately not one: a cliff face stands up and is textured
+## exactly like any other wall, and what is different about it is what is BEHIND
+## it. The reviewer's own words: "rock walls are two tiles high, and then its the
+## higher flat floor". So the ground north of a cliff is not the ground in front
+## of it a few tiles further on; it is a PLATEAU, standing on top of the wall,
+## which no per-column measurement can ever reach because a column measures one
+## height and a cliff is two.
+##
+## Every face tile of the cliff belongs here: the rim, the corners, the crest and
+## the cave mouth cut into the foot of one are all one wall, and listing them all
+## is what lets a column's own run of them be read as a whole. What a tile must
+## NOT be listed as is the face of anything that is not terrain: a house wall has
+## a floor behind it, not a plateau.
+##
+## `FRONTS` is the subset that faces the SCREEN, with the raised floor
+## immediately above the drawing. Only a front says which side of the wall is up:
+## the west rim of the same cliff carries the plateau on one side and the low
+## ground on the other, and every one of those rims is in `CLIFFS` to bound and
+## to be measured with, and in `FRONTS` never.
+##
+## Mined from the full pass's own descriptions in the survey directory, which
+## name a cliff face as such and say what stands above it, and cross-read against
+## the reviewer's answers for tileset 3.
+const CLIFFS: Dictionary = {
+	# Routes: the raised brown rock shelf, its four rims and the cave mouth in it.
+	1: [76, 59, 61, 77, 43, 45, 70, 71, 86, 87],
+	# The tan rock face under a raised earth terrace.
+	2: [76],
+	# Towns: the rock walls of Cianwood and Olivine. 55 is the upper band of the
+	# face and 19 and 53 the inner corners; 36, 39, 30 and 2 are the diagonal
+	# ends, where the low ground is what lies beyond the diagonal.
+	3: [55, 19, 53, 36, 39, 30, 2],
+	# The brown rock cliff of the mountain routes, crest, body and both ends.
+	4: [44, 45, 60, 61, 75, 76, 77, 43, 59],
+}
+const FRONTS: Dictionary = {
+	1: [76],
+	2: [76],
+	3: [55, 19, 53],
+	4: [44],
+}
+
+## The LIP: the plateau's own far edge, drawn from above with the seam INSIDE the
+## drawing rather than under it.
+##
+## A cliff shows its face where it faces the screen and nothing at all where it
+## faces away, so the far edge of a plateau is one flat row carrying a black line
+## along its top and the low ground carries on immediately above it. Nothing
+## stands between the two, which is exactly the leak that matters: the flood that
+## carries a plateau's height across it would run straight out over the seam and
+## take half the map with it. A lip therefore ENDS a region and then takes the
+## height of the region on its own south side, which is the side its drawing
+## belongs to.
+##
+## The reviewer's tileset 3 tile 1: "the far (top) edge row of the raised stone
+## platform's walkable upper surface; the black line along its top is the seam
+## where the platform meets the pale ground beyond".
+const LIPS: Dictionary = {
+	3: [1],
+}
+
+
 ## Which part of a BUILDING a class depicts, and how far a sloped roof tile has
 ## fallen from the flat section beside it, in 8px bands.
 ##
@@ -298,6 +362,27 @@ static func pinned_class(tileset_number: int, tile: int) -> StringName:
 			if tiles is Array and (tiles as Array).has(tile):
 				return shape_class
 	return PASS.pinned_class(tileset_number, tile)
+
+
+## Whether a tile draws the face of a terrain cliff, which is what says the
+## ground behind it stands on top of it.
+static func is_cliff(tileset_number: int, tile: int) -> bool:
+	var tiles: Variant = CLIFFS.get(tileset_number, null)
+	return tiles is Array and (tiles as Array).has(tile)
+
+
+## Whether that face is the FRONT of the cliff, the one with the raised floor
+## drawn immediately above it.
+static func is_cliff_front(tileset_number: int, tile: int) -> bool:
+	var tiles: Variant = FRONTS.get(tileset_number, null)
+	return tiles is Array and (tiles as Array).has(tile)
+
+
+## Whether the tile is the plateau's far edge, which ends a plateau and stands at
+## the height of what is south of it.
+static func is_cliff_lip(tileset_number: int, tile: int) -> bool:
+	var tiles: Variant = LIPS.get(tileset_number, null)
+	return tiles is Array and (tiles as Array).has(tile)
 
 
 static func height_of(shape_class: StringName) -> int:

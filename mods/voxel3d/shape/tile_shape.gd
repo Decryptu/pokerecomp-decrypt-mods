@@ -61,6 +61,25 @@ func is_pinned(tile: int) -> bool:
 	return _pin(tile) != &""
 
 
+## Whether the tile draws the face of a terrain cliff. A property of the tile
+## and not of its class: a cliff face stands up like any other wall and what is
+## different about it is the plateau behind it.
+func is_cliff(tile: int) -> bool:
+	return _profile.is_cliff(_tileset_number, tile)
+
+
+## Whether it is the front of one: the face drawn toward the screen, with the
+## raised floor immediately above it. Only a front says which side is up.
+func is_cliff_front(tile: int) -> bool:
+	return _profile.is_cliff_front(_tileset_number, tile)
+
+
+## Whether it is the plateau's far EDGE, seen from above with the seam inside its
+## own drawing.
+func is_cliff_lip(tile: int) -> bool:
+	return _profile.is_cliff_lip(_tileset_number, tile)
+
+
 func height(shape_class: StringName) -> int:
 	return _profile.height_of(shape_class)
 

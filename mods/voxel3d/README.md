@@ -244,6 +244,26 @@ most of its cells measured caps all of it. It can only bring a column down: one
 that measured short measured short off its own drawing, which is evidence rather
 than an accident.
 
+## Two levels of ground
+
+A rock wall is not one height, it is two: the wall, and the stone floor behind it
+standing on top of the wall. No measurement of a column can reach that, because
+the column through the floor up there is drawn as plain ground.
+
+The cliff itself is what says so. Its face is named in the profile, and the run
+of face in each column gives two answers: the flat ground north of the run is up
+on top of it, the flat ground south of it is where the ground plane is. Both are
+carried across the floor by flooding it, because a plateau is a region and not a
+strip, and a region that ends up with both answers is left alone rather than
+guessed at. A plateau always opens somewhere, round a diagonal corner or at a way
+up, and a leak through one of those reaches ground the cliff is standing on, so
+the answer is a contradiction and not a wrong height.
+
+The plateau's far edge is one flat row with the seam drawn inside it and the low
+ground carrying on immediately above; it ends the region and then takes the
+height of what is south of it. A pool with nothing but raised floor around it
+rises with the floor and keeps its recess.
+
 ## Surveying a tileset
 
 The measurement is right for most of the world and wrong for the drawings that

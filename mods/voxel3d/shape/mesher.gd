@@ -81,6 +81,14 @@ var _part := PackedByteArray()
 var _drop := PackedByteArray()
 var _heights := PackedInt32Array()
 var _volume := PackedByteArray()
+## Per tile: whether it draws the face of a terrain CLIFF, and whether that face
+## is the FRONT of one, which together are the only thing that says the ground
+## behind a wall is a plateau standing on top of it.
+var _cliff := PackedByteArray()
+var _front := PackedByteArray()
+## Per tile: whether it draws the plateau's far EDGE, which ends one and then
+## stands at the height of what lies south of it.
+var _lip := PackedByteArray()
 ## The southernmost map row of the structure each tile belongs to. The fold reads
 ## north from there rather than from the tile itself, so every column of one
 ## structure shows the same drawing standing up and a face exposed at its back
@@ -281,6 +289,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_drop.resize(count)
 	_heights.resize(count)
 	_volume.resize(count)
+	_cliff.resize(count)
+	_front.resize(count)
+	_lip.resize(count)
 	_bases.resize(count)
 
 	for ty: int in _size.y:
@@ -290,6 +301,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			var tile: int = source.tile_at(tx, ty)
 			_tiles[at] = tile
 			_bases[at] = ty
+			_cliff[at] = 0
+			_front[at] = 0
+			_lip[at] = 0
 			if tile < 0:
 				_heights[at] = 0
 				_volume[at] = 0
@@ -321,6 +335,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_drop[at] = shape.roof_drop(shape_class)
 			var is_volume: bool = art == &"upright"
 			_volume[at] = 1 if is_volume else 0
+			_cliff[at] = 1 if is_volume and shape.is_cliff(tile) else 0
+			_front[at] = 1 if _cliff[at] == 1 and shape.is_cliff_front(tile) else 0
+			_lip[at] = 1 if not is_volume and shape.is_cliff_lip(tile) else 0
 			# A pin is authority: it names the height too, and the column
 			# measurement below leaves it alone.
 			if is_volume and not shape.is_pinned(tile):
@@ -329,6 +346,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 				_heights[at] = shape.height(shape_class)
 
 	_measure_columns()
+	_measure_plateaus()
 	_measure_buildings()
 	# Before the furniture, which asks what the height of the thing under it came
 	# to and would read an unsettled -1 as standing on the floor.
@@ -438,6 +456,227 @@ func _measure_columns() -> void:
 					if _heights[at] == -1:
 						_heights[at] = height
 						_bases[at] = base
+
+
+## The ground BEHIND a cliff stands on top of it.
+##
+## Every other height in this mesher is a fact about one column, and a plateau is
+## the case where one column is not enough: a rock wall is 16 px of drawn face
+## and the stone floor north of it is a second surface at the top of that face,
+## with nothing in the column of either one to say so. The reviewer's words:
+## "rock walls are two tiles high, and then its the higher flat floor".
+##
+## What says which floor is up there is the cliff itself, and only the cliff.
+## Its face is pinned in `profile.gd:CLIFFS`; the connected structure is read as
+## a whole, so each column of it gives two pieces of evidence about the flat
+## ground it touches:
+##
+##   north of its topmost row  the ground up there, at that column's height
+##   south of its bottom row   the ground in front, which is where 0 is
+##
+## Both are then carried across the flat ground by flooding it, because a plateau
+## is a REGION and not a strip: only the rim column knows the height and the
+## whole enclosed floor stands at it.
+##
+## A region carrying both kinds of evidence is left alone. That is not a
+## compromise, it is the whole safety of this pass: the ground north of a
+## diagonal end tile is the LOW ground wrapping round the corner, the two sides
+## of a cliff meet wherever a map lets the player walk up, and a leak through any
+## of that reaches a region the front of the cliff is already standing on. Raise
+## on unanimous evidence and a leak costs nothing; raise on a majority and one
+## leak lifts a whole town by a cell. The reviewer's own rule elsewhere in this
+## file, that a structure too tall is worse than one too short, is the same rule.
+##
+## Water is not flat ground for this: it bounds a region rather than joining one,
+## so a pond up on a shelf stays a pond rather than dragging the shelf down to it.
+func _measure_plateaus() -> void:
+	var seeds: Dictionary = {}
+	var fronts: Dictionary = {}
+	if not _cliff_evidence(seeds, fronts):
+		return
+
+	var region := PackedInt32Array()
+	region.resize(_size.x * _size.y)
+	region.fill(-1)
+	# Per region: the lowest height the evidence above it agrees on, and whether
+	# any of its tiles is ground the cliff stands ON.
+	var lift: Dictionary = {}
+	var blocked: Dictionary = {}
+	var next: int = 0
+	var stack: Array[int] = []
+	for start: int in region.size():
+		if region[start] != -1 or not _is_plateau_floor(start):
+			continue
+		region[start] = next
+		stack.append(start)
+		var members := PackedInt32Array()
+		while not stack.is_empty():
+			var at: int = stack.pop_back()
+			members.append(at)
+			if seeds.has(at):
+				var height: int = int(seeds[at])
+				lift[next] = mini(int(lift.get(next, height)), height)
+			if fronts.has(at):
+				blocked[next] = true
+			var tx: int = at % _size.x
+			@warning_ignore("integer_division")
+			var ty: int = at / _size.x
+			for step: Vector2i in [
+				Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
+			]:
+				var to := Vector2i(tx + step.x, ty + step.y)
+				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+					continue
+				var index: int = to.y * _size.x + to.x
+				if region[index] != -1 or not _is_plateau_floor(index):
+					continue
+				region[index] = next
+				stack.append(index)
+		if not blocked.has(next) and lift.has(next):
+			var height: int = int(lift[next])
+			for at: int in members:
+				_heights[at] = height
+		next += 1
+	_settle_lips()
+	_settle_ponds()
+
+
+## The plateau's far edge belongs to the plateau, so it takes the height of the
+## ground on its own SOUTH side once that ground has been settled. It is left out
+## of the regions themselves because it is where one ends: the low ground north
+## of a lip is a different surface, with nothing between the two but the seam
+## drawn along the lip's own top row.
+func _settle_lips() -> void:
+	for ty: int in _size.y:
+		for tx: int in _size.x:
+			var at: int = ty * _size.x + tx
+			if _lip[at] == 0 or ty + 1 >= _size.y:
+				continue
+			var under: int = _heights[(ty + 1) * _size.x + tx]
+			if _art[(ty + 1) * _size.x + tx] == ART_FLAT and under > 0:
+				_heights[at] = under
+
+
+## Water lying ON a plateau goes up with it.
+##
+## Water is not ground and is deliberately no part of a plateau region: a lake is
+## drawn recessed and joining one to the floor around it would let a shoreline
+## carry a height across a whole map. But a pool with nothing but raised floor
+## around it is a pool up on the shelf, and leaving it behind cuts a hole through
+## the rock down to the plain. So a body of water every one of whose neighbours
+## stands at the same raised height rises by it and keeps its own recess, which
+## is what still puts the lip on its shore.
+func _settle_ponds() -> void:
+	var seen := PackedByteArray()
+	seen.resize(_size.x * _size.y)
+	var stack: Array[int] = []
+	for start: int in seen.size():
+		if seen[start] == 1 or not _is_water(start):
+			continue
+		seen[start] = 1
+		stack.append(start)
+		var members := PackedInt32Array()
+		# The one height every shore of it agrees on, or -1 for no agreement.
+		var shore: int = 0
+		while not stack.is_empty():
+			var at: int = stack.pop_back()
+			members.append(at)
+			var tx: int = at % _size.x
+			@warning_ignore("integer_division")
+			var ty: int = at / _size.x
+			for step: Vector2i in [
+				Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
+			]:
+				var to := Vector2i(tx + step.x, ty + step.y)
+				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+					# A map edge is not a shore that can vouch for anything.
+					shore = -1
+					continue
+				var index: int = to.y * _size.x + to.x
+				if _is_water(index):
+					if seen[index] == 0:
+						seen[index] = 1
+						stack.append(index)
+					continue
+				var height: int = maxi(_heights[index], 0)
+				if shore == 0:
+					shore = height
+				elif shore != height:
+					shore = -1
+		if shore > 0:
+			for at: int in members:
+				_heights[at] += shore
+
+
+func _is_water(at: int) -> bool:
+	return _tiles[at] >= 0 and _art[at] == ART_FLAT and _heights[at] < 0
+
+
+## What each run of cliff face says about the flat ground it touches, as tile
+## index -> height for the ground above one and tile index -> true for the ground
+## it stands on. False when the map holds no cliff at all, which is all but a
+## handful of them.
+##
+## The unit is the RUN: one column's own uninterrupted band of cliff face, and
+## not the connected structure. A cliff rings its plateau, so the structure is
+## the rim of a bowl, and its topmost row in a column on the west rim has nothing
+## to say about what stands above the face on the south rim.
+##
+## A run speaks only if it holds a FRONT band, which is the drawing that faces
+## the screen with the raised floor immediately above it. That is what makes
+## either answer mean anything: the west rim of the same cliff has the plateau on
+## one side of it and the low ground on the other, and reading it as a front
+## calls the plateau the ground the wall stands on.
+func _cliff_evidence(seeds: Dictionary, fronts: Dictionary) -> bool:
+	var any: bool = false
+	for tx: int in _size.x:
+		var ty: int = 0
+		while ty < _size.y:
+			if _cliff[ty * _size.x + tx] == 0:
+				ty += 1
+				continue
+			any = true
+			var run: int = 0
+			var faces_front: bool = false
+			while ty + run < _size.y and _cliff[(ty + run) * _size.x + tx] == 1:
+				faces_front = faces_front or _front[(ty + run) * _size.x + tx] == 1
+				run += 1
+			if faces_front:
+				var above: int = ty - 1
+				if above >= 0 and _is_plateau_floor(above * _size.x + tx):
+					var height: int = _cliff_height(tx, ty)
+					if height > 0:
+						var index: int = above * _size.x + tx
+						seeds[index] = mini(int(seeds.get(index, height)), height)
+				var below: int = ty + run
+				if below < _size.y and _is_plateau_floor(below * _size.x + tx):
+					fronts[below * _size.x + tx] = true
+			ty += run
+	return any
+
+
+## How tall the cliff stands in one column: the tallest band any of its tiles in
+## that column was measured at. A column can hold a tile the cell pass left
+## unsettled at -1, which is a real case wherever a pin and an unpinned tile
+## share a walk cell, so the reading is taken over the run rather than off the
+## one row.
+func _cliff_height(tx: int, top_row: int) -> int:
+	var height: int = 0
+	var ty: int = top_row
+	while ty < _size.y and _cliff[ty * _size.x + tx] == 1:
+		height = maxi(height, _heights[ty * _size.x + tx])
+		ty += 1
+	return height
+
+
+## The ground a plateau is made of: flat art standing on the ground plane. Water
+## is flat too and is deliberately not this, and anything already raised has been
+## measured off its own drawing and is not a floor to be lifted.
+func _is_plateau_floor(at: int) -> bool:
+	return (
+		_tiles[at] >= 0 and _art[at] == ART_FLAT and _heights[at] == 0
+		and _lip[at] == 0
+	)
 
 
 ## Connected unmeasured cells, four ways, numbered. -1 is a cell that is not part
@@ -915,7 +1154,8 @@ func _cell_levels(mask: PackedByteArray, span: Vector2i, round_plan: bool) -> Pa
 ## height off the art is the whole point: a bollard came out 15 px and a sign 14,
 ## and no class constant would have found either.
 func _cutout(
-	tx: int, ty: int, depth: float, round_plan: bool, filled: bool, atlas: RefCounted
+	tx: int, ty: int, depth: float, round_plan: bool, filled: bool, base: float,
+	atlas: RefCounted
 ) -> void:
 	var at: int = ty * _size.x + tx
 	var across := Vector2i(int(_span_x[at]), int(_span_y[at])) * CELL_TILES
@@ -987,7 +1227,7 @@ func _cutout(
 					taken[(row + down) * edge + column + across_step] = 1
 			var half: float = depth * 0.5 * float(level) / float(LEVELS)
 			_cutout_box(
-				tx, tile, atlas, mask, origin, span, top,
+				tx, tile, atlas, mask, origin, span, top + base,
 				Rect2i(column, row, wide, tall), mid - half, mid + half
 			)
 
@@ -1111,10 +1351,13 @@ func _tile_at(tx: int, ty: int) -> int:
 	return maxi(_tiles[ty * _size.x + tx], 0)
 
 
-## The art a cutout stands ON: the nearest neighbouring tile that is flat ground,
-## because a cutout's own drawing is the object and painting it on the floor as
-## well would leave a bollard lying under itself.
-func _ground_art(tx: int, ty: int) -> int:
+## The ground a cutout stands ON: the nearest neighbouring tile that is flat
+## ground, as its art and its own height. The art, because a cutout's drawing is
+## the object and painting it on the floor as well would leave a bollard lying
+## under itself; the height, because that ground is what the thing stands on, and
+## a bush beside a plateau that stood at zero instead would sink into the rock
+## and take the floor around it with it.
+func _ground_art(tx: int, ty: int) -> Vector2i:
 	for step: Vector2i in [
 		Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0),
 		Vector2i(0, 2), Vector2i(0, -2), Vector2i(2, 0), Vector2i(-2, 0),
@@ -1123,9 +1366,9 @@ func _ground_art(tx: int, ty: int) -> int:
 		if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
 			continue
 		var index: int = at.y * _size.x + at.x
-		if _art[index] == ART_FLAT and _heights[index] == 0:
-			return maxi(_tiles[index], 0)
-	return maxi(_tiles[ty * _size.x + tx], 0)
+		if _art[index] == ART_FLAT and _heights[index] >= 0:
+			return Vector2i(maxi(_tiles[index], 0), _heights[index])
+	return Vector2i(maxi(_tiles[ty * _size.x + tx], 0), 0)
 
 
 func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
@@ -1134,9 +1377,15 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	if tile < 0:
 		return
 	if _art[at] == ART_CUTOUT:
-		_face_top(tx, ty, 0.0, atlas.uv(_ground_art(tx, ty)), SHADE_TOP_FLAT)
+		var ground: Vector2i = _ground_art(tx, ty)
+		_face_top(tx, ty, float(ground.y), atlas.uv(ground.x), SHADE_TOP_FLAT)
+		_side(tx, ty, ground.y, _height_at(tx, ty + 1), Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
+		_side(tx, ty, ground.y, _height_at(tx, ty - 1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
+		_side(tx, ty, ground.y, _height_at(tx + 1, ty), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
+		_side(tx, ty, ground.y, _height_at(tx - 1, ty), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 		_cutout(
-			tx, ty, float(_depths[at]), _round[at] == 1, _filled[at] == 1, atlas
+			tx, ty, float(_depths[at]), _round[at] == 1, _filled[at] == 1,
+			float(ground.y), atlas
 		)
 		return
 	var here: int = _heights[at]
