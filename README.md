@@ -1,6 +1,6 @@
 # pokerecomp mods
 
-Mods for [gen2recomp](https://github.com/Decryptu/gen2recomp), the Pokemon Gold,
+Mods for [pokerecomp](https://github.com/Decryptu/pokerecomp), the Pokemon Gold,
 Silver and Crystal recompilation. Each one is interpreted GDScript under
 `mods/<id>/` and installs as a `.zip` on every platform the game runs on.
 

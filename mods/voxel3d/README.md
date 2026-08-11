@@ -272,7 +272,7 @@ BLOCK: 4x4 tiles on 2x2 walk cells, which is what Generation II authors the worl
 out of. A tree, a sign, a fence corner or a stretch of path is one block.
 
 ```bash
-Godot --path <gen2recomp> -s <this checkout>/tools/survey.gd -- <cache> all out/
+Godot --path <pokerecomp> -s <this checkout>/tools/survey.gd -- <cache> all out/
 python3 tools/survey_sheet.py out/
 ```
 

@@ -25,7 +25,7 @@ extends SceneTree
 ##
 ## Run with a display attached, since it renders:
 ##
-##   Godot --path <gen2recomp> -s tools/survey.gd -- <cache> <tileset|all> <out>
+##   Godot --path <pokerecomp> -s tools/survey.gd -- <cache> <tileset|all> <out>
 
 const MOD := "user://mods/voxel3d"
 const CELL: float = 16.0

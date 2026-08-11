@@ -19,7 +19,7 @@ extends SceneTree
 ##             pass, and it is for an agent reading the pictures itself: a floor
 ##             tile is worth a second of a machine's time and not of a person's.
 ##
-##   Godot --path <gen2recomp> -s tools/survey_context.gd -- \
+##   Godot --path <pokerecomp> -s tools/survey_context.gd -- \
 ##       <cache> <ts|all> <out> [unpinned|all]
 ##
 ## Emits `ctx_ts<n>_<tile>.png` per tile and `ask_ts<n>.json` beside them, or

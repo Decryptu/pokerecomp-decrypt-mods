@@ -6,7 +6,7 @@ extends RefCounted
 ## or a rung written out three times is three chances to disagree. A setting is
 ## DESCRIBED here and never drawn: the host builds the start menu's MODS entry
 ## and this mod's card in the launcher out of the same registration, which is why
-## no menu is written here. See `docs/MODS.md` in gen2recomp.
+## no menu is written here. See `docs/MODS.md` in pokerecomp.
 ##
 ## Values live per installation in `user://mod_options.json`, not in a save: a
 ## draw distance is a property of this machine and must not change when a slot is

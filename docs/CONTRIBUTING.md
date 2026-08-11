@@ -19,19 +19,19 @@ Link the directory into the game's user data rather than copying it, so an edit
 is one restart away:
 
 ```sh
-GAME=~/Library/Application\ Support/Godot/app_userdata/gen2recomp
+GAME=~/Library/Application\ Support/Godot/app_userdata/pokerecomp
 mkdir -p "$GAME/mods"
 ln -sfn "$PWD/mods/voxel3d" "$GAME/mods/voxel3d"
 ```
 
-`user://mods/` is `app_userdata/gen2recomp/mods` on desktop, the app's
+`user://mods/` is `app_userdata/pokerecomp/mods` on desktop, the app's
 `Documents/mods` on iOS, and internal app storage on Android. Only desktop can
 be linked; the other two take a `.zip`.
 
-Run the game from a gen2recomp checkout:
+Run the game from a pokerecomp checkout:
 
 ```bash
-/Applications/Godot.app/Contents/MacOS/Godot --path /Users/gurvan/Documents/Godot/gen2recomp
+/Applications/Godot.app/Contents/MacOS/Godot --path /Users/gurvan/Documents/Godot/pokerecomp
 ```
 
 The launcher lists what loaded and names anything it refused. A mod that fails
@@ -40,7 +40,7 @@ game or the other mods.
 
 ## The boundary
 
-Read [`docs/MODS.md`](https://github.com/Decryptu/gen2recomp/blob/main/docs/MODS.md)
+Read [`docs/MODS.md`](https://github.com/Decryptu/pokerecomp/blob/main/docs/MODS.md)
 in the game repository first. It is the contract, and it is enforced.
 
 - A mod is handed `Gen2ModHost`, registers what it provides, and returns. It

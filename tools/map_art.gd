@@ -6,7 +6,7 @@ extends SceneTree
 ## needs the opposite: the whole shape of a cliff at once, its front, its ends
 ## and whatever the ground does around it, which no 15-tile window shows.
 ##
-##   Godot --path <gen2recomp> -s tools/map_art.gd -- <cache> <group> <number> \
+##   Godot --path <pokerecomp> -s tools/map_art.gd -- <cache> <group> <number> \
 ##       <out.png> [scale]
 
 const TILE: int = 8

@@ -6,7 +6,7 @@ extends SceneTree
 ## confident ones were wrong. This is the cheapest way to take one: no game, no
 ## save, no walking there.
 ##
-##   Godot --path <gen2recomp> -s tools/shot.gd -- <cache> <group> <number> \
+##   Godot --path <pokerecomp> -s tools/shot.gd -- <cache> <group> <number> \
 ##       <tile x> <tile y> <out.png> [pitch] [back]
 ##
 ## Needs a display, since it renders.
