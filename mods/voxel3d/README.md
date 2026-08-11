@@ -270,9 +270,12 @@ drawing. `shape/profile_pass.gd` is generated from a full pass over every tilese
 in the game, where the same ringed picture that makes a tileset answerable by a
 person is read tile by tile, and the answers become pins. The hand table wins
 wherever both name a tile, and the generated one can be thrown away and rebuilt.
+All thirty-five tilesets are covered: 3618 tiles read, 2168 of them pinned, the
+rest left to the automatic resolution because it already stands a wall up and
+measures its height off the drawing where a pin would force one.
 
 The pass is measured rather than trusted: run blind against a tileset the
-reviewer had already answered, it agreed on 66 of the 69 tiles they had settled,
+reviewer had already answered, it agreed on 63 of the 67 tiles they had settled,
 and every miss was one it had marked short of sure. What it cannot settle goes
 back to a person with its own description already written in.
 

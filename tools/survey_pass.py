@@ -21,6 +21,11 @@ in this game.
 `blind` withholds the examples, which is only for measuring a pass against a
 tileset the reviewer has already answered: agreement means nothing if the answer
 key was in the brief.
+
+Every answer file in the survey directory is calibration, whatever it is called:
+`answers*.txt` from the human rounds and `verdict*.txt` from the reviewer's
+verdicts on what a pass could not settle. They are the same shape and they are
+read the same way.
 """
 
 import json
@@ -63,13 +68,43 @@ over on tiles that turned out to be a table corner and a book.
 
 One line per tile, in this exact shape, into `{out}`:
 
-    ts{number} <tile> <word> <confidence> <what you think it is, in words>
+    ts{number} <tile> <word> <confidence> <the description>
 
 `<word>` is from the table below. `<confidence>` is `sure`, `likely` or
-`unsure`. Anything not `sure` goes in front of a human with your words already
-filled in, so write the words for a person who is looking at the same picture:
-say what the thing is and how it SITS in a real world, tall like a wall or low
-and flat like a table.
+`unsure`.
+
+### The description is the deliverable, not the leftover
+
+The word is a class the mesher takes. The description is what everything AFTER
+this pass reads: the next agent deciding a height, the shape of a cutout, or
+whether a pin was wrong. So write it for an agent to act on, not for a person to
+enjoy. Four things, in this order, in one plain sentence or two:
+
+1. **Name the object.** Not "a brown thing", but "a wooden desk", "a rock face",
+   "the lower-right quarter of a doorway".
+2. **Say which surface the drawing depicts.** Generation II packs several
+   facings into one flat image: seen from ABOVE, seen FACE-ON, or its own
+   silhouette cut out. This is the question the geometry turns on.
+3. **Say how it sits in a real world.** Tall like a wall, low and flat like a
+   table top, lying on the floor, recessed. Give its extent when the picture
+   shows it: "the desk is 4 tiles wide and 2 tall", "two tiles high, then flat
+   ground behind".
+4. **Say what it stands on.** The floor, a table top, a roof below it, the top
+   of a wall, the water. `on_top_of_furniture` is not the only class with
+   something under it, and a thing whose base is unknown builds from the ground.
+
+### Answer from the pictures you were given, and from nothing else
+
+Every claim in your file has to be traceable to a crop listed below. Do not use
+recalled knowledge of this game: not map names, not tile numbering, not a
+disassembly, not what a place is "known" to contain. A previous run reported
+reading tileset graphics and metatile binaries that do not exist on this
+machine, and when it was re-run under this rule the two passes agreed on 39% of
+their words. If a crop does not settle a tile, that tile is `unsure`; naming the
+map it is on is not evidence and is not wanted.
+
+Any answer can be checked by cropping what the red ring encloses and blowing it
+up, and one that cannot be seen in the ring is not an answer.
 
 {classes}
 
@@ -98,8 +133,18 @@ EXAMPLES = """
 ## The reviewer's own words, for tiles of this tileset they have already named
 
 These are the calibration. They are a person looking at these same pictures, and
-they are the authority: where one of these covers a tile, copy its meaning
-rather than second-guessing it.
+their MEANING is the authority: where one covers a tile, you do not overturn it.
+
+Their prose is the source, not the output. Rewrite it into the four things
+above, keeping every fact they state, adding what the picture shows and they did
+not bother to write, and dropping nothing. Their words were written to get a
+meaning across to you; yours are written for the next agent to act on.
+
+Where one of these describes a tile you were not asked about, it still tells you
+what this tileset's world is made of, so read all of them before you start.
+
+If a line and the picture genuinely disagree, say so in your description and
+mark that tile `unsure`.
 
 {lines}
 """
@@ -107,7 +152,9 @@ rather than second-guessing it.
 
 def read_answers(directory):
     out = {}
-    for path in sorted(directory.glob("answers*.txt")):
+    paths = sorted(directory.glob("answers*.txt")) + \
+        sorted(directory.glob("verdict*.txt"))
+    for path in paths:
         for line in path.read_text().splitlines():
             words = line.split()
             if len(words) >= 3 and words[0].startswith("ts") and words[1].isdigit():
