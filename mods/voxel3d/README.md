@@ -236,6 +236,14 @@ A facade is measured the same way, in tile rows rather than in cells: a plaza's
 brick pavement is eight rows of the one tile, and its length would stand a
 monolith where there is a low wall.
 
+Then the structure as a whole agrees. A period is a fact about one column, and a
+hedge meeting another hedge at a T-junction has no repeat in the column through
+the junction, so that one column stood three cells tall in the middle of a
+knee-high maze. Connected cells are flooded into one structure and the height
+most of its cells measured caps all of it. It can only bring a column down: one
+that measured short measured short off its own drawing, which is evidence rather
+than an accident.
+
 ## Surveying a tileset
 
 The measurement is right for most of the world and wrong for the drawings that

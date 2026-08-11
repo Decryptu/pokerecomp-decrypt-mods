@@ -367,9 +367,34 @@ func _art_mode(art: StringName) -> int:
 ## cells behind it immediately repeat. A house of three different cells has no
 ## repeat and stands three cells tall; a fence has period one and stands one cell
 ## tall however far it runs.
+##
+## Then the REGION agrees. A period is a fact about one column, and a structure
+## is not: a fence meeting another fence at a T-junction has no repeat in the
+## column through the junction, so that one column measured three cells where
+## every column beside it measured one, and the fence grew a tower. So connected
+## unmeasured cells are flooded into one region and the region votes: each run
+## casts as many votes as it has cells, and the height most of the region's cells
+## agree on is what the region stands at. A tie goes to the shorter, because a
+## structure that is too tall hides what is behind it and one that is too short
+## does not.
+##
+## The vote can only bring a column DOWN, never up. A column that measured too
+## tall is the fault being fixed: it is a column the run has no repeat in, and
+## the repeat is what the height was supposed to come from. A column that
+## measured short measured short off its own drawing, and that is evidence, not
+## an accident. Letting the vote raise as well put a blank three-cell slab where
+## a low structure joined a tall one, which is visible in a picture and is what
+## settled this.
 func _measure_columns() -> void:
 	@warning_ignore("integer_division")
 	var cells := Vector2i(_size.x / CELL_TILES, _size.y / CELL_TILES)
+	var region := _regions(cells)
+
+	# One run at a time, as before, but the height is banked against the run's
+	# region rather than written straight out.
+	var runs: Array[Vector4i] = []
+	var periods := PackedInt32Array()
+	var votes: Dictionary = {}
 	for cell_x: int in cells.x:
 		var cell_y: int = 0
 		while cell_y < cells.y:
@@ -379,20 +404,74 @@ func _measure_columns() -> void:
 			var run: int = 0
 			while cell_y + run < cells.y and _cell_unmeasured(cell_x, cell_y + run):
 				run += 1
-			var height: int = mini(_period(cell_x, cell_y, run), MAX_CELLS) \
-				* CELL_TILES * BAND
-			var base: int = (cell_y + run) * CELL_TILES - 1
-			for step: int in run:
-				for row: int in CELL_TILES:
-					var ty: int = (cell_y + step) * CELL_TILES + row
-					for column: int in CELL_TILES:
-						var at: int = ty * _size.x + cell_x * CELL_TILES + column
-						# A pinned tile inside an otherwise unmeasured cell keeps
-						# the height its pin gave it.
-						if _heights[at] == -1:
-							_heights[at] = height
-							_bases[at] = base
+			var period: int = mini(_period(cell_x, cell_y, run), MAX_CELLS)
+			var group: int = region[cell_y * cells.x + cell_x]
+			runs.append(Vector4i(cell_x, cell_y, run, group))
+			periods.append(period)
+			var tally: Dictionary = votes.get(group, {})
+			tally[period] = int(tally.get(period, 0)) + run
+			votes[group] = tally
 			cell_y += run
+
+	var agreed: Dictionary = {}
+	for group: int in votes:
+		var tally: Dictionary = votes[group]
+		var best: int = 0
+		for period: int in tally:
+			var count: int = int(tally[period])
+			var top: int = int(tally.get(best, -1))
+			if count > top or (count == top and period < best):
+				best = period
+		agreed[group] = best
+
+	for index: int in runs.size():
+		var entry: Vector4i = runs[index]
+		var height: int = mini(periods[index], int(agreed[entry.w])) * CELL_TILES * BAND
+		var base: int = (entry.y + entry.z) * CELL_TILES - 1
+		for step: int in entry.z:
+			for row: int in CELL_TILES:
+				var ty: int = (entry.y + step) * CELL_TILES + row
+				for column: int in CELL_TILES:
+					var at: int = ty * _size.x + entry.x * CELL_TILES + column
+					# A pinned tile inside an otherwise unmeasured cell keeps
+					# the height its pin gave it.
+					if _heights[at] == -1:
+						_heights[at] = height
+						_bases[at] = base
+
+
+## Connected unmeasured cells, four ways, numbered. -1 is a cell that is not part
+## of any structure.
+func _regions(cells: Vector2i) -> PackedInt32Array:
+	var region := PackedInt32Array()
+	region.resize(cells.x * cells.y)
+	region.fill(-1)
+	var next: int = 0
+	var stack: Array[Vector2i] = []
+	for start_y: int in cells.y:
+		for start_x: int in cells.x:
+			if region[start_y * cells.x + start_x] != -1:
+				continue
+			if not _cell_unmeasured(start_x, start_y):
+				continue
+			region[start_y * cells.x + start_x] = next
+			stack.append(Vector2i(start_x, start_y))
+			while not stack.is_empty():
+				var at: Vector2i = stack.pop_back()
+				for step: Vector2i in [
+					Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
+				]:
+					var to: Vector2i = at + step
+					if to.x < 0 or to.y < 0 or to.x >= cells.x or to.y >= cells.y:
+						continue
+					if region[to.y * cells.x + to.x] != -1:
+						continue
+					if not _cell_unmeasured(to.x, to.y):
+						continue
+					region[to.y * cells.x + to.x] = next
+					stack.append(to)
+			next += 1
+	return region
 
 
 ## Anything the measuring passes never reached, given a height at last.
