@@ -151,6 +151,13 @@ func roof_drop(shape_class: StringName) -> int:
 	return int(_profile.ROOF_DROP.get(shape_class, 0))
 
 
+## The OBJECTS this tileset draws, which are declared per tileset and never per
+## class: an object is identified by the arrangement of tile ids it is drawn out
+## of, because no one of those tiles is the object. See `profile.gd:OBJECTS`.
+func objects() -> Array:
+	return _profile.OBJECTS.get(_tileset_number, [])
+
+
 
 func _pin(tile: int) -> StringName:
 	if _pinned.has(tile):

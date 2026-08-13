@@ -266,6 +266,70 @@ const FILLED: Dictionary = {
 	&"boulder": true,
 }
 
+## THE OBJECTS, per tileset number. A thing that is not a tile and does not fit
+## the grid.
+##
+## Everything else here resolves a tile and stands it up where that tile sits. A
+## wall or a canopy is drawn tile by tile and comes out right that way. A CHAIR is
+## not: it is drawn as four corners across four tiles, straddling the seam between
+## them, and tileset 13's tile 74 is the desk's bottom-left leg, the chair's
+## top-left corner and the floor between the two at once. No pin can be right
+## about that tile, because the tile is three things.
+##
+## So an object is declared by the ARRANGEMENT OF TILE IDS it is drawn out of,
+## which is what identifies it wherever the map places it, and `mesher.gd`
+## `_measure_objects` finds every occurrence, gives every tile it covers back to
+## the FLOOR, and stands one thing of the declared size at the drawing's own
+## position. Two objects may claim the same tile and both are drawn: the desk and
+## the chair below it do.
+##
+## Each declaration says:
+##
+##   tiles   the arrangement, row by row, -1 for a tile it covers but does not
+##           care about
+##   window  where in that arrangement the thing is actually drawn, in pixels.
+##           Authored because the arrangement's own rectangle holds the
+##           neighbours as well: the chair's four tiles hold the desk's bottom
+##           edge along their top.
+##   top     how many rows of the window are the surface seen FROM ABOVE. The
+##           rest are the face seen face-on. This is the same split
+##           `_measure_buildings` makes at building scale, and it is the whole of
+##           what a 2.5D drawing is: a top and a front, stacked.
+##   depth   how far it reaches away from the eye, in world pixels
+##   height  how tall it stands
+##
+## DEPTH AND HEIGHT ARE THE DRAWING'S OWN ROW COUNTS wherever it draws a top: the
+## desk's top band is 16 rows and the reviewer measured the desk at 15 or 16 deep,
+## its face is 6 rows and they measured 6 or 7 high. Where a drawing has no top
+## band at all the depth is not in the picture and is authored: their number for
+## the chair is 6.
+const OBJECTS: Dictionary = {
+	13: [
+		# The school desk, and the thing that made this whole item: 32 wide, drawn as
+		# a top seen from above with books and a globe on it, then a front with an
+		# apron and legs. Its bottom row of tiles is shared with the chair.
+		{
+			&"name": &"desk",
+			&"tiles": [[42, 43, 44, 45], [58, 59, 60, 61], [74, 75, 76, 77]],
+			&"window": Rect2i(0, 0, 32, 22),
+			&"top": 16,
+			&"depth": 16,
+			&"height": 6,
+		},
+		# The chair, 12 px square in the middle of four tiles, drawn face-on with a
+		# back: no rows of it are seen from above, so its depth is the one number a
+		# person had to give.
+		{
+			&"name": &"chair",
+			&"tiles": [[74, 75], [90, 91]],
+			&"window": Rect2i(4, 4, 12, 12),
+			&"top": 0,
+			&"depth": 6,
+			&"height": 12,
+		},
+	],
+}
+
 ## The tiles that draw the FACE of a terrain cliff, per tileset number.
 ##
 ## Not a class and deliberately not one: a cliff face stands up and is textured

@@ -132,6 +132,20 @@ var _lying := PackedByteArray()
 var _on_furniture := PackedByteArray()
 var _klass := PackedInt32Array()
 var _class_ids: Dictionary = {}
+
+## THE OBJECTS, which are the one thing here that is not resolved per tile. See
+## `_measure_objects` and `profile.gd:OBJECTS`. Per tile: whether an object covers
+## it, so the tile itself extrudes nothing; and which objects those are, since a
+## tile may carry two.
+var _object_covered := PackedByteArray()
+var _object_over: Dictionary = {}
+## One entry per object found on this map: its declaration, the tile its
+## arrangement starts at, and how many tiles across and down that is.
+var _objects: Array = []
+## Which of them this emit has already stood up. An object is asked for from every
+## one of its tiles, so that a window cutting off its top-left corner cannot
+## delete it, and built from whichever asks first.
+var _object_done: Dictionary = {}
 ## Per tile: which surface of a building it depicts, and how many bands a sloped
 ## roof tile has fallen from the flat section beside it.
 const PART_NONE: int = 0
@@ -236,6 +250,7 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 		return false
 	_emit_atlas = atlas
 	_model_spots.clear()
+	_object_done.clear()
 	_built_model = false
 	# Chunks are cut on the world's own grid rather than on the window's corner,
 	# so walking one cell east recentres the window onto the SAME chunks and the
@@ -565,6 +580,10 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_settle_unmeasured()
 	_measure_furniture()
 	_measure_cutouts()
+	# After the cutouts, because an object overrides whatever class its tiles were
+	# given, and after the heights, because every tile it covers goes back to
+	# standing at the floor of its own cell.
+	_measure_objects(shape)
 	# Last, because it overrides whatever the passes above made of a ledge tile
 	# and reads the ground they settled either side of it.
 	_measure_ledges(source)
@@ -1096,6 +1115,78 @@ func _repeats(start: Vector2i, span: Vector2i) -> bool:
 				return true
 			seen[key] = true
 	return false
+
+
+## Whether the tile ids at [param tx],[param ty] are the arrangement
+## [param pattern] draws. A -1 in the pattern is a tile the object covers and has
+## no opinion about.
+func _pattern_at(pattern: Array, across: Vector2i, tx: int, ty: int) -> bool:
+	for row: int in across.y:
+		var line: Array = pattern[row]
+		for column: int in across.x:
+			var want: int = int(line[column])
+			if want >= 0 and _tile_at(tx + column, ty + row) != want:
+				return false
+	return true
+
+
+## AN OBJECT IS NOT A TILE, and this is what finds one.
+##
+## Every other pass here resolves a tile and stands it up where that tile sits,
+## and for a wall or a canopy that is right, because the cartridge draws those
+## tile by tile. A CHAIR is drawn as four corners across four tiles and no one of
+## them is a chair: tileset 13's tile 74 is the desk's bottom-left leg, the
+## chair's top-left corner and the floor between the two, so every possible pin
+## for it is wrong. The reviewer raised it and named the fix: detect the tiles of
+## each object, then place ONE thing of the whole object's size at its own
+## position.
+##
+## The ARRANGEMENT OF TILE IDS is what identifies it, and it is exact: a pattern
+## found anywhere in the grid is that object, wherever the map places it and
+## whatever block boundary it straddles. The desk's drawing crosses one.
+##
+## EVERY TILE IT COVERS GOES BACK TO BEING FLOOR. That is the third thing this
+## needed and it is free here: a covered tile is marked as a cutout, which already
+## means "the ground beside me, with whatever stands on it drawn separately", so
+## the seam beside the object stops extruding and the floor runs under it. What
+## stands on it is then the object, emitted whole from any one of its tiles.
+##
+## Two objects may cover the same tile and both are drawn, which is the desk and
+## the chair below it.
+func _measure_objects(shape: RefCounted) -> void:
+	_object_covered.resize(_size.x * _size.y)
+	_object_covered.fill(0)
+	_object_over.clear()
+	_objects.clear()
+	var declared: Array = shape.objects()
+	for object: Dictionary in declared:
+		var pattern: Array = object[&"tiles"]
+		var across := Vector2i((pattern[0] as Array).size(), pattern.size())
+		for ty: int in _size.y - across.y + 1:
+			for tx: int in _size.x - across.x + 1:
+				if not _pattern_at(pattern, across, tx, ty):
+					continue
+				var index: int = _objects.size()
+				_objects.append([object, Vector2i(tx, ty), across])
+				for row: int in across.y:
+					for column: int in across.x:
+						var at: int = (ty + row) * _size.x + tx + column
+						_object_covered[at] = 1
+						_art[at] = ART_CUTOUT
+						_modelled[at] = 0
+						_volume[at] = 0
+						_tufted[at] = 0
+						_cliff[at] = 0
+						_front[at] = 0
+						_lip[at] = 0
+						_heights[at] = _cell_floor(
+							(tx + column) >> 1, (ty + row) >> 1
+						)
+						var over: PackedInt32Array = _object_over.get(
+							at, PackedInt32Array()
+						)
+						over.append(index)
+						_object_over[at] = over
 
 
 ## The jumping ledges, taken from the COLLISION byte rather than from a drawing.
@@ -1857,6 +1948,157 @@ func take_models() -> Array:
 	return out
 
 
+## One texel of the object's own body, as a uv box, for the faces the drawing does
+## not depict: its back and its two sides. Taken from INSIDE the drawing between
+## the two rows given, the way a cutout's top faces are, because the edge column
+## of a silhouette is its outline all the way down and a face wearing that comes
+## out solid black.
+func _object_texel(
+	atlas: RefCounted, tiles: Array, across: Vector2i, mask: PackedByteArray,
+	span: Vector2i, window: Rect2i, from_row: int, to_row: int
+) -> Rect2:
+	var fallback: Rect2 = atlas.uv(int(tiles[0]))
+	var found: Rect2 = fallback
+	var any: bool = false
+	for py: int in range(from_row, to_row):
+		for px: int in range(window.position.x, window.position.x + window.size.x):
+			if not _drawn(mask, span, px, py):
+				continue
+			@warning_ignore("integer_division")
+			var tile: int = int(tiles[(py / int(TILE)) * across.x + px / int(TILE)])
+			var box: Rect2 = atlas.uv_box(
+				tile, Rect2i(px % int(TILE), py % int(TILE), 1, 1)
+			)
+			if _interior(mask, span, px, py):
+				return box
+			if not any:
+				found = box
+				any = true
+	return found
+
+
+## ONE OBJECT, STOOD UP AT ITS OWN SIZE AND POSITION.
+##
+## The drawing is a top and a front stacked, which is the whole of what a 2.5D
+## picture of a thing is: the window's first `top` rows are the surface seen from
+## above and are laid across the object's DEPTH, and the rest are the face seen
+## face-on and are hung down its HEIGHT. Where a drawing has no top band at all,
+## which is the chair, the cap is one texel of the drawing's own colour and the
+## depth is the number a person gave.
+##
+## Every row is cut per TILE, because a texel can only be sampled out of the tile
+## it was drawn in, and within a tile into the runs the mask actually draws. The
+## back and the two sides wear one interior texel each rather than the drawing,
+## since the drawing says nothing about them.
+func _emit_object(index: int, atlas: RefCounted) -> void:
+	var entry: Array = _objects[index]
+	var object: Dictionary = entry[0]
+	var start: Vector2i = entry[1]
+	var across: Vector2i = entry[2]
+	var tiles: Array = []
+	for row: int in across.y:
+		for column: int in across.x:
+			tiles.append(_tile_at(start.x + column, start.y + row))
+	var span: Vector2i = across * int(TILE)
+	var mask: PackedByteArray = _structure_mask(
+		tiles, across, atlas, bool(object.get(&"filled", false)),
+		int(object.get(&"outline", 1))
+	)
+	var window: Rect2i = object[&"window"]
+	var top_rows: int = clampi(int(object.get(&"top", 0)), 0, window.size.y)
+	var face_rows: int = window.size.y - top_rows
+	var deep: float = float(object[&"depth"])
+	var tall: float = float(object[&"height"])
+	# ONE ground for the whole thing, taken at the drawing's own foot. Reading it
+	# per tile would tilt an object that stands across two of them.
+	var base: float = float(_ground_art(start.x, start.y + across.y - 1).y)
+	# The drawing's bottom row is where the thing meets the floor, so it is also
+	# its NEAR edge in plan: a 2.5D drawing puts the front-bottom corner there and
+	# everything else behind it.
+	var front: float = _world_z(start.y) + float(window.position.y + window.size.y)
+	var back: float = front - deep
+	var left: float = _world_x(start.x) + float(window.position.x)
+	var right: float = left + float(window.size.x)
+	var high: float = base + tall
+
+	for row: int in window.size.y:
+		var py: int = window.position.y + row
+		var above: bool = row < top_rows
+		# Where this row of the drawing goes: back to front across the cap, or top
+		# to bottom down the face.
+		var far: float = 0.0
+		var near: float = 0.0
+		if above:
+			far = back + deep * float(row) / float(top_rows)
+			near = back + deep * float(row + 1) / float(top_rows)
+		else:
+			far = high - tall * float(row - top_rows) / float(face_rows)
+			near = high - tall * float(row - top_rows + 1) / float(face_rows)
+		var px: int = window.position.x
+		while px < window.position.x + window.size.x:
+			if not _drawn(mask, span, px, py):
+				px += 1
+				continue
+			var stop: int = mini(
+				(px / int(TILE) + 1) * int(TILE),
+				window.position.x + window.size.x
+			)
+			var run: int = px
+			while run < stop and _drawn(mask, span, run, py):
+				run += 1
+			@warning_ignore("integer_division")
+			var tile: int = int(tiles[(py / int(TILE)) * across.x + px / int(TILE)])
+			var uv: Rect2 = atlas.uv_box(
+				tile, Rect2i(px % int(TILE), py % int(TILE), run - px, 1)
+			)
+			var x0: float = _world_x(start.x) + float(px)
+			var x1: float = _world_x(start.x) + float(run)
+			if above:
+				_quad(
+					Vector3(x0, high, near), Vector3(x1, high, near),
+					Vector3(x1, high, far), Vector3(x0, high, far),
+					Vector3.UP, uv, SHADE_TOP_FLAT
+				)
+			else:
+				_quad(
+					Vector3(x0, near, front), Vector3(x1, near, front),
+					Vector3(x1, far, front), Vector3(x0, far, front),
+					Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
+				)
+			px = run
+
+	var side: Rect2 = _object_texel(
+		atlas, tiles, across, mask, span, window,
+		window.position.y + top_rows, window.position.y + window.size.y
+	)
+	_quad(
+		Vector3(right, base, back), Vector3(left, base, back),
+		Vector3(left, high, back), Vector3(right, high, back),
+		Vector3(0.0, 0.0, -1.0), side, SHADE_NORTH
+	)
+	_quad(
+		Vector3(right, base, front), Vector3(right, base, back),
+		Vector3(right, high, back), Vector3(right, high, front),
+		Vector3(1.0, 0.0, 0.0), side, SHADE_SIDE
+	)
+	_quad(
+		Vector3(left, base, back), Vector3(left, base, front),
+		Vector3(left, high, front), Vector3(left, high, back),
+		Vector3(-1.0, 0.0, 0.0), side, SHADE_SIDE
+	)
+	if top_rows == 0:
+		_quad(
+			Vector3(left, high, front), Vector3(right, high, front),
+			Vector3(right, high, back), Vector3(left, high, back),
+			Vector3.UP,
+			_object_texel(
+				atlas, tiles, across, mask, span, window,
+				window.position.y, window.position.y + window.size.y
+			),
+			SHADE_TOP_FLAT
+		)
+
+
 ## One tile's share of a standing cutout: the drawing's own pixels, standing up.
 ##
 ## Not a quad per pixel and not a quad per row. The mask is cut into the largest
@@ -2321,9 +2563,16 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		_side(tx, ty, ground.y, _height_at(tx, ty - 1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
 		_side(tx, ty, ground.y, _height_at(tx + 1, ty), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 		_side(tx, ty, ground.y, _height_at(tx - 1, ty), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
-		# The ground under it is drawn either way; what stands ON it is the drawing
-		# carved out, an authored model stamped there, or a rail on its posts.
-		if _art[at] == ART_RAILING:
+		# The ground under it is drawn either way; what stands ON it is a whole
+		# OBJECT stood up beside its neighbours, the drawing carved out, an authored
+		# model stamped there, or a rail on its posts.
+		if _object_covered[at] == 1:
+			for index: int in _object_over.get(at, PackedInt32Array()) as PackedInt32Array:
+				if _object_done.has(index):
+					continue
+				_object_done[index] = true
+				_emit_object(index, atlas)
+		elif _art[at] == ART_RAILING:
 			_railing(tx, ty, float(ground.y), atlas)
 		elif _modelled[at] == 1:
 			_place_model(tx, ty, atlas)
