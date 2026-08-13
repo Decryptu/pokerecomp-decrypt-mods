@@ -158,6 +158,12 @@ func objects() -> Array:
 	return _profile.OBJECTS.get(_tileset_number, [])
 
 
+## The STAIRCASES this tileset draws, found by the same arrangement of tile ids
+## an object is. See `profile.gd:STAIRS`.
+func stairs() -> Array:
+	return _profile.STAIRS.get(_tileset_number, [])
+
+
 
 func _pin(tile: int) -> StringName:
 	if _pinned.has(tile):

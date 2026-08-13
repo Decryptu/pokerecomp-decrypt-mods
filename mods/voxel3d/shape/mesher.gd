@@ -142,6 +142,11 @@ var _object_over: Dictionary = {}
 ## One entry per object found on this map: its declaration, the tile its
 ## arrangement starts at, and how many tiles across and down that is.
 var _objects: Array = []
+## THE STAIRCASES, found the same way. Per tile, which flight stands there; and
+## per flight, its declaration, its first tile and the floor it starts from.
+var _stair_at := PackedInt32Array()
+var _stairs: Array = []
+var _stair_done: Dictionary = {}
 ## Which of them this emit has already stood up. An object is asked for from every
 ## one of its tiles, so that a window cutting off its top-left corner cannot
 ## delete it, and built from whichever asks first.
@@ -251,6 +256,7 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	_emit_atlas = atlas
 	_model_spots.clear()
 	_object_done.clear()
+	_stair_done.clear()
 	_built_model = false
 	# Chunks are cut on the world's own grid rather than on the window's corner,
 	# so walking one cell east recentres the window onto the SAME chunks and the
@@ -584,6 +590,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# given, and after the heights, because every tile it covers goes back to
 	# standing at the floor of its own cell.
 	_measure_objects(shape)
+	_measure_stairs(shape)
 	# Last, because it overrides whatever the passes above made of a ledge tile
 	# and reads the ground they settled either side of it.
 	_measure_ledges(source)
@@ -1187,6 +1194,51 @@ func _measure_objects(shape: RefCounted) -> void:
 						)
 						over.append(index)
 						_object_over[at] = over
+
+
+## How far a flight rises or falls, in world pixels, and in how many steps. One
+## walk cell each way on a 45 degree ramp, which is the reviewer's own reading of
+## the drawing: four steps, four pixels of tread and four of riser apiece.
+const STAIR_RISE: int = 16
+const STAIR_STEPS: int = 4
+
+
+## THE STAIRCASES, found exactly as an object is and marked as a floor that is
+## somewhere other than zero.
+##
+## A DOWN flight is a HOLE, which is the reviewer's own word for it, and the mesh
+## already knows how to draw one: put the cell's floor a walk cell BELOW the
+## ground and every neighbour skirts down to it, because `_side` draws a face
+## wherever a neighbour stands lower and does not care whether that is a cliff or
+## a stairwell. So the pit's four walls, its floor and the seam around it all come
+## from the passes that were already there, and `_emit_stairs` adds only the steps
+## standing in it.
+func _measure_stairs(shape: RefCounted) -> void:
+	_stair_at.resize(_size.x * _size.y)
+	_stair_at.fill(-1)
+	_stairs.clear()
+	for flight: Dictionary in shape.stairs():
+		var pattern: Array = flight[&"tiles"]
+		var across := Vector2i((pattern[0] as Array).size(), pattern.size())
+		for ty: int in _size.y - across.y + 1:
+			for tx: int in _size.x - across.x + 1:
+				if not _pattern_at(pattern, across, tx, ty):
+					continue
+				var base: int = _cell_floor(tx >> 1, ty >> 1)
+				var index: int = _stairs.size()
+				_stairs.append([flight, Vector2i(tx, ty), base])
+				var fall: int = -STAIR_RISE if bool(flight[&"down"]) else 0
+				for row: int in across.y:
+					for column: int in across.x:
+						var at: int = (ty + row) * _size.x + tx + column
+						_stair_at[at] = index
+						_art[at] = ART_FLAT
+						_volume[at] = 0
+						_tufted[at] = 0
+						_cliff[at] = 0
+						_front[at] = 0
+						_lip[at] = 0
+						_heights[at] = base + fall
 
 
 ## The jumping ledges, taken from the COLLISION byte rather than from a drawing.
@@ -2099,6 +2151,109 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 		)
 
 
+## One flight of stairs: four treads and four risers inside one walk cell.
+##
+## The drawing is a picture of the flight from above, so the cell's own pixels
+## are what the treads and the risers wear, each step taking the four pixel rows
+## of the cell it stands under. Cut per TILE like everything else that samples the
+## atlas, which for a 16 px cell is two pieces across each step.
+##
+## The DEEPEST tread is not emitted: for a down flight the cell's floor is already
+## a walk cell below the ground and `_face_top` has drawn it, and the steps above
+## close over the rest of it. Emitting it again would be two coincident quads.
+func _emit_stairs(index: int, atlas: RefCounted) -> void:
+	var entry: Array = _stairs[index]
+	var flight: Dictionary = entry[0]
+	var start: Vector2i = entry[1]
+	var base: float = float(entry[2])
+	var step: Vector2i = flight[&"step"]
+	var down: bool = bool(flight[&"down"])
+	var rise: float = float(STAIR_RISE) / float(STAIR_STEPS)
+	var span: int = CELL_TILES * int(TILE)
+	for tread: int in STAIR_STEPS:
+		# Where this step sits inside the cell, in the cell's own pixels. The
+		# descent runs along whichever axis `step` names, from the edge the flight
+		# is entered by, and the step is the full width of the cell across it.
+		var from: int = tread * int(rise)
+		var box := Rect2i(0, 0, span, span)
+		if step.x != 0:
+			box = Rect2i(from if step.x > 0 else span - from - int(rise), 0, int(rise), span)
+		else:
+			box = Rect2i(0, from if step.y > 0 else span - from - int(rise), span, int(rise))
+		var height: float = base + float(tread + 1) * rise * (-1.0 if down else 1.0)
+		var above: float = height + rise * (1.0 if down else -1.0)
+		# The riser stands at the step's own entry edge, facing back the way the
+		# flight is walked into.
+		var riser: int = box.position.x + (0 if step.x > 0 else box.size.x) \
+			if step.x != 0 else box.position.y + (0 if step.y > 0 else box.size.y)
+		for piece: Rect2i in _tile_pieces(box):
+			var tile: int = _tile_at(
+				start.x + piece.position.x / int(TILE), start.y + piece.position.y / int(TILE)
+			)
+			var uv: Rect2 = atlas.uv_box(tile, Rect2i(
+				piece.position.x % int(TILE), piece.position.y % int(TILE),
+				piece.size.x, piece.size.y
+			))
+			var x0: float = _world_x(start.x) + float(piece.position.x)
+			var x1: float = x0 + float(piece.size.x)
+			var z0: float = _world_z(start.y) + float(piece.position.y)
+			var z1: float = z0 + float(piece.size.y)
+			if tread < STAIR_STEPS - 1 or not down:
+				_quad(
+					Vector3(x0, height, z1), Vector3(x1, height, z1),
+					Vector3(x1, height, z0), Vector3(x0, height, z0),
+					Vector3.UP, uv, SHADE_TOP_FLAT
+				)
+			# The riser is the same strip of drawing stood on end, and only the
+			# piece of it that this tile actually carries.
+			var low: float = minf(height, above)
+			var high: float = maxf(height, above)
+			if step.x != 0:
+				var rx: float = _world_x(start.x) + float(riser)
+				if step.x > 0:
+					_quad(
+						Vector3(rx, low, z0), Vector3(rx, low, z1),
+						Vector3(rx, high, z1), Vector3(rx, high, z0),
+						Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
+					)
+				else:
+					_quad(
+						Vector3(rx, low, z1), Vector3(rx, low, z0),
+						Vector3(rx, high, z0), Vector3(rx, high, z1),
+						Vector3(1.0, 0.0, 0.0), uv, SHADE_SIDE
+					)
+			else:
+				var rz: float = _world_z(start.y) + float(riser)
+				if step.y > 0:
+					_quad(
+						Vector3(x1, low, rz), Vector3(x0, low, rz),
+						Vector3(x0, high, rz), Vector3(x1, high, rz),
+						Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
+					)
+				else:
+					_quad(
+						Vector3(x0, low, rz), Vector3(x1, low, rz),
+						Vector3(x1, high, rz), Vector3(x0, high, rz),
+						Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
+					)
+
+
+## [param box] cut on the 8 px tile grid, since a texel can only be sampled out
+## of the tile it was drawn in.
+func _tile_pieces(box: Rect2i) -> Array:
+	var out: Array = []
+	var y: int = box.position.y
+	while y < box.end.y:
+		var tall: int = mini((y / int(TILE) + 1) * int(TILE), box.end.y) - y
+		var x: int = box.position.x
+		while x < box.end.x:
+			var wide: int = mini((x / int(TILE) + 1) * int(TILE), box.end.x) - x
+			out.append(Rect2i(x, y, wide, tall))
+			x += wide
+		y += tall
+	return out
+
+
 ## One tile's share of a standing cutout: the drawing's own pixels, standing up.
 ##
 ## Not a quad per pixel and not a quad per row. The mask is cut into the largest
@@ -2608,6 +2763,11 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	_side(tx, ty, here, _height_at(tx - 1, ty), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 	if _tufted[at] == 1:
 		_tufts(tx, ty, float(here), atlas, _long_grass[at] == 1)
+	# The flight standing in the cell whose floor this is. Asked for from every one
+	# of its four tiles and built by whichever asks first, as an object is.
+	if _stair_at[at] >= 0 and not _stair_done.has(_stair_at[at]):
+		_stair_done[_stair_at[at]] = true
+		_emit_stairs(_stair_at[at], atlas)
 
 
 ## TALL GRASS: the floor keeps the drawing and the tufts stand up out of it.

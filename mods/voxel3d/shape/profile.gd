@@ -354,6 +354,32 @@ const OBJECTS: Dictionary = {
 	],
 }
 
+## THE STAIRCASES, per tileset number, found the same way an object is.
+##
+## A flight is FOUR TILES and a perspective drawing of one, which is the
+## reviewer's own answer: a 2x2 tile box, four steps on a 45 degree ramp, going
+## either up or down. Measured over the whole game: 288 flights, 272 of them a
+## single walk cell, drawn out of 54 distinct arrangements over 22 tilesets.
+##
+## THEY DO NOT CHANGE LEVEL. Every one of the 288 has the same ground on both
+## sides of it, because these are WARP staircases: you step on one and leave the
+## floor entirely. So a ramp between two levels is not what is being built here
+## and open work 2 has the measurement that says so. What is built is the flight
+## itself, as the drawing shows it.
+##
+## `step` is the direction it DESCENDS in the world plane, or climbs where `down`
+## is false, and it is the one thing a person has to say: the reviewer read
+## tileset 7's as going "from right to left to go underground", which is west.
+const STAIRS: Dictionary = {
+	7: [
+		{
+			&"tiles": [[66, 67], [82, 83]],
+			&"down": true,
+			&"step": Vector2i(-1, 0),
+		},
+	],
+}
+
 ## The tiles that draw the FACE of a terrain cliff, per tileset number.
 ##
 ## Not a class and deliberately not one: a cliff face stands up and is textured
