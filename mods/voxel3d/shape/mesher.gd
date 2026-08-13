@@ -2154,10 +2154,6 @@ func _ledge_at(tx: int, ty: int) -> int:
 const RING_TILES: int = 4
 const RING_TILES_MODELLED: int = 16
 const BORDER_TILES: int = 32
-## How far in from the skirt's edge to look for the floor before giving up. Far
-## enough to cross the ring, since a hedge ring has no floor of its own and the
-## map's own edge is what answers for it.
-const BORDER_REACH: int = 12
 var _border: Dictionary = {}
 var _outside: bool = false
 
@@ -2200,19 +2196,25 @@ func _emit_skirt(tx: int, ty: int, atlas: RefCounted) -> void:
 
 
 ## The tile id and height of the floor at one grid edge position, as a Vector2i.
-## A shoreline carries the water out rather than the beach.
 ##
-## A column that meets nothing but structures for as far as this looks falls back
-## to the commonest floor anywhere along the edge, rather than to nothing: a town
-## whose north side is eight tiles of building used to open a hole in the ground
-## plane behind it, and a hole in the ground reads as a hole in the world where a
-## wrong patch of grass reads as grass.
+## THE RING'S OWN FLOOR, and only the ring's. Past the map the ground is the
+## border block's, so the search is the depth of the ring and no further: on the
+## twenty sea maps and the sixteen open ones that is the border block's own tile
+## in every column, and a shoreline still carries the water out rather than the
+## beach because the water is what the border block draws.
+##
+## A ring with no floor anywhere in it, which is a hedge or a tree line, falls
+## back to the map's own edge ONCE for the whole map rather than per column.
+## Per column was the older rule and it is wrong here: a town whose path meets
+## its boundary laid an orange runway to the horizon, and a town whose north side
+## is eight tiles of building drew nothing at all and opened a hole in the ground
+## plane. A wrong patch of grass reads as grass; a hole reads as a hole.
 func _skirt_floor(edge: Vector2i) -> Vector2i:
 	var inward := Vector2i(
 		1 if edge.x == 0 else (-1 if edge.x == _size.x - 1 else 0),
 		1 if edge.y == 0 else (-1 if edge.y == _size.y - 1 else 0)
 	)
-	for step: int in BORDER_REACH:
+	for step: int in maxi(_margin.x, 1):
 		var at := edge + inward * step
 		if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
 			break

@@ -12,9 +12,18 @@ of the player's own cartridge.
 | --- | --- |
 | `V` | Switch between this and the Game Boy Color view. The host owns this key, in the overworld and in a battle alike |
 | `Q` / `E`, or the wheel | Zoom the lens, in both views |
-| `W` / `S` | Raise and lower the camera, in both views |
-| `A` / `D` | Battle: swing the shot around the arena |
+| `I` / `K` | Raise and lower the camera, in both views |
+| `J` / `L` | Battle: swing the shot around the arena |
 | `-` / `=` | Overworld: pull the camera back and push it in |
+
+Keyboard only, and on keys the host has not already claimed. A screen turns
+every bound event into one of the cartridge's eight buttons and takes it before
+a renderer is offered anything, so a mod key that is also a binding never
+arrives: these were W, A, S and D, which are the d-pad's own defaults, and the
+pitch and the swing had therefore never once fired. Nothing warned, because both
+sides were behaving correctly. They cannot be rebound and they do not exist on a
+pad or a touchscreen, and that is a gap in what a mod can declare rather than
+something this mod can fix for itself.
 
 One binding, in `steering.gd`, and both views read it, so a wheel notch means
 one thing in the mod. Both views zoom the LENS and never the distance: a rig

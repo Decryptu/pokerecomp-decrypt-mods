@@ -44,6 +44,22 @@ const TWEEN_TIME: float = 0.22
 ## zooming in, -1 for the other way round. It is the one part of the binding that
 ## is a preference rather than a decision, which is why it is the only part
 ## registered as an option.
+## KEYS THE HOST HAS NOT ALREADY CLAIMED, WHICH IS NOT A STYLE CHOICE.
+##
+## A screen resolves every bound event into a `Gen2Button` and takes it before a
+## renderer is offered anything, so a mod key that is also a binding never
+## arrives at all. This view asked for W, S, A and D, which are the host's own
+## default d-pad, and its pitch and swing had therefore never once fired on a
+## keyboard. Nothing warned: the mod read a keycode that the screen had already
+## eaten, and both sides were behaving correctly.
+##
+## So the cluster is IJKL, which no button and no debug key claims in either
+## view, and Q/E and the +/- pair keep what they had for the same reason.
+## Checked against `Gen2InputActions.DEFAULTS` and the debug keys of both
+## screens; a player who REBINDS onto these takes them back, and there is
+## nothing this file can do about that. The fix for all of it is a mod declaring
+## its actions to the host and being bound like anything else, which is an
+## engine request, and it is also what puts these on a phone at all.
 static func command(event: InputEvent, wheel_sign: int = 1) -> StringName:
 	var key := event as InputEventKey
 	if key != null and key.pressed:
@@ -52,13 +68,13 @@ static func command(event: InputEvent, wheel_sign: int = 1) -> StringName:
 				return ZOOM_OUT
 			KEY_E:
 				return ZOOM_IN
-			KEY_W:
+			KEY_I:
 				return PITCH_UP
-			KEY_S:
+			KEY_K:
 				return PITCH_DOWN
-			KEY_A:
+			KEY_J:
 				return SWING_LEFT
-			KEY_D:
+			KEY_L:
 				return SWING_RIGHT
 			KEY_MINUS, KEY_KP_SUBTRACT:
 				return DOLLY_OUT
