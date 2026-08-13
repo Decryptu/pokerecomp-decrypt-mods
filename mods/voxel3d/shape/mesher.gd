@@ -25,6 +25,8 @@ extends RefCounted
 ## Side faces are never stretched. Every side is 8px bands with the art tiled per
 ## band, and a band below a neighbour's own height is not emitted at all.
 
+const Levels: GDScript = preload("levels.gd")
+
 const TILE: float = 8.0
 const BAND: int = 8
 
@@ -346,6 +348,10 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 				_heights[at] = shape.height(shape_class)
 
 	_measure_columns()
+	# Before the plateau pass, which is the automatic reading of the same thing:
+	# where a person has said what the levels are, the cliff pass has nothing left
+	# to work out and its flood would only fight the answer.
+	_apply_levels(source)
 	_measure_plateaus()
 	_measure_buildings()
 	# Before the furniture, which asks what the height of the thing under it came
@@ -353,6 +359,42 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_settle_unmeasured()
 	_measure_furniture()
 	_measure_cutouts()
+
+
+## The floors a PERSON painted, where they painted any.
+##
+## How many storeys a place has is the one thing about these maps that cannot be
+## derived. A cliff face gives it away out of doors and `_measure_plateaus` reads
+## it, but a cave draws its rock the same whether the floor behind it is a storey
+## up or the same floor carrying on, and the answer came back that caves do carry
+## storeys: Mt Mortar has five. So it is asked, painted on
+## `tools/level_page.py`, and pinned in `shape/levels.gd`.
+##
+## FLAT GROUND ONLY, and only where the table names a level. A painted level says
+## where the FLOOR is; what stands on that floor was measured off its own drawing
+## and is raised WITH it, so a tree on a shelf goes up by the shelf rather than
+## being flattened to it. Rock and transitions carry no level at all and are left
+## to the passes that measure them.
+func _apply_levels(source: RefCounted) -> void:
+	var map: Gen2WorldMap = source.map()
+	if map == null or not Levels.has(map.group, map.number):
+		return
+	for ty: int in _size.y:
+		for tx: int in _size.x:
+			var at: int = ty * _size.x + tx
+			if _tiles[at] < 0:
+				continue
+			var height: int = Levels.height_at(
+				map.group, map.number, Vector2i(tx >> 1, ty >> 1)
+			)
+			if height <= 0:
+				continue
+			if _art[at] == ART_FLAT:
+				# Water keeps its own recess and rides up on the floor it is cut
+				# into, which is what `_settle_ponds` does for a measured one.
+				_heights[at] = height if _heights[at] >= 0 else _heights[at] + height
+			elif _heights[at] >= 0:
+				_heights[at] += height
 
 
 ## A cutout stands on the ground rather than raising it, so it measures zero and
