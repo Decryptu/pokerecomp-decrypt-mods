@@ -254,7 +254,16 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	if box.size.x <= 0 or box.size.y <= 0:
 		return false
 	_emit_atlas = atlas
-	_model_spots.clear()
+	# EMPTIED, NOT DROPPED. A spot is per emit and a mesh is per map, so the two
+	# dictionaries are cleared on different clocks, and `_model_bodies` short
+	# circuits before either is rebuilt: a drawing already measured returns its
+	# body list without touching `_model_spots`, so dropping the keys here left
+	# `_place_model` writing into a dictionary that was not there and
+	# `take_models` reading one. Both threw, per tile, for as long as the player
+	# walked. Keeping the key and emptying its value is what makes a mesh built
+	# for an earlier window survive the next one.
+	for key: String in _model_spots:
+		_model_spots[key] = {}
 	_object_done.clear()
 	_stair_done.clear()
 	_built_model = false
@@ -456,7 +465,11 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_border.clear()
 	_edge_floor = Vector2i(-2, 0)
 	# Keyed on tile ids, which mean nothing without the tileset they came from.
+	# All three go together: a body list outliving its meshes is a drawing that
+	# resolves to a model nothing built.
 	_model_meshes.clear()
+	_model_spots.clear()
+	_model_bodies.clear()
 	_commonest_index.clear()
 	if source == null or not source.valid():
 		return
@@ -2003,7 +2016,9 @@ func take_models() -> Array:
 	for key: String in _model_meshes:
 		var placed: Array[Transform3D] = []
 		var phases := PackedFloat32Array()
-		for entry: Array in (_model_spots[key] as Dictionary).values():
+		# A mesh with no spots is a drawing built for an earlier window and not
+		# stamped in this one, which is ordinary once a window moves.
+		for entry: Array in (_model_spots.get(key, {}) as Dictionary).values():
 			placed.append(entry[0] as Transform3D)
 			phases.append(float(entry[1]))
 		if not placed.is_empty():
