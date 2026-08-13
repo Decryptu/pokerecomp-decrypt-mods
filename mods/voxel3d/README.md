@@ -266,9 +266,25 @@ shade, and what the flood cannot reach is the tree. The shadow pooled under a
 canopy is dark but is not enclosed by the outline, so it floods away with the
 grass, which is what should happen to it.
 
-A tree that comes out of this is one whole block, four tiles by four: crown,
-trunk and the shadow it stands in, carved as a single hull two cells across and
-two tall.
+## Some things are MODELLED, not carved
+
+A tree is where standing the drawing up stops working, and it is worth saying
+why. A Game Boy sprite of a tree is a portrait of one at a fixed angle: the crown
+is drawn flat and wide so it reads against the grass, and the trunk is mostly
+hidden behind it. That is a picture of a tree, not a plan of one. Six ways of
+carving that silhouette were built and measured, and every one came out a drum, a
+stack of plates or a black hedge.
+
+So the tree is modelled. `shape/model.gd` builds a voxel trunk and crown from
+three authored proportions, and everything else still comes off the cartridge:
+how big the thing is, and what colours to paint it, taken from the drawing's own
+palette with the dark outline left out. An outline is how a drawing separates
+itself from a flat background; a solid standing in a real light does not need
+one, and reusing it is what painted every carved attempt black.
+
+One mesh is built per distinct tree and stamped wherever that tree stands, so a
+forest of two hundred is one tree of geometry drawn two hundred times and culled
+as a single instance. It is cheaper than the flat wall it replaces.
 
 ## Where a shape comes from
 

@@ -307,6 +307,7 @@ func _advance_build() -> void:
 	# in the middle of the frame rather than a map arriving.
 	if done or not _standing:
 		_stage.set_terrain(_chunks)
+		_stage.set_models(_mesher.take_models())
 	if done:
 		_building = false
 		_standing = true

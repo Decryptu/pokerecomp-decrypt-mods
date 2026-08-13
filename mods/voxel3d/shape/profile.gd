@@ -140,6 +140,17 @@ const OUTLINE: Dictionary = {
 	&"canopy": 1,
 }
 
+## The classes built as an AUTHORED MODEL rather than carved from the drawing.
+##
+## The drawing still says how big the thing is and what colour it is; what it
+## does not say is the shape, because a Game Boy sprite of a tree is a portrait
+## of one at a fixed angle and not a plan of one. Six ways of carving that
+## silhouette were built and measured and every one came out a drum, a stack of
+## plates or a black hedge. `model.gd` has the reasoning and the geometry.
+const MODEL: Dictionary = {
+	&"canopy": true,
+}
+
 ## How many walk cells a cutout's DRAWING covers, where it is more than one.
 ##
 ## The mask is cut over the whole drawing rather than over each cell, because a
@@ -380,6 +391,11 @@ const TILESETS: Dictionary = {
 	# nothing, because the fault is the jitter and not the depth. That block is a
 	# repeating forest MASS wearing a trunk, which is a different thing from a
 	# tree and wants the reference's own second rule. See open work 3.
+	31: {
+		&"canopy": [
+			12, 13, 14, 15, 28, 29, 30, 31, 44, 45, 46, 47, 60, 61, 62, 63,
+		],
+	},
 	25: {
 		&"canopy": [
 			12, 13, 14, 15, 28, 29, 30, 31, 44, 45, 46, 47, 60, 61, 62, 63,

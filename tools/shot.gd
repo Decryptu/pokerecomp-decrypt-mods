@@ -77,6 +77,7 @@ func _initialize() -> void:
 		else:
 			_stage.set_background(atlas.void_color(), false)
 	_stage.set_terrain(mesher.build(source, shape, atlas))
+	_stage.set_models(mesher.take_models())
 
 	var focus := Vector3((float(args[3]) + 0.5) * TILE, 0.0, (float(args[4]) + 0.5) * TILE)
 	var pitch: float = deg_to_rad(float(args[6]) if args.size() > 6 else 32.0)

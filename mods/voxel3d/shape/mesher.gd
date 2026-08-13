@@ -26,6 +26,7 @@ extends RefCounted
 ## band, and a band below a neighbour's own height is not emitted at all.
 
 const Levels: GDScript = preload("levels.gd")
+const Model: GDScript = preload("model.gd")
 
 const TILE: float = 8.0
 const BAND: int = 8
@@ -70,6 +71,8 @@ var _filled := PackedByteArray()
 ## Per tile: how many of its darkest shades bound the drawing, 0 for a mask cut
 ## from the ground's colours instead.
 var _outlined := PackedByteArray()
+## Per tile: whether an authored MODEL stands here rather than carved geometry.
+var _modelled := PackedByteArray()
 ## Per tile: how many cells across and down the drawing this cutout belongs to
 ## is, which is what the mask is cut over, and which class it is.
 var _span_x := PackedByteArray()
@@ -174,6 +177,7 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	if box.size.x <= 0 or box.size.y <= 0:
 		return false
 	_emit_atlas = atlas
+	_model_spots.clear()
 	# Chunks are cut on the world's own grid rather than on the window's corner,
 	# so walking one cell east recentres the window onto the SAME chunks and the
 	# ones already built come out identical.
@@ -287,6 +291,8 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# from, so a warp to a map on another tileset has to drop them.
 	_masks.clear()
 	_border.clear()
+	# Keyed on tile ids, which mean nothing without the tileset they came from.
+	_model_meshes.clear()
 	if source == null or not source.valid():
 		return
 	_outside = source.outside()
@@ -298,6 +304,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_round.resize(count)
 	_filled.resize(count)
 	_outlined.resize(count)
+	_modelled.resize(count)
 	_span_x.resize(count)
 	_span_y.resize(count)
 	_lying.resize(count)
@@ -340,6 +347,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_round[at] = 1 if shape.is_round(shape_class) else 0
 			_filled[at] = 1 if shape.is_filled(shape_class) else 0
 			_outlined[at] = shape.outline_shades(shape_class)
+			_modelled[at] = 1 if shape.is_model(shape_class) else 0
 			_lying[at] = 1 if shape.is_lying(shape_class) else 0
 			_on_furniture[at] = 1 if shape_class == &"on_furniture" else 0
 			var span: Vector2i = shape.span_cells(shape_class)
@@ -1396,6 +1404,61 @@ func _cell_levels(
 	return levels
 
 
+## Where an authored model stands, gathered per DRAWING rather than per tile.
+##
+## Every tile of the drawing asks, and the anchor is what dedupes them: a tree is
+## sixteen tiles and is one tree. Asking from every tile rather than only from
+## the anchor is deliberate, because a draw-distance window can cut the anchor
+## off while the rest of the drawing is still in frame, and a tree that vanishes
+## because its top-left corner is out of view is worse than one built twice.
+##
+## The mesh is built ONCE per drawing and stamped at each spot, which is what
+## makes this cheap where carving was not: one tree of geometry for a whole
+## forest, and the engine culls the lot as one instance.
+var _model_meshes: Dictionary = {}
+var _model_spots: Dictionary = {}
+
+
+func _place_model(tx: int, ty: int, atlas: RefCounted) -> void:
+	var at: int = ty * _size.x + tx
+	var across := Vector2i(int(_span_x[at]), int(_span_y[at])) * CELL_TILES
+	var start := Vector2i(tx - posmod(tx, across.x), ty - posmod(ty, across.y))
+	var tiles: Array = []
+	for row: int in across.y:
+		for column: int in across.x:
+			tiles.append(_tile_at(start.x + column, start.y + row))
+	var key: String = str(tiles)
+	if not _model_meshes.has(key):
+		var mask: PackedByteArray = _structure_mask(
+			tiles, across, atlas, false, int(_outlined[at])
+		)
+		var measured: RefCounted = Model.measure(
+			mask, across * int(TILE), tiles, across, atlas
+		)
+		_model_meshes[key] = (Model.new() as RefCounted).tree(measured, Model.BALL)
+		_model_spots[key] = {}
+	# The middle of the drawing's own footprint, on the ground beside it.
+	var spot := Vector3(
+		(float(start.x) + float(across.x) * 0.5) * TILE,
+		float(_ground_art(tx, ty).y),
+		(float(start.y) + float(across.y) * 0.5) * TILE
+	)
+	(_model_spots[key] as Dictionary)[str(start)] = spot
+
+
+## The models this emit placed: a list of [mesh, spots], one per distinct
+## drawing. Empty until an emit has run.
+func take_models() -> Array:
+	var out: Array = []
+	for key: String in _model_meshes:
+		var spots := PackedVector3Array()
+		for spot: Vector3 in (_model_spots[key] as Dictionary).values():
+			spots.append(spot)
+		if not spots.is_empty():
+			out.append([_model_meshes[key], spots])
+	return out
+
+
 ## One tile's share of a standing cutout: the drawing's own pixels, standing up.
 ##
 ## Not a quad per pixel and not a quad per row. The mask is cut into the largest
@@ -1684,10 +1747,15 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		_side(tx, ty, ground.y, _height_at(tx, ty - 1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
 		_side(tx, ty, ground.y, _height_at(tx + 1, ty), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 		_side(tx, ty, ground.y, _height_at(tx - 1, ty), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
-		_cutout(
-			tx, ty, float(_depths[at]), _round[at] == 1, _filled[at] == 1,
-			int(_outlined[at]), float(ground.y), atlas
-		)
+		# The ground under it is drawn either way; what stands ON it is either the
+		# drawing carved out or an authored model stamped there.
+		if _modelled[at] == 1:
+			_place_model(tx, ty, atlas)
+		else:
+			_cutout(
+				tx, ty, float(_depths[at]), _round[at] == 1, _filled[at] == 1,
+				int(_outlined[at]), float(ground.y), atlas
+			)
 		return
 	if _art[at] == ART_LEDGE:
 		_wedge(tx, ty, atlas)

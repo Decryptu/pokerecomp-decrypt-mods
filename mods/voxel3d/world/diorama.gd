@@ -81,6 +81,11 @@ var _environment: Environment = null
 var _sky: RefCounted = null
 var _terrain: Array[MeshInstance3D] = []
 var _material: StandardMaterial3D = null
+## The authored models and their own material: they carry no texture at all,
+## because their colour comes off the drawing at build time rather than out of
+## the atlas at draw time. See `shape/model.gd`.
+var _models: Array[MultiMeshInstance3D] = []
+var _model_material: StandardMaterial3D = null
 var _time_of_day: int = Gen2WorldPalette.TIME_MORNING
 
 
@@ -139,6 +144,11 @@ func _init() -> void:
 	_material.roughness = 1.0
 	_material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 
+	_model_material = StandardMaterial3D.new()
+	_model_material.vertex_color_use_as_albedo = true
+	_model_material.roughness = 1.0
+	_model_material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+
 	actors = Node3D.new()
 	viewport.add_child(actors)
 
@@ -193,6 +203,35 @@ func set_terrain(meshes: Array) -> void:
 	for index: int in range(meshes.size(), _terrain.size()):
 		_terrain[index].mesh = null
 		_terrain[index].visible = false
+
+
+## The authored models, one MultiMesh per distinct one.
+##
+## A MultiMesh because a forest is one tree stamped two hundred times: the
+## geometry is uploaded once and the engine draws and culls the lot as a single
+## instance, which is the whole reason a modelled tree costs what a carved one
+## could not.
+func set_models(models: Array) -> void:
+	for index: int in models.size():
+		if index >= _models.size():
+			var instance := MultiMeshInstance3D.new()
+			instance.material_override = _model_material
+			viewport.add_child(instance)
+			_models.append(instance)
+		var multi := MultiMesh.new()
+		multi.transform_format = MultiMesh.TRANSFORM_3D
+		multi.mesh = models[index][0]
+		var spots: PackedVector3Array = models[index][1]
+		multi.instance_count = spots.size()
+		for spot: int in spots.size():
+			multi.set_instance_transform(
+				spot, Transform3D(Basis.IDENTITY, spots[spot])
+			)
+		_models[index].multimesh = multi
+		_models[index].visible = true
+	for index: int in range(models.size(), _models.size()):
+		_models[index].multimesh = null
+		_models[index].visible = false
 
 
 func set_texture(texture: Texture2D) -> void:

@@ -96,6 +96,12 @@ func is_round(shape_class: StringName) -> bool:
 	return bool(_profile.ROUND.get(shape_class, false))
 
 
+## Whether the class is built as an authored model rather than carved from its
+## drawing. See `profile.gd:MODEL`.
+func is_model(shape_class: StringName) -> bool:
+	return bool(_profile.MODEL.get(shape_class, false))
+
+
 ## How many of a tile's darkest shades bound this class's drawing, or 0 where the
 ## mask is cut from the colours of the ground around it instead.
 func outline_shades(shape_class: StringName) -> int:

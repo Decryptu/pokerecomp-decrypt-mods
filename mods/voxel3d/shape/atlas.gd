@@ -169,7 +169,7 @@ func shade_order(tile: int) -> PackedInt32Array:
 		return _shades[tile]
 	var found: Array = []
 	for index: int in 4:
-		var color: Color = _color_of(tile, index)
+		var color: Color = color_of(tile, index)
 		if color.a <= 0.0:
 			continue
 		found.append([
@@ -195,7 +195,10 @@ func is_dark(tile: int, index: int, count: int) -> bool:
 
 ## The colour one index paints in one tile, read off the sheet the tile was
 ## painted onto rather than kept a second time.
-func _color_of(tile: int, index: int) -> Color:
+##
+## Public because an authored MODEL is coloured from the cartridge even though
+## its geometry is not: see `model.gd`.
+func color_of(tile: int, index: int) -> Color:
 	if _image == null or _source.is_empty() or tile < 0 or tile >= _tile_count:
 		return Color(0.0, 0.0, 0.0, 0.0)
 	for y: int in TILE:
