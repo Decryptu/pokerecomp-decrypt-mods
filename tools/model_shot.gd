@@ -77,6 +77,9 @@ func _initialize() -> void:
 		var measured: RefCounted = model_script.measure(
 			mask, across * 8, tiles, across, atlas
 		)
+		# A trailing `shrub` on the spec builds it as a thing sitting on the
+		# ground rather than as a tree standing on a trunk.
+		measured.shrub = spec.size() > 4 and spec[4] == "shrub"
 		var mesh: ArrayMesh = (model_script.new() as RefCounted).tree(measured)
 		var triangles: int = 0
 		for surface: int in mesh.get_surface_count():

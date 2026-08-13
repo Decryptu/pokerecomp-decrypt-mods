@@ -78,8 +78,10 @@ var _filled := PackedByteArray()
 ## Per tile: how many of its darkest shades bound the drawing, 0 for a mask cut
 ## from the ground's colours instead.
 var _outlined := PackedByteArray()
-## Per tile: whether an authored MODEL stands here rather than carved geometry.
+## Per tile: whether an authored MODEL stands here rather than carved geometry,
+## and whether that model sits on the ground rather than standing on a trunk.
 var _modelled := PackedByteArray()
+var _shrub := PackedByteArray()
 ## Per tile: whether a slab of its own drawing stands up out of the floor.
 var _tufted := PackedByteArray()
 ## Per tile: how many cells across and down the drawing this cutout belongs to
@@ -191,6 +193,7 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 		return false
 	_emit_atlas = atlas
 	_model_spots.clear()
+	_built_model = false
 	# Chunks are cut on the world's own grid rather than on the window's corner,
 	# so walking one cell east recentres the window onto the SAME chunks and the
 	# ones already built come out identical.
@@ -239,6 +242,16 @@ func emit_step(budget_usec: int) -> bool:
 				# the worst slice to 6 ms where sixty four let it reach ten: a
 				# stretch of cutouts is milliseconds of work either way.
 				done_tiles += 1
+				# A MODEL BUILD ENDS THE SLICE, whatever is left of the budget.
+				# Turning one drawing into a voxel solid is 2 ms for the small fir
+				# and 10 for the round tree, which is the budget over twice on its
+				# own, and it is atomic: there is no stopping half way through a
+				# tree. Spending the rest of the slice on top of it is what turns
+				# an overrun into a dropped frame, and the first tree of a map is
+				# the only tile that ever pays it.
+				if budget_usec > 0 and _built_model:
+					_built_model = false
+					return false
 				if budget_usec > 0 and (done_tiles & 15) == 0 \
 						and Time.get_ticks_usec() >= until:
 					return false
@@ -356,6 +369,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_filled.resize(count)
 	_outlined.resize(count)
 	_modelled.resize(count)
+	_shrub.resize(count)
 	_tufted.resize(count)
 	_span_x.resize(count)
 	_span_y.resize(count)
@@ -402,6 +416,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_filled[at] = 1 if shape.is_filled(shape_class) else 0
 			_outlined[at] = shape.outline_shades(shape_class)
 			_modelled[at] = 1 if shape.is_model(shape_class) else 0
+			_shrub[at] = 1 if shape.is_shrub(shape_class) else 0
 			_tufted[at] = 1 if shape.is_tufted(shape_class) else 0
 			_lying[at] = 1 if shape.is_lying(shape_class) else 0
 			_on_furniture[at] = 1 if shape_class == &"on_furniture" else 0
@@ -1509,6 +1524,9 @@ func _cell_levels(
 ## forest, and the engine culls the lot as one instance.
 var _model_meshes: Dictionary = {}
 var _model_spots: Dictionary = {}
+## Whether this slice has just turned a drawing into a solid, which is dear
+## enough to end the slice on its own. See `emit_step`.
+var _built_model: bool = false
 
 
 func _place_model(tx: int, ty: int, atlas: RefCounted) -> void:
@@ -1527,8 +1545,10 @@ func _place_model(tx: int, ty: int, atlas: RefCounted) -> void:
 		var measured: RefCounted = Model.measure(
 			mask, across * int(TILE), tiles, across, atlas
 		)
+		measured.shrub = _shrub[at] == 1
 		_model_meshes[key] = (Model.new() as RefCounted).tree(measured)
 		_model_spots[key] = {}
+		_built_model = true
 	# The middle of the drawing's own footprint, on the ground beside it, TURNED
 	# AND NUDGED off the grid it was authored on. The cartridge places its trees
 	# on a 16px lattice and one mesh stamped at every lattice point reads as an

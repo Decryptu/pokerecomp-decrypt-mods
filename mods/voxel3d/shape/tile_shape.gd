@@ -114,6 +114,12 @@ func outline_shades(shape_class: StringName) -> int:
 	return int(_profile.OUTLINE.get(shape_class, 0))
 
 
+## Whether a modelled class sits on the ground rather than standing on a trunk.
+## See `profile.gd:SHRUB`.
+func is_shrub(shape_class: StringName) -> bool:
+	return bool(_profile.SHRUB.get(shape_class, false))
+
+
 ## How big the drawing is, in walk cells. A hull is keyed to the size of the
 ## drawing and never to a tile id.
 func span_cells(shape_class: StringName) -> Vector2i:

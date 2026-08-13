@@ -142,6 +142,7 @@ const ROUND: Dictionary = {
 const OUTLINE: Dictionary = {
 	&"canopy": 1,
 	&"tree": 1,
+	&"bush": 1,
 }
 
 ## The classes that lie flat AND stand a thin slab of their own drawing up.
@@ -172,6 +173,18 @@ const TUFTS: Dictionary = {
 const MODEL: Dictionary = {
 	&"canopy": true,
 	&"tree": true,
+	&"bush": true,
+}
+
+## The modelled classes that sit ON THE GROUND rather than standing on a trunk.
+##
+## A tree's sprite is foreshortened and its trunk is drawn behind its crown, so
+## the model stretches it and stands it up. A bush is neither: the reviewer
+## measured it as about as tall as the player and that is what it is drawn as.
+## Reading one as a tree makes a small tree, which is exactly what it looked
+## like. See `model.gd:Measure.shrub`.
+const SHRUB: Dictionary = {
+	&"bush": true,
 }
 
 ## How many walk cells a cutout's DRAWING covers, where it is more than one.

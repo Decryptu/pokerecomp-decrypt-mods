@@ -80,6 +80,13 @@ class Measure extends RefCounted:
 	var profile := PackedFloat32Array()
 	var trunk_width: int = 6
 	var trunk_height: int = 10
+	## A SHRUB sits on the ground. It has no trunk to hold its crown up, no roots
+	## to flare, and it is not foreshortened either: a tree is drawn small because
+	## it is far away and tall, where a bush the reviewer measured as "about as
+	## tall as the player" is drawn at the height it stands. Stretching one and
+	## standing it on a stalk makes a small tree, which is what the first attempt
+	## looked like.
+	var shrub: bool = false
 	## Lightest first, and the drawing's darkest shade is NOT among them.
 	var tones: PackedColorArray = PackedColorArray()
 	var bark: PackedColorArray = PackedColorArray()
@@ -254,8 +261,9 @@ func tree(measured: Measure) -> ArrayMesh:
 	_colors = PackedColorArray()
 
 	var rows: int = measured.profile.size()
-	var crown_high: int = maxi(ceili(float(rows) * CROWN_STRETCH / VOXEL), 2)
-	var trunk_high: int = maxi(ceili(maxf(
+	var stretch: float = 1.0 if measured.shrub else CROWN_STRETCH
+	var crown_high: int = maxi(ceili(float(rows) * stretch / VOXEL), 2)
+	var trunk_high: int = 0 if measured.shrub else maxi(ceili(maxf(
 		float(measured.trunk_height), float(measured.width()) * TRUNK_MIN
 	) / VOXEL), 2)
 	var trunk_half: float = maxf(
@@ -264,7 +272,7 @@ func tree(measured: Measure) -> ArrayMesh:
 	var widest: float = 0.0
 	for radius: float in measured.profile:
 		widest = maxf(widest, radius / VOXEL)
-	var reach: int = ceili(widest + ROOT_REACH) + 1
+	var reach: int = ceili(widest + (0.0 if measured.shrub else ROOT_REACH)) + 1
 	var wide: int = reach * 2 + 1
 	var tall: int = trunk_high + crown_high + 1
 
@@ -392,9 +400,18 @@ func _tone(measured: Measure, fill: int, side: Vector3i, sky: int) -> Color:
 	var palette: PackedColorArray = measured.bark if fill == BARK else measured.tones
 	if palette.is_empty():
 		return Color(0.3, 0.5, 0.25)
-	var step: int = 0
+	# A SHRUB STARTS A STEP DARKER, because exposure alone reads it wrong. The
+	# rule spends the palette on how much stands over a face, and almost nothing
+	# stands over a thing seven voxels tall: every top face takes the lightest
+	# tone and a hedge that the cartridge draws as a dark mass comes out a pale
+	# one. The drawing is the authority on how dark the thing is and the tree's
+	# own reading is what borrowed it out.
+	var step: int = 1 if measured.shrub else 0
 	if side.y > 0:
-		step -= 1
+		# A shrub's top is not lightened, only its sides are darkened. Lightening
+		# it cancels the step above exactly, and the top is most of what is seen
+		# of a thing at knee height.
+		step -= 0 if measured.shrub else 1
 	elif side.y < 0:
 		step += 1
 	@warning_ignore("integer_division")
