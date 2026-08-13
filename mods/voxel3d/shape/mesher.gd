@@ -92,6 +92,8 @@ const ART_UPRIGHT: int = 2
 const ART_CUTOUT: int = 3
 ## Not a class's art but a shape the COLLISION asks for: see `_measure_ledges`.
 const ART_LEDGE: int = 4
+## A LINE seen from above: see `_railing`.
+const ART_RAILING: int = 5
 
 ## The RESOLVED grid, which is the map plus the border ring around it, and the
 ## MAP's own size inside it. Every array below is indexed on the grid; the world
@@ -615,6 +617,8 @@ func _art_mode(art: StringName) -> int:
 			return ART_UPRIGHT
 		&"cutout":
 			return ART_CUTOUT
+		&"railing":
+			return ART_RAILING
 		_:
 			return ART_FLAT
 
@@ -2107,6 +2111,178 @@ func _cutout_edge(
 		)
 
 
+## A RAILING: a LINE seen from above, which is a fourth thing a drawing can be.
+##
+## The three the pipeline knows are a surface seen from above, the face of a flat
+## thing, and a portrait of a symmetric one. Goldenrod's metal railing is none of
+## them: it is drawn from ABOVE as a thin grey line along the edge of a lawn, with
+## a round white cap where two runs meet. Stood up as a cutout, which is what the
+## full pass's `stand` fallback did to 2200 tiles of it, the runs going away from
+## the eye come out as posts and the runs going across come out as a kerb.
+##
+## What the drawing states is the LINE: which way it runs, and where across the
+## tile it lies. How tall it stands it cannot state, and the reviewer gave it:
+## about half a cell, posts and a rail you see over.
+##
+## So the drawing is read as a plan and the fence is built on it. The one thing
+## authored beyond the height is the post SPACING, because a rail with a post only
+## where the cartridge draws a cap is a rail floating between corners: one post
+## per walk cell, which is the lattice everything else in this world sits on.
+const RAIL_HIGH: float = 8.0
+const RAIL_TALL: float = 3.0
+const RAIL_THICK: float = 3.0
+const POST_THICK: float = 4.0
+
+
+func _railing(tx: int, ty: int, ground: float, atlas: RefCounted) -> void:
+	var tile: int = _tile_at(tx, ty)
+	var plan: Array = _plan_line(tile, atlas)
+	var axis: int = plan[0]
+	var middle: float = plan[1]
+	var box: Rect2i = plan[2]
+	var uv: Rect2 = atlas.uv_box(tile, box)
+	var top: float = ground + RAIL_HIGH
+	if axis == RAIL_POST:
+		_rail_box(
+			Vector2(middle - POST_THICK * 0.5, middle - POST_THICK * 0.5),
+			Vector2(middle + POST_THICK * 0.5, middle + POST_THICK * 0.5),
+			tx, ty, ground, top, uv
+		)
+		return
+	# The rail itself, the width of the tile along its own run, and a post under it
+	# at the cell's corner. The rail carries no end cap where the run carries on
+	# into the next tile, which is most of them.
+	var half: float = RAIL_THICK * 0.5
+	if axis == RAIL_EAST:
+		_rail_box(
+			Vector2(0.0, middle - half), Vector2(TILE, middle + half),
+			tx, ty, top - RAIL_TALL, top, uv
+		)
+	else:
+		_rail_box(
+			Vector2(middle - half, 0.0), Vector2(middle + half, TILE),
+			tx, ty, top - RAIL_TALL, top, uv
+		)
+	if posmod(tx, CELL_TILES) != 0 or posmod(ty, CELL_TILES) != 0:
+		return
+	var post: float = POST_THICK * 0.5
+	var along: float = TILE * 0.5
+	var across: float = middle
+	_rail_box(
+		Vector2(along - post, across - post) if axis == RAIL_EAST
+			else Vector2(across - post, along - post),
+		Vector2(along + post, across + post) if axis == RAIL_EAST
+			else Vector2(across + post, along + post),
+		tx, ty, ground, top - RAIL_TALL, uv
+	)
+
+
+const RAIL_EAST: int = 0
+const RAIL_NORTH: int = 1
+const RAIL_POST: int = 2
+## How many of a row's eight pixels must be drawn for it to count as a run of the
+## line rather than as a pixel of one crossing it.
+const RAIL_RUN: int = 6
+
+
+## Which way the line runs, where across the tile it lies, and which pixels of the
+## drawing the geometry wears.
+##
+## Read against the tile's own GROUND, which is whatever index the border ring is
+## mostly painted in: a rail is drawn on a lawn and what is not lawn is rail.
+func _plan_line(tile: int, atlas: RefCounted) -> Array:
+	var ring: Dictionary = {}
+	for step: int in int(TILE):
+		for index: int in [
+			atlas.pixel(tile, step, 0), atlas.pixel(tile, step, int(TILE) - 1),
+			atlas.pixel(tile, 0, step), atlas.pixel(tile, int(TILE) - 1, step),
+		]:
+			ring[index] = int(ring.get(index, 0)) + 1
+	var ground: int = -1
+	var most: int = 0
+	for index: int in ring:
+		if int(ring[index]) > most:
+			most = int(ring[index])
+			ground = index
+	var rows := PackedInt32Array()
+	var columns := PackedInt32Array()
+	rows.resize(int(TILE))
+	columns.resize(int(TILE))
+	for py: int in int(TILE):
+		for px: int in int(TILE):
+			if atlas.pixel(tile, px, py) == ground:
+				continue
+			rows[py] += 1
+			columns[px] += 1
+	var row_runs: Vector2i = _rail_extent(rows)
+	var column_runs: Vector2i = _rail_extent(columns)
+	# A run of the line fills its whole tile ACROSS the way it goes, so the axis
+	# with the fuller rows is the axis it runs along. A post fills neither.
+	if row_runs.y > 0 and row_runs.y >= column_runs.y:
+		return [
+			RAIL_EAST, float(row_runs.x) + float(row_runs.y) * 0.5,
+			Rect2i(0, row_runs.x, int(TILE), row_runs.y),
+		]
+	if column_runs.y > 0:
+		return [
+			RAIL_NORTH, float(column_runs.x) + float(column_runs.y) * 0.5,
+			Rect2i(column_runs.x, 0, column_runs.y, int(TILE)),
+		]
+	return [RAIL_POST, TILE * 0.5, Rect2i(0, 0, int(TILE), int(TILE))]
+
+
+## The first row of the line and how many rows it is, or a zero count where no row
+## of this axis is filled enough to be one.
+func _rail_extent(counts: PackedInt32Array) -> Vector2i:
+	var from: int = -1
+	var to: int = -1
+	for at: int in counts.size():
+		if counts[at] < RAIL_RUN:
+			continue
+		if from < 0:
+			from = at
+		to = at
+	if from < 0:
+		return Vector2i(0, 0)
+	return Vector2i(from, to + 1 - from)
+
+
+## One box of the railing, in tile pixels across the tile and world pixels up.
+## Every face wears the same patch of the drawing, which is the rule a cutout's
+## faces already follow.
+func _rail_box(
+	from: Vector2, to: Vector2, tx: int, ty: int, low: float, high: float, uv: Rect2
+) -> void:
+	var x0: float = _world_x(tx) + from.x
+	var x1: float = _world_x(tx) + to.x
+	var z0: float = _world_z(ty) + from.y
+	var z1: float = _world_z(ty) + to.y
+	_quad(
+		Vector3(x0, high, z1), Vector3(x1, high, z1), Vector3(x1, high, z0),
+		Vector3(x0, high, z0), Vector3.UP, uv, SHADE_TOP_FLAT
+	)
+	_quad(
+		Vector3(x0, low, z1), Vector3(x1, low, z1),
+		Vector3(x1, high, z1), Vector3(x0, high, z1),
+		Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
+	)
+	_quad(
+		Vector3(x1, low, z0), Vector3(x0, low, z0),
+		Vector3(x0, high, z0), Vector3(x1, high, z0),
+		Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
+	)
+	_quad(
+		Vector3(x1, low, z1), Vector3(x1, low, z0),
+		Vector3(x1, high, z0), Vector3(x1, high, z1),
+		Vector3(1.0, 0.0, 0.0), uv, SHADE_SIDE
+	)
+	_quad(
+		Vector3(x0, low, z0), Vector3(x0, low, z1),
+		Vector3(x0, high, z1), Vector3(x0, high, z0),
+		Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
+	)
+
+
 func _tile_at(tx: int, ty: int) -> int:
 	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
 		return 0
@@ -2138,16 +2314,18 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	var tile: int = _tiles[at]
 	if tile < 0:
 		return
-	if _art[at] == ART_CUTOUT:
+	if _art[at] == ART_CUTOUT or _art[at] == ART_RAILING:
 		var ground: Vector2i = _ground_art(tx, ty)
 		_face_top(tx, ty, float(ground.y), atlas.uv(ground.x), SHADE_TOP_FLAT)
 		_side(tx, ty, ground.y, _height_at(tx, ty + 1), Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
 		_side(tx, ty, ground.y, _height_at(tx, ty - 1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
 		_side(tx, ty, ground.y, _height_at(tx + 1, ty), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 		_side(tx, ty, ground.y, _height_at(tx - 1, ty), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
-		# The ground under it is drawn either way; what stands ON it is either the
-		# drawing carved out or an authored model stamped there.
-		if _modelled[at] == 1:
+		# The ground under it is drawn either way; what stands ON it is the drawing
+		# carved out, an authored model stamped there, or a rail on its posts.
+		if _art[at] == ART_RAILING:
+			_railing(tx, ty, float(ground.y), atlas)
+		elif _modelled[at] == 1:
 			_place_model(tx, ty, atlas)
 		else:
 			_cutout(

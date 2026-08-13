@@ -66,6 +66,10 @@ const HEIGHTS: Dictionary = {
 	&"canopy": 0,
 	&"tree": 0,
 	&"boulder": 0,
+	# A RAILING stands half a cell, which is the reviewer's own answer: a fence
+	# with posts and a rail you see over. Its drawing is a line seen from above
+	# and states no height at all, so this is the whole of what says how tall.
+	&"railing": 8,
 	# A raised flat surface seen from above: a counter, a table top, a stool. One
 	# cell, because that is what a counter is in a game built on 16px cells.
 	&"surface": 16,
@@ -390,6 +394,10 @@ const ART: Dictionary = {
 	&"stand": &"cutout",
 	&"lie": &"cutout",
 	&"boulder": &"cutout",
+	# railing: a LINE seen from above, built as a rail on posts. See
+	# `mesher.gd:_railing`, and the pipeline table for why it is a fourth thing a
+	# drawing can be rather than one of the three.
+	&"railing": &"railing",
 	# A whole tree: canopy, trunk and the shadow it stands on, drawn as one 2x2
 	# cell picture. The reference carves the same thing as one 32px hull.
 	&"canopy": &"cutout",
@@ -413,6 +421,12 @@ const TILESETS: Dictionary = {
 		&"post": [42, 43, 58, 59, 14, 85],
 		# The wooden route sign: 14 px with a row of floor top and bottom.
 		&"sign_post": [70, 71, 86, 87],
+		# THE METAL RAILING round Goldenrod's lawns, 2200 tiles and the largest
+		# thing left in the full pass's `stand` fallback after the boulders. Two
+		# rails and a post cap: 16 runs north to south, 32 east to west, 33 is the
+		# round white cap where two runs meet. The reviewer's answer in round ten
+		# is that it is a fence you see over, half a cell tall.
+		&"railing": [16, 32, 33],
 		# A cell each, and both about as tall as the player.
 		&"bush": [64, 65, 80, 81],
 		&"sapling": [45, 46, 61, 62],
