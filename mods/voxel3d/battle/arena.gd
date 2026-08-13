@@ -292,7 +292,13 @@ func _swing_range() -> float:
 ## means one thing in the mod. A dolly is refused: this seat is solved against
 ## the hardware's own picture slots and moving it is what the zoom is for.
 func handle_input(event: InputEvent) -> bool:
-	match Steering.command(event, _wheel_sign):
+	return steer(Steering.command(event, _wheel_sign))
+
+
+## One command, wherever it came from: a declared action the host resolved off a
+## key, a pad, a stick or a finger, or the wheel this rig read itself.
+func steer(command: StringName) -> bool:
+	match command:
 		Steering.ZOOM_IN:
 			_aim(_swing_goal, _climb_goal, _zoom_goal - Steering.ZOOM_STEP)
 		Steering.ZOOM_OUT:
@@ -305,6 +311,10 @@ func handle_input(event: InputEvent) -> bool:
 			_aim(_swing_goal + SWING_STEP, _climb_goal, _zoom_goal)
 		Steering.SWING_LEFT:
 			_aim(_swing_goal - SWING_STEP, _climb_goal, _zoom_goal)
+		Steering.RESET:
+			# The solved seat, which is what this rig opens at and the one shot
+			# its anchors were solved for.
+			_aim(0.0, 0.0, 1.0)
 		_:
 			return false
 	return true

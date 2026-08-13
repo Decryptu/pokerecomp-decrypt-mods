@@ -8,25 +8,37 @@ of the player's own cartridge.
 
 ## Controls
 
-| Key | Does |
-| --- | --- |
-| `V` | Switch between this and the Game Boy Color view. The host owns this key, in the overworld and in a battle alike |
-| `Q` / `E`, or the wheel | Zoom the lens, in both views |
-| `I` / `K` | Raise and lower the camera, in both views |
-| `J` / `L` | Battle: swing the shot around the arena |
-| `-` / `=` | Overworld: pull the camera back and push it in |
+Nine controls, DECLARED to the host rather than read as keycodes, so every one
+of them is rebindable in the launcher's controls card and can be carried on the
+on-screen pad. The defaults:
 
-Keyboard only, and on keys the host has not already claimed. A screen turns
-every bound event into one of the cartridge's eight buttons and takes it before
-a renderer is offered anything, so a mod key that is also a binding never
-arrives: these were W, A, S and D, which are the d-pad's own defaults, and the
-pitch and the swing had therefore never once fired. Nothing warned, because both
-sides were behaving correctly. They cannot be rebound and they do not exist on a
-pad or a touchscreen, and that is a gap in what a mod can declare rather than
-something this mod can fix for itself.
+| Control | Key | Pad | Does |
+| --- | --- | --- | --- |
+| Zoom in / out | `E` / `Q`, or the wheel | shoulders | Zoom the lens, in both views |
+| Camera up / down | `I` / `K` | right stick | Raise and lower the camera, in both views |
+| Swing left / right | `J` / `L` | right stick | Battle: swing the shot around the arena |
+| Push in / pull back | `=` / `-` | | Overworld: move the eye |
+| Recentre | `O` | right stick press | Back to the framing the view opened at |
 
-One binding, in `steering.gd`, and both views read it, so a wheel notch means
-one thing in the mod. Both views zoom the LENS and never the distance: a rig
+`V` switches between this and the Game Boy Color view; the host owns that one, in
+the overworld and in a battle alike.
+
+Why declared and not read: a screen turns every bound event into one of the
+cartridge's eight buttons and takes it before a renderer is offered anything, so
+a mod key that is also a binding never arrives. These were `W`, `A`, `S` and `D`,
+which are the d-pad's own defaults, and the pitch and the swing had therefore
+never once fired. Nothing warned, because both sides were behaving correctly. A
+declared default in that position is now dropped and REPORTED by the host
+instead. The wheel stays an event, because pointer motion is exactly what the
+screen has no opinion about, and its direction is the one part of the binding
+that is a preference rather than a decision.
+
+RECENTRE is also a press in the MODS menu, which is not a duplicate: an action
+has to be bound to something before it exists, and the player most likely to have
+lost the camera is the one who has never opened the controls card.
+
+One binding, in `steering.gd`, and both views read it, so a control means one
+thing in the mod. Both views zoom the LENS and never the distance: a rig
 derives its field of view from where the eye sits, so moving the eye instead
 would change the perspective without changing the framing. The dolly is the
 overworld's alone, because the battle's seat is solved against the hardware's
@@ -44,7 +56,7 @@ still played on the grid it always was.
 
 ## Settings
 
-Three, in the start menu's MODS entry and on this mod's card in the launcher.
+Four, in the start menu's MODS entry and on this mod's card in the launcher.
 Both surfaces are built by the host out of one registration in `options.gd`, so
 this mod writes no settings screen. Values are per installation and not per save:
 a draw distance must not change when a slot is loaded.
@@ -54,6 +66,7 @@ a draw distance must not change when a slot is loaded.
 | DISTANCE | 12, 16, 24, FULL | How far out the map is meshed, in walk cells |
 | WHEEL | NORMAL, INVERTED | Which way a wheel notch zooms |
 | CAMERA | LOW, MID, HIGH | The pitch the overworld camera opens at |
+| CAMERA | RECENTRE | A press, not a rung: put the shot back the way it opened |
 
 DISTANCE is where the frame time is. The biggest map meshes whole in 39 ms of
 geometry and in 13 ms at sixteen cells, for the same picture: at the default

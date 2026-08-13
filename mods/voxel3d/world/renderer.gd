@@ -19,6 +19,7 @@ extends Control
 ## views mid-step without either one being able to tell the other what changed.
 
 const Options: GDScript = preload("../options.gd")
+const Steering: GDScript = preload("../steering.gd")
 
 const CELL: float = 16.0
 
@@ -83,6 +84,7 @@ func _init() -> void:
 	# On the press rather than by polling: the host owns the surfaces the player
 	# changes a setting on, and says so.
 	Options.listen(_on_option_changed)
+	Options.listen_actions(_on_action_changed)
 
 
 ## This view is not made of hardware pixels, so it asks for the layer that is not
@@ -193,6 +195,18 @@ func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void
 			_rig.set_wheel_sign(int(value))
 		Options.CAMERA:
 			_rig.set_default_pitch(float(value))
+		Options.RECENTRE:
+			# A button-kind setting carries no value: the press IS the message.
+			_rig.steer(Steering.RESET)
+
+
+## A control of this mod's own, arriving as the command it means rather than as
+## an event. Whether a key, a pad button, a stick past its deadzone or a finger
+## on the on-screen pad produced it is the host's business.
+func _on_action_changed(id: StringName, key: StringName, pressed: bool) -> void:
+	if id != Options.MOD_ID or not pressed:
+		return
+	_rig.steer(key)
 
 
 func _load_modules() -> Dictionary:

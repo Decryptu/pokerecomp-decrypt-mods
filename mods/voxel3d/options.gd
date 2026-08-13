@@ -16,9 +16,13 @@ extends RefCounted
 ## names itself to the host when reading its own settings back.
 const MOD_ID: StringName = &"voxel3d"
 
+const Steering: GDScript = preload("steering.gd")
+
 const DISTANCE: StringName = &"distance"
 const WHEEL: StringName = &"wheel"
 const CAMERA: StringName = &"camera"
+## A setting that is a press rather than a ladder: see `register`.
+const RECENTRE: StringName = &"recentre"
 
 ## How far out the mesh is built, in walk cells, measured from the player. Zero
 ## is the whole map, which is what this did before the setting existed and what
@@ -63,9 +67,26 @@ const REGISTERED: Array[Dictionary] = [
 ]
 
 
+## The camera's own commands, declared to the host so a player can rebind them
+## and reach them from a pad or a thumb. `steering.gd` owns the list, since it
+## owns what each one MEANS.
+##
+## And the same recentre again as a SETTING, which is not a duplicate: an action
+## has to be bound to something before it exists, and the one player who most
+## needs to put a lost camera back is the one who has not opened the controls
+## card. A press in the MODS menu needs no binding at all.
 static func register(host: Gen2ModHost, id: StringName) -> void:
 	for option: Dictionary in REGISTERED:
 		host.register_option(id, option)
+	# Feature-detected rather than assumed: `api_version` gates a mod built for
+	# an older host, not a host older than the mod, so this is the mod's to check.
+	if not host.has_method("register_action"):
+		return
+	for action: Dictionary in Steering.ACTIONS:
+		host.register_action(id, action)
+	host.register_option(id, {
+		"key": RECENTRE, "label": "CAMERA", "kind": &"button", "press_label": "RECENTRE",
+	})
 
 
 ## What the player chose, or [param fallback] when nothing did the registering.
@@ -86,4 +107,15 @@ static func listen(handler: Callable) -> bool:
 	if host == null:
 		return false
 	host.option_changed.connect(handler)
+	return true
+
+
+## The same for the CONTROLS, which arrive as the mod's own command name rather
+## than as an `InputEvent`: whether a key, a pad, a stick or a finger produced it
+## is the host's business and not a renderer's.
+static func listen_actions(handler: Callable) -> bool:
+	var host: Gen2ModHost = Gen2ModHost.instance()
+	if host == null or not host.has_signal("action_changed"):
+		return false
+	host.action_changed.connect(handler)
 	return true

@@ -20,6 +20,7 @@ extends Control
 ## field the panels already imply.
 
 const Options: GDScript = preload("../options.gd")
+const Steering: GDScript = preload("../steering.gd")
 
 const CELL: float = 16.0
 
@@ -95,6 +96,7 @@ func _init() -> void:
 		_hud_layers.append(layer)
 	_read_options()
 	Options.listen(_on_option_changed)
+	Options.listen_actions(_on_action_changed)
 
 
 func uses_hardware_viewport() -> bool:
@@ -125,6 +127,18 @@ func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void
 			_build_arena()
 		Options.WHEEL:
 			_arena.set_wheel_sign(int(value))
+		Options.RECENTRE:
+			# A button-kind setting carries no value: the press IS the message.
+			_arena.steer(Steering.RESET)
+
+
+## A control of this mod's own, arriving as the command it means rather than as
+## an event. The same handler shape as the overworld's, because the binding is
+## shared and only the rigs differ.
+func _on_action_changed(id: StringName, key: StringName, pressed: bool) -> void:
+	if id != Options.MOD_ID or not pressed:
+		return
+	_arena.steer(key)
 
 
 func set_native_size(size_pixels: Vector2i) -> void:
@@ -206,7 +220,9 @@ func _build_arena() -> void:
 		_arena.stage(null)
 		return
 
-	var source: RefCounted = _map_source_script.new(null, map, tileset)
+	# The GameData with it, so the border ring past this map's edge can follow a
+	# connection into the neighbouring map the way the overworld's does.
+	var source: RefCounted = _map_source_script.new(null, map, tileset, _data)
 	_stage.set_time_of_day(_context.time_of_day)
 	if _atlas.build(_data, map, tileset, _context.time_of_day):
 		_stage.set_texture(_atlas.texture)

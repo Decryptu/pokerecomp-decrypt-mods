@@ -29,6 +29,87 @@ const SWING_RIGHT: StringName = &"swing_right"
 const DOLLY_IN: StringName = &"dolly_in"
 const DOLLY_OUT: StringName = &"dolly_out"
 
+## Back to the framing each rig was built for. The one command that is not a
+## nudge, and the one a player on a touchscreen needs most: a camera steered by
+## thumb gets lost, and hunting the way back through the same pills that lost it
+## is worse than a button saying so.
+const RESET: StringName = &"reset"
+
+## WHAT EACH COMMAND IS BOUND TO, DECLARED RATHER THAN READ.
+##
+## A screen turns every bound event into one of the cartridge's eight buttons and
+## claims it before a renderer is offered anything, so a mod that reads keycodes
+## out of the leftovers has controls that cannot be rebound, collide silently
+## with the d-pad, and do not exist on a phone. `register_action` is the host's
+## answer and this is the whole of what this mod declares: the key becomes the
+## command, so nothing maps one onto the other.
+##
+## Bindings are the host's own three kinds. The keys are ones no button and no
+## debug key claims in either view; the pad puts the two nudges a camera is most
+## asked for on the right stick, which is where a stick camera lives, and the
+## zoom on the shoulders. A default already bound to one of the eight is dropped
+## by the host and reported, which is how the W and S this file used to read
+## would have been caught the day they were written.
+const ACTIONS: Array[Dictionary] = [
+	{
+		"key": ZOOM_IN, "label": "Zoom in",
+		"default": [
+			{"kind": &"key", "code": KEY_E},
+			{"kind": &"pad_button", "code": JOY_BUTTON_RIGHT_SHOULDER},
+		],
+	},
+	{
+		"key": ZOOM_OUT, "label": "Zoom out",
+		"default": [
+			{"kind": &"key", "code": KEY_Q},
+			{"kind": &"pad_button", "code": JOY_BUTTON_LEFT_SHOULDER},
+		],
+	},
+	{
+		"key": PITCH_UP, "label": "Camera up",
+		"default": [
+			{"kind": &"key", "code": KEY_I},
+			{"kind": &"pad_axis", "code": JOY_AXIS_RIGHT_Y, "sign": -1},
+		],
+	},
+	{
+		"key": PITCH_DOWN, "label": "Camera down",
+		"default": [
+			{"kind": &"key", "code": KEY_K},
+			{"kind": &"pad_axis", "code": JOY_AXIS_RIGHT_Y, "sign": 1},
+		],
+	},
+	{
+		"key": SWING_LEFT, "label": "Swing left",
+		"default": [
+			{"kind": &"key", "code": KEY_J},
+			{"kind": &"pad_axis", "code": JOY_AXIS_RIGHT_X, "sign": -1},
+		],
+	},
+	{
+		"key": SWING_RIGHT, "label": "Swing right",
+		"default": [
+			{"kind": &"key", "code": KEY_L},
+			{"kind": &"pad_axis", "code": JOY_AXIS_RIGHT_X, "sign": 1},
+		],
+	},
+	{
+		"key": DOLLY_OUT, "label": "Pull back",
+		"default": [{"kind": &"key", "code": KEY_MINUS}],
+	},
+	{
+		"key": DOLLY_IN, "label": "Push in",
+		"default": [{"kind": &"key", "code": KEY_EQUAL}],
+	},
+	{
+		"key": RESET, "label": "Recentre the camera",
+		"default": [
+			{"kind": &"key", "code": KEY_O},
+			{"kind": &"pad_button", "code": JOY_BUTTON_RIGHT_STICK},
+		],
+	},
+]
+
 ## The zoom ladder, shared so a notch feels the same in both views. 1.0 is the
 ## framing each rig was built for.
 const ZOOM_LIMITS := Vector2(0.55, 2.0)
@@ -44,45 +125,14 @@ const TWEEN_TIME: float = 0.22
 ## zooming in, -1 for the other way round. It is the one part of the binding that
 ## is a preference rather than a decision, which is why it is the only part
 ## registered as an option.
-## KEYS THE HOST HAS NOT ALREADY CLAIMED, WHICH IS NOT A STYLE CHOICE.
+## THE WHEEL, which is the one command that is not an action.
 ##
-## A screen resolves every bound event into a `Gen2Button` and takes it before a
-## renderer is offered anything, so a mod key that is also a binding never
-## arrives at all. This view asked for W, S, A and D, which are the host's own
-## default d-pad, and its pitch and swing had therefore never once fired on a
-## keyboard. Nothing warned: the mod read a keycode that the screen had already
-## eaten, and both sides were behaving correctly.
-##
-## So the cluster is IJKL, which no button and no debug key claims in either
-## view, and Q/E and the +/- pair keep what they had for the same reason.
-## Checked against `Gen2InputActions.DEFAULTS` and the debug keys of both
-## screens; a player who REBINDS onto these takes them back, and there is
-## nothing this file can do about that. The fix for all of it is a mod declaring
-## its actions to the host and being bound like anything else, which is an
-## engine request, and it is also what puts these on a phone at all.
+## Everything a player presses is declared in ACTIONS and arrives already
+## resolved, bound and rebindable. A wheel notch is not: it is pointer motion,
+## which is exactly what the screen has no opinion about and passes through, and
+## it is the one part of the binding that is a PREFERENCE rather than a decision,
+## which is why the direction is a setting.
 static func command(event: InputEvent, wheel_sign: int = 1) -> StringName:
-	var key := event as InputEventKey
-	if key != null and key.pressed:
-		match key.keycode:
-			KEY_Q:
-				return ZOOM_OUT
-			KEY_E:
-				return ZOOM_IN
-			KEY_I:
-				return PITCH_UP
-			KEY_K:
-				return PITCH_DOWN
-			KEY_J:
-				return SWING_LEFT
-			KEY_L:
-				return SWING_RIGHT
-			KEY_MINUS, KEY_KP_SUBTRACT:
-				return DOLLY_OUT
-			KEY_EQUAL, KEY_KP_ADD:
-				return DOLLY_IN
-			_:
-				return NONE
-
 	var wheel := event as InputEventMouseButton
 	if wheel != null and wheel.pressed:
 		match wheel.button_index:

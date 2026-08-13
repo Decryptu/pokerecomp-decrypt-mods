@@ -13,16 +13,22 @@ extends RefCounted
 var _world: Gen2WorldAPI = null
 var _map: Gen2WorldMap = null
 var _tileset: Gen2WorldTileset = null
+## Only the records path needs it, and only to fold a CONNECTION into the border
+## ring: reading past a map's edge can reach the neighbouring map, which means
+## reaching another map's records.
+var _data: GameData = null
 
 
 ## Pass a world to read it live, or a map and tileset to read the records. A
-## world supplies its own two records, so the later arguments are ignored.
+## world supplies its own two records, so those arguments are ignored.
 func _init(
 	world: Gen2WorldAPI = null,
 	map: Gen2WorldMap = null,
 	tileset: Gen2WorldTileset = null,
+	data: GameData = null,
 ) -> void:
 	_world = world
+	_data = data
 	if world != null:
 		_map = world.current_map
 		_tileset = world.current_tileset
@@ -75,17 +81,21 @@ func tile_at(tile_x: int, tile_y: int) -> int:
 
 ## The block drawn at a block position, inside the map or past its edge.
 ##
-## A world folds in its CONNECTIONS as well, which is what makes a neighbouring
-## route's own art carry on past the seam instead of the border block. Reading
-## the records there is the map's border block alone: the connection padding is
-## assembled by the host's own FillMapConnections order and is not a renderer's
-## to work out. See the engine request.
+## The host folds in the map's border block AND its CONNECTIONS, which is what
+## makes a neighbouring route's own art carry on past the seam. Both paths ask
+## the same code for it: `drawn_block_at` reads the live world, including any
+## `changeblock` the player has caused, and `drawn_block_for` answers for a map
+## record, which is what a battle has. The connection padding's strip geometry
+## and its north/south/west/east order at an overlapping corner are the host's,
+## and a second copy of them here would be a second thing to keep right.
 func _block_at(block_x: int, block_y: int) -> int:
-	var inside: bool = block_x >= 0 and block_y >= 0 \
-		and block_x < _map.width_blocks and block_y < _map.height_blocks
 	if _world != null:
 		return _world.drawn_block_at(block_x, block_y)
-	if inside:
+	if _data != null:
+		return Gen2WorldAPI.drawn_block_for(_data, _map, block_x, block_y)
+	# No records but this map's own, which a probe or a tool may be holding.
+	if block_x >= 0 and block_y >= 0 \
+			and block_x < _map.width_blocks and block_y < _map.height_blocks:
 		var block: int = _map.block_at(block_x, block_y)
 		return _map.border_block if block == 0 else block
 	return _map.border_block

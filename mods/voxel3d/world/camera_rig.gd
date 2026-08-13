@@ -52,6 +52,10 @@ var _t: float = 1.0
 
 ## Which way a wheel notch zooms, from the player's own setting.
 var _wheel_sign: int = 1
+## The pitch the view opens at, which a RECENTRE goes back to rather than to the
+## constant: the player chose it in the start menu and it is what "the way it
+## was" means to them.
+var _opening_pitch: float = PITCH_DEFAULT
 
 
 ## Every input event the world screen did not use. Answering true consumes it.
@@ -59,7 +63,13 @@ var _wheel_sign: int = 1
 ## Movement and interaction keys never arrive here: the screen claims those
 ## first, and an open overlay, a running script or a battle claims everything.
 func handle_input(event: InputEvent) -> bool:
-	match Steering.command(event, _wheel_sign):
+	return steer(Steering.command(event, _wheel_sign))
+
+
+## One command, wherever it came from: a declared action the host resolved off a
+## key, a pad, a stick or a finger, or the wheel this rig read itself.
+func steer(command: StringName) -> bool:
+	match command:
 		Steering.ZOOM_IN:
 			_aim(_pitch_goal, _distance_goal, _zoom_goal - Steering.ZOOM_STEP)
 		Steering.ZOOM_OUT:
@@ -72,6 +82,8 @@ func handle_input(event: InputEvent) -> bool:
 			_aim(_pitch_goal, _distance_goal - DISTANCE_STEP, _zoom_goal)
 		Steering.DOLLY_OUT:
 			_aim(_pitch_goal, _distance_goal + DISTANCE_STEP, _zoom_goal)
+		Steering.RESET:
+			_aim(_opening_pitch, DISTANCE_DEFAULT, 1.0)
 		_:
 			# A swing has no meaning about a player who is always in the middle
 			# of the frame, so it is left for whoever else wants it.
@@ -87,6 +99,7 @@ func set_wheel_sign(sign_of_wheel: int) -> void:
 ## eases like any other steer, so choosing it in the start menu shows what it
 ## does instead of snapping when the menu closes.
 func set_default_pitch(degrees: float) -> void:
+	_opening_pitch = degrees
 	_aim(degrees, _distance_goal, _zoom_goal)
 
 

@@ -417,7 +417,15 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_outlined[at] = shape.outline_shades(shape_class)
 			_modelled[at] = 1 if shape.is_model(shape_class) else 0
 			_shrub[at] = 1 if shape.is_shrub(shape_class) else 0
-			_tufted[at] = 1 if shape.is_tufted(shape_class) else 0
+			# WHICH CELLS ARE GRASS IS THE CARTRIDGE'S OWN ANSWER, and it is in
+			# the collision byte rather than in the drawing. `grass_kind` is the
+			# host's decode of SetTallGrassFlags, so this covers every map in the
+			# game instead of the four tilesets whose grass tile anyone had got
+			# round to naming. The pin stays as an override, for a drawing that
+			# should stand up where no collision code says so.
+			_tufted[at] = 1 if shape.is_tufted(shape_class) or Gen2WorldCollision.is_grass(
+				source.code_at(Vector2i((tx - _margin.x) >> 1, cell_y))
+			) else 0
 			_lying[at] = 1 if shape.is_lying(shape_class) else 0
 			_on_furniture[at] = 1 if shape_class == &"on_furniture" else 0
 			var span: Vector2i = shape.span_cells(shape_class)
