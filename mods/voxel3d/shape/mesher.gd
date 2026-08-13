@@ -1667,9 +1667,13 @@ func _place_model(tx: int, ty: int, atlas: RefCounted) -> void:
 			+ (_hash_spot(start + Vector2i(37, 0)) - 0.5) * MODEL_NUDGE
 	)
 	var turn: float = floorf(_hash_spot(start + Vector2i(0, 91)) * 4.0) * PI * 0.5
-	(_model_spots[key] as Dictionary)[str(start)] = Transform3D(
-		Basis(Vector3(0.0, 1.0, 0.0), turn), spot
-	)
+	# The stamp carries its own WIND PHASE with it, off the same anchor, so a tree
+	# bends at the same moment every time the window is rebuilt and no two
+	# neighbours bend together. See `world/wind.gd`.
+	(_model_spots[key] as Dictionary)[str(start)] = [
+		Transform3D(Basis(Vector3(0.0, 1.0, 0.0), turn), spot),
+		_hash_spot(start + Vector2i(0, 53)),
+	]
 
 
 ## How far a stamped model is nudged off its lattice point, in world pixels,
@@ -1690,10 +1694,12 @@ func take_models() -> Array:
 	var out: Array = []
 	for key: String in _model_meshes:
 		var placed: Array[Transform3D] = []
-		for placement: Transform3D in (_model_spots[key] as Dictionary).values():
-			placed.append(placement)
+		var phases := PackedFloat32Array()
+		for entry: Array in (_model_spots[key] as Dictionary).values():
+			placed.append(entry[0] as Transform3D)
+			phases.append(float(entry[1]))
 		if not placed.is_empty():
-			out.append([_model_meshes[key], placed])
+			out.append([_model_meshes[key], placed, phases])
 	return out
 
 

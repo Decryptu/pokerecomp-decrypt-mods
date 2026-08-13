@@ -69,6 +69,12 @@ const TONE_SHARE: int = 8
 var _vertices := PackedVector3Array()
 var _normals := PackedVector3Array()
 var _colors := PackedColorArray()
+## Per vertex: how far up the CROWN it stands, 0 through the trunk and 1 at the
+## top, which is what `world/wind.gd` bends the tree by. A model carries no
+## texture, its colour being baked into the vertices, so UV is free for it.
+var _sways := PackedVector2Array()
+## The weight the next face is written with, set per voxel row.
+var _sway: float = 0.0
 
 
 ## What the drawing states about the thing it depicts.
@@ -259,6 +265,7 @@ func tree(measured: Measure) -> ArrayMesh:
 	_vertices = PackedVector3Array()
 	_normals = PackedVector3Array()
 	_colors = PackedColorArray()
+	_sways = PackedVector2Array()
 
 	var rows: int = measured.profile.size()
 	var stretch: float = 1.0 if measured.shrub else CROWN_STRETCH
@@ -312,6 +319,13 @@ func tree(measured: Measure) -> ArrayMesh:
 				solid[(vy * wide + vz) * wide + vx] = fill
 
 	for vy: int in tall:
+		# ZERO THROUGH THE TRUNK, because a trunk that sways is a tree falling
+		# over, and rising through the crown from its foot. A shrub has no trunk
+		# and so bends from its own base, which is what a springy mass does; its
+		# bottom row still measures zero, so it stays on the ground.
+		_sway = clampf(
+			float(vy - trunk_high) / float(maxi(crown_high - 1, 1)), 0.0, 1.0
+		)
 		for vz: int in wide:
 			for vx: int in wide:
 				if solid[(vy * wide + vz) * wide + vx] == EMPTY:
@@ -323,6 +337,7 @@ func tree(measured: Measure) -> ArrayMesh:
 	arrays[Mesh.ARRAY_VERTEX] = _vertices
 	arrays[Mesh.ARRAY_NORMAL] = _normals
 	arrays[Mesh.ARRAY_COLOR] = _colors
+	arrays[Mesh.ARRAY_TEX_UV] = _sways
 	var mesh := ArrayMesh.new()
 	if not _vertices.is_empty():
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
@@ -436,3 +451,4 @@ func _quad(origin: Vector3, side: Vector3i, color: Color) -> void:
 		_vertices.push_back(vertex)
 		_normals.push_back(normal)
 		_colors.push_back(color)
+		_sways.push_back(Vector2(_sway, 0.0))

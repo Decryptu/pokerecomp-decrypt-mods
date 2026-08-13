@@ -10,7 +10,7 @@ extends RefCounted
 
 const Sky3D: GDScript = preload("sky.gd")
 const Water3D: GDScript = preload("water.gd")
-const Grass3D: GDScript = preload("grass.gd")
+const Wind3D: GDScript = preload("wind.gd")
 
 const CELL: float = 16.0
 
@@ -87,15 +87,15 @@ var _material: StandardMaterial3D = null
 ## mesh: see `mesher.gd:_close_chunk`.
 var _water: Array[MeshInstance3D] = []
 var _water_shader: RefCounted = null
-## The standing grass and what draws it. Its own instances for the same reason
-## the water has its own: it moves, and moving is a vertex shader.
+## The standing grass, on its own instances for the same reason the water is: it
+## moves, and moving is a vertex shader. `_wind` owns that shader and the one the
+## stamped models wear, so the whole world bends in one weather.
 var _tufts: Array[MeshInstance3D] = []
-var _grass_shader: RefCounted = null
-## The authored models and their own material: they carry no texture at all,
-## because their colour comes off the drawing at build time rather than out of
-## the atlas at draw time. See `shape/model.gd`.
+var _wind: RefCounted = null
+## The authored models. They carry no texture at all, their colour coming off the
+## drawing at build time rather than out of the atlas at draw time
+## (`shape/model.gd`), and they bend, so they wear `_wind`'s own material.
 var _models: Array[MultiMeshInstance3D] = []
-var _model_material: StandardMaterial3D = null
 var _time_of_day: int = Gen2WorldPalette.TIME_MORNING
 
 
@@ -155,12 +155,7 @@ func _init() -> void:
 	_material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 
 	_water_shader = Water3D.new()
-	_grass_shader = Grass3D.new()
-
-	_model_material = StandardMaterial3D.new()
-	_model_material.vertex_color_use_as_albedo = true
-	_model_material.roughness = 1.0
-	_model_material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	_wind = Wind3D.new()
 
 	actors = Node3D.new()
 	viewport.add_child(actors)
@@ -228,16 +223,28 @@ func set_models(models: Array) -> void:
 	for index: int in models.size():
 		if index >= _models.size():
 			var instance := MultiMeshInstance3D.new()
-			instance.material_override = _model_material
+			instance.material_override = _wind.foliage
 			viewport.add_child(instance)
 			_models.append(instance)
 		var multi := MultiMesh.new()
 		multi.transform_format = MultiMesh.TRANSFORM_3D
+		# The per-instance WIND PHASE, so one mesh stamped across a forest still
+		# bends tree by tree. `mesher.gd` hashes it off the placement's anchor.
+		multi.use_custom_data = true
+		# USE_COLORS IS NOT OPTIONAL HERE. A MultiMesh carrying custom data and no
+		# instance colours hands the shader a BLACK `COLOR` on the compatibility
+		# renderer, and a model's whole colour is its vertex colour, so the forest
+		# comes out in silhouette. White per instance leaves the baked colour
+		# exactly as it was. Found in a picture; the counts were identical.
+		multi.use_colors = true
 		multi.mesh = models[index][0]
 		var placements: Array[Transform3D] = models[index][1]
+		var phases: PackedFloat32Array = models[index][2]
 		multi.instance_count = placements.size()
 		for spot: int in placements.size():
 			multi.set_instance_transform(spot, placements[spot])
+			multi.set_instance_custom_data(spot, Color(phases[spot], 0.0, 0.0, 0.0))
+			multi.set_instance_color(spot, Color.WHITE)
 		_models[index].multimesh = multi
 		_models[index].visible = true
 	for index: int in range(models.size(), _models.size()):
@@ -276,7 +283,7 @@ func set_tufts(meshes: Array) -> void:
 	for index: int in meshes.size():
 		if index >= _tufts.size():
 			var instance := MeshInstance3D.new()
-			instance.material_override = _grass_shader.material
+			instance.material_override = _wind.grass
 			viewport.add_child(instance)
 			_tufts.append(instance)
 		_tufts[index].mesh = meshes[index]
@@ -289,7 +296,7 @@ func set_tufts(meshes: Array) -> void:
 func set_texture(texture: Texture2D) -> void:
 	_material.albedo_texture = texture
 	_water_shader.set_atlas(texture)
-	_grass_shader.set_atlas(texture)
+	_wind.set_atlas(texture)
 
 
 ## The sky takes the palette's own background, which is the colour the 2D view
