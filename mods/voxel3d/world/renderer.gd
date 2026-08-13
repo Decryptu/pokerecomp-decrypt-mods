@@ -74,6 +74,9 @@ const BUILD_BUDGET_USEC: int = 4000
 var _building: bool = false
 var _standing: bool = false
 var _chunks: Array = []
+## The water chunks of the same slice, kept apart because they are drawn with
+## their own material: see `mesher.gd:take_water`.
+var _water: Array = []
 
 
 func _init() -> void:
@@ -248,6 +251,7 @@ func _rebuild() -> void:
 	_standing = false
 	if _world == null or _world.current_map == null or _world.current_tileset == null:
 		_stage.set_terrain([])
+		_stage.set_water([])
 		return
 	var tileset: int = _world.current_tileset.number
 	if _shape == null or tileset != _shape_tileset:
@@ -303,8 +307,10 @@ func _recentre_window() -> void:
 ## Starts a sliced build of [param window], and finishes it in `_process`.
 func _begin_terrain(window: Rect2i) -> void:
 	_chunks = []
+	_water = []
 	if not _mesher.begin_emit(_atlas, window):
 		_stage.set_terrain([])
+		_stage.set_water([])
 		_standing = false
 		return
 	_building = true
@@ -316,11 +322,13 @@ func _advance_build() -> void:
 		return
 	var done: bool = _mesher.emit_step(BUILD_BUDGET_USEC)
 	_chunks.append_array(_mesher.take_chunks())
+	_water.append_array(_mesher.take_water())
 	# Mid-build the new chunks are shown only when there is nothing else to look
 	# at, because a half-built map swapped in over a whole one is a hole opening
 	# in the middle of the frame rather than a map arriving.
 	if done or not _standing:
 		_stage.set_terrain(_chunks)
+		_stage.set_water(_water)
 		_stage.set_models(_mesher.take_models())
 	if done:
 		_building = false

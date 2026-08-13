@@ -9,6 +9,7 @@ extends RefCounted
 ## in the scene, and that is all the two renderers hold themselves.
 
 const Sky3D: GDScript = preload("sky.gd")
+const Water3D: GDScript = preload("water.gd")
 
 const CELL: float = 16.0
 
@@ -81,6 +82,10 @@ var _environment: Environment = null
 var _sky: RefCounted = null
 var _terrain: Array[MeshInstance3D] = []
 var _material: StandardMaterial3D = null
+## The water surface and what draws it. Its own instances because it is its own
+## mesh: see `mesher.gd:_close_chunk`.
+var _water: Array[MeshInstance3D] = []
+var _water_shader: RefCounted = null
 ## The authored models and their own material: they carry no texture at all,
 ## because their colour comes off the drawing at build time rather than out of
 ## the atlas at draw time. See `shape/model.gd`.
@@ -143,6 +148,8 @@ func _init() -> void:
 	_material.vertex_color_use_as_albedo = true
 	_material.roughness = 1.0
 	_material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+
+	_water_shader = Water3D.new()
 
 	_model_material = StandardMaterial3D.new()
 	_model_material.vertex_color_use_as_albedo = true
@@ -232,8 +239,31 @@ func set_models(models: Array) -> void:
 		_models[index].visible = false
 
 
+## The WATER surface, as one instance per chunk that holds any.
+##
+## Same pooling as the terrain and for the same reason. Water is drawn after the
+## terrain by being a separate instance at the same depth: it never overlaps
+## itself, so nothing here has to be sorted.
+func set_water(meshes: Array) -> void:
+	for index: int in meshes.size():
+		if index >= _water.size():
+			var instance := MeshInstance3D.new()
+			instance.material_override = _water_shader.material
+			# A lake is flat and 8 px down in its own recess: it casts a shadow on
+			# nothing, and asking the sun for one only pays for the pass.
+			instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			viewport.add_child(instance)
+			_water.append(instance)
+		_water[index].mesh = meshes[index]
+		_water[index].visible = true
+	for index: int in range(meshes.size(), _water.size()):
+		_water[index].mesh = null
+		_water[index].visible = false
+
+
 func set_texture(texture: Texture2D) -> void:
 	_material.albedo_texture = texture
+	_water_shader.set_atlas(texture)
 
 
 ## The sky takes the palette's own background, which is the colour the 2D view
@@ -241,6 +271,7 @@ func set_texture(texture: Texture2D) -> void:
 ## makes a ramp of it, and out of doors is the only place a ramp belongs.
 func set_background(color: Color, outside: bool = true) -> void:
 	_sky.set_background(color, outside)
+	_water_shader.set_sky(_sky.horizon, _sky.zenith)
 
 
 func _on_viewport_resized() -> void:

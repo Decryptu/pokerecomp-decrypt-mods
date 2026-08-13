@@ -94,6 +94,11 @@ void sky() {
 """
 
 var sky: Sky = null
+## The ramp's two ends as they were last computed, so anything else that has to
+## agree with the sky reads them rather than repeating the darkening. `water.gd`
+## is what asks: the sky in the lake and the sky over it are one ramp.
+var horizon: Color = Color.BLACK
+var zenith: Color = Color.BLACK
 var _material: ShaderMaterial = null
 
 
@@ -124,11 +129,13 @@ func _init() -> void:
 ## caller passes the colour it wants there, which is `atlas.gd:void_color`.
 func set_background(color: Color, outside: bool = true) -> void:
 	if not outside:
-		_material.set_shader_parameter("horizon_color", color)
-		_material.set_shader_parameter("zenith_color", color)
-		return
-	_material.set_shader_parameter("horizon_color", color.darkened(HORIZON_DARKEN))
-	_material.set_shader_parameter("zenith_color", color.darkened(ZENITH_DARKEN))
+		horizon = color
+		zenith = color
+	else:
+		horizon = color.darkened(HORIZON_DARKEN)
+		zenith = color.darkened(ZENITH_DARKEN)
+	_material.set_shader_parameter("horizon_color", horizon)
+	_material.set_shader_parameter("zenith_color", zenith)
 
 
 ## The frame the checkerboard is measured against. A dither cell is screen pixels,

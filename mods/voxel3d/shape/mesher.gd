@@ -52,6 +52,21 @@ var _normals := PackedVector3Array()
 var _uvs := PackedVector2Array()
 var _colors := PackedColorArray()
 
+## THE WATER SURFACE IS LIFTED OUT OF THE TERRAIN MESH, which is the reference's
+## own arrangement (`lib/Water.lua`) and for its reason: every other surface in
+## this view is opaque and is drawn once, and water is not. It wants its own
+## material, so it wants its own surface, and the cheapest place to separate the
+## two is where the geometry is made rather than afterwards.
+##
+## Only the water's TOP quad goes here. The faces around a recess are the BANK,
+## they wear the shore's own art and they are terrain like any other side.
+var _water_vertices := PackedVector3Array()
+var _water_normals := PackedVector3Array()
+var _water_uvs := PackedVector2Array()
+var _water_colors := PackedColorArray()
+## Set for the one quad a water tile lays down, and cleared straight after.
+var _sink_water: bool = false
+
 ## Art modes, kept per tile as a byte because every tile of every map carries one.
 const ART_FLAT: int = 0
 const ART_TOP: int = 1
@@ -171,6 +186,7 @@ var _chunks: Array[Rect2i] = []
 var _chunk_at: int = 0
 var _chunk_cursor := Vector2i.ZERO
 var _ready: Array = []
+var _water_ready: Array = []
 
 
 ## False when there is nothing to draw at all.
@@ -179,6 +195,7 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	_chunks = []
 	_chunk_at = 0
 	_ready = []
+	_water_ready = []
 	if _size == Vector2i.ZERO:
 		return false
 	# The window arrives in MAP tiles and the emit walks the GRID, which is the map
@@ -273,28 +290,54 @@ func take_chunks() -> Array:
 	return out
 
 
+## The WATER chunks finished since this was last asked. Same contract, own list,
+## because water is drawn with its own material: see `_close_chunk`.
+func take_water() -> Array:
+	var out: Array = _water_ready
+	_water_ready = []
+	return out
+
+
 func _open_chunk() -> void:
 	_chunk_cursor = _chunks[_chunk_at].position
 	_vertices = PackedVector3Array()
 	_normals = PackedVector3Array()
 	_uvs = PackedVector2Array()
 	_colors = PackedColorArray()
+	_water_vertices = PackedVector3Array()
+	_water_normals = PackedVector3Array()
+	_water_uvs = PackedVector2Array()
+	_water_colors = PackedColorArray()
 
 
+## The two sinks close into two SEPARATE meshes, on two lists, and not into two
+## surfaces of one. A chunk in the middle of a lake has no terrain in it at all,
+## which one mesh cannot say: a surface with no vertices is not a surface, so the
+## water would slide down to index 0 and arrive wearing the terrain's material.
 func _close_chunk() -> void:
 	# A chunk of nothing is most of the sky above a route edge and all of a map's
 	# void; an empty mesh is an instance the engine still has to cull.
-	if _vertices.is_empty():
-		return
+	if not _vertices.is_empty():
+		_ready.append(_mesh_of(_vertices, _normals, _uvs, _colors))
+	if not _water_vertices.is_empty():
+		_water_ready.append(
+			_mesh_of(_water_vertices, _water_normals, _water_uvs, _water_colors)
+		)
+
+
+func _mesh_of(
+	vertices: PackedVector3Array, normals: PackedVector3Array,
+	uvs: PackedVector2Array, colors: PackedColorArray
+) -> ArrayMesh:
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = _vertices
-	arrays[Mesh.ARRAY_NORMAL] = _normals
-	arrays[Mesh.ARRAY_TEX_UV] = _uvs
-	arrays[Mesh.ARRAY_COLOR] = _colors
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_COLOR] = colors
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	_ready.append(mesh)
+	return mesh
 
 
 func size_pixels() -> Vector2:
@@ -1914,10 +1957,14 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	# column happens to sit on.
 	@warning_ignore("integer_division")
 	var cap: int = _band_tile(tx, ty, maxi(here / BAND - 1, 0)) if is_volume else tile
+	# The one quad that is the water's own surface. The bank around it is not: the
+	# faces below are the shore, they wear the shore's art, and they are terrain.
+	_sink_water = _is_water(at)
 	_face_top(
 		tx, ty, float(here), atlas.uv(cap),
 		SHADE_TOP_VOLUME if is_volume else SHADE_TOP_FLAT
 	)
+	_sink_water = false
 
 	_side(tx, ty, here, _height_at(tx, ty + 1), Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
 	_side(tx, ty, here, _height_at(tx, ty - 1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
@@ -2220,7 +2267,13 @@ func _emit_skirt(tx: int, ty: int, atlas: RefCounted) -> void:
 	var floor_at: Vector2i = _border[key]
 	if floor_at.x < 0:
 		return
+	# Twenty maps end in open sea, so most of the skirt in the game IS water and
+	# it has to reach the water's own material or a coast runs out as a flat blue
+	# floor beyond the last rippling tile. The recess is what says so, exactly as
+	# it does inside the map.
+	_sink_water = floor_at.y < 0
 	_face_top(tx, ty, float(floor_at.y), atlas.uv(floor_at.x), SHADE_TOP_FLAT)
+	_sink_water = false
 
 
 ## The tile id and height of the floor at one grid edge position, as a Vector2i.
@@ -2374,6 +2427,12 @@ func _tri(
 
 
 func _push(vertex: Vector3, normal: Vector3, uv: Vector2, shade: Color) -> void:
+	if _sink_water:
+		_water_vertices.push_back(vertex)
+		_water_normals.push_back(normal)
+		_water_uvs.push_back(uv)
+		_water_colors.push_back(shade)
+		return
 	_vertices.push_back(vertex)
 	_normals.push_back(normal)
 	_uvs.push_back(uv)

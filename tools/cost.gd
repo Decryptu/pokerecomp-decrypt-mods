@@ -70,8 +70,12 @@ func _initialize() -> void:
 		# A model is built once per distinct drawing and STAMPED, so its triangles
 		# are counted once and the stamps are counted as what they cost, which is
 		# one instance each and not one mesh each.
+		#
+		# THE WATER IS ON ITS OWN LIST and has to be asked for separately, or a
+		# sea route reads as free: it is drawn with its own material, so it is its
+		# own mesh, and `emit` answers the terrain alone.
 		var faces: int = 0
-		for mesh: ArrayMesh in meshes:
+		for mesh: ArrayMesh in meshes + mesher.take_water():
 			for surface: int in mesh.get_surface_count():
 				faces += (mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
 					as PackedVector3Array).size()

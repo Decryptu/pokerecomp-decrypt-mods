@@ -211,12 +211,14 @@ func _load_modules() -> Dictionary:
 func _build_arena() -> void:
 	if _data == null or _context == null:
 		_stage.set_terrain([])
+		_stage.set_water([])
 		_arena.stage(null)
 		return
 	var map: Gen2WorldMap = _data.world_map(_context.map_group(), _context.map_number())
 	var tileset: Gen2WorldTileset = _data.world_tileset(_context.tileset)
 	if map == null or tileset == null:
 		_stage.set_terrain([])
+		_stage.set_water([])
 		_arena.stage(null)
 		return
 
@@ -238,8 +240,10 @@ func _build_arena() -> void:
 	_mesher = _resolved_for(map, tileset, source)
 	_stage.set_view_distance(float(_draw_cells) * CELL)
 	_stage.set_terrain(_mesher.emit(_atlas, _window(_context.player_cell)))
-	# The stamped models too, or a fight on a route is staged in a clearing: a
-	# tree emits no carved geometry at all and is nothing but its instances.
+	# The water and the stamped models too, or a fight on a route is staged in a
+	# clearing on a blue floor: neither is in the terrain mesh, a tree because it
+	# is instanced and a lake because it is drawn with its own material.
+	_stage.set_water(_mesher.take_water())
 	_stage.set_models(_mesher.take_models())
 	# Staged AFTER the mesh, because choosing where the fight goes asks how tall
 	# the things around it turned out to be, and only the mesh knows that.

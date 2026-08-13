@@ -7,7 +7,12 @@ extends SceneTree
 ## save, no walking there.
 ##
 ##   Godot --path <pokerecomp> -s tools/shot.gd -- <cache> <group> <number> \
-##       <tile x> <tile y> <out.png> [pitch] [back]
+##       <tile x> <tile y> <out.png> [pitch] [back] [time 0-3] [sky] [hold]
+##
+## HOLD is how many frames to run before the shutter, and it is how MOTION is
+## photographed: everything that moves in this view moves on the shader clock, so
+## the same shot held for a different number of frames is the same place a moment
+## later. Two of them side by side is the only still picture of a moving thing.
 ##
 ## Needs a display, since it renders.
 
@@ -18,13 +23,15 @@ const VIEW := Vector2i(880, 600)
 var _stage: RefCounted = null
 var _out: String = ""
 var _frames: int = 0
+## Six is enough for the viewport to have drawn and for the atlas to have landed.
+var _hold: int = 6
 
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.size() < 6:
 		print("usage: <cache> <group> <number> <tile x> <tile y> <out.png>"
-			+ " [pitch] [back] [time 0-3] [sky #rrggbb]")
+			+ " [pitch] [back] [time 0-3] [sky #rrggbb] [hold frames]")
 		quit(1)
 		return
 	var data: GameData = GameData.open_directory(args[0])
@@ -77,9 +84,11 @@ func _initialize() -> void:
 		else:
 			_stage.set_background(atlas.void_color(), false)
 	_stage.set_terrain(mesher.build(source, shape, atlas))
+	_stage.set_water(mesher.take_water())
 	_stage.set_models(mesher.take_models())
 
 	var focus := Vector3((float(args[3]) + 0.5) * TILE, 0.0, (float(args[4]) + 0.5) * TILE)
+	_hold = maxi(int(args[10]) if args.size() > 10 else 6, 1)
 	var pitch: float = deg_to_rad(float(args[6]) if args.size() > 6 else 32.0)
 	var back: float = float(args[7]) if args.size() > 7 else 220.0
 	_stage.aim_camera(
@@ -90,7 +99,7 @@ func _initialize() -> void:
 
 func _process(_delta: float) -> bool:
 	_frames += 1
-	if _frames < 6:
+	if _frames < _hold:
 		return false
 	_stage.viewport.get_texture().get_image().save_png(_out)
 	print(_out)
