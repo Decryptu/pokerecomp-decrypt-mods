@@ -60,7 +60,14 @@ const ART_CUTOUT: int = 3
 ## Not a class's art but a shape the COLLISION asks for: see `_measure_ledges`.
 const ART_LEDGE: int = 4
 
+## The RESOLVED grid, which is the map plus the border ring around it, and the
+## MAP's own size inside it. Every array below is indexed on the grid; the world
+## is measured from the map's own corner, so a vertex is emitted at
+## `(tile - _margin) * TILE` and everything outside this file goes on speaking
+## map coordinates.
 var _size := Vector2i.ZERO
+var _map_size := Vector2i.ZERO
+var _margin := Vector2i.ZERO
 var _tiles := PackedInt32Array()
 var _art := PackedByteArray()
 var _depths := PackedByteArray()
@@ -172,10 +179,14 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	_ready = []
 	if _size == Vector2i.ZERO:
 		return false
-	var reach: int = BORDER_TILES if _outside else 0
+	# The window arrives in MAP tiles and the emit walks the GRID, which is the map
+	# inside its border ring, so the window is carried across by the margin. The
+	# SKIRT lies outside the grid on every side and is walked with it, since it is
+	# emitted per tile and belongs to the same chunks.
+	var reach: int = maxi(BORDER_TILES - _margin.x, 0) if _outside else 0
 	var box := Rect2i(-Vector2i(reach, reach), _size + Vector2i(reach, reach) * 2)
 	if window.size.x > 0 and window.size.y > 0:
-		box = box.intersection(window)
+		box = box.intersection(Rect2i(window.position + _margin, window.size))
 	if box.size.x <= 0 or box.size.y <= 0:
 		return false
 	_emit_atlas = atlas
@@ -216,7 +227,7 @@ func emit_step(budget_usec: int) -> bool:
 			while _chunk_cursor.x < box.end.x:
 				if _chunk_cursor.x < 0 or _chunk_cursor.y < 0 \
 						or _chunk_cursor.x >= _size.x or _chunk_cursor.y >= _size.y:
-					_emit_border(_chunk_cursor.x, _chunk_cursor.y, _emit_atlas)
+					_emit_skirt(_chunk_cursor.x, _chunk_cursor.y, _emit_atlas)
 				else:
 					_emit(_chunk_cursor.x, _chunk_cursor.y, _emit_atlas)
 				_chunk_cursor.x += 1
@@ -274,11 +285,37 @@ func _close_chunk() -> void:
 
 
 func size_pixels() -> Vector2:
-	return Vector2(_size) * TILE
+	return Vector2(_map_size) * TILE
 
 
 func size_tiles() -> Vector2i:
-	return _size
+	return _map_size
+
+
+## The world x and z of a GRID tile's own corner. The grid is the map inside its
+## border ring and the world is measured from the map's corner, so this is the
+## one place the ring is subtracted and nothing outside this file ever sees it.
+func _world_x(tx: int) -> float:
+	return float(tx - _margin.x) * TILE
+
+
+func _world_z(ty: int) -> float:
+	return float(ty - _margin.y) * TILE
+
+
+## Where a MAP tile sits in the resolved arrays, which are the map inside its
+## border ring and so are neither the same size nor the same origin.
+func grid_index(map_tile: Vector2i) -> int:
+	var at: Vector2i = map_tile + _margin
+	if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
+		return -1
+	return at.y * _size.x + at.x
+
+
+## The same offset in walk cells, which is what the collision is asked in.
+func _margin_cells() -> Vector2i:
+	@warning_ignore("integer_division")
+	return Vector2i(_margin.x / CELL_TILES, _margin.y / CELL_TILES)
 
 
 ## Resolves every tile to a class and a height, in two passes.
@@ -293,13 +330,24 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# from, so a warp to a map on another tileset has to drop them.
 	_masks.clear()
 	_border.clear()
+	_edge_floor = Vector2i(-2, 0)
 	# Keyed on tile ids, which mean nothing without the tileset they came from.
 	_model_meshes.clear()
 	_commonest_index.clear()
 	if source == null or not source.valid():
 		return
 	_outside = source.outside()
-	_size = source.size_cells() * RomLayout.MAP_BLOCK_CELL_WIDTH
+	# The border RING is resolved as part of the map, not painted on afterwards.
+	# Past its edge the cartridge repeats the map's own border block, which is a
+	# tree line on eighteen maps, a hedge on sixteen and open sea on twenty, and
+	# every pass here has to see it: a tree in the ring is measured, masked,
+	# modelled and stamped by exactly the code that does it inside the map, and
+	# the seam between the two is skirted by the code that skirts every other
+	# height change. A room ends at its walls and gets none.
+	var ring: int = _ring_depth(source, shape) if _outside else 0
+	_margin = Vector2i(ring, ring)
+	_map_size = source.size_cells() * RomLayout.MAP_BLOCK_CELL_WIDTH
+	_size = _map_size + _margin * 2
 	var count: int = _size.x * _size.y
 	_tiles.resize(count)
 	_art.resize(count)
@@ -328,10 +376,10 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_ledge.fill(LEDGE_NONE)
 
 	for ty: int in _size.y:
-		var cell_y: int = ty >> 1
+		var cell_y: int = (ty - _margin.y) >> 1
 		for tx: int in _size.x:
 			var at: int = ty * _size.x + tx
-			var tile: int = source.tile_at(tx, ty)
+			var tile: int = source.tile_at(tx - _margin.x, ty - _margin.y)
 			_tiles[at] = tile
 			_bases[at] = ty
 			_cliff[at] = 0
@@ -343,7 +391,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 				_art[at] = ART_FLAT
 				_part[at] = PART_NONE
 				continue
-			var permission: int = source.permission_at(Vector2i(tx >> 1, cell_y))
+			var permission: int = source.permission_at(
+				Vector2i((tx - _margin.x) >> 1, cell_y)
+			)
 			var shape_class: StringName = shape.at(tile, permission)
 			var art: StringName = shape.art(shape_class)
 			_art[at] = _art_mode(art)
@@ -422,7 +472,8 @@ func _apply_levels(source: RefCounted) -> void:
 			if _tiles[at] < 0:
 				continue
 			var height: int = Levels.height_at(
-				map.group, map.number, Vector2i(tx >> 1, ty >> 1)
+				map.group, map.number,
+				Vector2i((tx - _margin.x) >> 1, (ty - _margin.y) >> 1)
 			)
 			if height <= 0:
 				continue
@@ -951,7 +1002,7 @@ func _measure_ledges(source: RefCounted) -> void:
 	var cells := Vector2i(_size.x / CELL_TILES, _size.y / CELL_TILES)
 	for cy: int in cells.y:
 		for cx: int in cells.x:
-			var code: int = source.code_at(Vector2i(cx, cy))
+			var code: int = source.code_at(Vector2i(cx, cy) - _margin_cells())
 			if (code & 0xF0) != Gen2WorldCollision.HI_NYBBLE_LEDGES:
 				continue
 			var base: int = _cell_floor(cx, cy)
@@ -1187,7 +1238,9 @@ func _cells_match(cell_x: int, first_y: int, second_y: int) -> bool:
 ## the map the ground plane is the answer, which is what a camera looking past a
 ## map edge should clear.
 func height_at_position(position: Vector3) -> int:
-	return _height_at(floori(position.x / TILE), floori(position.z / TILE))
+	return _height_at(
+		floori(position.x / TILE) + _margin.x, floori(position.z / TILE) + _margin.y
+	)
 
 
 func _height_at(tx: int, ty: int) -> int:
@@ -1488,9 +1541,9 @@ func _place_model(tx: int, ty: int, atlas: RefCounted) -> void:
 	# Both come off the anchor, so a tree does not walk when the window rebuilds.
 	var wobble: float = _hash_spot(start)
 	var spot := Vector3(
-		(float(start.x) + float(across.x) * 0.5) * TILE + (wobble - 0.5) * MODEL_NUDGE,
+		_world_x(start.x) + float(across.x) * 0.5 * TILE + (wobble - 0.5) * MODEL_NUDGE,
 		float(_ground_art(tx, ty).y),
-		(float(start.y) + float(across.y) * 0.5) * TILE
+		_world_z(start.y) + float(across.y) * 0.5 * TILE
 			+ (_hash_spot(start + Vector2i(37, 0)) - 0.5) * MODEL_NUDGE
 	)
 	var turn: float = floorf(_hash_spot(start + Vector2i(0, 91)) * 4.0) * PI * 0.5
@@ -1651,7 +1704,7 @@ func _cutout_box(
 	tx: int, tile: int, atlas: RefCounted, mask: PackedByteArray,
 	origin: Vector2i, span: Vector2i, top: float, box: Rect2i, back: float, front: float
 ) -> void:
-	var x0: float = float(tx) * TILE + float(box.position.x)
+	var x0: float = _world_x(tx) + float(box.position.x)
 	var x1: float = x0 + float(box.size.x)
 	var high: float = top - float(box.position.y)
 	var low: float = high - float(box.size.y)
@@ -1701,8 +1754,8 @@ func _cutout_edge(
 	box: Rect2i, back: float, front: float, horizontal: bool, near: bool, from: int, to: int
 ) -> void:
 	if horizontal:
-		var x0: float = float(tx) * TILE + float(box.position.x + from)
-		var x1: float = float(tx) * TILE + float(box.position.x + to)
+		var x0: float = _world_x(tx) + float(box.position.x + from)
+		var x1: float = _world_x(tx) + float(box.position.x + to)
 		var y: float = top - float(box.position.y) \
 			- (0.0 if near else float(box.size.y))
 		# Rows INSIDE the body. The drawing's own outline is what an upward face
@@ -1740,7 +1793,7 @@ func _cutout_edge(
 			)
 		return
 
-	var x: float = float(tx) * TILE + float(box.position.x + (0 if near else box.size.x))
+	var x: float = _world_x(tx) + float(box.position.x + (0 if near else box.size.x))
 	var high: float = top - float(box.position.y + from)
 	var low: float = top - float(box.position.y + to)
 	# The same de-outlining the horizontal faces get, and for the same reason: a
@@ -1870,7 +1923,7 @@ func _tufts(tx: int, ty: int, base: float, atlas: RefCounted) -> void:
 		return
 	var ground: int = _commonest(tile, atlas)
 	var edge: int = int(TILE)
-	var middle: float = float(ty) * TILE + TILE * 0.5
+	var middle: float = _world_z(ty) + TILE * 0.5
 	var back: float = middle - TUFT_THICK * 0.5
 	var front: float = middle + TUFT_THICK * 0.5
 	for py: int in edge:
@@ -1891,8 +1944,8 @@ func _tuft_run(
 	tx: int, tile: int, atlas: RefCounted, from: int, to: int, py: int,
 	base: float, back: float, front: float, ground: int
 ) -> void:
-	var x0: float = float(tx) * TILE + float(from)
-	var x1: float = float(tx) * TILE + float(to)
+	var x0: float = _world_x(tx) + float(from)
+	var x1: float = _world_x(tx) + float(to)
 	var low: float = base + float(int(TILE) - 1 - py)
 	var high: float = low + 1.0
 	var uv: Rect2 = atlas.uv_box(tile, Rect2i(from, py, to - from, 1))
@@ -1961,9 +2014,9 @@ func _wedge(tx: int, ty: int, atlas: RefCounted) -> void:
 	var base: int = _heights[at]
 	var top: int = base + LEDGE_RISE
 	var uv: Rect2 = atlas.uv(maxi(_tiles[at], 0))
-	var x0: float = float(tx) * TILE
+	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
-	var z0: float = float(ty) * TILE
+	var z0: float = _world_z(ty)
 	var z1: float = z0 + TILE
 	# The ramp, cornered in `_face_top`'s own order so the drawing keeps its
 	# north-up orientation, each corner lifted by how far along the slope it is.
@@ -2003,9 +2056,9 @@ func _wedge_end(
 		return
 	if _height_at(nx, ny) >= top:
 		return
-	var x0: float = float(tx) * TILE
+	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
-	var z0: float = float(ty) * TILE
+	var z0: float = _world_z(ty)
 	var z1: float = z0 + TILE
 	var low: float = float(base)
 	# The face's own bottom edge, read left to right from outside the way `_quad`
@@ -2066,42 +2119,95 @@ func _ledge_at(tx: int, ty: int) -> int:
 	return _ledge[ty * _size.x + tx]
 
 
-## What lies past the edge of the map: the FLOOR at that edge, carried outward.
+## What lies past the edge of the map, in two parts: the RING, which is the
+## border block STOOD UP, and the SKIRT beyond it, which is that ring's own floor
+## carried out to the horizon.
 ##
-## A route that stops dead a few cells past its edge is the one thing a
-## perspective view shows that a tile page never had to answer for, and a fight
-## staged near an edge is shot against sky. So the ground runs on. Only the
-## ground: the tree line or the fence a map ends in is a thing standing ON the
-## floor, and repeating it outward would build a wall around the world.
+## The ring is the cartridge's own answer and there was none before: eighteen maps
+## end in a tree line, sixteen in a hedge, twenty in open sea. The skirt is what
+## keeps the world from stopping dead a few cells out, which is the one thing a
+## perspective view shows that a tile page never had to answer for.
 ##
-## The nearest flat tile inward from the edge is that floor, which is why a
-## shoreline carries the water out rather than the beach.
+## HOW DEEP the ring goes is decided by WHAT IT BUYS, and for most maps that is
+## one block. A border block that lies FLAT, which is open ground on sixteen maps
+## and open sea on twenty, is drawn to the horizon by the skirt already: one
+## block of ring is enough to put the border block's own floor under it, and the
+## skirt finds that floor rather than the map's own edge, so a coast now runs out
+## as sea instead of as beach. A CARVED drawing stops at one block for a
+## different reason, which is the bill: a hedge bush is about 170 triangles a
+## tile, and a ring eight blocks deep of it put 2.3M triangles round one town
+## against the 246k the town itself costs, and took the game from 9.3M to 37M.
+##
+## A STAMPED MODEL is the one thing worth repeating. A tree emits no geometry at
+## all, only an instance, so eighteen maps that end in a tree line can really end
+## in a wood four blocks deep. Deeper again is free to draw and is not free to
+## RESOLVE: the ring is resolved with the map and that pass is not sliced over
+## frames, so eight blocks put the largest map's resolve from 78 ms to 186.
+##
+## Both depths are a whole number of BLOCKS on purpose: the ring is the border
+## block repeated, and a drawing anchored to the block grid inside the map has to
+## stay anchored to it outside.
 ##
 ## OUT OF DOORS ONLY. A room ends at its walls and there is nothing past them:
-## carrying a floor out of a house would lay its lino across the void it is
+## carrying anything out of a house would lay its lino across the void it is
 ## drawn against. The host is what says which a map is.
+const RING_TILES: int = 4
+const RING_TILES_MODELLED: int = 16
 const BORDER_TILES: int = 32
-## How far in from the edge to look for it before giving up.
-const BORDER_REACH: int = 8
+## How far in from the skirt's edge to look for the floor before giving up. Far
+## enough to cross the ring, since a hedge ring has no floor of its own and the
+## map's own edge is what answers for it.
+const BORDER_REACH: int = 12
 var _border: Dictionary = {}
 var _outside: bool = false
 
 
-func _emit_border(tx: int, ty: int, atlas: RefCounted) -> void:
+## How deep this map's ring goes, read off the block that fills it.
+##
+## Asked of the block ONE past the map's north-west corner, which is the ring
+## wherever the map has no connection there, and of every one of its sixteen
+## tiles: the deep ring is only worth its resolve where the whole block is
+## stamped, and a block mixing a model with carved geometry is not. Nothing in
+## the game mixes shape classes in a border block, but the rule costs nothing and
+## does not depend on that staying true.
+func _ring_depth(source: RefCounted, shape: RefCounted) -> int:
+	for row: int in RomLayout.MAP_BLOCK_TILE_WIDTH:
+		for column: int in RomLayout.MAP_BLOCK_TILE_WIDTH:
+			var tile: int = source.tile_at(column - RING_TILES, row - RING_TILES)
+			if tile < 0:
+				continue
+			var shape_class: StringName = shape.at(
+				tile,
+				source.permission_at(Vector2i(
+					(column - RING_TILES) >> 1, (row - RING_TILES) >> 1
+				))
+			)
+			if not shape.is_model(shape_class):
+				return RING_TILES
+	return RING_TILES_MODELLED
+
+
+## The floor carried out past the ring, as one flat quad per tile.
+func _emit_skirt(tx: int, ty: int, atlas: RefCounted) -> void:
 	var edge := Vector2i(clampi(tx, 0, _size.x - 1), clampi(ty, 0, _size.y - 1))
 	var key: int = edge.y * _size.x + edge.x
 	if not _border.has(key):
-		_border[key] = _border_floor(edge)
+		_border[key] = _skirt_floor(edge)
 	var floor_at: Vector2i = _border[key]
 	if floor_at.x < 0:
 		return
 	_face_top(tx, ty, float(floor_at.y), atlas.uv(floor_at.x), SHADE_TOP_FLAT)
 
 
-## The tile id and height of the floor at one edge position, as a Vector2i, or a
-## negative tile where the edge is nothing but structures for as far as this
-## looks.
-func _border_floor(edge: Vector2i) -> Vector2i:
+## The tile id and height of the floor at one grid edge position, as a Vector2i.
+## A shoreline carries the water out rather than the beach.
+##
+## A column that meets nothing but structures for as far as this looks falls back
+## to the commonest floor anywhere along the edge, rather than to nothing: a town
+## whose north side is eight tiles of building used to open a hole in the ground
+## plane behind it, and a hole in the ground reads as a hole in the world where a
+## wrong patch of grass reads as grass.
+func _skirt_floor(edge: Vector2i) -> Vector2i:
 	var inward := Vector2i(
 		1 if edge.x == 0 else (-1 if edge.x == _size.x - 1 else 0),
 		1 if edge.y == 0 else (-1 if edge.y == _size.y - 1 else 0)
@@ -2113,13 +2219,41 @@ func _border_floor(edge: Vector2i) -> Vector2i:
 		var index: int = at.y * _size.x + at.x
 		if _art[index] == ART_FLAT and _tiles[index] >= 0:
 			return Vector2i(_tiles[index], _heights[index])
-	return Vector2i(-1, 0)
+	return _commonest_edge_floor()
+
+
+var _edge_floor := Vector2i(-2, 0)
+
+
+## Counted over the MAP's own perimeter and not the grid's, which is the ring: a
+## hedge ring has no floor in it anywhere, which is the case this exists for.
+func _commonest_edge_floor() -> Vector2i:
+	if _edge_floor.x != -2:
+		return _edge_floor
+	var counts: Dictionary = {}
+	var best: int = 0
+	_edge_floor = Vector2i(-1, 0)
+	var box := Rect2i(_margin, _map_size)
+	for ty: int in range(box.position.y, box.end.y):
+		for tx: int in range(box.position.x, box.end.x):
+			if tx != box.position.x and ty != box.position.y \
+					and tx != box.end.x - 1 and ty != box.end.y - 1:
+				continue
+			var index: int = ty * _size.x + tx
+			if _art[index] != ART_FLAT or _tiles[index] < 0:
+				continue
+			var key: int = _tiles[index] * 1024 + _heights[index] + 512
+			counts[key] = int(counts.get(key, 0)) + 1
+			if int(counts[key]) > best:
+				best = int(counts[key])
+				_edge_floor = Vector2i(_tiles[index], _heights[index])
+	return _edge_floor
 
 
 func _face_top(tx: int, ty: int, y: float, uv: Rect2, shade: Color) -> void:
-	var x0: float = float(tx) * TILE
+	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
-	var z0: float = float(ty) * TILE
+	var z0: float = _world_z(ty)
 	var z1: float = z0 + TILE
 	_quad(
 		Vector3(x0, y, z1), Vector3(x1, y, z1), Vector3(x1, y, z0), Vector3(x0, y, z0),
@@ -2137,9 +2271,9 @@ func _side(
 ) -> void:
 	if neighbour >= here:
 		return
-	var x0: float = float(tx) * TILE
+	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
-	var z0: float = float(ty) * TILE
+	var z0: float = _world_z(ty)
 	var z1: float = z0 + TILE
 	for step: int in (here - neighbour) / BAND:
 		var low: float = float(neighbour + step * BAND)

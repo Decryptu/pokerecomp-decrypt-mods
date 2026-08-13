@@ -183,13 +183,29 @@ other.
 
 ## Past the edge of the map
 
-Out of doors, the ground runs on for another thirty-two tiles rather than
-stopping dead, so a route ends at a horizon instead of at a cliff of nothing, and
-a fight staged near an edge is not shot against sky. What is carried out is the
-FLOOR at that edge and nothing else: the tree line or the fence a map ends in is
-a thing standing on the floor, and repeating it outward would build a wall around
-the world. The floor is the nearest flat tile inward from the edge, which is why
-a shoreline carries the water out and not the beach.
+Past its edge, the cartridge repeats the map's own BORDER BLOCK, and so does
+this. It is stood up rather than flattened: eighteen maps end in a tree line,
+sixteen in a hedge, twenty in open sea. The ring is not painted on afterwards
+either. The map is resolved INSIDE it, so a tree out there is measured, masked,
+modelled and stamped by the same code that does it inside the map, and the seam
+between the two is skirted like any other change of height. The world is still
+measured from the map's own corner.
+
+How deep the ring goes is decided by what it buys. One block for most of them; a
+flat border gains nothing from more, because the floor beyond is carried out to
+the horizon anyway, and gains everything from one, because that floor is now the
+BORDER's rather than the map's own edge, so a coast runs out as sea and not as
+beach. Four blocks where the block is a stamped model, since a tree emits no
+geometry at all and a route can really end in a wood. A carved drawing stays at
+one block because of what repeating it costs: a hedge bush is about 170 triangles
+a tile.
+
+Beyond the ring the floor runs on for thirty-two tiles, so a route ends at a
+horizon instead of at a cliff of nothing and a fight staged near an edge is not
+shot against sky. That floor is the nearest flat tile inward, which is why a
+shoreline carries the water out and not the beach, and where a column meets
+nothing but structures it takes the commonest floor along the map's perimeter
+rather than leaving a hole.
 
 Out of doors only: a room ends at its walls and there is nothing past them, so
 carrying a floor out of a house would lay its lino across the void it is drawn

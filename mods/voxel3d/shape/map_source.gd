@@ -51,24 +51,44 @@ func size_cells() -> Vector2i:
 	return Vector2i(_map.width_blocks, _map.height_blocks) * RomLayout.MAP_BLOCK_CELL_WIDTH
 
 
-## The graphics tile id at a tile position, or -1 outside the map.
+## The graphics tile id at a tile position, PAST THE MAP EDGE AS WELL.
+##
+## Past the edge the cartridge draws the map's own border block, or the
+## neighbouring map's art where there is a connection, and it is the same answer
+## the 2D view is drawn from: `drawn_block_at` is the host's own fold of the two
+## and `visible_tile_indices` goes through it for every tile of every frame.
 func tile_at(tile_x: int, tile_y: int) -> int:
-	if _world != null:
-		return _world.tile_index_at(tile_x, tile_y)
 	if _map == null or _tileset == null:
 		return -1
-	var width: int = _map.width_blocks * RomLayout.MAP_BLOCK_TILE_WIDTH
-	var height: int = _map.height_blocks * RomLayout.MAP_BLOCK_TILE_WIDTH
-	if tile_x < 0 or tile_y < 0 or tile_x >= width or tile_y >= height:
-		return -1
-	@warning_ignore("integer_division")
-	var block: int = _map.block_at(
-		tile_x / RomLayout.MAP_BLOCK_TILE_WIDTH, tile_y / RomLayout.MAP_BLOCK_TILE_WIDTH
+	var block: int = _block_at(
+		floori(float(tile_x) / float(RomLayout.MAP_BLOCK_TILE_WIDTH)),
+		floori(float(tile_y) / float(RomLayout.MAP_BLOCK_TILE_WIDTH))
 	)
+	if block < 0:
+		return -1
 	return _tileset.tile_index(
 		block,
-		(tile_y & 3) * RomLayout.MAP_BLOCK_TILE_WIDTH + (tile_x & 3),
+		posmod(tile_y, RomLayout.MAP_BLOCK_TILE_WIDTH) * RomLayout.MAP_BLOCK_TILE_WIDTH
+			+ posmod(tile_x, RomLayout.MAP_BLOCK_TILE_WIDTH),
 	)
+
+
+## The block drawn at a block position, inside the map or past its edge.
+##
+## A world folds in its CONNECTIONS as well, which is what makes a neighbouring
+## route's own art carry on past the seam instead of the border block. Reading
+## the records there is the map's border block alone: the connection padding is
+## assembled by the host's own FillMapConnections order and is not a renderer's
+## to work out. See the engine request.
+func _block_at(block_x: int, block_y: int) -> int:
+	var inside: bool = block_x >= 0 and block_y >= 0 \
+		and block_x < _map.width_blocks and block_y < _map.height_blocks
+	if _world != null:
+		return _world.drawn_block_at(block_x, block_y)
+	if inside:
+		var block: int = _map.block_at(block_x, block_y)
+		return _map.border_block if block == 0 else block
+	return _map.border_block
 
 
 ## Whether the map is out of doors, which is the host's own question to answer:
@@ -85,17 +105,31 @@ func outside() -> bool:
 ## `Gen2WorldCollision.allows_hop` decodes them against the cartridge's own
 ## .TryJump. Nothing in the tile layer says it.
 func code_at(cell: Vector2i) -> int:
-	if _world != null:
-		return _world.collision_code_at(cell)
 	if _map == null:
 		return -1
+	if cell.x < 0 or cell.y < 0 \
+			or cell.x >= _map.width_blocks * RomLayout.MAP_BLOCK_CELL_WIDTH \
+			or cell.y >= _map.height_blocks * RomLayout.MAP_BLOCK_CELL_WIDTH:
+		# Past the edge the drawn block carries its own collision, which is what
+		# says whether the ring is walked on or stood up. It decides a SHAPE and
+		# nothing else: the player never stands there.
+		if _tileset == null:
+			return -1
+		return _tileset.collision_index(
+			_block_at(
+				floori(float(cell.x) / float(RomLayout.MAP_BLOCK_CELL_WIDTH)),
+				floori(float(cell.y) / float(RomLayout.MAP_BLOCK_CELL_WIDTH))
+			),
+			posmod(cell.x, RomLayout.MAP_BLOCK_CELL_WIDTH),
+			posmod(cell.y, RomLayout.MAP_BLOCK_CELL_WIDTH)
+		)
+	if _world != null:
+		return _world.collision_code_at(cell)
 	return _map.collision_at(cell.x, cell.y)
 
 
 ## The walk cell's collision permission, which is what decides a shape.
 func permission_at(cell: Vector2i) -> int:
-	if _world != null:
-		return _world.collision_permission_at(cell)
 	if _map == null:
 		return Gen2WorldCollision.WALL_TILE
-	return Gen2WorldCollision.permission_for(_map.collision_at(cell.x, cell.y))
+	return Gen2WorldCollision.permission_for(code_at(cell))

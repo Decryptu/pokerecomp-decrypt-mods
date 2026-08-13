@@ -138,7 +138,9 @@ func _initialize() -> void:
 				var faces: bool = false
 				for ty: int in range(cy * CELL_TILES, (cy + 1) * CELL_TILES):
 					for tx: int in range(cx * CELL_TILES, (cx + 1) * CELL_TILES):
-						var at: int = ty * size.x + tx
+						var at: int = mesher.grid_index(Vector2i(tx, ty))
+						if at < 0:
+							continue
 						if shape.is_cliff(mesher._tiles[at]):
 							faces = true
 						if mesher._art[at] != ART_FLAT:
