@@ -17,7 +17,12 @@ extends SceneTree
 ##       [--write]
 
 const MOD := "user://mods/voxel3d"
-const OUT := "res://../../GitHub/pokerecomp-decrypt-mods/mods/voxel3d/shape/levels.gd"
+## Written back into the INSTALLED mod, which is where this tool is reading every
+## other script from anyway. On a development machine that path is a symlink to
+## the checkout, so the generated file lands in the repository; anywhere else it
+## lands beside the mod it belongs to. It used to name one machine's own
+## directory layout, which existed for exactly one person.
+const OUT := "%s/shape/levels.gd" % MOD
 ## A cell with no level: rock, a wall, or anything off the walk grid.
 const NONE := "."
 
