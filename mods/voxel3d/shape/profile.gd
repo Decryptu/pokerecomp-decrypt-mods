@@ -371,11 +371,214 @@ const OBJECTS: Dictionary = {
 ## is false, and it is the one thing a person has to say: the reviewer read
 ## tileset 7's as going "from right to left to go underground", which is west.
 const STAIRS: Dictionary = {
+	5: [
+		{
+			&"tiles": [[76, 77], [92, 93]],
+			&"down": true,
+			&"step": Vector2i(-1, 0),
+			&"steps": 4,
+		},
+	],
+	6: [
+		{
+			&"tiles": [[76, 77], [92, 93]],
+			&"down": false,
+			&"step": Vector2i(0, -1),
+			&"steps": 4,
+		},
+		{
+			&"tiles": [[78, 79], [94, 95]],
+			&"down": true,
+			&"step": Vector2i(0, -1),
+			&"steps": 4,
+		},
+	],
 	7: [
 		{
 			&"tiles": [[66, 67], [82, 83]],
 			&"down": true,
 			&"step": Vector2i(-1, 0),
+			&"steps": 4,
+		},
+	],
+	8: [
+		{
+			&"tiles": [[88, 89], [90, 91]],
+			&"down": true,
+			&"step": Vector2i(1, 0),
+			&"steps": 4,
+		},
+		{
+			&"tiles": [[80, 81], [82, 83]],
+			&"down": false,
+			&"step": Vector2i(-1, 0),
+			&"steps": 4,
+		},
+	],
+	9: [
+		{
+			&"tiles": [[3, 4], [30, 31]],
+			&"down": true,
+			&"step": Vector2i(-1, 0),
+			&"steps": 4,
+		},
+	],
+	11: [
+		{
+			&"tiles": [[16, 17], [32, 33]],
+			&"down": false,
+			&"step": Vector2i(-1, 0),
+			&"steps": 4,
+		},
+		{
+			&"tiles": [[48, 49], [24, 25]],
+			&"down": true,
+			&"step": Vector2i(1, 0),
+			&"steps": 4,
+		},
+		{
+			&"tiles": [[50, 51], [67, 68]],
+			&"down": false,
+			&"step": Vector2i(0, -1),
+			&"steps": 4,
+		},
+	],
+	13: [
+		{
+			&"tiles": [[10, 11], [26, 27]],
+			&"down": false,
+			&"step": Vector2i(0, -1),
+			&"steps": 4,
+		},
+		{
+			&"tiles": [[8, 9], [24, 25]],
+			&"down": true,
+			&"step": Vector2i(0, -1),
+			&"steps": 3,
+		},
+		{
+			&"tiles": [[163, 164], [179, 180]],
+			&"down": true,
+			&"step": Vector2i(0, -1),
+			&"steps": 4,
+		},
+	],
+	15: [
+		{
+			&"tiles": [[64, 65], [66, 67]],
+			&"down": true,
+			&"step": Vector2i(1, 0),
+			&"steps": 4,
+		},
+		{
+			&"tiles": [[44, 45], [60, 61]],
+			&"down": false,
+			&"step": Vector2i(-1, 0),
+			&"steps": 4,
+		},
+	],
+	16: [
+		{
+			&"tiles": [[76, 77], [92, 93]],
+			&"down": true,
+			&"step": Vector2i(-1, 0),
+			&"steps": 4,
+		},
+	],
+	18: [
+		{
+			&"tiles": [[84, 85], [84, 85]],
+			&"down": false,
+			&"step": Vector2i(0, -1),
+			&"steps": 4,
+		},
+	],
+	19: [
+		{
+			&"tiles": [[39, 40], [55, 56]],
+			&"down": true,
+			&"step": Vector2i(-1, 0),
+			&"steps": 4,
+		},
+		{
+			&"tiles": [[41, 42], [57, 58]],
+			&"down": false,
+			&"step": Vector2i(1, 0),
+			&"steps": 4,
+		},
+	],
+	20: [
+		{
+			&"tiles": [[64, 65], [80, 81]],
+			&"down": true,
+			&"step": Vector2i(0, -1),
+			&"steps": 4,
+		},
+	],
+	23: [
+		{
+			&"tiles": [[12, 13], [28, 29]],
+			&"down": false,
+			&"step": Vector2i(0, -1),
+			&"steps": 3,
+		},
+		{
+			&"tiles": [[14, 15], [30, 31]],
+			&"down": true,
+			&"step": Vector2i(0, 1),
+			&"steps": 3,
+		},
+	],
+	24: [
+		{
+			&"tiles": [[54, 55], [54, 55]],
+			&"down": false,
+			&"step": Vector2i(0, -1),
+			&"steps": 4,
+		},
+	],
+	27: [
+		{
+			&"tiles": [[14, 15], [30, 31]],
+			&"down": true,
+			&"step": Vector2i(0, -1),
+			&"steps": 4,
+		},
+		{
+			&"tiles": [[12, 13], [28, 29]],
+			&"down": true,
+			&"step": Vector2i(0, -1),
+			&"steps": 4,
+		},
+	],
+	28: [
+		{
+			&"tiles": [[42, 43], [58, 59]],
+			&"down": false,
+			&"step": Vector2i(1, 0),
+			&"steps": 3,
+		},
+		{
+			&"tiles": [[44, 45], [60, 61]],
+			&"down": true,
+			&"step": Vector2i(-1, 0),
+			&"steps": 3,
+		},
+	],
+	29: [
+		{
+			&"tiles": [[174, 175], [190, 191]],
+			&"down": false,
+			&"step": Vector2i(0, -1),
+			&"steps": 4,
+		},
+	],
+	30: [
+		{
+			&"tiles": [[54, 55], [54, 55]],
+			&"down": false,
+			&"step": Vector2i(0, -1),
+			&"steps": 4,
 		},
 	],
 }

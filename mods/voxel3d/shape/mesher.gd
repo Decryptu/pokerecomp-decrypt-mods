@@ -1196,9 +1196,12 @@ func _measure_objects(shape: RefCounted) -> void:
 						_object_over[at] = over
 
 
-## How far a flight rises or falls, in world pixels, and in how many steps. One
-## walk cell each way on a 45 degree ramp, which is the reviewer's own reading of
-## the drawing: four steps, four pixels of tread and four of riser apiece.
+## How far a flight rises or falls, in world pixels. One walk cell each way, on a
+## 45 degree ramp, which is the reviewer's own reading of the drawing.
+##
+## HOW MANY STEPS is the drawing's own business and they counted them one by one:
+## most are four, several are three and the grand staircases are five. So it is
+## declared per flight and the tread is the rise divided by it.
 const STAIR_RISE: int = 16
 const STAIR_STEPS: int = 4
 
@@ -2168,18 +2171,21 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 	var base: float = float(entry[2])
 	var step: Vector2i = flight[&"step"]
 	var down: bool = bool(flight[&"down"])
-	var rise: float = float(STAIR_RISE) / float(STAIR_STEPS)
+	var steps: int = int(flight.get(&"steps", STAIR_STEPS))
+	var rise: float = float(STAIR_RISE) / float(steps)
 	var span: int = CELL_TILES * int(TILE)
-	for tread: int in STAIR_STEPS:
+	if not down:
+		_stair_head(start, base, step, atlas)
+	for tread: int in steps:
 		# Where this step sits inside the cell, in the cell's own pixels. The
 		# descent runs along whichever axis `step` names, from the edge the flight
 		# is entered by, and the step is the full width of the cell across it.
-		var from: int = tread * int(rise)
+		var from: int = int(float(tread) * rise)
 		var box := Rect2i(0, 0, span, span)
 		if step.x != 0:
-			box = Rect2i(from if step.x > 0 else span - from - int(rise), 0, int(rise), span)
+			box = Rect2i(from if step.x > 0 else span - from - roundi(rise), 0, roundi(rise), span)
 		else:
-			box = Rect2i(0, from if step.y > 0 else span - from - int(rise), span, int(rise))
+			box = Rect2i(0, from if step.y > 0 else span - from - roundi(rise), span, roundi(rise))
 		var height: float = base + float(tread + 1) * rise * (-1.0 if down else 1.0)
 		var above: float = height + rise * (1.0 if down else -1.0)
 		# The riser stands at the step's own entry edge, facing back the way the
@@ -2198,11 +2204,21 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 			var x1: float = x0 + float(piece.size.x)
 			var z0: float = _world_z(start.y) + float(piece.position.y)
 			var z1: float = z0 + float(piece.size.y)
-			if tread < STAIR_STEPS - 1 or not down:
+			if tread < steps - 1 or not down:
 				_quad(
 					Vector3(x0, height, z1), Vector3(x1, height, z1),
 					Vector3(x1, height, z0), Vector3(x0, height, z0),
 					Vector3.UP, uv, SHADE_TOP_FLAT
+				)
+			# THE FLANKS, and ONLY AN UP FLIGHT NEEDS THEM. A flight cut into the
+			# floor stands inside a pit whose four walls the neighbours have already
+			# skirted, full depth, exactly where these would go; drawing them again
+			# would be two coincident faces. A flight standing ON the floor has no
+			# such walls, so without these you see under its own treads.
+			if not down:
+				_stair_flank(
+					step, base, height, piece, box,
+					Vector2(x0, z0), Vector2(x1, z1), uv
 				)
 			# The riser is the same strip of drawing stood on end, and only the
 			# piece of it that this tile actually carries.
@@ -2236,6 +2252,91 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 						Vector3(x1, high, rz), Vector3(x0, high, rz),
 						Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
 					)
+
+
+## The head of a flight that stands on the floor: the wall under its topmost
+## tread, at the edge of the cell the climb ends at. A pit needs none, its
+## neighbours having skirted every side of it already.
+func _stair_head(start: Vector2i, base: float, step: Vector2i, atlas: RefCounted) -> void:
+	var span: int = CELL_TILES * int(TILE)
+	var edge: int = int(TILE)
+	var high: float = base + float(STAIR_RISE)
+	for piece: int in CELL_TILES:
+		var along: int = piece * edge
+		var tile: int = _tile_at(
+			start.x + (CELL_TILES - 1 if step.x > 0 else (0 if step.x < 0 else piece)),
+			start.y + (CELL_TILES - 1 if step.y > 0 else (0 if step.y < 0 else piece))
+		)
+		var uv: Rect2 = atlas.uv_box(tile, Rect2i(0, 0, edge, edge))
+		if step.x != 0:
+			var x: float = _world_x(start.x) + float(span if step.x > 0 else 0)
+			var z0: float = _world_z(start.y) + float(along)
+			var z1: float = z0 + float(edge)
+			if step.x > 0:
+				_quad(
+					Vector3(x, base, z1), Vector3(x, base, z0),
+					Vector3(x, high, z0), Vector3(x, high, z1),
+					Vector3(1.0, 0.0, 0.0), uv, SHADE_SIDE
+				)
+			else:
+				_quad(
+					Vector3(x, base, z0), Vector3(x, base, z1),
+					Vector3(x, high, z1), Vector3(x, high, z0),
+					Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
+				)
+			continue
+		var z: float = _world_z(start.y) + float(span if step.y > 0 else 0)
+		var x0: float = _world_x(start.x) + float(along)
+		var x1: float = x0 + float(edge)
+		if step.y > 0:
+			_quad(
+				Vector3(x0, base, z), Vector3(x1, base, z),
+				Vector3(x1, high, z), Vector3(x0, high, z),
+				Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
+			)
+		else:
+			_quad(
+				Vector3(x1, base, z), Vector3(x0, base, z),
+				Vector3(x0, high, z), Vector3(x1, high, z),
+				Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
+			)
+
+
+## The two sides of one step of a flight that stands on the floor, from the floor
+## up to that step's own tread, and only where the step reaches the edge of its
+## cell. Nothing sees the sides of the steps in between.
+func _stair_flank(
+	step: Vector2i, base: float, height: float, piece: Rect2i, box: Rect2i,
+	near: Vector2, far: Vector2, uv: Rect2
+) -> void:
+	var low: float = minf(base, height)
+	var high: float = maxf(base, height)
+	if step.x != 0:
+		if piece.position.y == box.position.y:
+			_quad(
+				Vector3(far.x, low, near.y), Vector3(near.x, low, near.y),
+				Vector3(near.x, high, near.y), Vector3(far.x, high, near.y),
+				Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
+			)
+		if piece.end.y == box.end.y:
+			_quad(
+				Vector3(near.x, low, far.y), Vector3(far.x, low, far.y),
+				Vector3(far.x, high, far.y), Vector3(near.x, high, far.y),
+				Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
+			)
+		return
+	if piece.position.x == box.position.x:
+		_quad(
+			Vector3(near.x, low, near.y), Vector3(near.x, low, far.y),
+			Vector3(near.x, high, far.y), Vector3(near.x, high, near.y),
+			Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
+		)
+	if piece.end.x == box.end.x:
+		_quad(
+			Vector3(far.x, low, far.y), Vector3(far.x, low, near.y),
+			Vector3(far.x, high, near.y), Vector3(far.x, high, far.y),
+			Vector3(1.0, 0.0, 0.0), uv, SHADE_SIDE
+		)
 
 
 ## [param box] cut on the 8 px tile grid, since a texel can only be sampled out
