@@ -99,6 +99,15 @@ PAGE = """<!doctype html>
     their own drawing already.
   </p>
   <p class="hint">
+    <b>A cell with a wave on it is water</b>, taken from the cartridge's own
+    collision, so you never have to say which cells those are. What a level
+    painted on one means is the level of the lake's SURFACE, and that is the one
+    thing about a lake only you can settle: a lake with shores at different
+    levels cannot exist, so you pick the one it sits at. The 8 pixels it is
+    recessed by is a rendering choice of mine, not the cartridge's, and is not a
+    level.
+  </p>
+  <p class="hint">
     <b>Whole levels only, and water and ledges are not painted.</b> A level is 16
     pixels. There is no half, because these maps are not consistent spaces: one
     lake has ground at different half heights all the way round it, and a half
@@ -226,6 +235,20 @@ function draw() {
         g.arc(x + s - Math.max(3, s * 0.14), y + Math.max(3, s * 0.14),
               Math.max(2, s * 0.075), 0, 6.284);
         g.fill();
+      }
+      // Water, marked and never asked for: the cartridge's own collision says
+      // which cells these are. A level painted on one is the level of the lake's
+      // SURFACE, which is the one thing about a lake a person has to choose.
+      if (m.water && m.water[cy][cx]) {
+        g.strokeStyle = "rgba(130,200,255,0.85)"; g.lineWidth = Math.max(1, s / 16);
+        g.beginPath();
+        const my = y + s * 0.78;
+        for (let i = 0; i <= 4; i++) {
+          const px = x + s * (0.18 + 0.16 * i);
+          if (i === 0) g.moveTo(px, my);
+          else g.quadraticCurveTo(px - s * 0.08, my + (i % 2 ? s * 0.07 : -s * 0.07), px, my);
+        }
+        g.stroke();
       }
       g.strokeStyle = "rgba(0,0,0,0.35)"; g.lineWidth = 1;
       g.strokeRect(x + 0.5, y + 0.5, s - 1, s - 1);

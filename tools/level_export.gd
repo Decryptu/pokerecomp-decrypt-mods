@@ -106,10 +106,21 @@ func _initialize() -> void:
 		)
 		var levels: Array = []
 		var walls: Array = []
+		var waters: Array = []
 		for cy: int in cells.y:
 			var level_row: Array = []
 			var wall_row: Array = []
+			var water_row: Array = []
 			for cx: int in cells.x:
+				# SHOWN, never asked for. Which cells are water is the cartridge's
+				# own collision, one permission byte per cell, and a person
+				# re-stating it by hand could only ever disagree with it. The page
+				# marks them so a level painted there is known to be the level of
+				# the lake's SURFACE.
+				water_row.append(
+					1 if source.permission_at(Vector2i(cx, cy))
+					== Gen2WorldCollision.WATER_TILE else 0
+				)
 				# A cell's LEVEL is the GROUND in it and nothing else. Only flat art
 				# standing at or above the plane counts: a bed, a counter and a
 				# ledge are `top` art and are furniture on a floor rather than a
@@ -147,6 +158,7 @@ func _initialize() -> void:
 				wall_row.append(0)
 			levels.append(level_row)
 			walls.append(wall_row)
+			waters.append(water_row)
 
 		var record: Dictionary = {
 			"group": map.group,
@@ -159,6 +171,7 @@ func _initialize() -> void:
 			"art": "level_%d_%d.png" % [map.group, map.number],
 			"levels": levels,
 			"walls": walls,
+			"water": waters,
 		}
 		var path: String = "%s/level_%d_%d.json" % [out, map.group, map.number]
 		var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
