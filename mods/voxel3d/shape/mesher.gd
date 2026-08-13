@@ -1175,6 +1175,15 @@ func _measure_objects(shape: RefCounted) -> void:
 					continue
 				var index: int = _objects.size()
 				_objects.append([object, Vector2i(tx, ty), across])
+				# EVERY FLOOR IS READ BEFORE ANY TILE IS MARKED. `_cell_floor` takes
+				# the highest FLAT tile in the cell, and marking a tile a cutout takes
+				# it out of that answer, so reading and writing in one pass lets the
+				# first tile of an object change what the next three measure. Flat
+				# rooms hide it; a raised one would tilt the object.
+				var floors := PackedInt32Array()
+				for row: int in across.y:
+					for column: int in across.x:
+						floors.append(_cell_floor((tx + column) >> 1, (ty + row) >> 1))
 				for row: int in across.y:
 					for column: int in across.x:
 						var at: int = (ty + row) * _size.x + tx + column
@@ -1186,9 +1195,7 @@ func _measure_objects(shape: RefCounted) -> void:
 						_cliff[at] = 0
 						_front[at] = 0
 						_lip[at] = 0
-						_heights[at] = _cell_floor(
-							(tx + column) >> 1, (ty + row) >> 1
-						)
+						_heights[at] = floors[row * across.x + column]
 						var over: PackedInt32Array = _object_over.get(
 							at, PackedInt32Array()
 						)
