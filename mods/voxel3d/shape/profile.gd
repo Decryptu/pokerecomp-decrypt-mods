@@ -426,10 +426,9 @@ const TILESETS: Dictionary = {
 		&"planter": [8, 9, 10, 11, 24, 25, 26, 27],
 	},
 	# TALL GRASS, pinned from the full pass's own words. Which CELLS are tall
-	# grass is the cartridge's to say and it says it in the collision byte, but
-	# the host offers no accessor for those four codes yet: see the engine
-	# request. Until it does, the tiles are named from their drawings, which is
-	# what the profile is for anyway.
+	# grass is the cartridge's own answer and `Gen2WorldCollision.is_grass` gives
+	# it, so these pins are an OVERRIDE and no longer the only reading: they stand
+	# a drawing up where no collision code says so.
 	1: {
 		&"tall_grass": [4],
 		# THE CONIFER, and tileset 1 is 29 maps: more of the game's outdoors than
@@ -440,8 +439,18 @@ const TILESETS: Dictionary = {
 		# short one. `SPANS` declares the tall one and the placement collapses it.
 		&"tree": [30, 31, 46, 47, 62, 63],
 	},
+	# THE SAME TREE AGAIN, and tilesets 2 and 4 draw it out of the same six slots
+	# tileset 1 does: a top at [30,31], a foot at [62,63] and a middle that makes
+	# a tall one, which is [46,47] there and [19,21] here. Every block that places
+	# it is the conifer's own arrangement, top over middle over middle over foot
+	# for the tall one and top over foot for the short, so `SPANS` and the repeat
+	# rule collapse it exactly as they do tileset 1's.
 	2: {
 		&"tall_grass": [4],
+		&"tree": [30, 31, 19, 21, 62, 63],
+	},
+	4: {
+		&"tree": [30, 31, 19, 21, 62, 63],
 	},
 	17: {
 		&"tall_grass": [87],
