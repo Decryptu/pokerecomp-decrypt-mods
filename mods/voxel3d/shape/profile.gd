@@ -336,6 +336,22 @@ const OBJECTS: Dictionary = {
 			&"height": 6,
 		},
 	],
+	14: [
+		# THE SAME CHAIR AGAIN, on a tileset that draws it 12 by 11 filling a whole
+		# walk cell rather than straddling four tiles, and lays it out in a
+		# chequerboard with the floor. It shares no tile with anything, so what it
+		# gains here is not the finding but the SIZE: carved as a silhouette it stood
+		# its full drawn height on the class's own depth and read as a bar stool, and
+		# it is the chair the reviewer already settled at 6 by 6.
+		{
+			&"name": &"chair",
+			&"tiles": [[10, 11], [26, 27]],
+			&"window": Rect2i(2, 3, 12, 11),
+			&"top": 0,
+			&"depth": 6,
+			&"height": 6,
+		},
+	],
 }
 
 ## The tiles that draw the FACE of a terrain cliff, per tileset number.
