@@ -55,6 +55,9 @@ var _shape_tileset: int = -1
 ## [constant Vector2i.MAX] is nothing built yet.
 var _draw_cells: int = 0
 var _window_centre := Vector2i.MAX
+## Whether the map being drawn is out of doors, which decides both how far the
+## ground runs past its edge and whether there is a sky behind it at all.
+var _outside: bool = true
 
 ## How much of a frame the geometry may take while a build is in flight, in
 ## microseconds. A town is 200 ms whole, which is a visible stop on every warp
@@ -138,7 +141,7 @@ func refresh_animation() -> void:
 		_world.data, _world.current_map, _world.current_tileset,
 		_time_of_day, _animation
 	):
-		_stage.set_background(_atlas.background())
+		_apply_background()
 
 
 func refresh() -> void:
@@ -211,8 +214,17 @@ func _build_atlas() -> bool:
 		_time_of_day, _animation
 	):
 		return false
-	_stage.set_background(_atlas.background())
+	_apply_background()
 	return true
+
+
+## Out of doors the void is sky, banded from the palette's own background. Inside
+## it is what lies past a wall, which is not air: see `atlas.gd:void_color`.
+func _apply_background() -> void:
+	if _outside:
+		_stage.set_background(_atlas.background(), true)
+	else:
+		_stage.set_background(_atlas.void_color(), false)
 
 
 func _rebuild() -> void:
@@ -227,13 +239,16 @@ func _rebuild() -> void:
 	if _shape == null or tileset != _shape_tileset:
 		_shape = _tile_shape_script.new(_profile, tileset)
 		_shape_tileset = tileset
+	# Asked before the atlas, because what is behind a wall depends on it.
+	var source: RefCounted = _map_source_script.new(_world)
+	_outside = source.outside()
 	if _build_atlas():
 		_stage.set_texture(_atlas.texture)
 	_stage.set_time_of_day(_time_of_day)
 	# Resolved once per map, emitted per window: what a tile is and how tall it
 	# stands is a fact about the map, and measuring it through the window would
 	# make a structure's height depend on where the player was standing.
-	_mesher.resolve(_map_source_script.new(_world), _shape)
+	_mesher.resolve(source, _shape)
 	_window_centre = Vector2i.MAX
 	_recentre_window()
 	refresh()

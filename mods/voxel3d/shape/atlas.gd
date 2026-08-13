@@ -151,6 +151,33 @@ func background() -> Color:
 	return _background
 
 
+## What is behind a wall INDOORS: the colour of the place itself, taken down.
+##
+## Out of doors the void past the map is sky and `background()` is what the 2D
+## view fills its margins with. Inside there is no sky, and using the same colour
+## put a bright horizon above the rock in every cave. Nothing in the cartridge
+## names "the colour of stone", so this takes the mean of every texel of the
+## tileset, which is the colour of the place by construction: brown for a cave,
+## whatever a room is made of for a room. Darkened, because it stands for
+## unlit rock BEHIND the wall rather than for the wall's own lit face.
+func void_color() -> Color:
+	if _image == null:
+		return _background.darkened(0.7)
+	var total := Vector3.ZERO
+	var counted: int = 0
+	# Every fourth texel in each direction: a tileset is a few thousand pixels of
+	# the same handful of palette entries and the mean does not move.
+	for y: int in range(0, _image.get_height(), 4):
+		for x: int in range(0, _image.get_width(), 4):
+			var color: Color = _image.get_pixel(x, y)
+			total += Vector3(color.r, color.g, color.b)
+			counted += 1
+	if counted == 0:
+		return _background.darkened(0.7)
+	total /= float(counted)
+	return Color(total.x, total.y, total.z).darkened(0.45)
+
+
 func _indices(
 	data: GameData, tileset: Gen2WorldTileset, animation: Gen2WorldAnimation
 ) -> PackedByteArray:

@@ -201,9 +201,9 @@ func set_texture(texture: Texture2D) -> void:
 
 ## The sky takes the palette's own background, which is the colour the 2D view
 ## fills its margins with, so the two end at the same place. `sky.gd` is what
-## makes a ramp of it.
-func set_background(color: Color) -> void:
-	_sky.set_background(color)
+## makes a ramp of it, and out of doors is the only place a ramp belongs.
+func set_background(color: Color, outside: bool = true) -> void:
+	_sky.set_background(color, outside)
 
 
 func _on_viewport_resized() -> void:

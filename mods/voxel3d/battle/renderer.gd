@@ -210,7 +210,11 @@ func _build_arena() -> void:
 	_stage.set_time_of_day(_context.time_of_day)
 	if _atlas.build(_data, map, tileset, _context.time_of_day):
 		_stage.set_texture(_atlas.texture)
-		_stage.set_background(_atlas.background())
+		# A fight indoors is shot against the room's own walls, not against sky.
+		if source.outside():
+			_stage.set_background(_atlas.background(), true)
+		else:
+			_stage.set_background(_atlas.void_color(), false)
 	# Resolved whole and emitted around the fight. A fight does not move, so the
 	# window is built once and never recentred; the sight lines the arena is
 	# chosen by read the resolved heights, which are the whole map's whatever is

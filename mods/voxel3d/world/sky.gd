@@ -116,7 +116,17 @@ func _init() -> void:
 
 
 ## The map's own background colour, as the two ends of the ramp.
-func set_background(color: Color) -> void:
+##
+## INDOORS THERE IS NO SKY. A room or a cave ends at its walls and what shows
+## past them is not air, so the ramp collapses to one colour and the bands and
+## the dither vanish with it: both ends of a gradient being the same colour is a
+## flat fill, and it needs no second path through the shader to say so. The
+## caller passes the colour it wants there, which is `atlas.gd:void_color`.
+func set_background(color: Color, outside: bool = true) -> void:
+	if not outside:
+		_material.set_shader_parameter("horizon_color", color)
+		_material.set_shader_parameter("zenith_color", color)
+		return
 	_material.set_shader_parameter("horizon_color", color.darkened(HORIZON_DARKEN))
 	_material.set_shader_parameter("zenith_color", color.darkened(ZENITH_DARKEN))
 

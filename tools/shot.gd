@@ -70,9 +70,12 @@ func _initialize() -> void:
 		# rather than a fixed blue that belongs to no map. Overridable, because
 		# what the void behind an INTERIOR should be is an open question and the
 		# only way to put two answers in front of a person is to shoot both.
-		_stage.set_background(
-			Color(args[9]) if args.size() > 9 else atlas.background()
-		)
+		if args.size() > 9:
+			_stage.set_background(Color(args[9]))
+		elif source.outside():
+			_stage.set_background(atlas.background(), true)
+		else:
+			_stage.set_background(atlas.void_color(), false)
 	_stage.set_terrain(mesher.build(source, shape, atlas))
 
 	var focus := Vector3((float(args[3]) + 0.5) * TILE, 0.0, (float(args[4]) + 0.5) * TILE)
