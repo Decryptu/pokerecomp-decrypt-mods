@@ -1113,28 +1113,32 @@ func _structure_mask(
 ## the SURFACE, not a new object. Measured over every map, it is also very
 ## slightly cheaper than splitting per run, 6.066M triangles against 6.087M.
 ##
-## STEPPED, and the reference's own per-pixel chord was tried against this and
-## REJECTED on the picture. `roundTemplate` gives every mask pixel a chord of its
-## row's span circle, `n = 2 * sqrt(hw^2 - dx^2)`, which here means up to seven
-## depths on a bush instead of three. Each depth change exposes another top face,
-## and a top face on a dithered drawing wears a dark texel: a real hedge came out
-## banded with dark shelves and read as chewed rather than round, for 6.5M
-## triangles against 6.1M. Three steps is not a compromise at this scale, it is
-## what the art can carry. The reference's own hull machinery is what makes the
-## finer carve work over there, and it is not here: spray-gap backing, shade
-## classes and a per-band mask.
+## A ROUND CLASS IS AS DEEP AS IT IS WIDE, and its own DEPTH does not cap it.
+## That is the reference's rule stated plainly: "the canvas is NX wide and NX
+## DEEP, a hull is round in plan, so its depth is its width", and its canopy is
+## carved with no cap and no squash at all (`Structures.lua:roundTemplate`, and
+## its call at `|g32|`). The chord is therefore in PIXELS off the row's own
+## width, `n = 2 * sqrt(hw^2 - dx^2)`, and nothing trims it.
 ##
-## The class's own DEPTH is the maximum, not the run's width. A true revolve
-## makes a thing as deep as it is wide, and the reviewer chose against exactly
-## that with three renders of a real hedge in front of them: as deep as wide
-## leaves a gap between rank and rank.
+## Capping it at the class's DEPTH was the fault: it holds the middle of every
+## row at the same few pixels and only lets the ends taper, which is a flat
+## drawing extruded and rounded off at the edges rather than a body. The reviewer
+## caught it from the picture in one line: still a 2D extruded flat model. A bush
+## sixteen pixels wide is now sixteen deep at its widest row and is a ball.
+##
+## DEPTHS still governs the classes that are NOT round, and those are the ones it
+## was measured for: a sign is a plate on a stick and a tombstone a slab. The
+## hedge measurement that chose seven belongs to that older shape and is not a
+## cap on a hull.
+##
+## It is paid for in geometry and the bill is known: 8.30M triangles over every
+## map in the game against 6.07M for the slab, and the worst map's emit goes from
+## 399 ms to 531 ms. The emit is sliced under a frame budget, so what that buys is
+## a map arriving a little later rather than a frame being dropped.
 ##
 ## Every face still wears the FRONT drawing's texel at its own column, which is
 ## the reviewer's call and the right one: the outline of these drawings is dark,
 ## and a naive revolve would paint the whole object its own outline colour.
-const LEVELS: int = 3
-
-
 func _cell_levels(
 	mask: PackedByteArray, span: Vector2i, round_plan: bool, depth: int
 ) -> PackedByteArray:
@@ -1160,11 +1164,9 @@ func _cell_levels(
 		for step: int in range(first, last + 1):
 			if mask[py * span.x + step] == 0:
 				continue
-			var away: float = (float(step) + 0.5 - middle) / radius
-			var chord: float = sqrt(maxf(1.0 - away * away, 0.0))
-			levels[py * span.x + step] = clampi(
-				ceili(chord * float(LEVELS)) * deepest / LEVELS, 1, deepest
-			)
+			var away: float = float(step) + 0.5 - middle
+			var chord: float = 2.0 * sqrt(maxf(radius * radius - away * away, 0.0))
+			levels[py * span.x + step] = clampi(roundi(chord), 1, 255)
 	return levels
 
 
@@ -1275,6 +1277,22 @@ func _drawn(mask: PackedByteArray, span: Vector2i, px: int, py: int) -> bool:
 	return mask[py * span.x + px] == 1
 
 
+## How far a top face may look into the body for a texel that is not outline.
+## Three is half a bush's crown; further and the cap wears the middle of the
+## drawing, which is a different lie from the one being fixed.
+const INTERIOR_REACH: int = 3
+
+
+## A drawn pixel with every neighbour drawn: body rather than silhouette. The
+## drawing's outline is exactly the drawn pixels that fail this.
+func _interior(mask: PackedByteArray, span: Vector2i, px: int, py: int) -> bool:
+	return (
+		_drawn(mask, span, px, py)
+		and _drawn(mask, span, px - 1, py) and _drawn(mask, span, px + 1, py)
+		and _drawn(mask, span, px, py - 1) and _drawn(mask, span, px, py + 1)
+	)
+
+
 func _cutout_box(
 	tx: int, tile: int, atlas: RefCounted, mask: PackedByteArray,
 	origin: Vector2i, span: Vector2i, top: float, box: Rect2i, back: float, front: float
@@ -1317,14 +1335,15 @@ func _cutout_box(
 					run = step
 				elif not open and run >= 0:
 					_cutout_edge(
-						tx, tile, atlas, origin, span, top, box, back, front,
+						tx, tile, atlas, mask, origin, span, top, box, back, front,
 						horizontal, near, run, step
 					)
 					run = -1
 
 
 func _cutout_edge(
-	tx: int, tile: int, atlas: RefCounted, origin: Vector2i, span: Vector2i, top: float,
+	tx: int, tile: int, atlas: RefCounted, mask: PackedByteArray,
+	origin: Vector2i, span: Vector2i, top: float,
 	box: Rect2i, back: float, front: float, horizontal: bool, near: bool, from: int, to: int
 ) -> void:
 	if horizontal:
@@ -1332,12 +1351,26 @@ func _cutout_edge(
 		var x1: float = float(tx) * TILE + float(box.position.x + to)
 		var y: float = top - float(box.position.y) \
 			- (0.0 if near else float(box.size.y))
-		# One row INSIDE the body where there is one. The drawing's own outline is
-		# what an upward face would otherwise wear, and a bush whose every top
-		# face is its black outline reads as a lump of coal.
+		# Rows INSIDE the body. The drawing's own outline is what an upward face
+		# would otherwise wear, and a bush whose every top face is its black
+		# outline reads as a lump of coal.
+		#
+		# One row in was enough for a shallow slab and is not enough for a hull:
+		# a round crown shows a top face at every row of its upper half, and the
+		# whole of that half is within a pixel of the silhouette. So walk in
+		# until the pixel is INTERIOR, meaning all four of its neighbours are
+		# drawn too, which is the mask's own definition of what is not outline.
 		var sample: int = box.position.y + (0 if near else box.size.y - 1)
 		if box.size.y > 1:
 			sample += 1 if near else -1
+		if near:
+			var column: int = box.position.x + from
+			for _step: int in INTERIOR_REACH:
+				if _interior(mask, span, origin.x + column, origin.y + sample):
+					break
+				if not _drawn(mask, span, origin.x + column, origin.y + sample + 1):
+					break
+				sample += 1
 		var uv: Rect2 = atlas.uv_box(tile, Rect2i(box.position.x + from, sample, to - from, 1))
 		if near:
 			_quad(
