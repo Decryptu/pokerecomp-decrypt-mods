@@ -747,6 +747,18 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
+	35: [
+		# NOT A STAIRCASE AND NOT A LADDER: "a hole in the ground, the wooden planks
+		# are broken". A pit is what a stairwell is once its steps are taken out, so
+		# this costs one declaration and no code, and it is the same thing the
+		# bicycle ramp of tileset 23 wants in open work 14.
+		{
+			&"tiles": [[84, 86], [88, 89]],
+			&"down": true,
+			&"step": Vector2i(0, -1),
+			&"steps": 0,
+		},
+	],
 }
 
 ## The tiles that draw the FACE of a terrain cliff, per tileset number.
