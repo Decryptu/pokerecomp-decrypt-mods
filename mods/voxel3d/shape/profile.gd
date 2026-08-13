@@ -65,6 +65,7 @@ const HEIGHTS: Dictionary = {
 	&"lie": 0,
 	&"canopy": 0,
 	&"tree": 0,
+	&"boulder": 0,
 	# A raised flat surface seen from above: a counter, a table top, a stool. One
 	# cell, because that is what a counter is in a game built on 16px cells.
 	&"surface": 16,
@@ -103,6 +104,9 @@ const DEPTHS: Dictionary = {
 	# something standing, and something low with an outline.
 	&"stand": 8,
 	&"lie": 12,
+	# A boulder is a turned model and carves nothing; this is only what one falls
+	# back to, and a rock is as deep as it is wide.
+	&"boulder": 16,
 }
 
 ## The cutouts that are ROUND IN PLAN rather than flat slabs.
@@ -122,6 +126,7 @@ const ROUND: Dictionary = {
 	&"stand": true,
 	&"lie": true,
 	&"canopy": true,
+	&"boulder": true,
 }
 
 ## The cutouts whose mask is cut from the drawing's own OUTLINE rather than from
@@ -143,6 +148,10 @@ const OUTLINE: Dictionary = {
 	&"canopy": 1,
 	&"tree": 1,
 	&"bush": 1,
+	# A rock standing in the sea is drawn in the water's own blues and a rock on a
+	# cave floor in the floor's own golds, so the ground rule has nothing to cut
+	# on. Every one of them is drawn inside a dark ring.
+	&"boulder": 1,
 }
 
 ## The classes that lie flat AND stand a thin slab of their own drawing up.
@@ -174,6 +183,7 @@ const MODEL: Dictionary = {
 	&"canopy": true,
 	&"tree": true,
 	&"bush": true,
+	&"boulder": true,
 }
 
 ## The modelled classes that sit ON THE GROUND rather than standing on a trunk.
@@ -185,6 +195,17 @@ const MODEL: Dictionary = {
 ## like. See `model.gd:Measure.shrub`.
 const SHRUB: Dictionary = {
 	&"bush": true,
+	&"boulder": true,
+}
+
+## The modelled classes that are STONE rather than growing.
+##
+## A rock sits on the ground exactly as a shrub does and is read the same way up,
+## so `SHRUB` covers its shape. What it is not is alive: it is barely ragged, it
+## does not bend in the wind, and it is not the dark mass a hedge is. See
+## `model.gd:Measure.rock`.
+const ROCK: Dictionary = {
+	&"boulder": true,
 }
 
 ## How many walk cells a cutout's DRAWING covers, where it is more than one.
@@ -230,6 +251,15 @@ const LYING: Dictionary = {
 ## bottommost drawn pixel puts the board back, and the poles under it with it.
 const FILLED: Dictionary = {
 	&"sign_post": true,
+	# A BOULDER'S RING IS NOT CLOSED. A tree draws a ring of its darkest shade all
+	# the way round and the flood stops at it; a rock is drawn against water or
+	# against a cave floor of its own palette and its outline has gaps in it, so
+	# the flood walks in and eats the stone, leaving the outline dots and the
+	# interior stipple standing on their own. That reads as a crenellated lump and
+	# it starves the colour: the tones are read off the mask, and a mask of nothing
+	# but shading came back with ONE tone for the sea rock. Filling each column
+	# between its topmost and bottommost drawn pixel puts the stone back.
+	&"boulder": true,
 }
 
 ## The tiles that draw the FACE of a terrain cliff, per tileset number.
@@ -359,6 +389,7 @@ const ART: Dictionary = {
 	&"statue": &"cutout",
 	&"stand": &"cutout",
 	&"lie": &"cutout",
+	&"boulder": &"cutout",
 	# A whole tree: canopy, trunk and the shadow it stands on, drawn as one 2x2
 	# cell picture. The reference carves the same thing as one 32px hull.
 	&"canopy": &"cutout",
@@ -431,6 +462,11 @@ const TILESETS: Dictionary = {
 	# a drawing up where no collision code says so.
 	1: {
 		&"tall_grass": [4],
+		# THE SEA ROCK, one 8px tile drawn as a small oval stone and laid in
+		# diagonal chains across the water: 802 cells of it, every one drawing the
+		# tile four times, so a cell is four separate stones and the model is placed
+		# per BODY rather than per cell.
+		&"boulder": [88],
 		# THE CONIFER, and tileset 1 is 29 maps: more of the game's outdoors than
 		# any other. Six tiles, drawn as a pointed top over an optional middle over
 		# a foot, and the middle is what makes a tall one: 3696 cells carry
@@ -448,9 +484,26 @@ const TILESETS: Dictionary = {
 	2: {
 		&"tall_grass": [4],
 		&"tree": [30, 31, 19, 21, 62, 63],
+		&"boulder": [88],
 	},
 	4: {
 		&"tree": [30, 31, 19, 21, 62, 63],
+	},
+	# EVERY BOULDER IN THE GAME, and each of these is one walk cell drawn as a
+	# 2x2-tile stone: 268 of them standing in the sea off Olivine, 775 on the cave
+	# floors of tileset 24 and 133 ice rocks on the snow of tileset 29. They stood
+	# as `stand`, the full pass's fallback for something standing, which carved
+	# them into heaps of rubble; the pass's own words call all three a rounded
+	# boulder drawn as its own silhouette, which is the portrait a model is turned
+	# from. See "The sprite-to-model pipeline".
+	9: {
+		&"boulder": [1, 2, 17, 18],
+	},
+	24: {
+		&"boulder": [12, 13, 28, 29],
+	},
+	29: {
+		&"boulder": [196, 197, 212, 213],
 	},
 	17: {
 		&"tall_grass": [87],

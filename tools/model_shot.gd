@@ -73,13 +73,19 @@ func _initialize() -> void:
 			continue
 		if index == 2:
 			background = atlas.background()
-		var mask: PackedByteArray = mesher._structure_mask(tiles, across, atlas, false, 1)
+		# A trailing `shrub` on the spec builds it as a thing sitting on the
+		# ground rather than as a tree standing on a trunk, and `rock` builds it as
+		# stone: the same seat on the ground, none of the plant, and its mask filled
+		# by column the way `profile.gd:FILLED` fills a boulder's broken ring.
+		var kind: String = spec[4] if spec.size() > 4 else ""
+		var mask: PackedByteArray = mesher._structure_mask(
+			tiles, across, atlas, kind == "rock", 1
+		)
 		var measured: RefCounted = model_script.measure(
 			mask, across * 8, tiles, across, atlas
 		)
-		# A trailing `shrub` on the spec builds it as a thing sitting on the
-		# ground rather than as a tree standing on a trunk.
-		measured.shrub = spec.size() > 4 and spec[4] == "shrub"
+		measured.shrub = kind == "shrub" or kind == "rock"
+		measured.rock = kind == "rock"
 		var mesh: ArrayMesh = (model_script.new() as RefCounted).tree(measured)
 		var triangles: int = 0
 		for surface: int in mesh.get_surface_count():

@@ -34,11 +34,20 @@ extends RefCounted
 ## than a tree needs; two keeps the model under a couple of thousand triangles
 ## and still steps visibly, which is the look.
 const VOXEL: float = 2.0
+## And what a ROCK is built at. A voxel is an absolute size, so the same one that
+## reads as chunky on a 32px tree leaves a 16px stone six voxels across and a
+## sea rock three, which is a box whatever profile it was turned from. A crown is
+## made of leaves and wants to be chunky; a stone has one surface and does not.
+const ROCK_VOXEL: float = 1.0
 
 ## How ragged the crown is, as a share of each row's own radius. Enough to break
 ## the turned surface into clumps, little enough that the sprite's profile is
 ## still the shape being read.
 const LEAF_NOISE: float = 0.22
+## And how ragged a ROCK is. A crown is a thousand leaves and breaks up; a
+## boulder is one stone and does not, so the jitter here is only what stops the
+## turn reading as a machined dome.
+const ROCK_NOISE: float = 0.08
 ## How far the roots reach past the trunk, and how tall they climb.
 const ROOT_REACH: float = 1.6
 const ROOT_RISE: float = 0.45
@@ -75,6 +84,10 @@ var _colors := PackedColorArray()
 var _sways := PackedVector2Array()
 ## The weight the next face is written with, set per voxel row.
 var _sway: float = 0.0
+## And the drawing's own colour at that row, which is what a ROCK is painted in.
+var _band := Color(0.5, 0.5, 0.5)
+## World pixels per voxel for the model being built. See `FINE_VOXEL`.
+var _voxel: float = VOXEL
 
 
 ## What the drawing states about the thing it depicts.
@@ -93,9 +106,17 @@ class Measure extends RefCounted:
 	## standing it on a stalk makes a small tree, which is what the first attempt
 	## looked like.
 	var shrub: bool = false
+	## A ROCK is not a plant. It sits on the ground as a shrub does, and the three
+	## other things this mod does to a plant are all wrong for it: it is barely
+	## ragged, it does not bend in the wind, and it is not the dark mass a hedge
+	## is, so the drawing's own exposure reads straight back off it.
+	var rock: bool = false
 	## Lightest first, and the drawing's darkest shade is NOT among them.
 	var tones: PackedColorArray = PackedColorArray()
 	var bark: PackedColorArray = PackedColorArray()
+	## The drawing's own colour at each row of the profile, top row first, which is
+	## how a ROCK is painted. See `_bands`.
+	var bands: PackedColorArray = PackedColorArray()
 
 	func width() -> int:
 		var widest: float = 0.0
@@ -175,6 +196,7 @@ static func measure(
 	out.trunk_width = maxi(trunk, 3)
 
 	out.tones = _tones(mask, span, tiles, across, atlas, first_row, crown_bottom - 1)
+	out.bands = _bands(mask, span, tiles, across, atlas, first_row, crown_bottom - 1)
 	# The bark is read all the way down to the drawing's last row, shadow and all:
 	# what a tree draws under its crown is trunk, roots and the dark they sit in,
 	# and the trunk band alone is too few pixels to rank on some tilesets.
@@ -251,6 +273,60 @@ static func _tones(
 	return out
 
 
+## THE DRAWING'S OWN COLOUR AT EACH ROW, top row first.
+##
+## A crown is shaded leaf by leaf and the exposure rule reads it back in three
+## dimensions, which is right for a plant and wrong for a STONE: a boulder is
+## drawn in horizontal bands, pale where the sky reaches it and dark underneath,
+## and that banding IS the shape saying which way is up. Read by exposure instead,
+## a rock small enough to have nothing standing over it takes the lightest tone on
+## every face, which turned the cave's gold boulder into a white one.
+##
+## The commonest colour across the row, skipping the outline, and a row with
+## nothing in it keeps the row above: the fill of a broken ring can leave a row of
+## the drawing empty and a boulder has no gaps in it.
+static func _bands(
+	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
+	atlas: RefCounted, from_row: int, to_row: int
+) -> PackedColorArray:
+	var out := PackedColorArray()
+	var last := Color(0.5, 0.5, 0.5)
+	var seen: bool = false
+	for py: int in range(maxi(from_row, 0), mini(to_row + 1, span.y)):
+		var counts: Dictionary = {}
+		var colours: Dictionary = {}
+		for px: int in span.x:
+			if mask[py * span.x + px] == 0:
+				continue
+			@warning_ignore("integer_division")
+			var tile: int = tiles[(py / 8) * across.x + px / 8]
+			var index: int = atlas.pixel(tile, px % 8, py % 8)
+			if index < 0 or atlas.is_dark(tile, index, 1):
+				continue
+			var colour: Color = atlas.color_of(tile, index)
+			var key: int = colour.to_rgba32()
+			counts[key] = int(counts.get(key, 0)) + 1
+			colours[key] = colour
+		var best: int = -1
+		for key: int in counts:
+			if best < 0 or int(counts[key]) > int(counts[best]):
+				best = key
+		if best >= 0:
+			last = colours[best]
+			seen = true
+		out.append(last)
+	# A row above the first the drawing put any colour in keeps grey until one is
+	# found, so the first colour is carried back up over them.
+	if seen:
+		for at: int in out.size():
+			if out[at].is_equal_approx(Color(0.5, 0.5, 0.5)):
+				continue
+			for above: int in at:
+				out[above] = out[at]
+			break
+	return out
+
+
 static func _luminance(colour: Color) -> float:
 	return colour.r * 0.299 + colour.g * 0.587 + colour.b * 0.114
 
@@ -267,18 +343,19 @@ func tree(measured: Measure) -> ArrayMesh:
 	_colors = PackedColorArray()
 	_sways = PackedVector2Array()
 
+	_voxel = ROCK_VOXEL if measured.rock else VOXEL
 	var rows: int = measured.profile.size()
 	var stretch: float = 1.0 if measured.shrub else CROWN_STRETCH
-	var crown_high: int = maxi(ceili(float(rows) * stretch / VOXEL), 2)
+	var crown_high: int = maxi(ceili(float(rows) * stretch / _voxel), 2)
 	var trunk_high: int = 0 if measured.shrub else maxi(ceili(maxf(
 		float(measured.trunk_height), float(measured.width()) * TRUNK_MIN
-	) / VOXEL), 2)
+	) / _voxel), 2)
 	var trunk_half: float = maxf(
-		float(measured.width()) * TRUNK_THICKNESS * 0.5 / VOXEL, 1.0
+		float(measured.width()) * TRUNK_THICKNESS * 0.5 / _voxel, 1.0
 	)
 	var widest: float = 0.0
 	for radius: float in measured.profile:
-		widest = maxf(widest, radius / VOXEL)
+		widest = maxf(widest, radius / _voxel)
 	var reach: int = ceili(widest + (0.0 if measured.shrub else ROOT_REACH)) + 1
 	var wide: int = reach * 2 + 1
 	var tall: int = trunk_high + crown_high + 1
@@ -313,7 +390,7 @@ func tree(measured: Measure) -> ArrayMesh:
 						# The jitter is the leaves. Deterministic, so one tree is
 						# one model however many times it is stamped.
 						var wobble: float = 1.0 + (_hash(vx, vy, vz) - 0.5) \
-							* 2.0 * LEAF_NOISE
+							* 2.0 * (ROCK_NOISE if measured.rock else LEAF_NOISE)
 						if plan <= radius * wobble:
 							fill = LEAF
 				solid[(vy * wide + vz) * wide + vx] = fill
@@ -322,10 +399,13 @@ func tree(measured: Measure) -> ArrayMesh:
 		# ZERO THROUGH THE TRUNK, because a trunk that sways is a tree falling
 		# over, and rising through the crown from its foot. A shrub has no trunk
 		# and so bends from its own base, which is what a springy mass does; its
-		# bottom row still measures zero, so it stays on the ground.
-		_sway = clampf(
+		# bottom row still measures zero, so it stays on the ground. A ROCK is zero
+		# everywhere, which is how a model made of the same material and stamped by
+		# the same code stands still in the wind that moves the wood.
+		_sway = 0.0 if measured.rock else clampf(
 			float(vy - trunk_high) / float(maxi(crown_high - 1, 1)), 0.0, 1.0
 		)
+		_band = _band_at(measured, vy - trunk_high, crown_high)
 		for vz: int in wide:
 			for vx: int in wide:
 				if solid[(vy * wide + vz) * wide + vx] == EMPTY:
@@ -356,7 +436,21 @@ func _radius(measured: Measure, up: int, crown_high: int) -> float:
 		int(round(float(crown_high - 1 - up) * float(rows - 1) / float(maxi(crown_high - 1, 1)))),
 		0, rows - 1
 	)
-	return measured.profile[at] / VOXEL
+	return measured.profile[at] / _voxel
+
+
+## The drawing's colour at a voxel row, read off the same profile row `_radius`
+## reads the width off, so a band and the width it paints belong to each other.
+func _band_at(measured: Measure, up: int, crown_high: int) -> Color:
+	if measured.bands.is_empty():
+		return Color(0.5, 0.5, 0.5)
+	var rows: int = measured.bands.size()
+	var at: int = clampi(
+		int(round(float(crown_high - 1 - up) * float(rows - 1)
+			/ float(maxi(crown_high - 1, 1)))),
+		0, rows - 1
+	)
+	return measured.bands[at]
 
 
 func _hash(x: int, y: int, z: int) -> float:
@@ -393,7 +487,7 @@ func _faces(
 		if side.y < 0 and vy == 0:
 			continue
 		var origin := Vector3(
-			float(vx - reach) * VOXEL, float(vy) * VOXEL, float(vz - reach) * VOXEL
+			float(vx - reach) * _voxel, float(vy) * _voxel, float(vz - reach) * _voxel
 		)
 		_quad(origin, side, _tone(measured, fill, side, sky))
 
@@ -415,18 +509,29 @@ func _tone(measured: Measure, fill: int, side: Vector3i, sky: int) -> Color:
 	var palette: PackedColorArray = measured.bark if fill == BARK else measured.tones
 	if palette.is_empty():
 		return Color(0.3, 0.5, 0.25)
+	# A ROCK IS PAINTED BY BAND, not by exposure: see `_bands`. What is left of the
+	# rule here is the one thing a band cannot say, which is that a face looking
+	# down at the ground is in its own shadow.
+	if measured.rock:
+		if side.y >= 0:
+			return _band
+		return palette[clampi(_ladder(measured, _band) + 1, 0, palette.size() - 1)]
 	# A SHRUB STARTS A STEP DARKER, because exposure alone reads it wrong. The
 	# rule spends the palette on how much stands over a face, and almost nothing
 	# stands over a thing seven voxels tall: every top face takes the lightest
 	# tone and a hedge that the cartridge draws as a dark mass comes out a pale
 	# one. The drawing is the authority on how dark the thing is and the tree's
 	# own reading is what borrowed it out.
-	var step: int = 1 if measured.shrub else 0
+	# A ROCK is not that dark mass and is not read as one: a boulder is drawn pale
+	# on top and shaded down its side, which is the exposure rule already, so it
+	# takes the tree's own reading rather than the shrub's correction to it.
+	var dark_mass: bool = measured.shrub and not measured.rock
+	var step: int = 1 if dark_mass else 0
 	if side.y > 0:
 		# A shrub's top is not lightened, only its sides are darkened. Lightening
 		# it cancels the step above exactly, and the top is most of what is seen
 		# of a thing at knee height.
-		step -= 0 if measured.shrub else 1
+		step -= 0 if dark_mass else 1
 	elif side.y < 0:
 		step += 1
 	@warning_ignore("integer_division")
@@ -434,15 +539,24 @@ func _tone(measured: Measure, fill: int, side: Vector3i, sky: int) -> Color:
 	return palette[clampi(step, 0, palette.size() - 1)]
 
 
+## Where a colour sits on the drawing's own ladder of shades, lightest first, so
+## a band can be stepped down from without leaving the cartridge's palette.
+func _ladder(measured: Measure, colour: Color) -> int:
+	for at: int in measured.tones.size():
+		if measured.tones[at].is_equal_approx(colour):
+			return at
+	return 0
+
+
 ## One voxel face, wound clockwise from outside the way the rest of this mod
 ## winds everything.
 func _quad(origin: Vector3, side: Vector3i, color: Color) -> void:
 	var normal := Vector3(float(side.x), float(side.y), float(side.z))
 	var along := Vector3(0.0, 0.0, 1.0) if absf(normal.y) > 0.5 else Vector3(0.0, 1.0, 0.0)
-	var right: Vector3 = along.cross(normal).normalized() * VOXEL
-	var up: Vector3 = normal.cross(right.normalized()).normalized() * VOXEL
-	var centre: Vector3 = origin + Vector3(VOXEL, VOXEL, VOXEL) * 0.5 \
-		+ normal * (VOXEL * 0.5)
+	var right: Vector3 = along.cross(normal).normalized() * _voxel
+	var up: Vector3 = normal.cross(right.normalized()).normalized() * _voxel
+	var centre: Vector3 = origin + Vector3(_voxel, _voxel, _voxel) * 0.5 \
+		+ normal * (_voxel * 0.5)
 	var a: Vector3 = centre - right * 0.5 - up * 0.5
 	var b: Vector3 = centre + right * 0.5 - up * 0.5
 	var c: Vector3 = centre + right * 0.5 + up * 0.5

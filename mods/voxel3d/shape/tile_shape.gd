@@ -120,6 +120,11 @@ func is_shrub(shape_class: StringName) -> bool:
 	return bool(_profile.SHRUB.get(shape_class, false))
 
 
+## Whether a modelled class is stone rather than a plant. See `profile.gd:ROCK`.
+func is_rock(shape_class: StringName) -> bool:
+	return bool(_profile.ROCK.get(shape_class, false))
+
+
 ## How big the drawing is, in walk cells. A hull is keyed to the size of the
 ## drawing and never to a tile id.
 func span_cells(shape_class: StringName) -> Vector2i:

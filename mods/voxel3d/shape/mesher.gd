@@ -112,9 +112,11 @@ var _filled := PackedByteArray()
 ## from the ground's colours instead.
 var _outlined := PackedByteArray()
 ## Per tile: whether an authored MODEL stands here rather than carved geometry,
-## and whether that model sits on the ground rather than standing on a trunk.
+## whether that model sits on the ground rather than standing on a trunk, and
+## whether it is stone rather than a plant.
 var _modelled := PackedByteArray()
 var _shrub := PackedByteArray()
+var _rock := PackedByteArray()
 ## Per tile: whether a slab of its own drawing stands up out of the floor, and
 ## whether the collision calls it LONG grass rather than tall.
 var _tufted := PackedByteArray()
@@ -456,6 +458,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_outlined.resize(count)
 	_modelled.resize(count)
 	_shrub.resize(count)
+	_rock.resize(count)
 	_tufted.resize(count)
 	_long_grass.resize(count)
 	_span_x.resize(count)
@@ -504,6 +507,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_outlined[at] = shape.outline_shades(shape_class)
 			_modelled[at] = 1 if shape.is_model(shape_class) else 0
 			_shrub[at] = 1 if shape.is_shrub(shape_class) else 0
+			_rock[at] = 1 if shape.is_rock(shape_class) else 0
 			# WHICH CELLS ARE GRASS IS THE CARTRIDGE'S OWN ANSWER, and it is in
 			# the collision byte rather than in the drawing. `grass_kind` is the
 			# host's decode of SetTallGrassFlags, so this covers every map in the
@@ -1707,6 +1711,9 @@ func _bodies(mask: PackedByteArray, span: Vector2i) -> PackedInt32Array:
 ## forest, and the engine culls the lot as one instance.
 var _model_meshes: Dictionary = {}
 var _model_spots: Dictionary = {}
+## Per drawing: the BODIES it holds, each a mesh key and where in the drawing's
+## own footprint that body is centred, in world pixels. See `_model_bodies_of`.
+var _model_bodies: Dictionary = {}
 ## Whether this slice has just turned a drawing into a solid, which is dear
 ## enough to end the slice on its own. See `emit_step`.
 var _built_model: bool = false
@@ -1720,43 +1727,103 @@ func _place_model(tx: int, ty: int, atlas: RefCounted) -> void:
 	for row: int in across.y:
 		for column: int in across.x:
 			tiles.append(_tile_at(start.x + column, start.y + row))
-	var key: String = str(tiles)
-	if not _model_meshes.has(key):
-		var mask: PackedByteArray = _structure_mask(
-			tiles, across, atlas, false, int(_outlined[at])
+	var ground: float = float(_ground_art(tx, ty).y)
+	for body: Array in _model_bodies_of(tiles, across, at, atlas):
+		var key: String = body[0]
+		var middle: Vector2 = body[1]
+		# WHERE THE BODY IS DRAWN, on the ground beside it, TURNED AND NUDGED off
+		# the grid it was authored on. The cartridge places its trees on a 16px
+		# lattice and one mesh stamped at every lattice point reads as an orchard:
+		# the eye finds the rows immediately, and the rows are the one thing about a
+		# forest that is an artefact of the tile map rather than of the world.
+		# A quarter turn costs nothing and keeps every voxel axis-aligned, which is
+		# what a rotation of any other angle would throw away, and it shows a
+		# different side of the same baked leaf noise. The nudge is a couple of
+		# pixels on a 16px cell, enough to break the line and too little to leave
+		# the cell. Both come off the body's own anchor, so nothing walks when the
+		# window rebuilds and two stones in one cell do not turn together.
+		var anchor := Vector2i(
+			start.x * int(TILE) + int(middle.x), start.y * int(TILE) + int(middle.y)
 		)
-		var measured: RefCounted = Model.measure(
-			mask, across * int(TILE), tiles, across, atlas
+		var spot := Vector3(
+			_world_x(start.x) + middle.x + (_hash_spot(anchor) - 0.5) * MODEL_NUDGE,
+			ground,
+			_world_z(start.y) + middle.y
+				+ (_hash_spot(anchor + Vector2i(37, 0)) - 0.5) * MODEL_NUDGE
 		)
-		measured.shrub = _shrub[at] == 1
-		_model_meshes[key] = (Model.new() as RefCounted).tree(measured)
-		_model_spots[key] = {}
-		_built_model = true
-	# The middle of the drawing's own footprint, on the ground beside it, TURNED
-	# AND NUDGED off the grid it was authored on. The cartridge places its trees
-	# on a 16px lattice and one mesh stamped at every lattice point reads as an
-	# orchard: the eye finds the rows immediately, and the rows are the one thing
-	# about a forest that is an artefact of the tile map rather than of the world.
-	# A quarter turn costs nothing and keeps every voxel axis-aligned, which is
-	# what a rotation of any other angle would throw away, and it shows a
-	# different side of the same baked leaf noise. The nudge is a couple of pixels
-	# on a 16px cell, enough to break the line and too little to leave the cell.
-	# Both come off the anchor, so a tree does not walk when the window rebuilds.
-	var wobble: float = _hash_spot(start)
-	var spot := Vector3(
-		_world_x(start.x) + float(across.x) * 0.5 * TILE + (wobble - 0.5) * MODEL_NUDGE,
-		float(_ground_art(tx, ty).y),
-		_world_z(start.y) + float(across.y) * 0.5 * TILE
-			+ (_hash_spot(start + Vector2i(37, 0)) - 0.5) * MODEL_NUDGE
+		var turn: float = floorf(_hash_spot(anchor + Vector2i(0, 91)) * 4.0) * PI * 0.5
+		# The stamp carries its own WIND PHASE with it, off the same anchor, so a
+		# tree bends at the same moment every time the window is rebuilt and no two
+		# neighbours bend together. See `world/wind.gd`.
+		(_model_spots[key] as Dictionary)[str(start)] = [
+			Transform3D(Basis(Vector3(0.0, 1.0, 0.0), turn), spot),
+			_hash_spot(anchor + Vector2i(0, 53)),
+		]
+
+
+## ONE MODEL PER BODY OF THE DRAWING, not one per drawing.
+##
+## A drawing is cut over a whole cell and a cell is 16 px, which is room for more
+## than one thing: the sea rock is an 8 px stone and a cell of them draws FOUR.
+## Turning that cell as one silhouette revolves the four into a single mushroom,
+## which is exactly the fault the carved path met with Goldenrod's paired
+## bollards and answers the same way, by flooding the mask into bodies first.
+##
+## A drawing holding one thing, which is every tree and every bush, comes back as
+## one body and nothing about it moves. Specks smaller than a voxel or two are
+## dropped rather than turned: a dither's stray corner is not a thing.
+##
+## Each mesh is built ONCE and stamped at every spot, which is what makes this
+## cheap where carving was not: one tree of geometry for a whole forest, and the
+## engine culls the lot as one instance.
+func _model_bodies_of(
+	tiles: Array, across: Vector2i, at: int, atlas: RefCounted
+) -> Array:
+	var drawing: String = str(tiles)
+	if _model_bodies.has(drawing):
+		return _model_bodies[drawing]
+	var span: Vector2i = across * int(TILE)
+	var mask: PackedByteArray = _structure_mask(
+		tiles, across, atlas, _filled[at] == 1, int(_outlined[at])
 	)
-	var turn: float = floorf(_hash_spot(start + Vector2i(0, 91)) * 4.0) * PI * 0.5
-	# The stamp carries its own WIND PHASE with it, off the same anchor, so a tree
-	# bends at the same moment every time the window is rebuilt and no two
-	# neighbours bend together. See `world/wind.gd`.
-	(_model_spots[key] as Dictionary)[str(start)] = [
-		Transform3D(Basis(Vector3(0.0, 1.0, 0.0), turn), spot),
-		_hash_spot(start + Vector2i(0, 53)),
-	]
+	var body: PackedInt32Array = _bodies(mask, span)
+	var counts: Dictionary = {}
+	var bounds: Dictionary = {}
+	for pixel: int in body.size():
+		var group: int = body[pixel]
+		if group < 0:
+			continue
+		@warning_ignore("integer_division")
+		var py: int = pixel / span.x
+		var px: int = pixel % span.x
+		counts[group] = int(counts.get(group, 0)) + 1
+		var box: Rect2i = bounds.get(group, Rect2i(px, py, 1, 1))
+		bounds[group] = box.expand(Vector2i(px, py)).expand(Vector2i(px + 1, py + 1))
+	var out: Array = []
+	for group: int in counts:
+		if int(counts[group]) < MODEL_BODY_MIN:
+			continue
+		var key: String = "%s#%d" % [drawing, group]
+		if not _model_meshes.has(key):
+			var only := PackedByteArray()
+			only.resize(mask.size())
+			for pixel: int in body.size():
+				only[pixel] = 1 if body[pixel] == group else 0
+			var measured: RefCounted = Model.measure(only, span, tiles, across, atlas)
+			measured.shrub = _shrub[at] == 1
+			measured.rock = _rock[at] == 1
+			_model_meshes[key] = (Model.new() as RefCounted).tree(measured)
+			_model_spots[key] = {}
+			_built_model = true
+		var box: Rect2i = bounds[group]
+		out.append([key, Vector2(box.position) + Vector2(box.size) * 0.5])
+	_model_bodies[drawing] = out
+	return out
+
+
+## The fewest pixels a body may hold and still be turned into a model. Below a
+## voxel or two there is no silhouette to read.
+const MODEL_BODY_MIN: int = 8
 
 
 ## How far a stamped model is nudged off its lattice point, in world pixels,
