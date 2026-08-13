@@ -67,6 +67,8 @@ var _depths := PackedByteArray()
 ## solid body the border flood cannot be trusted with.
 var _round := PackedByteArray()
 var _filled := PackedByteArray()
+## Per tile: whether its mask is cut from the drawing's own outline.
+var _outlined := PackedByteArray()
 ## Per tile: how many cells across and down the drawing this cutout belongs to
 ## is, which is what the mask is cut over, and which class it is.
 var _span_x := PackedByteArray()
@@ -294,6 +296,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_depths.resize(count)
 	_round.resize(count)
 	_filled.resize(count)
+	_outlined.resize(count)
 	_span_x.resize(count)
 	_span_y.resize(count)
 	_lying.resize(count)
@@ -335,6 +338,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_depths[at] = clampi(shape.depth(shape_class), 1, 16)
 			_round[at] = 1 if shape.is_round(shape_class) else 0
 			_filled[at] = 1 if shape.is_filled(shape_class) else 0
+			_outlined[at] = 1 if shape.is_outlined(shape_class) else 0
 			_lying[at] = 1 if shape.is_lying(shape_class) else 0
 			_on_furniture[at] = 1 if shape_class == &"on_furniture" else 0
 			var span: Vector2i = shape.span_cells(shape_class)
@@ -1176,38 +1180,69 @@ func _band_tile(tx: int, ty: int, band: int) -> int:
 ## touch the border is where it stands: a bollard's shadow reaches the bottom
 ## edge, and letting its index into the ground set would flood the post away from
 ## underneath.
+##
+## THIS RULE HAS A LIMIT AND IT IS WORTH KNOWING WHERE. Widening it was tried
+## first: an index that shows on three or more of the ring's four SIDES is
+## surely floor, since ground surrounds a drawing and a drawing does not
+## surround itself. It does fix a speckled tree. It also eats half the cutouts
+## in the game, because a small drawing DOES reach three sides of a 16px cell:
+## measured, 47 of the 82 distinct cutout drawings moved and eight of them
+## vanished outright. Share alone is the rule, and the way past it is below.
+##
+## FOR ONE FAMILY OF DRAWINGS NO SET OF INDICES CAN WORK AT ALL. A tree
+## canopy is a ball drawn in the SAME two greens the grass under it is dithered
+## from: put those greens in the ground set and the flood eats the lit half of
+## the tree, leave them out and it keeps half the lawn. Looked at as a picture
+## rather than as a count, which is the only way it shows.
+##
+## What bounds such a drawing is its own OUTLINE, and an outline is the darkest
+## shade in the tile. So an `outline` mask floods through every pixel that is not
+## that shade, and what it cannot reach is the drawing. The cast shadow under a
+## canopy is dark but is not enclosed by the outline, so it floods away with the
+## grass, which is what should happen to it. This is the reference's own rule for
+## the same problem (`Structures.lua`, "the darkest-shade outline plus everything
+## it encloses").
 const RING_SHARE: float = 0.7
 var _masks: Dictionary = {}
 
 
 func _structure_mask(
-	tiles: Array, across: Vector2i, atlas: RefCounted, filled: bool
+	tiles: Array, across: Vector2i, atlas: RefCounted, filled: bool,
+	outline: bool = false
 ) -> PackedByteArray:
-	var key: String = "%s,%d" % [str(tiles), 1 if filled else 0]
+	var key: String = "%s,%d,%d" % [str(tiles), 1 if filled else 0, 1 if outline else 0]
 	if _masks.has(key):
 		return _masks[key]
 
 	var size := Vector2i(across.x * int(TILE), across.y * int(TILE))
 	var indices := PackedInt32Array()
 	indices.resize(size.x * size.y)
+	# Whether the flood may pass through each pixel. Two rules, and which one a
+	# drawing wants is a fact about the drawing: see the header.
+	var open := PackedByteArray()
+	open.resize(size.x * size.y)
 	for py: int in size.y:
 		for px: int in size.x:
 			@warning_ignore("integer_division")
 			var tile: int = tiles[(py / int(TILE)) * across.x + px / int(TILE)]
-			indices[py * size.x + px] = atlas.pixel(tile, px % int(TILE), py % int(TILE))
+			var index: int = atlas.pixel(tile, px % int(TILE), py % int(TILE))
+			indices[py * size.x + px] = index
+			if outline:
+				open[py * size.x + px] = 0 if index == atlas.darkest(tile) else 1
+
+	if outline:
+		return _flood(size, open, filled, key)
 
 	var ring: Dictionary = {}
 	var ring_count: int = 0
-	var edges := PackedInt32Array()
 	for px: int in size.x:
-		edges.append(px)
-		edges.append((size.y - 1) * size.x + px)
+		_ring_pixel(ring, indices, px)
+		_ring_pixel(ring, indices, (size.y - 1) * size.x + px)
+		ring_count += 2
 	for py: int in size.y:
-		edges.append(py * size.x)
-		edges.append(py * size.x + size.x - 1)
-	for at: int in edges:
-		ring[indices[at]] = int(ring.get(indices[at], 0)) + 1
-		ring_count += 1
+		_ring_pixel(ring, indices, py * size.x)
+		_ring_pixel(ring, indices, py * size.x + size.x - 1)
+		ring_count += 2
 	var ranked: Array = ring.keys()
 	ranked.sort_custom(func(a: int, b: int) -> bool: return ring[a] > ring[b])
 	var ground: Dictionary = {}
@@ -1218,15 +1253,32 @@ func _structure_mask(
 		ground[index] = true
 		covered += int(ring[index])
 
+	for at: int in indices.size():
+		open[at] = 1 if ground.has(indices[at]) else 0
+	return _flood(size, open, filled, key)
+
+
+## What the flood cannot reach from the border, as a mask of the drawing.
+##
+## [param open] says which pixels it may pass through, which is the whole of the
+## difference between the two rules above.
+func _flood(
+	size: Vector2i, open: PackedByteArray, filled: bool, key: String
+) -> PackedByteArray:
 	var mask := PackedByteArray()
 	mask.resize(size.x * size.y)
 	mask.fill(1)
 	var stack := PackedInt32Array()
-	stack.append_array(edges)
+	for px: int in size.x:
+		stack.append(px)
+		stack.append((size.y - 1) * size.x + px)
+	for py: int in size.y:
+		stack.append(py * size.x)
+		stack.append(py * size.x + size.x - 1)
 	while not stack.is_empty():
 		var at: int = stack[stack.size() - 1]
 		stack.remove_at(stack.size() - 1)
-		if mask[at] == 0 or not ground.has(indices[at]):
+		if mask[at] == 0 or open[at] == 0:
 			continue
 		mask[at] = 0
 		@warning_ignore("integer_division")
@@ -1260,6 +1312,10 @@ func _structure_mask(
 
 	_masks[key] = mask
 	return mask
+
+
+func _ring_pixel(ring: Dictionary, indices: PackedInt32Array, at: int) -> void:
+	ring[indices[at]] = int(ring.get(indices[at], 0)) + 1
 
 
 ## How deep each drawn pixel stands, IN WHOLE PIXELS.
@@ -1349,8 +1405,8 @@ func _cell_levels(
 ## height off the art is the whole point: a bollard came out 15 px and a sign 14,
 ## and no class constant would have found either.
 func _cutout(
-	tx: int, ty: int, depth: float, round_plan: bool, filled: bool, base: float,
-	atlas: RefCounted
+	tx: int, ty: int, depth: float, round_plan: bool, filled: bool, outline: bool,
+	base: float, atlas: RefCounted
 ) -> void:
 	var at: int = ty * _size.x + tx
 	var across := Vector2i(int(_span_x[at]), int(_span_y[at])) * CELL_TILES
@@ -1362,7 +1418,7 @@ func _cutout(
 		for column: int in across.x:
 			tiles.append(_tile_at(start.x + column, start.y + row))
 	var span := across * int(TILE)
-	var mask: PackedByteArray = _structure_mask(tiles, across, atlas, filled)
+	var mask: PackedByteArray = _structure_mask(tiles, across, atlas, filled, outline)
 	var levels: PackedByteArray = _cell_levels(mask, span, round_plan, roundi(depth))
 
 	var edge: int = int(TILE)
@@ -1611,7 +1667,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		_side(tx, ty, ground.y, _height_at(tx - 1, ty), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 		_cutout(
 			tx, ty, float(_depths[at]), _round[at] == 1, _filled[at] == 1,
-			float(ground.y), atlas
+			_outlined[at] == 1, float(ground.y), atlas
 		)
 		return
 	if _art[at] == ART_LEDGE:

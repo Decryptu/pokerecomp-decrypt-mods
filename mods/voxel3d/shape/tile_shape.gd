@@ -96,6 +96,12 @@ func is_round(shape_class: StringName) -> bool:
 	return bool(_profile.ROUND.get(shape_class, false))
 
 
+## Whether the mask is cut from the drawing's own outline instead of from the
+## colours of the ground around it.
+func is_outlined(shape_class: StringName) -> bool:
+	return bool(_profile.OUTLINE.get(shape_class, false))
+
+
 ## How big the drawing is, in walk cells. A hull is keyed to the size of the
 ## drawing and never to a tile id.
 func span_cells(shape_class: StringName) -> Vector2i:

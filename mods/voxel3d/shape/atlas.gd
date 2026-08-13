@@ -29,6 +29,8 @@ var _tile_count: int = 0
 ## cut per pixel rather than textured per tile.
 var _source: PackedByteArray = PackedByteArray()
 var _background: Color = Color("#f5f1d8")
+## tile -> its darkest drawn index, worked out once. See `darkest`.
+var _darkest: Dictionary = {}
 
 
 ## Rebuilds the whole sheet. Called when the map, the palette or the time of day
@@ -47,6 +49,8 @@ func build(
 	_image = null
 	_tile_count = 0
 	_source = PackedByteArray()
+	# Kept per tile and re-coloured by the hour, so it cannot outlive a rebuild.
+	_darkest.clear()
 	if data == null or map == null or tileset == null:
 		return false
 
@@ -91,6 +95,7 @@ func refresh_animation(
 	for tile: int in changed:
 		if tile >= 0 and tile < _tile_count:
 			_paint(indices, palettes, tile)
+			_darkest.erase(tile)
 	texture.update(_image)
 	return true
 
@@ -145,6 +150,49 @@ func pixel(tile: int, x: int, y: int) -> int:
 		return -1
 	var at: int = y * _tile_count * TILE + tile * TILE + x
 	return int(_source[at]) if at < _source.size() else -1
+
+
+## The DARKEST palette index a tile is drawn with, or -1 where it has none.
+##
+## Which index that is cannot be assumed: an index means one of four entries and
+## the entries are not in brightness order, nor in the same order twice, because
+## a tile's palette is chosen per tile and re-coloured by the hour.
+##
+## What it is for is the one drawing a border flood cannot cut: a tree canopy is
+## a ball of the SAME two greens the grass under it is dithered from, so no set
+## of "ground" indices separates them. What does separate them is the drawing's
+## own outline, which is its darkest shade. See `mesher.gd:_structure_mask`.
+func darkest(tile: int) -> int:
+	if _darkest.has(tile):
+		return int(_darkest[tile])
+	var best: int = -1
+	var dimmest: float = 2.0
+	for index: int in 4:
+		var color: Color = _color_of(tile, index)
+		if color.a <= 0.0:
+			continue
+		var luminance: float = color.r * 0.299 + color.g * 0.587 + color.b * 0.114
+		if luminance < dimmest:
+			dimmest = luminance
+			best = index
+	_darkest[tile] = best
+	return best
+
+
+## The colour one index paints in one tile, read off the sheet the tile was
+## painted onto rather than kept a second time.
+func _color_of(tile: int, index: int) -> Color:
+	if _image == null or _source.is_empty() or tile < 0 or tile >= _tile_count:
+		return Color(0.0, 0.0, 0.0, 0.0)
+	for y: int in TILE:
+		for x: int in TILE:
+			if pixel(tile, x, y) != index:
+				continue
+			@warning_ignore("integer_division")
+			return _image.get_pixel(
+				(tile % TILES_PER_ROW) * TILE + x, (tile / TILES_PER_ROW) * TILE + y
+			)
+	return Color(0.0, 0.0, 0.0, 0.0)
 
 
 func background() -> Color:

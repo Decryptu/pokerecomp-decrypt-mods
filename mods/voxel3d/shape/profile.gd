@@ -64,6 +64,7 @@ const HEIGHTS: Dictionary = {
 	&"statue": 0,
 	&"stand": 0,
 	&"lie": 0,
+	&"canopy": 0,
 	# A raised flat surface seen from above: a counter, a table top, a stool. One
 	# cell, because that is what a counter is in a game built on 16px cells.
 	&"surface": 16,
@@ -117,6 +118,20 @@ const ROUND: Dictionary = {
 	&"statue": true,
 	&"stand": true,
 	&"lie": true,
+	&"canopy": true,
+}
+
+## The cutouts whose mask is cut from the drawing's own OUTLINE rather than from
+## the colours of the ground around it.
+##
+## A tree canopy is the case and it is not a small one. The ball is drawn in the
+## same two greens the grass beneath it is dithered from, so no set of "ground"
+## indices can separate the two: include the greens and the flood eats the lit
+## half of the tree, leave them out and it keeps half the lawn. What DOES bound
+## the drawing is its own dark outline. `mesher.gd:_structure_mask` has the rule
+## and the reference had it first.
+const OUTLINE: Dictionary = {
+	&"canopy": true,
 }
 
 ## How many walk cells a cutout's DRAWING covers, where it is more than one.
@@ -132,6 +147,7 @@ const ROUND: Dictionary = {
 const SPANS: Dictionary = {
 	&"planter": Vector2i(1, 2),
 	&"flowers": Vector2i(1, 2),
+	&"canopy": Vector2i(2, 2),
 }
 
 ## The cutouts whose extra cells are DEPTH rather than height.
@@ -285,6 +301,9 @@ const ART: Dictionary = {
 	&"statue": &"cutout",
 	&"stand": &"cutout",
 	&"lie": &"cutout",
+	# A whole tree: canopy, trunk and the shadow it stands on, drawn as one 2x2
+	# cell picture. The reference carves the same thing as one 32px hull.
+	&"canopy": &"cutout",
 	&"surface": &"top",
 }
 
@@ -343,6 +362,22 @@ const TILESETS: Dictionary = {
 		&"flowers": [42, 43, 94, 95, 84, 85],
 		# The potted plant, eight tiles: two wide and four tall, leaves over pot.
 		&"planter": [8, 9, 10, 11, 24, 25, 26, 27],
+	},
+	# THE BIG TREE, and it is one whole block: four tiles by four, canopy, trunk
+	# and the shadow ellipse it stands in, described tile by tile in the full
+	# pass and standing as one plain box before this.
+	#
+	# Tileset 31 draws a tree at the same sixteen ids and is deliberately NOT
+	# pinned. Its crown fills the block edge to edge, so revolving it makes a
+	# 30px drum, and the row-to-row jitter of a dithered mass turns that into a
+	# stack of plates. Squashing the plan was tried at half depth and changed
+	# nothing, because the fault is the jitter and not the depth. That block is a
+	# repeating forest MASS wearing a trunk, which is a different thing from a
+	# tree and wants the reference's own second rule. See open work 3.
+	25: {
+		&"canopy": [
+			12, 13, 14, 15, 28, 29, 30, 31, 44, 45, 46, 47, 60, 61, 62, 63,
+		],
 	},
 }
 

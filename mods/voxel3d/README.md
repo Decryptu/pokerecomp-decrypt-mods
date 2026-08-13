@@ -246,6 +246,30 @@ How big a drawing can be comes from the class; whether a given placement is that
 big comes from the map, because the short bed and the long one are drawn out of
 the same top and bottom tiles.
 
+## Cutting a drawing that is painted in the ground's own colours
+
+The mask asks where a drawing ends, and colour cannot say: a bollard is white on
+a pale path and a bush is green on grass. What can say it is the border. The
+ground runs to the edge of the cell and the drawing does not, so the indices
+making up most of the cell's border ring are the ground and everything the flood
+cannot reach through them is the drawing.
+
+That fails on one family of drawings, and it fails completely. A tree canopy is a
+ball drawn in the SAME two greens the grass under it is dithered from. Put those
+greens in the ground set and the flood eats the lit half of the tree; leave them
+out and it keeps half the lawn. No set of indices exists that separates them,
+which only shows if you look at the mask as a picture.
+
+What bounds such a drawing is its own outline, and an outline is the darkest
+shade in the tile. So those classes flood through every pixel that is NOT that
+shade, and what the flood cannot reach is the tree. The shadow pooled under a
+canopy is dark but is not enclosed by the outline, so it floods away with the
+grass, which is what should happen to it.
+
+A tree that comes out of this is one whole block, four tiles by four: crown,
+trunk and the shadow it stands in, carved as a single hull two cells across and
+two tall.
+
 ## Where a shape comes from
 
 `shape/tile_shape.gd` resolves every tile, in this order:
