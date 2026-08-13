@@ -345,6 +345,10 @@ func _frame_camera() -> void:
 	if _world == null:
 		return
 	var here: Vector3 = _ground(_world.player_position_cells())
+	# The grass is parted by whoever stands in it, and the position it is parted
+	# around carries the in-flight fraction of a step like the camera does, so the
+	# meadow opens as the player walks rather than a cell at a time.
+	_stage.set_walker(here)
 	_stage.camera.fov = _rig.fov()
 	# A pan moves the eye and what it looks at together, so the picture slides up
 	# the frame without the horizon swinging.

@@ -38,11 +38,19 @@ extends RefCounted
 ## between them; for a stamped model `_place_model` hashes the anchor, so a tree
 ## keeps the same phase however often the window is rebuilt.
 ##
-## WHAT IT DOES NOT DO, and the reference does: push the tufts aside as the player
-## walks through them, swept between last frame's position and this one. That
-## needs the player's position per frame and these materials have no idea where
-## anyone is. It is open work, and it is the half of this that a player feels
-## rather than sees.
+## AND THE PLAYER PARTS IT. The half of this a player feels rather than sees:
+## walking into a meadow that does not answer is walking into scenery. The
+## reference does it in the same vertex shader off one more uniform
+## (`lib/Voxel3D.lua`, `grassPlayer`) and this is that mechanism, with one
+## deliberate difference. It pushes a clump sideways as a whole; here the push is
+## RADIAL, away from whoever is standing there, and weighted by the same square
+## the wind uses, so the blades part around them and stay rooted where they grew.
+## Sliding a whole clump aside is the fault the square was introduced to fix and
+## it is no less a fault for having a player behind it instead of a breeze.
+##
+## Only the overworld sets it. A battle stages a fight on the map and has nobody
+## walking about, so `walker` keeps its zero reach there and the shader's own
+## multiply switches the whole term off.
 
 ## Which way the wind blows, as a direction in the world's own plane. East and a
 ## little south, which is ACROSS the default shot rather than into it: a sway
@@ -68,6 +76,16 @@ const GRASS_REACH: float = 1.6
 ## than over eight pixels.
 const FOLIAGE_REACH: float = 2.6
 
+## How far from someone the grass feels them, in world pixels, and how far a
+## blade's tip is pushed out of their way. A walk cell is 16, so this parts about
+## a cell of grass around a player who is themselves about a cell wide.
+##
+## The push is larger than the wind's own lean and it should be: a breeze is
+## weather and a body is a body. It is still short of the blade's full 8 px, so
+## the grass leans out of the way rather than lying down flat around a hole.
+const WALKER_RADIUS: float = 14.0
+const WALKER_REACH: float = 2.6
+
 ## The bend, shared verbatim by both shaders so the two cannot drift apart.
 ## [param at] is the world position, [param phase] the thing's own offset.
 const BEND: String = """
@@ -91,6 +109,9 @@ render_mode specular_disabled, diffuse_lambert;
 
 uniform sampler2D atlas : source_color, filter_nearest;
 uniform float reach;
+// Where the player is standing, in world pixels, then how far the grass feels
+// them and how far it is pushed. A zero reach is nobody there.
+uniform vec4 walker;
 __BEND__
 
 void vertex() {
@@ -99,7 +120,16 @@ void vertex() {
 	float up = UV2.x;
 	vec3 at = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	// THE SQUARE: the root is pinned and the travel is in the top of the blade.
-	VERTEX.xz += normalize(wind) * bend_at(at.xz, UV2.y) * reach * up * up;
+	float lean = up * up;
+	VERTEX.xz += normalize(wind) * bend_at(at.xz, UV2.y) * reach * lean;
+	// AND WHOEVER IS STANDING IN IT parts it, radially and by the same square.
+	// The falloff holds full strength close in and eases out to nothing at the
+	// radius, so a step does not snap the meadow.
+	vec2 away = at.xz - walker.xy;
+	float span = length(away);
+	vec2 side = span > 0.001 ? away / span : normalize(wind);
+	VERTEX.xz += side * (1.0 - smoothstep(walker.z * 0.45, walker.z, span))
+		* walker.w * lean;
 }
 
 void fragment() {
@@ -137,6 +167,9 @@ var foliage: ShaderMaterial = null
 func _init() -> void:
 	grass = _material(GRASS_CODE, GRASS_REACH)
 	foliage = _material(FOLIAGE_CODE, FOLIAGE_REACH)
+	# Nobody is standing anywhere until a view says so, and a zero reach is what
+	# says it: a battle never calls `set_walker` at all.
+	grass.set_shader_parameter("walker", Vector4.ZERO)
 
 
 func _material(code: String, reach: float) -> ShaderMaterial:
@@ -155,3 +188,11 @@ func _material(code: String, reach: float) -> ShaderMaterial:
 ## Only the grass wears the atlas. A model's colour is baked into its vertices.
 func set_atlas(texture: Texture2D) -> void:
 	grass.set_shader_parameter("atlas", texture)
+
+
+## Where the one person walking through the grass is, in world pixels. Only the
+## grass is parted: a tree does not notice being walked past.
+func set_walker(at: Vector3) -> void:
+	grass.set_shader_parameter(
+		"walker", Vector4(at.x, at.z, WALKER_RADIUS, WALKER_REACH)
+	)

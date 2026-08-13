@@ -100,6 +100,9 @@ func _initialize() -> void:
 		focus + Vector3(back * cos(pitch) * 0.35, back * sin(pitch), back * cos(pitch) * 0.94),
 		focus + Vector3(0.0, TILE, 0.0)
 	)
+	# Someone is standing where the shot is aimed, because that is where the
+	# overworld's own camera is always aimed. The grass parts around them.
+	_stage.set_walker(focus)
 
 
 func _process(_delta: float) -> bool:

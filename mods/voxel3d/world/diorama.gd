@@ -293,6 +293,11 @@ func set_tufts(meshes: Array) -> void:
 		_tufts[index].visible = false
 
 
+## Where the player is standing, so the grass around them parts. See `wind.gd`.
+func set_walker(at: Vector3) -> void:
+	_wind.set_walker(at)
+
+
 func set_texture(texture: Texture2D) -> void:
 	_material.albedo_texture = texture
 	_water_shader.set_atlas(texture)
