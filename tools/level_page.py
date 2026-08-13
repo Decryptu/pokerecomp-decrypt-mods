@@ -66,6 +66,8 @@ PAGE = """<!doctype html>
   <h1>voxel3d levels</h1>
   <select id="map"></select>
   <span class="levels" id="palette"></span>
+  <button id="brush">brush</button>
+  <button id="rect">rectangle</button>
   <button id="wallmode">walls: off</button>
   <span class="grow"></span>
   <button id="reset">reset this map</button>
@@ -74,24 +76,26 @@ PAGE = """<!doctype html>
 <main>
   <div class="wrap"><canvas id="art"></canvas></div>
   <p class="hint">
-    <b>Drag a rectangle</b> to paint every cell in it with the selected level.
+    <b>Hold and drag to paint.</b> <kbd>B</kbd> brush, <kbd>R</kbd> rectangle,
     <kbd>0</kbd>-<kbd>6</kbd> pick a level, <kbd>-</kbd> and <kbd>=</kbd> step it,
-    <kbd>Shift</kbd> while dragging paints the WALL flag instead,
-    <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes.
+    <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes a whole stroke, <kbd>[</kbd> <kbd>]</kbd>
+    zoom. Every cell shows its level as a number and a colour; a cell you have
+    changed from my guess carries a white dot.
   </p>
   <p class="hint">
-    One level is 16 pixels, one walk cell. The colours start from what the mod
-    already measures, so most of an outdoor map should be right and you are only
-    fixing what is wrong. A cave starts flat because there is nothing outdoors
-    for it to read.
+    <b>Paint FLOORS only.</b> One level is 16 pixels, one walk cell. Paint the
+    ground a thing stands ON and nothing about the thing: a house, a tree, a
+    signpost and a cave entrance all take the level of the floor under them,
+    because how tall they are is measured off their own drawing already.
   </p>
   <p class="hint">
-    A <b>wall</b> is a cell that belongs to both levels at once, which is the
-    transition itself: the rock face, the 45 degree bank, the flight of stairs.
-    Mark those rather than trying to give them a level. They are drawn with a
-    hatch.
+    <b>Walls are not yours to height.</b> A hatched cell is a transition, which
+    belongs to two levels at once, and its height and its slope are worked out
+    from the floors you paint on either side of it. They are pre-filled from the
+    geometry and are mostly right, so leave them alone unless one is plainly
+    wrong; the walls button is there for when it is.
   </p>
-</header>
+</main>
 <footer>
   <span class="chip" id="count"></span>
   <span class="grow"></span>
@@ -100,15 +104,17 @@ PAGE = """<!doctype html>
 <script>
 const MAPS = __MAPS__;
 const CELL = 16;
-// A ramp a person can tell apart at a glance, low to high. Level 0 is
-// deliberately the only one with no tint at all: an untouched map should look
-// like the map.
+// A ramp a person can tell apart at a glance, low to high. EVERY level is
+// tinted, including zero: leaving zero untinted was the first version and the
+// reviewer could not see which cells they had painted, because most of a map is
+// zero and an untinted cell reads as an unanswered one.
 const COLORS = {
-  "-2": "#3b2a6b", "-1": "#4a63c8", "0": null, "1": "#7ad07a",
+  "-2": "#3b2a6b", "-1": "#4a63c8", "0": "#6b7280", "1": "#4fae4f",
   "2": "#d8c95a", "3": "#e09a4a", "4": "#d4603c", "5": "#c04a8a",
   "6": "#9a4ad4",
 };
-let at = 0, level = 1, wallMode = false, scale = 3;
+const TINT = 0.55;
+let at = 0, level = 1, wallMode = false, scale = 3, tool = "brush";
 const undo = [];
 
 const $ = (id) => document.getElementById(id);
@@ -150,23 +156,39 @@ function draw() {
   c.width = w * scale; c.height = h * scale;
   g.imageSmoothingEnabled = false;
   if (img.complete && img.naturalWidth) g.drawImage(img, 0, 0, c.width, c.height);
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = Math.floor(CELL * scale * 0.5) + "px -apple-system, sans-serif";
   for (let cy = 0; cy < m.cells[1]; cy++) {
     for (let cx = 0; cx < m.cells[0]; cx++) {
       const x = cx * CELL * scale, y = cy * CELL * scale, s = CELL * scale;
-      const tint = COLORS[String(m._levels[cy][cx])];
-      if (tint) {
-        g.globalAlpha = 0.42; g.fillStyle = tint; g.fillRect(x, y, s, s);
-        g.globalAlpha = 1;
-      }
+      const lv = m._levels[cy][cx];
+      g.globalAlpha = TINT; g.fillStyle = COLORS[String(lv)] || "#6b7280";
+      g.fillRect(x, y, s, s); g.globalAlpha = 1;
       if (m._walls[cy][cx]) {
-        g.strokeStyle = "rgba(255,255,255,0.55)"; g.lineWidth = 1;
-        g.beginPath();
-        for (let d = -s; d < s; d += 6) {
+        g.strokeStyle = "rgba(255,255,255,0.6)"; g.lineWidth = 1;
+        g.save(); g.beginPath(); g.rect(x, y, s, s); g.clip(); g.beginPath();
+        for (let d = -s; d < s; d += 5) {
           g.moveTo(x + d, y); g.lineTo(x + d + s, y + s);
         }
-        g.save(); g.rect(x, y, s, s); g.clip(); g.stroke(); g.restore();
+        g.stroke(); g.restore();
       }
-      g.strokeStyle = "rgba(0,0,0,0.30)"; g.lineWidth = 1;
+      // The number, so a level is readable and not only comparable. Drawn with
+      // its own shadow because it sits over the cartridge's own art.
+      if (s >= 22) {
+        g.fillStyle = "rgba(0,0,0,0.75)";
+        g.fillText(String(lv), x + s / 2 + 1, y + s / 2 + 1);
+        g.fillStyle = "#fff";
+        g.fillText(String(lv), x + s / 2, y + s / 2);
+      }
+      // Changed from the guess, so what you have touched is never in doubt.
+      if (lv !== m.levels[cy][cx] || m._walls[cy][cx] !== m.walls[cy][cx]) {
+        g.fillStyle = "#fff";
+        g.beginPath();
+        g.arc(x + s - Math.max(3, s * 0.14), y + Math.max(3, s * 0.14),
+              Math.max(2, s * 0.075), 0, 6.284);
+        g.fill();
+      }
+      g.strokeStyle = "rgba(0,0,0,0.35)"; g.lineWidth = 1;
       g.strokeRect(x + 0.5, y + 0.5, s - 1, s - 1);
     }
   }
@@ -202,6 +224,7 @@ function build() {
   $("wallmode").onclick = () => {
     wallMode = !wallMode;
     $("wallmode").textContent = "walls: " + (wallMode ? "ON" : "off");
+    $("wallmode").style.borderColor = wallMode ? "#e09a4a" : "#3a3a44";
   };
   $("reset").onclick = () => {
     const m = state(at);
@@ -222,7 +245,11 @@ function build() {
     if (/^[0-6]$/.test(e.key)) { level = +e.key; marks(); }
     if (e.key === "[") { scale = Math.max(1, scale - 1); draw(); }
     if (e.key === "]") { scale = Math.min(6, scale + 1); draw(); }
+    if (e.key === "b" || e.key === "B") { tool = "brush"; tools(); }
+    if (e.key === "r" || e.key === "R") { tool = "rect"; tools(); }
   };
+  $("brush").onclick = () => { tool = "brush"; tools(); };
+  $("rect").onclick = () => { tool = "rect"; tools(); };
   const c = $("art");
   let from = null;
   const cellOf = (e) => {
@@ -232,13 +259,52 @@ function build() {
       Math.floor((e.clientY - r.top) / (CELL * scale)),
     ];
   };
-  c.onmousedown = (e) => { from = cellOf(e); e.preventDefault(); };
-  c.onmouseup = (e) => {
-    if (!from) return;
-    paint(from, cellOf(e), e.shiftKey || wallMode);
-    from = null;
+  c.onmousedown = (e) => {
+    from = cellOf(e);
+    open_stroke();
+    if (tool === "brush") { paint(from, from, wallMode); }
+    e.preventDefault();
   };
+  // Hold and drag. A brush paints every cell it crosses; a rectangle only
+  // previews, and lands on release.
+  c.onmousemove = (e) => {
+    if (!from || tool !== "brush") return;
+    const to = cellOf(e);
+    paint(to, to, wallMode);
+  };
+  const finish = (e) => {
+    if (!from) return;
+    if (tool === "rect") paint(from, cellOf(e), wallMode);
+    from = null;
+    close_stroke();
+  };
+  c.onmouseup = finish;
+  c.onmouseleave = finish;
   load();
+}
+
+
+function tools() {
+  $("brush").style.borderColor = tool === "brush" ? "#6ea8fe" : "#3a3a44";
+  $("rect").style.borderColor = tool === "rect" ? "#6ea8fe" : "#3a3a44";
+}
+
+
+// One undo entry per STROKE, not per cell: a brush drag touches a hundred cells
+// and undoing them one at a time is not undo.
+let stroke = null;
+
+function open_stroke() { stroke = []; }
+
+function close_stroke() {
+  if (stroke && stroke.length) {
+    const m = state(at), done = stroke;
+    undo.push(() => {
+      for (const [x, y, lv, w] of done) { m._levels[y][x] = lv; m._walls[y][x] = w; }
+      persist(m);
+    });
+  }
+  stroke = null;
 }
 
 function marks() {
@@ -254,19 +320,20 @@ function paint(a, b, wall) {
   const y0 = Math.max(0, Math.min(a[1], b[1]));
   const y1 = Math.min(m.cells[1] - 1, Math.max(a[1], b[1]));
   if (x1 < x0 || y1 < y0) return;
-  const before = [];
-  for (let y = y0; y <= y1; y++)
-    for (let x = x0; x <= x1; x++)
-      before.push([x, y, m._levels[y][x], m._walls[y][x]]);
-  undo.push(() => {
-    for (const [x, y, lv, w] of before) { m._levels[y][x] = lv; m._walls[y][x] = w; }
-    persist(m);
-  });
+  let moved = false;
   for (let y = y0; y <= y1; y++)
     for (let x = x0; x <= x1; x++) {
-      if (wall) m._walls[y][x] = m._walls[y][x] ? 0 : 1;
-      else m._levels[y][x] = level;
+      // A wall PAINTS rather than toggles: a brush dragged over one cell twice
+      // would otherwise set it and unset it again.
+      const lv = wall ? m._levels[y][x] : level;
+      const w = wall ? 1 : m._walls[y][x];
+      if (lv === m._levels[y][x] && w === m._walls[y][x]) continue;
+      if (stroke) stroke.push([x, y, m._levels[y][x], m._walls[y][x]]);
+      m._levels[y][x] = lv;
+      m._walls[y][x] = w;
+      moved = true;
     }
+  if (!moved) return;
   persist(m); draw();
 }
 
@@ -277,7 +344,7 @@ function load() {
   scale = Math.max(1, Math.min(4, Math.floor(1400 / (m.cells[0] * CELL))));
   img.onload = draw;
   img.src = m.art;
-  marks(); draw();
+  marks(); tools(); draw();
 }
 
 function save() {
