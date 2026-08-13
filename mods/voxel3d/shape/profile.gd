@@ -587,6 +587,32 @@ const STAIRS: Dictionary = {
 		},
 	],
 	18: [
+		# THE LEAGUE'S PLATFORM, and the only staircase in the game that is a real
+		# level change rather than a warp. Three runs round the edge of a floor that
+		# stands one level up, and they can only be built because that floor is
+		# PAINTED: see `shape/levels.gd` and open work 5. Built without it they
+		# would be step-blocks standing in a floor that is flat only because nothing
+		# had told the mesh otherwise.
+		# Five steps, which is the reviewer's own count, over the same 16 pixels
+		# every other flight climbs.
+		{
+			&"tiles": [[136, 137], [136, 137]],
+			&"down": false,
+			&"step": Vector2i(1, 0),
+			&"steps": 5,
+		},
+		{
+			&"tiles": [[139, 140], [139, 140]],
+			&"down": false,
+			&"step": Vector2i(-1, 0),
+			&"steps": 5,
+		},
+		{
+			&"tiles": [[148, 148], [147, 147]],
+			&"down": false,
+			&"step": Vector2i(0, -1),
+			&"steps": 5,
+		},
 		{
 			&"tiles": [[84, 85], [84, 85]],
 			&"down": false,

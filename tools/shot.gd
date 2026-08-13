@@ -21,6 +21,8 @@ const TILE: float = 8.0
 const VIEW := Vector2i(880, 600)
 
 var _stage: RefCounted = null
+## The viewport the composited stage is drawn into, which is what is saved.
+var _frame: SubViewport = null
 var _out: String = ""
 var _frames: int = 0
 ## Six is enough for the viewport to have drawn and for the atlas to have landed.
@@ -61,9 +63,28 @@ func _initialize() -> void:
 		null, map, tileset
 	)
 	_stage = (load("%s/world/diorama.gd" % MOD) as GDScript).new()
+	# THE SHUTTER IS ON THE COMPOSITE, not on the stage's own viewport.
+	#
+	# Anything this view does as a pass over the FINISHED picture, which today is
+	# the hour's tint and tomorrow the frosted panels, lives on the container's
+	# MATERIAL, and a material only runs when the container draws its viewport into
+	# something else. Reading the stage's SubViewport straight off, which this tool
+	# did until 2026-08-13, photographs the world one step before that pass: a tint
+	# that was working perfectly measured as doing nothing at all, twice, and the
+	# second time it was nearly written off as redundant.
+	#
+	# So the container is drawn into a viewport of this tool's own and THAT is what
+	# is saved. Not the window: the window applies a content scale of its own and
+	# the picture came back at 76% in the corner of a grey frame.
+	_frame = SubViewport.new()
+	_frame.size = VIEW
+	_frame.transparent_bg = false
+	_frame.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	root.add_child(_frame)
 	var holder := Control.new()
+	holder.size = Vector2(VIEW)
 	holder.add_child(_stage.container)
-	root.add_child(holder)
+	_frame.add_child(holder)
 	_stage.container.size = Vector2(VIEW)
 	_stage.viewport.size = VIEW
 
@@ -109,6 +130,6 @@ func _process(_delta: float) -> bool:
 	_frames += 1
 	if _frames < _hold:
 		return false
-	_stage.viewport.get_texture().get_image().save_png(_out)
+	_frame.get_texture().get_image().save_png(_out)
 	print(_out)
 	return true

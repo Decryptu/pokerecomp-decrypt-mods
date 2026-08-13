@@ -11,6 +11,7 @@ extends RefCounted
 const Sky3D: GDScript = preload("sky.gd")
 const Water3D: GDScript = preload("water.gd")
 const Wind3D: GDScript = preload("wind.gd")
+const Frame3D: GDScript = preload("frame.gd")
 
 const CELL: float = 16.0
 
@@ -92,6 +93,8 @@ var _water_shader: RefCounted = null
 ## stamped models wear, so the whole world bends in one weather.
 var _tufts: Array[MeshInstance3D] = []
 var _wind: RefCounted = null
+## The pass over the finished frame. See `frame.gd`.
+var _frame: RefCounted = null
 ## The authored models. They carry no texture at all, their colour coming off the
 ## drawing at build time rather than out of the atlas at draw time
 ## (`shape/model.gd`), and they bend, so they wear `_wind`'s own material.
@@ -156,6 +159,10 @@ func _init() -> void:
 
 	_water_shader = Water3D.new()
 	_wind = Wind3D.new()
+	# The pass over the composited stage: the hour's own colour over every pixel,
+	# under whatever the screen draws on top of it.
+	_frame = Frame3D.new()
+	container.material = _frame.material
 
 	actors = Node3D.new()
 	viewport.add_child(actors)
@@ -169,6 +176,9 @@ func set_time_of_day(time_of_day: int) -> void:
 	_light.light_energy = DAY_ENERGY[_time_of_day]
 	_light.rotation_degrees = SUN_ROTATION[_time_of_day]
 	_environment.ambient_light_color = DAY_AMBIENT[_time_of_day]
+	# And the hour over the whole PICTURE, which is the half of it a light cannot
+	# reach: see `frame.gd`.
+	_frame.set_time_of_day(_time_of_day)
 
 
 func time_of_day() -> int:
@@ -309,6 +319,8 @@ func set_texture(texture: Texture2D) -> void:
 ## makes a ramp of it, and out of doors is the only place a ramp belongs.
 func set_background(color: Color, outside: bool = true) -> void:
 	_sky.set_background(color, outside)
+	# A room has no sky to take its colour from, and so takes no hour either.
+	_frame.set_outside(outside)
 	_water_shader.set_sky(_sky.horizon, _sky.zenith)
 
 
