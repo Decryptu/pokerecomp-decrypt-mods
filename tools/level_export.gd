@@ -30,7 +30,14 @@ extends SceneTree
 
 const MOD := "user://mods/voxel3d"
 const CELL_TILES: int = 2
-const BAND: int = 16
+## THE UNIT IS THE 8px BAND, which is half a level, and not the level itself.
+##
+## A level is a walk cell, 16px, and most floors are a whole number of them. Not
+## all: water lies 8px below the ground it touches and a jumping ledge stands 8px
+## above it, which is half a level, and the reviewer met both immediately. The
+## mesher has worked in 8px bands from the start, so this is its own unit rather
+## than a new one, and it is the finest step any of this art states.
+const BAND: int = 8
 ## `mesher.gd`'s own art modes, which are what say whether a tile is floor.
 const ART_FLAT: int = 0
 const ART_UPRIGHT: int = 2
@@ -128,6 +135,9 @@ func _initialize() -> void:
 			"number": map.number,
 			"tileset": map.tileset,
 			"cells": [cells.x, cells.y],
+			# Named, so nothing downstream has to guess whether a 2 is two levels
+			# or one. Every number in `levels` is a count of 8px bands.
+			"unit": "band8",
 			"outside": Gen2WorldPhoneHost.is_outside_environment(map.environment),
 			"art": "level_%d_%d.png" % [map.group, map.number],
 			"levels": levels,

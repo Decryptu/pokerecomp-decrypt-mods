@@ -12,9 +12,16 @@ what comes back is a matrix rather than a sentence.
 The directory is what `tools/level_export.gd` wrote, with each map's own art
 from `tools/map_art.gd` beside it.
 
-THE UNIT IS THE WALK CELL, 16x16 pixels, because that is what a level step is:
-one level is one cell of height, and a wall or a flight of stairs is drawn 2x2
-tiles, which is one cell.
+THE UNIT IS THE 8px BAND, half a level, and the page is written in levels
+because that is what a person sees. A level is a walk cell, 16px, which is what
+a wall or a flight of stairs is drawn as. Half levels are not a refinement, they
+are in the art: water lies 8px below the ground it touches and a jumping ledge
+stands 8px above it, and the reviewer met both within a minute of opening this.
+
+WATER AND LEDGES ARE NOT PAINTED, though. Both live on single TILES, and a tile
+is a quarter of a cell, which is why a cell can be half jumping ledge and half
+ground: the mesher resolves those two tiles separately and already gives each
+its own 8px. The paint says where the GROUND is; the 8px things ride on it.
 
 PRE-FILLED with what the mod already measures, so the job is correcting a
 proposal rather than painting a map from blank. Outdoors the cliff pass is
@@ -68,7 +75,6 @@ PAGE = """<!doctype html>
   <span class="levels" id="palette"></span>
   <button id="brush">brush</button>
   <button id="rect">rectangle</button>
-  <button id="wallmode">walls: off</button>
   <span class="grow"></span>
   <button id="reset">reset this map</button>
   <button id="save">SAVE levels.json</button>
@@ -77,23 +83,31 @@ PAGE = """<!doctype html>
   <div class="wrap"><canvas id="art"></canvas></div>
   <p class="hint">
     <b>Hold and drag to paint.</b> <kbd>B</kbd> brush, <kbd>R</kbd> rectangle,
-    <kbd>0</kbd>-<kbd>6</kbd> pick a level, <kbd>-</kbd> and <kbd>=</kbd> step it,
-    <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes a whole stroke, <kbd>[</kbd> <kbd>]</kbd>
-    zoom. Every cell shows its level as a number and a colour; a cell you have
-    changed from my guess carries a white dot.
+    <kbd>0</kbd>-<kbd>4</kbd> pick a whole level, <kbd>-</kbd> and <kbd>=</kbd>
+    step by a HALF level, <kbd>W</kbd> the wall, <kbd>Ctrl</kbd>+<kbd>Z</kbd>
+    undoes a whole stroke, <kbd>[</kbd> <kbd>]</kbd> zoom. Every cell shows its
+    level and a colour; a cell you have changed carries a white dot. Painting a
+    level over a wall clears the wall, which is how a wrong one is taken back.
   </p>
   <p class="hint">
-    <b>Paint FLOORS only.</b> One level is 16 pixels, one walk cell. Paint the
-    ground a thing stands ON and nothing about the thing: a house, a tree, a
-    signpost and a cave entrance all take the level of the floor under them,
-    because how tall they are is measured off their own drawing already.
+    <b>Paint FLOORS only.</b> Paint the ground a thing stands ON and nothing
+    about the thing: a house, a tree, a signpost and a cave entrance all take the
+    level of the floor under them, because how tall they are is measured off
+    their own drawing already.
+  </p>
+  <p class="hint">
+    <b>Half levels are for FLOORS at half height, not for water or ledges.</b>
+    A level is 16 pixels and a half level is 8. Water and a jumping ledge are
+    each 8 off the ground they touch, and you do not paint either: those live on
+    single tiles, the mod already knows them, and that is also what makes a cell
+    that is half ledge and half ground come out right. Paint the ground level
+    they sit at. Use a half level when a whole FLOOR is at half height.
   </p>
   <p class="hint">
     <b>Walls are not yours to height.</b> A hatched cell is a transition, which
     belongs to two levels at once, and its height and its slope are worked out
-    from the floors you paint on either side of it. They are pre-filled from the
-    geometry and are mostly right, so leave them alone unless one is plainly
-    wrong; the walls button is there for when it is.
+    from the floors you paint either side of it. They are pre-filled from the
+    geometry and are mostly right, so leave them alone unless one is wrong.
   </p>
 </main>
 <footer>
@@ -104,18 +118,33 @@ PAGE = """<!doctype html>
 <script>
 const MAPS = __MAPS__;
 const CELL = 16;
-// A ramp a person can tell apart at a glance, low to high. EVERY level is
-// tinted, including zero: leaving zero untinted was the first version and the
-// reviewer could not see which cells they had painted, because most of a map is
-// zero and an untinted cell reads as an unanswered one.
+// THE UNIT IS THE 8px BAND, half a level, because half levels are real: water
+// lies 8px below the ground it touches and a jumping ledge stands 8px above it.
+// The palette is written in LEVELS because that is what a person sees, and
+// stored in bands because that is what the art states.
+const BANDS = [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8];
+// A ramp a person can tell apart at a glance, low to high, with each half level
+// a lighter shade of the whole one below it. EVERY value is tinted, including
+// zero: leaving zero untinted was the first version and the reviewer could not
+// see which cells they had painted, because most of a map is zero and an
+// untinted cell reads as an unanswered one.
 const COLORS = {
-  "-2": "#3b2a6b", "-1": "#4a63c8", "0": "#6b7280", "1": "#4fae4f",
-  "2": "#d8c95a", "3": "#e09a4a", "4": "#d4603c", "5": "#c04a8a",
-  "6": "#9a4ad4",
+  "-2": "#3b2a6b", "-1": "#4a63c8", "0": "#6b7280", "1": "#8fa3ad",
+  "2": "#4fae4f", "3": "#9ccf6a", "4": "#d8c95a", "5": "#e6b86a",
+  "6": "#e09a4a", "7": "#e0785a", "8": "#d4603c",
 };
+const WALL = "wall";
 const TINT = 0.55;
-let at = 0, level = 1, wallMode = false, scale = 3, tool = "brush";
+let at = 0, band = 2, paintWall = false, scale = 3, tool = "brush";
 const undo = [];
+
+// "1" and "1 and a half", written the way a person says them.
+function label(b) {
+  const whole = Math.trunc(b / 2);
+  if (Math.abs(b % 2) !== 1) return String(whole);
+  const sign = b < 0 && whole === 0 ? "-" : (whole === 0 ? "" : String(whole));
+  return sign + "\\u00bd";
+}
 
 const $ = (id) => document.getElementById(id);
 const store = {};
@@ -176,9 +205,9 @@ function draw() {
       // its own shadow because it sits over the cartridge's own art.
       if (s >= 22) {
         g.fillStyle = "rgba(0,0,0,0.75)";
-        g.fillText(String(lv), x + s / 2 + 1, y + s / 2 + 1);
+        g.fillText(label(lv), x + s / 2 + 1, y + s / 2 + 1);
         g.fillStyle = "#fff";
-        g.fillText(String(lv), x + s / 2, y + s / 2);
+        g.fillText(label(lv), x + s / 2, y + s / 2);
       }
       // Changed from the guess, so what you have touched is never in doubt.
       if (lv !== m.levels[cy][cx] || m._walls[cy][cx] !== m.walls[cy][cx]) {
@@ -214,17 +243,19 @@ function build() {
     `${m.cells[0]}x${m.cells[1]} cells${m.outside ? "" : " · inside"}</option>`
   ).join("");
   $("map").onchange = () => { at = +$("map").value; load(); };
-  $("palette").innerHTML = Object.keys(COLORS).map((k) =>
-    `<span class="lv" data-l="${k}" style="background:${COLORS[k] || "#8d8da0"}">${k}</span>`
-  ).join("");
+  // The wall is one more button on the same row, not a mode with a state to
+  // remember. A mode you can leave switched on is a mode you paint fifty cells
+  // through by mistake.
+  $("palette").innerHTML = BANDS.map((b) =>
+    `<span class="lv" data-l="${b}" style="background:${COLORS[String(b)]}">${label(b)}</span>`
+  ).join("") +
+    `<span class="lv" data-l="${WALL}" style="background:#2c2c34;color:#e8e8ee">wall</span>`;
   $("palette").onclick = (e) => {
     const el = e.target.closest(".lv");
-    if (el) { level = +el.dataset.l; marks(); }
-  };
-  $("wallmode").onclick = () => {
-    wallMode = !wallMode;
-    $("wallmode").textContent = "walls: " + (wallMode ? "ON" : "off");
-    $("wallmode").style.borderColor = wallMode ? "#e09a4a" : "#3a3a44";
+    if (!el) return;
+    if (el.dataset.l === WALL) { paintWall = true; }
+    else { paintWall = false; band = +el.dataset.l; }
+    marks();
   };
   $("reset").onclick = () => {
     const m = state(at);
@@ -240,9 +271,11 @@ function build() {
       if (step) { step(); draw(); }
       return;
     }
-    if (e.key === "-") { level--; marks(); }
-    if (e.key === "=" || e.key === "+") { level++; marks(); }
-    if (/^[0-6]$/.test(e.key)) { level = +e.key; marks(); }
+    // A number key is a WHOLE level; minus and equals step by a half.
+    if (e.key === "-") { paintWall = false; band--; marks(); }
+    if (e.key === "=" || e.key === "+") { paintWall = false; band++; marks(); }
+    if (/^[0-4]$/.test(e.key)) { paintWall = false; band = 2 * +e.key; marks(); }
+    if (e.key === "w" || e.key === "W") { paintWall = true; marks(); }
     if (e.key === "[") { scale = Math.max(1, scale - 1); draw(); }
     if (e.key === "]") { scale = Math.min(6, scale + 1); draw(); }
     if (e.key === "b" || e.key === "B") { tool = "brush"; tools(); }
@@ -262,7 +295,7 @@ function build() {
   c.onmousedown = (e) => {
     from = cellOf(e);
     open_stroke();
-    if (tool === "brush") { paint(from, from, wallMode); }
+    if (tool === "brush") { paint(from, from, paintWall); }
     e.preventDefault();
   };
   // Hold and drag. A brush paints every cell it crosses; a rectangle only
@@ -270,11 +303,11 @@ function build() {
   c.onmousemove = (e) => {
     if (!from || tool !== "brush") return;
     const to = cellOf(e);
-    paint(to, to, wallMode);
+    paint(to, to, paintWall);
   };
   const finish = (e) => {
     if (!from) return;
-    if (tool === "rect") paint(from, cellOf(e), wallMode);
+    if (tool === "rect") paint(from, cellOf(e), paintWall);
     from = null;
     close_stroke();
   };
@@ -308,9 +341,10 @@ function close_stroke() {
 }
 
 function marks() {
-  level = Math.max(-2, Math.min(6, level));
+  band = Math.max(BANDS[0], Math.min(BANDS[BANDS.length - 1], band));
   for (const el of document.querySelectorAll(".lv"))
-    el.classList.toggle("on", +el.dataset.l === level);
+    el.classList.toggle("on",
+      paintWall ? el.dataset.l === WALL : +el.dataset.l === band);
 }
 
 function paint(a, b, wall) {
@@ -324,9 +358,11 @@ function paint(a, b, wall) {
   for (let y = y0; y <= y1; y++)
     for (let x = x0; x <= x1; x++) {
       // A wall PAINTS rather than toggles: a brush dragged over one cell twice
-      // would otherwise set it and unset it again.
-      const lv = wall ? m._levels[y][x] : level;
-      const w = wall ? 1 : m._walls[y][x];
+      // would otherwise set it and unset it again. Painting a level CLEARS the
+      // wall on that cell, because a cell that has a floor is not a transition,
+      // and that is the whole of how a mistaken wall is taken back.
+      const lv = wall ? m._levels[y][x] : band;
+      const w = wall ? 1 : 0;
       if (lv === m._levels[y][x] && w === m._walls[y][x]) continue;
       if (stroke) stroke.push([x, y, m._levels[y][x], m._walls[y][x]]);
       m._levels[y][x] = lv;
@@ -348,11 +384,14 @@ function load() {
 }
 
 function save() {
-  const out = { maps: MAPS.map((m, i) => {
+  // The unit travels WITH the numbers. Every value in `levels` is a count of
+  // 8px bands, two to a level, and a file that does not say so is a file whose
+  // 2 can be read as two levels by whoever opens it next.
+  const out = { unit: "band8", pixels_per_band: 8, maps: MAPS.map((m, i) => {
     const s = state(i);
     return { group: s.group, number: s.number, tileset: s.tileset,
              cells: s.cells, levels: s._levels, walls: s._walls };
-  }) };
+  })};
   const a = document.createElement("a");
   a.href = URL.createObjectURL(
     new Blob([JSON.stringify(out, null, 1)], { type: "application/json" }));
