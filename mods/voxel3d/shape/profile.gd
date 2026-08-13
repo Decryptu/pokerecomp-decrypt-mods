@@ -317,15 +317,23 @@ const OBJECTS: Dictionary = {
 			&"height": 6,
 		},
 		# The chair, 12 px square in the middle of four tiles, drawn face-on with a
-		# back: no rows of it are seen from above, so its depth is the one number a
-		# person had to give.
+		# back: no rows of it are seen from above, so its depth and its height are
+		# both the reviewer's, 6 and 6.
+		#
+		# THE DRAWING IS NOT TAKEN AT ITS WORD HERE and that is round eleven's
+		# answer. Its twelve rows were stood up as twelve pixels first, which is a
+		# chair with a back and reads as a cabinet beside a desk half its height.
+		# Three builds went in front of the reviewer and they took their own numbers
+		# for both: a drawing being tall on screen is not a thing being tall in the
+		# world, which is the correction they made once before, about the flower
+		# bed. What a face-on drawing states honestly is its WIDTH.
 		{
 			&"name": &"chair",
 			&"tiles": [[74, 75], [90, 91]],
 			&"window": Rect2i(4, 4, 12, 12),
 			&"top": 0,
 			&"depth": 6,
-			&"height": 12,
+			&"height": 6,
 		},
 	],
 }
