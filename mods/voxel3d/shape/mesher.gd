@@ -427,6 +427,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# Both are keyed by tile id, which means nothing without the tileset it came
 	# from, so a warp to a map on another tileset has to drop them.
 	_masks.clear()
+	_hulls.clear()
 	_border.clear()
 	_edge_floor = Vector2i(-2, 0)
 	# Keyed on tile ids, which mean nothing without the tileset they came from.
@@ -1427,11 +1428,17 @@ const RING_SHARE: float = 0.7
 var _masks: Dictionary = {}
 
 
+## The name a cut mask is remembered under. One drawing is cut once however many
+## of its tiles ask, and the depths carved from it are remembered the same way.
+func _mask_key(tiles: Array, filled: bool, outline: int) -> String:
+	return "%s,%d,%d" % [str(tiles), 1 if filled else 0, outline]
+
+
 func _structure_mask(
 	tiles: Array, across: Vector2i, atlas: RefCounted, filled: bool,
 	outline: int = 0
 ) -> PackedByteArray:
-	var key: String = "%s,%d,%d" % [str(tiles), 1 if filled else 0, outline]
+	var key: String = _mask_key(tiles, filled, outline)
 	if _masks.has(key):
 		return _masks[key]
 
@@ -1545,14 +1552,24 @@ func _ring_pixel(ring: Dictionary, indices: PackedInt32Array, at: int) -> void:
 ## class takes a carved plan: each row's own run of pixels is a circle seen from
 ## above, deepest at the middle of the run and pinched to one pixel at its ends.
 ##
-## ONE SPAN PER ROW, from the row's first drawn pixel to its last, and NOT one
-## per contiguous run. These drawings are dithered, so a row of one bush is half
-## a dozen short runs with floor showing between them, and revolving each run
-## separately makes one dome into six little cylinders in a line. The reference
-## takes the row's extent for exactly this reason (`Structures.lua:roundTemplate`,
-## `lo = lo or ix; hi = ix` over the whole row): a gap in the drawing is a gap in
-## the SURFACE, not a new object. Measured over every map, it is also very
-## slightly cheaper than splitting per run, 6.066M triangles against 6.087M.
+## ONE SPAN PER ROW OF ONE BODY, and a BODY is a connected piece of the mask.
+##
+## Not one span per contiguous RUN: these drawings are dithered, so a row of one
+## bush is half a dozen short runs with floor showing between them, and revolving
+## each separately makes one dome into six little cylinders in a line.
+##
+## And not one span per ROW of the cell either, which is what this did until the
+## bollards were looked at. A cell is 16 px and Goldenrod draws TWO wooden
+## bollards in one, eight pixels apart; taking the row whole spanned both of them
+## and revolved the pair into a single black mushroom fourteen pixels deep. The
+## picture is `sheet_post_defect.png` in the survey directory, and `post` is
+## 10178 tiles on 54 maps, so it was not a corner.
+##
+## The reference does not have this fault because it never works on a rectangle:
+## it hulls FLOOD-FILLED REGIONS (`Structures.lua`), and two bollards are two
+## regions. `_bodies` is that flood, and eight-connected on purpose: a dither is
+## a chain of pixels touching at their corners, so four-connectivity would break
+## a bush into the very specks the row-wide rule existed to prevent.
 ##
 ## A ROUND CLASS IS AS DEEP AS IT IS WIDE, and its own DEPTH does not cap it.
 ## That is the reference's rule stated plainly: "the canvas is NX wide and NX
@@ -1581,34 +1598,100 @@ func _ring_pixel(ring: Dictionary, indices: PackedInt32Array, at: int) -> void:
 ## the reviewer's call and the right one: the outline of these drawings is dark,
 ## and a naive revolve would paint the whole object its own outline colour.
 func _cell_levels(
-	mask: PackedByteArray, span: Vector2i, round_plan: bool, depth: int
+	mask: PackedByteArray, span: Vector2i, round_plan: bool, depth: int,
+	key: String = ""
 ) -> PackedByteArray:
+	if not key.is_empty() and _hulls.has(key):
+		return _hulls[key]
 	var levels := PackedByteArray()
 	levels.resize(mask.size())
 	var deepest: int = clampi(depth, 1, 255)
 	if not round_plan:
 		for at: int in mask.size():
 			levels[at] = deepest if mask[at] == 1 else 0
+		if not key.is_empty():
+			_hulls[key] = levels
 		return levels
+	# THE ROW'S EXTENT WITHIN ONE BODY, not within the cell. See the header.
+	var body := _bodies(mask, span)
+	# Per row, the leftmost and rightmost pixel of each body that reaches it.
+	var first: Dictionary = {}
+	var last: Dictionary = {}
 	for py: int in span.y:
-		var first: int = -1
-		var last: int = -1
+		first.clear()
+		last.clear()
 		for px: int in span.x:
-			if mask[py * span.x + px] == 1:
-				if first < 0:
-					first = px
-				last = px
-		if first < 0:
-			continue
-		var middle: float = (float(first) + float(last) + 1.0) * 0.5
-		var radius: float = maxf((float(last) + 1.0 - float(first)) * 0.5, 0.5)
-		for step: int in range(first, last + 1):
-			if mask[py * span.x + step] == 0:
+			var group: int = body[py * span.x + px]
+			if group < 0:
 				continue
-			var away: float = float(step) + 0.5 - middle
-			var chord: float = 2.0 * sqrt(maxf(radius * radius - away * away, 0.0))
-			levels[py * span.x + step] = clampi(roundi(chord), 1, 255)
+			if not first.has(group):
+				first[group] = px
+			last[group] = px
+		for group: int in first:
+			var from: int = int(first[group])
+			var to: int = int(last[group])
+			var middle: float = (float(from) + float(to) + 1.0) * 0.5
+			var radius: float = maxf((float(to) + 1.0 - float(from)) * 0.5, 0.5)
+			for step: int in range(from, to + 1):
+				if body[py * span.x + step] != group:
+					continue
+				var away: float = float(step) + 0.5 - middle
+				var chord: float = 2.0 * sqrt(maxf(radius * radius - away * away, 0.0))
+				levels[py * span.x + step] = clampi(roundi(chord), 1, 255)
+	if not key.is_empty():
+		_hulls[key] = levels
 	return levels
+
+
+## The depths carved from each cut mask, remembered like the masks themselves:
+## one drawing is one answer however many of its tiles ask for it. Named for the
+## HULL rather than for the levels, which in this file are what a person paints
+## on a map.
+var _hulls: Dictionary = {}
+
+
+## WHICH PIXELS BELONG TO THE SAME BODY, as a group number per pixel and -1 where
+## the mask is empty.
+##
+## EIGHT-CONNECTED, and that is the whole rule. A Game Boy artist shades with a
+## CHECKERBOARD, so a dithered bush is a chain of pixels touching only at their
+## corners: under four-connectivity it falls apart into a cloud of specks and
+## every one becomes its own little dome, which is the fault the row-wide reading
+## was protecting against. Diagonals hold the dither together and still leave two
+## things a clear pixel apart in separate bodies, which is what a cell holding two
+## drawings needs.
+func _bodies(mask: PackedByteArray, span: Vector2i) -> PackedInt32Array:
+	var body := PackedInt32Array()
+	body.resize(mask.size())
+	body.fill(-1)
+	var groups: int = 0
+	var stack := PackedInt32Array()
+	for start: int in mask.size():
+		if mask[start] == 0 or body[start] >= 0:
+			continue
+		var group: int = groups
+		groups += 1
+		body[start] = group
+		stack.push_back(start)
+		while not stack.is_empty():
+			var at: int = stack[stack.size() - 1]
+			stack.remove_at(stack.size() - 1)
+			@warning_ignore("integer_division")
+			var ax: int = at % span.x
+			@warning_ignore("integer_division")
+			var ay: int = at / span.x
+			for dy: int in [-1, 0, 1]:
+				for dx: int in [-1, 0, 1]:
+					var nx: int = ax + dx
+					var ny: int = ay + dy
+					if nx < 0 or ny < 0 or nx >= span.x or ny >= span.y:
+						continue
+					var next: int = ny * span.x + nx
+					if mask[next] == 0 or body[next] >= 0:
+						continue
+					body[next] = group
+					stack.push_back(next)
+	return body
 
 
 ## Where an authored model stands, gathered per DRAWING rather than per tile.
@@ -1731,8 +1814,12 @@ func _cutout(
 		for column: int in across.x:
 			tiles.append(_tile_at(start.x + column, start.y + row))
 	var span := across * int(TILE)
+	var key: String = _mask_key(tiles, filled, outline)
 	var mask: PackedByteArray = _structure_mask(tiles, across, atlas, filled, outline)
-	var levels: PackedByteArray = _cell_levels(mask, span, round_plan, roundi(depth))
+	var levels: PackedByteArray = _cell_levels(
+		mask, span, round_plan, roundi(depth),
+		"%s,%d,%d" % [key, 1 if round_plan else 0, roundi(depth)]
+	)
 
 	var edge: int = int(TILE)
 	var tile: int = _tiles[at]
