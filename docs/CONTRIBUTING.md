@@ -31,7 +31,7 @@ be linked; the other two take a `.zip`.
 Run the game from a pokerecomp checkout:
 
 ```bash
-/Applications/Godot.app/Contents/MacOS/Godot --path /Users/gurvan/Documents/Godot/pokerecomp
+godot --path /path/to/pokerecomp
 ```
 
 The launcher lists what loaded and names anything it refused. A mod that fails
