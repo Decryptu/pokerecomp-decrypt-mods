@@ -12,16 +12,17 @@ what comes back is a matrix rather than a sentence.
 The directory is what `tools/level_export.gd` wrote, with each map's own art
 from `tools/map_art.gd` beside it.
 
-THE UNIT IS THE 8px BAND, half a level, and the page is written in levels
-because that is what a person sees. A level is a walk cell, 16px, which is what
-a wall or a flight of stairs is drawn as. Half levels are not a refinement, they
-are in the art: water lies 8px below the ground it touches and a jumping ledge
-stands 8px above it, and the reviewer met both within a minute of opening this.
+THE UNIT IS THE WHOLE LEVEL, one walk cell, 16px. Half levels were offered and
+withdrawn within the hour, for a reason worth keeping: these maps are not
+consistent three-dimensional spaces. One lake has ground at different half
+heights all the way round it, which no single water surface can meet. A half
+step let a person write an impossibility down one cell at a time; whole levels
+make them choose, which is the only thing that can be built.
 
-WATER AND LEDGES ARE NOT PAINTED, though. Both live on single TILES, and a tile
-is a quarter of a cell, which is why a cell can be half jumping ledge and half
-ground: the mesher resolves those two tiles separately and already gives each
-its own 8px. The paint says where the GROUND is; the 8px things ride on it.
+WATER AND LEDGES ARE NOT PAINTED. Both live on single TILES, and a tile is a
+quarter of a cell, which is why a cell can be half jumping ledge and half ground
+or half water and half bank: the mesher resolves those tiles separately. The
+paint says where the GROUND is and nothing else.
 
 PRE-FILLED with what the mod already measures, so the job is correcting a
 proposal rather than painting a map from blank. Outdoors the cliff pass is
@@ -83,8 +84,8 @@ PAGE = """<!doctype html>
   <div class="wrap"><canvas id="art"></canvas></div>
   <p class="hint">
     <b>Hold and drag to paint.</b> <kbd>B</kbd> brush, <kbd>R</kbd> rectangle,
-    <kbd>0</kbd>-<kbd>4</kbd> pick a whole level, <kbd>-</kbd> and <kbd>=</kbd>
-    step by a HALF level, <kbd>W</kbd> the wall, <kbd>Ctrl</kbd>+<kbd>Z</kbd>
+    <kbd>0</kbd>-<kbd>5</kbd> pick a level, <kbd>-</kbd> and <kbd>=</kbd> step it,
+    <kbd>W</kbd> the wall, <kbd>Ctrl</kbd>+<kbd>Z</kbd>
     undoes a whole stroke, <kbd>[</kbd> <kbd>]</kbd> zoom. Every cell shows its
     level and a colour; a cell you have changed carries a white dot. Painting a
     level over a wall clears the wall, which is how a wrong one is taken back.
@@ -96,12 +97,13 @@ PAGE = """<!doctype html>
     their own drawing already.
   </p>
   <p class="hint">
-    <b>Half levels are for FLOORS at half height, not for water or ledges.</b>
-    A level is 16 pixels and a half level is 8. Water and a jumping ledge are
-    each 8 off the ground they touch, and you do not paint either: those live on
-    single tiles, the mod already knows them, and that is also what makes a cell
-    that is half ledge and half ground come out right. Paint the ground level
-    they sit at. Use a half level when a whole FLOOR is at half height.
+    <b>Whole levels only, and water and ledges are not painted.</b> A level is 16
+    pixels. There is no half, because these maps are not consistent spaces: one
+    lake has ground at different half heights all the way round it, and a half
+    step only lets that impossibility be written down. Water, a jumping ledge and
+    the little bank between water and ground are all single TILES, a quarter of a
+    cell each, and the mesher gives each its own shape. Paint the level of the
+    GROUND those things sit against and nothing else.
   </p>
   <p class="hint">
     <b>Walls are not yours to height.</b> A hatched cell is a transition, which
@@ -118,33 +120,26 @@ PAGE = """<!doctype html>
 <script>
 const MAPS = __MAPS__;
 const CELL = 16;
-// THE UNIT IS THE 8px BAND, half a level, because half levels are real: water
-// lies 8px below the ground it touches and a jumping ledge stands 8px above it.
-// The palette is written in LEVELS because that is what a person sees, and
-// stored in bands because that is what the art states.
-const BANDS = [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8];
-// A ramp a person can tell apart at a glance, low to high, with each half level
-// a lighter shade of the whole one below it. EVERY value is tinted, including
-// zero: leaving zero untinted was the first version and the reviewer could not
-// see which cells they had painted, because most of a map is zero and an
-// untinted cell reads as an unanswered one.
+// WHOLE LEVELS ONLY, one walk cell of 16px each. Half levels were offered and
+// withdrawn: these maps are not consistent three-dimensional spaces, and one
+// lake has ground at different half heights all the way round it. A half step
+// let a person write an impossibility down one cell at a time. Whole levels make
+// them choose, which is the only thing that can be built.
+const BANDS = [-1, 0, 1, 2, 3, 4, 5];
+// A ramp a person can tell apart at a glance, low to high. EVERY level is
+// tinted, including zero: leaving zero untinted was the first version and the
+// reviewer could not see which cells they had painted, because most of a map is
+// zero and an untinted cell reads as an unanswered one.
 const COLORS = {
-  "-2": "#3b2a6b", "-1": "#4a63c8", "0": "#6b7280", "1": "#8fa3ad",
-  "2": "#4fae4f", "3": "#9ccf6a", "4": "#d8c95a", "5": "#e6b86a",
-  "6": "#e09a4a", "7": "#e0785a", "8": "#d4603c",
+  "-1": "#4a63c8", "0": "#6b7280", "1": "#4fae4f", "2": "#d8c95a",
+  "3": "#e09a4a", "4": "#d4603c", "5": "#c04a8a",
 };
 const WALL = "wall";
 const TINT = 0.55;
-let at = 0, band = 2, paintWall = false, scale = 3, tool = "brush";
+let at = 0, band = 1, paintWall = false, scale = 3, tool = "brush";
 const undo = [];
 
-// "1" and "1 and a half", written the way a person says them.
-function label(b) {
-  const whole = Math.trunc(b / 2);
-  if (Math.abs(b % 2) !== 1) return String(whole);
-  const sign = b < 0 && whole === 0 ? "-" : (whole === 0 ? "" : String(whole));
-  return sign + "\\u00bd";
-}
+const label = (b) => String(b);
 
 const $ = (id) => document.getElementById(id);
 const store = {};
@@ -271,10 +266,9 @@ function build() {
       if (step) { step(); draw(); }
       return;
     }
-    // A number key is a WHOLE level; minus and equals step by a half.
     if (e.key === "-") { paintWall = false; band--; marks(); }
     if (e.key === "=" || e.key === "+") { paintWall = false; band++; marks(); }
-    if (/^[0-4]$/.test(e.key)) { paintWall = false; band = 2 * +e.key; marks(); }
+    if (/^[0-5]$/.test(e.key)) { paintWall = false; band = +e.key; marks(); }
     if (e.key === "w" || e.key === "W") { paintWall = true; marks(); }
     if (e.key === "[") { scale = Math.max(1, scale - 1); draw(); }
     if (e.key === "]") { scale = Math.min(6, scale + 1); draw(); }
@@ -384,10 +378,9 @@ function load() {
 }
 
 function save() {
-  // The unit travels WITH the numbers. Every value in `levels` is a count of
-  // 8px bands, two to a level, and a file that does not say so is a file whose
-  // 2 can be read as two levels by whoever opens it next.
-  const out = { unit: "band8", pixels_per_band: 8, maps: MAPS.map((m, i) => {
+  // The unit travels WITH the numbers, so nothing downstream has to guess what
+  // a 2 counts.
+  const out = { unit: "level16", pixels_per_level: 16, maps: MAPS.map((m, i) => {
     const s = state(i);
     return { group: s.group, number: s.number, tileset: s.tileset,
              cells: s.cells, levels: s._levels, walls: s._walls };

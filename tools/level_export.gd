@@ -30,14 +30,21 @@ extends SceneTree
 
 const MOD := "user://mods/voxel3d"
 const CELL_TILES: int = 2
-## THE UNIT IS THE 8px BAND, which is half a level, and not the level itself.
+## THE UNIT IS THE WHOLE LEVEL, one walk cell, 16px. There are no half levels
+## and there deliberately cannot be.
 ##
-## A level is a walk cell, 16px, and most floors are a whole number of them. Not
-## all: water lies 8px below the ground it touches and a jumping ledge stands 8px
-## above it, which is half a level, and the reviewer met both immediately. The
-## mesher has worked in 8px bands from the start, so this is its own unit rather
-## than a new one, and it is the finest step any of this art states.
-const BAND: int = 8
+## Half a level was offered and withdrawn within the hour, for a reason worth
+## keeping: these maps are not consistent three-dimensional spaces. The reviewer
+## put it exactly, having gone looking: one lake has ground at different half
+## heights all the way round it, which no single water surface can meet. A 2D
+## tile map never had to answer for that and a diorama does, so the half step is
+## the wrong tool. It let a person write down an impossibility one cell at a
+## time; whole levels make them choose, which is the only thing that can be
+## built.
+##
+## The 8px things that are real are not levels at all: water is recessed and a
+## jumping ledge is a wedge, both per TILE and both the mesher's own business.
+const BAND: int = 16
 ## `mesher.gd`'s own art modes, which are what say whether a tile is floor.
 const ART_FLAT: int = 0
 const ART_UPRIGHT: int = 2
@@ -135,9 +142,8 @@ func _initialize() -> void:
 			"number": map.number,
 			"tileset": map.tileset,
 			"cells": [cells.x, cells.y],
-			# Named, so nothing downstream has to guess whether a 2 is two levels
-			# or one. Every number in `levels` is a count of 8px bands.
-			"unit": "band8",
+			# Named, so nothing downstream has to guess what a 2 counts.
+			"unit": "level16",
 			"outside": Gen2WorldPhoneHost.is_outside_environment(map.environment),
 			"art": "level_%d_%d.png" % [map.group, map.number],
 			"levels": levels,
