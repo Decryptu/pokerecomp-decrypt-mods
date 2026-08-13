@@ -29,8 +29,8 @@ var _tile_count: int = 0
 ## cut per pixel rather than textured per tile.
 var _source: PackedByteArray = PackedByteArray()
 var _background: Color = Color("#f5f1d8")
-## tile -> its darkest drawn index, worked out once. See `darkest`.
-var _darkest: Dictionary = {}
+## tile -> its drawn indices darkest first, worked out once. See `shade_order`.
+var _shades: Dictionary = {}
 
 
 ## Rebuilds the whole sheet. Called when the map, the palette or the time of day
@@ -50,7 +50,7 @@ func build(
 	_tile_count = 0
 	_source = PackedByteArray()
 	# Kept per tile and re-coloured by the hour, so it cannot outlive a rebuild.
-	_darkest.clear()
+	_shades.clear()
 	if data == null or map == null or tileset == null:
 		return false
 
@@ -95,7 +95,7 @@ func refresh_animation(
 	for tile: int in changed:
 		if tile >= 0 and tile < _tile_count:
 			_paint(indices, palettes, tile)
-			_darkest.erase(tile)
+			_shades.erase(tile)
 	texture.update(_image)
 	return true
 
@@ -152,31 +152,45 @@ func pixel(tile: int, x: int, y: int) -> int:
 	return int(_source[at]) if at < _source.size() else -1
 
 
-## The DARKEST palette index a tile is drawn with, or -1 where it has none.
+## The palette indices a tile is drawn with, DARKEST FIRST.
 ##
-## Which index that is cannot be assumed: an index means one of four entries and
-## the entries are not in brightness order, nor in the same order twice, because
-## a tile's palette is chosen per tile and re-coloured by the hour.
+## Which index is which cannot be assumed: an index means one of four entries,
+## the entries are in no brightness order, and a tile's palette is chosen per
+## tile and re-coloured by the hour.
 ##
-## What it is for is the one drawing a border flood cannot cut: a tree canopy is
+## What it is for is the one drawing a border flood cannot cut. A tree canopy is
 ## a ball of the SAME two greens the grass under it is dithered from, so no set
-## of "ground" indices separates them. What does separate them is the drawing's
-## own outline, which is its darkest shade. See `mesher.gd:_structure_mask`.
-func darkest(tile: int) -> int:
-	if _darkest.has(tile):
-		return int(_darkest[tile])
-	var best: int = -1
-	var dimmest: float = 2.0
+## of "ground" indices separates them; what does separate them is the drawing's
+## own outline, and an outline is its darkest shade. A dense thicket has no drawn
+## ring at all, and there the two darkest together are the boundary. See
+## `mesher.gd:_structure_mask`.
+func shade_order(tile: int) -> PackedInt32Array:
+	if _shades.has(tile):
+		return _shades[tile]
+	var found: Array = []
 	for index: int in 4:
 		var color: Color = _color_of(tile, index)
 		if color.a <= 0.0:
 			continue
-		var luminance: float = color.r * 0.299 + color.g * 0.587 + color.b * 0.114
-		if luminance < dimmest:
-			dimmest = luminance
-			best = index
-	_darkest[tile] = best
-	return best
+		found.append([
+			color.r * 0.299 + color.g * 0.587 + color.b * 0.114, index
+		])
+	found.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	var order := PackedInt32Array()
+	for entry: Array in found:
+		order.append(int(entry[1]))
+	_shades[tile] = order
+	return order
+
+
+## Whether [param index] is among the [param count] darkest shades this tile is
+## drawn with.
+func is_dark(tile: int, index: int, count: int) -> bool:
+	var order: PackedInt32Array = shade_order(tile)
+	for rank: int in mini(count, order.size()):
+		if order[rank] == index:
+			return true
+	return false
 
 
 ## The colour one index paints in one tile, read off the sheet the tile was

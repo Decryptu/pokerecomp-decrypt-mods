@@ -67,7 +67,8 @@ var _depths := PackedByteArray()
 ## solid body the border flood cannot be trusted with.
 var _round := PackedByteArray()
 var _filled := PackedByteArray()
-## Per tile: whether its mask is cut from the drawing's own outline.
+## Per tile: how many of its darkest shades bound the drawing, 0 for a mask cut
+## from the ground's colours instead.
 var _outlined := PackedByteArray()
 ## Per tile: how many cells across and down the drawing this cutout belongs to
 ## is, which is what the mask is cut over, and which class it is.
@@ -338,7 +339,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_depths[at] = clampi(shape.depth(shape_class), 1, 16)
 			_round[at] = 1 if shape.is_round(shape_class) else 0
 			_filled[at] = 1 if shape.is_filled(shape_class) else 0
-			_outlined[at] = 1 if shape.is_outlined(shape_class) else 0
+			_outlined[at] = shape.outline_shades(shape_class)
 			_lying[at] = 1 if shape.is_lying(shape_class) else 0
 			_on_furniture[at] = 1 if shape_class == &"on_furniture" else 0
 			var span: Vector2i = shape.span_cells(shape_class)
@@ -1202,15 +1203,20 @@ func _band_tile(tx: int, ty: int, band: int) -> int:
 ## grass, which is what should happen to it. This is the reference's own rule for
 ## the same problem (`Structures.lua`, "the darkest-shade outline plus everything
 ## it encloses").
+##
+## HOW MANY shades bound it is the drawing's own business, which is why the flag
+## is a COUNT. A tree draws a ring and one shade is the ring. A thicket draws no
+## ring at all, and there the two darkest together are the boundary, which is the
+## reference's second reading of the same rule.
 const RING_SHARE: float = 0.7
 var _masks: Dictionary = {}
 
 
 func _structure_mask(
 	tiles: Array, across: Vector2i, atlas: RefCounted, filled: bool,
-	outline: bool = false
+	outline: int = 0
 ) -> PackedByteArray:
-	var key: String = "%s,%d,%d" % [str(tiles), 1 if filled else 0, 1 if outline else 0]
+	var key: String = "%s,%d,%d" % [str(tiles), 1 if filled else 0, outline]
 	if _masks.has(key):
 		return _masks[key]
 
@@ -1227,10 +1233,10 @@ func _structure_mask(
 			var tile: int = tiles[(py / int(TILE)) * across.x + px / int(TILE)]
 			var index: int = atlas.pixel(tile, px % int(TILE), py % int(TILE))
 			indices[py * size.x + px] = index
-			if outline:
-				open[py * size.x + px] = 0 if index == atlas.darkest(tile) else 1
+			if outline > 0:
+				open[py * size.x + px] = 0 if atlas.is_dark(tile, index, outline) else 1
 
-	if outline:
+	if outline > 0:
 		return _flood(size, open, filled, key)
 
 	var ring: Dictionary = {}
@@ -1405,7 +1411,7 @@ func _cell_levels(
 ## height off the art is the whole point: a bollard came out 15 px and a sign 14,
 ## and no class constant would have found either.
 func _cutout(
-	tx: int, ty: int, depth: float, round_plan: bool, filled: bool, outline: bool,
+	tx: int, ty: int, depth: float, round_plan: bool, filled: bool, outline: int,
 	base: float, atlas: RefCounted
 ) -> void:
 	var at: int = ty * _size.x + tx
@@ -1609,9 +1615,22 @@ func _cutout_edge(
 	var x: float = float(tx) * TILE + float(box.position.x + (0 if near else box.size.x))
 	var high: float = top - float(box.position.y + from)
 	var low: float = top - float(box.position.y + to)
+	# The same de-outlining the horizontal faces get, and for the same reason: a
+	# silhouette's edge COLUMN is outline all the way down, so a flank sampling it
+	# comes out solid black. Walk inward until the pixel is interior, testing the
+	# middle of the run because that is the row the face mostly shows.
+	@warning_ignore("integer_division")
+	var middle: int = box.position.y + from + (to - from) / 2
+	var column: int = box.position.x + (0 if near else box.size.x - 1)
+	var inward: int = 1 if near else -1
+	for _step: int in INTERIOR_REACH:
+		if _interior(mask, span, origin.x + column, origin.y + middle):
+			break
+		if not _drawn(mask, span, origin.x + column + inward, origin.y + middle):
+			break
+		column += inward
 	var uv: Rect2 = atlas.uv_box(
-		tile, Rect2i(box.position.x + (0 if near else box.size.x - 1),
-			box.position.y + from, 1, to - from)
+		tile, Rect2i(column, box.position.y + from, 1, to - from)
 	)
 	if near:
 		_quad(
@@ -1667,7 +1686,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		_side(tx, ty, ground.y, _height_at(tx - 1, ty), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 		_cutout(
 			tx, ty, float(_depths[at]), _round[at] == 1, _filled[at] == 1,
-			_outlined[at] == 1, float(ground.y), atlas
+			int(_outlined[at]), float(ground.y), atlas
 		)
 		return
 	if _art[at] == ART_LEDGE:

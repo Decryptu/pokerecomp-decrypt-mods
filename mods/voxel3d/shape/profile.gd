@@ -130,8 +130,14 @@ const ROUND: Dictionary = {
 ## half of the tree, leave them out and it keeps half the lawn. What DOES bound
 ## the drawing is its own dark outline. `mesher.gd:_structure_mask` has the rule
 ## and the reference had it first.
+##
+## The value is HOW MANY of the darkest shades form that boundary, because that
+## is a fact about the drawing and not about the rule. A tree draws a ring and
+## one shade is the ring. A dense thicket draws no ring at all and wants two, the
+## reference's second reading of the same rule; nothing claims that yet, and open
+## work 3 says why.
 const OUTLINE: Dictionary = {
-	&"canopy": true,
+	&"canopy": 1,
 }
 
 ## How many walk cells a cutout's DRAWING covers, where it is more than one.
