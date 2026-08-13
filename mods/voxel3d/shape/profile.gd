@@ -351,7 +351,93 @@ const OBJECTS: Dictionary = {
 			&"depth": 6,
 			&"height": 6,
 		},
+	],	24: [
+		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
+		# ladder going upstair, its placed on the ground". A portrait seen face-on
+		# with no rows above it at all, so it is the chair's own case with nothing
+		# but the numbers changed: one cell tall because that is what it has to be
+		# to climb, and three pixels thick because a ladder is two rails.
+		{
+			&"name": &"ladder",
+			&"tiles": [[40, 41], [56, 57]],
+			&"window": Rect2i(3, 0, 13, 16),
+			&"top": 0,
+			&"depth": 3,
+			&"height": 16,
+		},
+		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
+		# ladder going upstair, its placed on the ground". A portrait seen face-on
+		# with no rows above it at all, so it is the chair's own case with nothing
+		# but the numbers changed: one cell tall because that is what it has to be
+		# to climb, and three pixels thick because a ladder is two rails.
+		{
+			&"name": &"ladder",
+			&"tiles": [[42, 43], [58, 59]],
+			&"window": Rect2i(3, 0, 13, 16),
+			&"top": 0,
+			&"depth": 3,
+			&"height": 16,
+		},
 	],
+	26: [
+		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
+		# ladder going upstair, its placed on the ground". A portrait seen face-on
+		# with no rows above it at all, so it is the chair's own case with nothing
+		# but the numbers changed: one cell tall because that is what it has to be
+		# to climb, and three pixels thick because a ladder is two rails.
+		{
+			&"name": &"ladder",
+			&"tiles": [[38, 39], [40, 41]],
+			&"window": Rect2i(0, 0, 16, 16),
+			&"top": 0,
+			&"depth": 3,
+			&"height": 16,
+		},
+	],
+	29: [
+		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
+		# ladder going upstair, its placed on the ground". A portrait seen face-on
+		# with no rows above it at all, so it is the chair's own case with nothing
+		# but the numbers changed: one cell tall because that is what it has to be
+		# to climb, and three pixels thick because a ladder is two rails.
+		{
+			&"name": &"ladder",
+			&"tiles": [[10, 11], [26, 27]],
+			&"window": Rect2i(3, 0, 13, 16),
+			&"top": 0,
+			&"depth": 3,
+			&"height": 16,
+		},
+	],
+	30: [
+		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
+		# ladder going upstair, its placed on the ground". A portrait seen face-on
+		# with no rows above it at all, so it is the chair's own case with nothing
+		# but the numbers changed: one cell tall because that is what it has to be
+		# to climb, and three pixels thick because a ladder is two rails.
+		{
+			&"name": &"ladder",
+			&"tiles": [[40, 41], [56, 57]],
+			&"window": Rect2i(3, 0, 13, 16),
+			&"top": 0,
+			&"depth": 3,
+			&"height": 16,
+		},
+		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
+		# ladder going upstair, its placed on the ground". A portrait seen face-on
+		# with no rows above it at all, so it is the chair's own case with nothing
+		# but the numbers changed: one cell tall because that is what it has to be
+		# to climb, and three pixels thick because a ladder is two rails.
+		{
+			&"name": &"ladder",
+			&"tiles": [[42, 43], [58, 59]],
+			&"window": Rect2i(2, 0, 14, 16),
+			&"top": 0,
+			&"depth": 3,
+			&"height": 16,
+		},
+	],
+
 }
 
 ## THE STAIRCASES, per tileset number, found the same way an object is.
@@ -516,6 +602,19 @@ const STAIRS: Dictionary = {
 		},
 	],
 	23: [
+		# A LADDER'S HOLE, and it is a stairwell with no steps in it. The reviewer
+		# reads these as "a hole in the ground with a ladder inside it going
+		# underground", and the drawing is a dark shaft with the ladder's rails
+		# showing in it, so the cartridge's own picture of the hole laid on the
+		# pit's floor is the picture of a ladder in a hole. What the mask CANNOT
+		# give is the ladder on its own: cut on its outline the whole shaft comes
+		# back as one body of about 170 pixels, which stood up would be a slab.
+		{
+			&"tiles": [[68, 69], [84, 85]],
+			&"down": true,
+			&"step": Vector2i(0, -1),
+			&"steps": 0,
+		},
 		{
 			&"tiles": [[12, 13], [28, 29]],
 			&"down": false,
@@ -530,6 +629,32 @@ const STAIRS: Dictionary = {
 		},
 	],
 	24: [
+		# A LADDER'S HOLE, and it is a stairwell with no steps in it. The reviewer
+		# reads these as "a hole in the ground with a ladder inside it going
+		# underground", and the drawing is a dark shaft with the ladder's rails
+		# showing in it, so the cartridge's own picture of the hole laid on the
+		# pit's floor is the picture of a ladder in a hole. What the mask CANNOT
+		# give is the ladder on its own: cut on its outline the whole shaft comes
+		# back as one body of about 170 pixels, which stood up would be a slab.
+		{
+			&"tiles": [[32, 33], [48, 49]],
+			&"down": true,
+			&"step": Vector2i(0, -1),
+			&"steps": 0,
+		},
+		# A LADDER'S HOLE, and it is a stairwell with no steps in it. The reviewer
+		# reads these as "a hole in the ground with a ladder inside it going
+		# underground", and the drawing is a dark shaft with the ladder's rails
+		# showing in it, so the cartridge's own picture of the hole laid on the
+		# pit's floor is the picture of a ladder in a hole. What the mask CANNOT
+		# give is the ladder on its own: cut on its outline the whole shaft comes
+		# back as one body of about 170 pixels, which stood up would be a slab.
+		{
+			&"tiles": [[34, 35], [50, 51]],
+			&"down": true,
+			&"step": Vector2i(0, -1),
+			&"steps": 0,
+		},
 		{
 			&"tiles": [[54, 55], [54, 55]],
 			&"down": false,
@@ -574,6 +699,32 @@ const STAIRS: Dictionary = {
 		},
 	],
 	30: [
+		# A LADDER'S HOLE, and it is a stairwell with no steps in it. The reviewer
+		# reads these as "a hole in the ground with a ladder inside it going
+		# underground", and the drawing is a dark shaft with the ladder's rails
+		# showing in it, so the cartridge's own picture of the hole laid on the
+		# pit's floor is the picture of a ladder in a hole. What the mask CANNOT
+		# give is the ladder on its own: cut on its outline the whole shaft comes
+		# back as one body of about 170 pixels, which stood up would be a slab.
+		{
+			&"tiles": [[32, 33], [48, 49]],
+			&"down": true,
+			&"step": Vector2i(0, -1),
+			&"steps": 0,
+		},
+		# A LADDER'S HOLE, and it is a stairwell with no steps in it. The reviewer
+		# reads these as "a hole in the ground with a ladder inside it going
+		# underground", and the drawing is a dark shaft with the ladder's rails
+		# showing in it, so the cartridge's own picture of the hole laid on the
+		# pit's floor is the picture of a ladder in a hole. What the mask CANNOT
+		# give is the ladder on its own: cut on its outline the whole shaft comes
+		# back as one body of about 170 pixels, which stood up would be a slab.
+		{
+			&"tiles": [[34, 35], [50, 51]],
+			&"down": true,
+			&"step": Vector2i(0, -1),
+			&"steps": 0,
+		},
 		{
 			&"tiles": [[54, 55], [54, 55]],
 			&"down": false,
