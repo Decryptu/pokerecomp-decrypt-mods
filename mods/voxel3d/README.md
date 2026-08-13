@@ -167,12 +167,12 @@ other.
 ## Past the edge of the map
 
 Out of doors, the ground runs on for another thirty-two tiles rather than
-stopping dead, so a route ends at a horizon instead of at a cliff of nothing, and a fight staged near
-an edge is not shot against sky. What is carried out is the FLOOR at that edge
-and nothing else: the tree line or the fence a map ends in is a thing standing on
-the floor, and repeating it outward would build a wall around the world. The
-floor is the nearest flat tile inward from the edge, which is why a shoreline
-carries the water out and not the beach.
+stopping dead, so a route ends at a horizon instead of at a cliff of nothing, and
+a fight staged near an edge is not shot against sky. What is carried out is the
+FLOOR at that edge and nothing else: the tree line or the fence a map ends in is
+a thing standing on the floor, and repeating it outward would build a wall around
+the world. The floor is the nearest flat tile inward from the edge, which is why
+a shoreline carries the water out and not the beach.
 
 Out of doors only: a room ends at its walls and there is nothing past them, so
 carrying a floor out of a house would lay its lino across the void it is drawn
@@ -182,6 +182,32 @@ which a map is.
 At any draw distance short of FULL the window clips most of it. At FULL it is
 paid for whole, and on a large route that is about as much geometry again as the
 map itself.
+
+## The sky and the hour
+
+Above that horizon the sky is generated: a ramp of four bands, deepest overhead,
+with a checkerboard of the next band down dithered into the bottom of each. That
+dither is how a machine with four colours to a palette got a fifth and a sixth
+out of them, and it is what makes four bands read as a gradient rather than as
+four stripes. The colours are the map's own background colour taken down in
+steps, the same colour the 2D view fills its margins with, so nothing here is
+authored art.
+
+The bands are pinned to ELEVATION rather than to the frame, so pitching the
+camera slides the frame up a sky that stays put. How much elevation they span is
+measured off the rig and not chosen: the eye looks down by its own pitch, so with
+a 42 degree lens the shallowest shot in the ladder frames sixteen degrees of sky
+and every steeper one frames none.
+
+The sun moves with the hour, not just its colour. It rises in the east, climbs,
+and sets in the west, so shadows swing about a hundred degrees between morning
+and night and a still picture says what time it is. It stays in the SOUTHERN half
+of the sky at every hour, which is not taste: a volume folds the artwork onto its
+south face at full strength, so a sun crossing to the north would put every
+drawing in the game into its own shadow. A low sun rakes, landing less light on
+flat ground and more on the upright faces, so morning carries more energy than
+day to stand the same ground up; all four rows are metered the same way the
+energies are, and the frame still tops out just under 255.
 
 ## A drawing bigger than one cell
 
@@ -315,6 +341,7 @@ options.gd           the settings, named once, registered and read back here
 steering.gd          what a key or a wheel notch means, in either view
 world/renderer.gd    the overworld Node the host builds
 world/diorama.gd     the 3D stage both views share: viewport, daylight, cards
+world/sky.gd         the banded, dithered sky and the shader that paints it
 world/camera_rig.gd  pitch, distance, lens and the ease between settings
 battle/renderer.gd   the battle Node: the arena, the battlers and the panels
 battle/arena.gd      where the fight is staged and where it is shot from

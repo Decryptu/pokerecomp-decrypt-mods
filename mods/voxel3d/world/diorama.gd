@@ -8,6 +8,8 @@ extends RefCounted
 ## the same time of day; what differs is where the camera stands and what else is
 ## in the scene, and that is all the two renderers hold themselves.
 
+const Sky3D: GDScript = preload("sky.gd")
+
 const CELL: float = 16.0
 
 ## Light colour per time of day, in the order Gen2WorldPalette names them:
@@ -27,9 +29,36 @@ const DAY_LIGHT: Array[Color] = [
 ## These put the brightest thing in the frame just under the top. They look like
 ## a large cut because the output is sRGB encoded, where halving the light
 ## darkens the picture by about a quarter; nothing here is dim, it is exposed.
-const DAY_ENERGY: Array[float] = [0.47, 0.52, 0.32, 0.23]
+##
+## Each is paired with its own row of SUN_ROTATION below and cannot be read
+## without it: how much light lands on flat ground is the energy times the sine
+## of the sun's elevation, so moving a row's sun and leaving its energy alone
+## changes the exposure the metering settled. Day is both values as first
+## measured; the other three are re-metered against their own elevations.
+const DAY_ENERGY: Array[float] = [0.58, 0.52, 0.38, 0.29]
 const DAY_AMBIENT: Array[Color] = [
 	Color("#8b8298"), Color("#9aa2b4"), Color("#4a5478"), Color("#2b3350"),
+]
+## WHERE THE SUN STANDS, per time of day, as the light's own pitch and bearing.
+##
+## A colour alone is not a time of day: with one fixed direction every shadow in
+## the game falls the same way at dawn as at dusk, which is the one cue a still
+## picture has for what hour it is. So the sun rises in the EAST, climbs, and
+## sets in the west, and the shadows swing about a hundred degrees across a day.
+##
+## It stays in the SOUTHERN half of the sky at every hour, and that is not a
+## style choice: a volume folds the artwork onto its SOUTH face at full strength,
+## so a sun that crossed to the north would put every drawing in the game into
+## its own shadow. What is left to move is the bearing, which is what a shadow
+## shows, and the elevation, which is how far a shadow is stretched.
+##
+## METERED like the energies beside them, at all four rows and on the town the
+## first metering used. A low sun rakes: it lands less light on flat ground and
+## more on the upright faces, so morning carries more energy than day to stand
+## the same ground up, and the frame still tops out just under 255.
+const SUN_ROTATION: Array[Vector3] = [
+	Vector3(-40.0, 42.0, 0.0), Vector3(-58.0, -35.0, 0.0),
+	Vector3(-46.0, -62.0, 0.0), Vector3(-42.0, -62.0, 0.0),
 ]
 ## The sky's share. Low on purpose: ambient lands on every face equally, so it is
 ## the term that flattens the shading and lifts the floor of the picture, and the
@@ -49,6 +78,7 @@ var actors: Node3D = null
 
 var _light: DirectionalLight3D = null
 var _environment: Environment = null
+var _sky: RefCounted = null
 var _terrain: Array[MeshInstance3D] = []
 var _material: StandardMaterial3D = null
 var _time_of_day: int = Gen2WorldPalette.TIME_MORNING
@@ -69,14 +99,22 @@ func _init() -> void:
 
 	var holder := WorldEnvironment.new()
 	_environment = Environment.new()
-	_environment.background_mode = Environment.BG_COLOR
+	_sky = Sky3D.new()
+	_environment.background_mode = Environment.BG_SKY
+	_environment.sky = _sky.sky
+	# The ambient term is a metered colour and the sky is a painted gradient, so
+	# neither the ambient light nor the reflections have anything to take from it.
 	_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	_environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	_environment.ambient_light_energy = AMBIENT_ENERGY
 	holder.environment = _environment
 	viewport.add_child(holder)
+	# The dither cell is screen pixels, so the sky has to be told what the frame
+	# is. Taken from the viewport itself rather than plumbed through both
+	# renderers: the size it is drawn at is the viewport's own business.
+	viewport.size_changed.connect(_on_viewport_resized)
 
 	_light = DirectionalLight3D.new()
-	_light.rotation_degrees = Vector3(-58.0, -35.0, 0.0)
 	# A diorama with no shadows reads as flat colour: the whole point of standing
 	# the drawings up is that they sit ON something.
 	_light.shadow_enabled = true
@@ -111,6 +149,7 @@ func set_time_of_day(time_of_day: int) -> void:
 	_time_of_day = clampi(time_of_day, 0, DAY_LIGHT.size() - 1)
 	_light.light_color = DAY_LIGHT[_time_of_day]
 	_light.light_energy = DAY_ENERGY[_time_of_day]
+	_light.rotation_degrees = SUN_ROTATION[_time_of_day]
 	_environment.ambient_light_color = DAY_AMBIENT[_time_of_day]
 
 
@@ -161,9 +200,14 @@ func set_texture(texture: Texture2D) -> void:
 
 
 ## The sky takes the palette's own background, which is the colour the 2D view
-## fills its margins with, so the two end at the same place.
+## fills its margins with, so the two end at the same place. `sky.gd` is what
+## makes a ramp of it.
 func set_background(color: Color) -> void:
-	_environment.background_color = color.darkened(0.35)
+	_sky.set_background(color)
+
+
+func _on_viewport_resized() -> void:
+	_sky.set_frame(Vector2(viewport.size))
 
 
 ## look_at_from_position rather than a position plus look_at: a renderer may be
