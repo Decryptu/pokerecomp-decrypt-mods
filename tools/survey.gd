@@ -296,6 +296,7 @@ func _build(number: int) -> bool:
 	var shape: RefCounted = _tile_shape.new(_profile, number)
 	_stage.set_terrain(_mesher.build(_map_source.new(null, map, tileset), shape, _atlas))
 	_stage.set_water(_mesher.take_water())
+	_stage.set_tufts(_mesher.take_tufts())
 	# And the models, or every block built as one shows an empty patch of grass
 	# and the sheet asks the reviewer to grade a hole.
 	_stage.set_models(_mesher.take_models())

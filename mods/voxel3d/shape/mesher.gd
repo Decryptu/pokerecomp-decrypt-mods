@@ -52,20 +52,38 @@ var _normals := PackedVector3Array()
 var _uvs := PackedVector2Array()
 var _colors := PackedColorArray()
 
-## THE WATER SURFACE IS LIFTED OUT OF THE TERRAIN MESH, which is the reference's
-## own arrangement (`lib/Water.lua`) and for its reason: every other surface in
-## this view is opaque and is drawn once, and water is not. It wants its own
-## material, so it wants its own surface, and the cheapest place to separate the
-## two is where the geometry is made rather than afterwards.
+## TWO SURFACES ARE LIFTED OUT OF THE TERRAIN MESH, water and the standing tufts
+## of grass, which is the reference's own arrangement (`lib/Water.lua` and the
+## grass shader in `lib/Voxel3D.lua`) and for its reason: the terrain is opaque
+## paint that never moves, and neither of these is. Each wants its own material,
+## so each wants its own mesh, and the cheapest place to separate them is where
+## the geometry is made rather than afterwards.
 ##
-## Only the water's TOP quad goes here. The faces around a recess are the BANK,
-## they wear the shore's own art and they are terrain like any other side.
+## Only the water's TOP quad goes to the water sink. The faces around a recess
+## are the BANK, they wear the shore's own art and they are terrain like any
+## other side. Only the STANDING part of tall grass goes to the tuft sink; the
+## floor it is drawn on keeps the drawing and stays terrain.
+const SINK_TERRAIN: int = 0
+const SINK_WATER: int = 1
+const SINK_TUFT: int = 2
 var _water_vertices := PackedVector3Array()
 var _water_normals := PackedVector3Array()
 var _water_uvs := PackedVector2Array()
 var _water_colors := PackedColorArray()
-## Set for the one quad a water tile lays down, and cleared straight after.
-var _sink_water: bool = false
+var _tuft_vertices := PackedVector3Array()
+var _tuft_normals := PackedVector3Array()
+var _tuft_uvs := PackedVector2Array()
+var _tuft_colors := PackedColorArray()
+## Per tuft vertex: how far up its own clump it stands, 0 at the root and 1 at
+## the tip, and the clump's own phase. The shader needs both and nothing else:
+## the root is pinned and the bend goes by the SQUARE of the height, so a clump
+## leans rather than sliding, and the phase is what stops a field moving as one
+## sheet. `Mesh.ARRAY_TEX_UV2`, since UV is already the atlas.
+var _tuft_uv2s := PackedVector2Array()
+## Which sink the next `_push` goes to, and what to write into UV2 there. Set
+## around the faces that belong to one, and cleared straight after.
+var _sink: int = SINK_TERRAIN
+var _sink_uv2 := Vector2.ZERO
 
 ## Art modes, kept per tile as a byte because every tile of every map carries one.
 const ART_FLAT: int = 0
@@ -189,6 +207,7 @@ var _chunk_at: int = 0
 var _chunk_cursor := Vector2i.ZERO
 var _ready: Array = []
 var _water_ready: Array = []
+var _tuft_ready: Array = []
 
 
 ## False when there is nothing to draw at all.
@@ -198,6 +217,7 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	_chunk_at = 0
 	_ready = []
 	_water_ready = []
+	_tuft_ready = []
 	if _size == Vector2i.ZERO:
 		return false
 	# The window arrives in MAP tiles and the emit walks the GRID, which is the map
@@ -300,6 +320,14 @@ func take_water() -> Array:
 	return out
 
 
+## The standing GRASS chunks, on their own list for the same reason: they sway,
+## and swaying is a vertex shader.
+func take_tufts() -> Array:
+	var out: Array = _tuft_ready
+	_tuft_ready = []
+	return out
+
+
 func _open_chunk() -> void:
 	_chunk_cursor = _chunks[_chunk_at].position
 	_vertices = PackedVector3Array()
@@ -310,6 +338,11 @@ func _open_chunk() -> void:
 	_water_normals = PackedVector3Array()
 	_water_uvs = PackedVector2Array()
 	_water_colors = PackedColorArray()
+	_tuft_vertices = PackedVector3Array()
+	_tuft_normals = PackedVector3Array()
+	_tuft_uvs = PackedVector2Array()
+	_tuft_colors = PackedColorArray()
+	_tuft_uv2s = PackedVector2Array()
 
 
 ## The two sinks close into two SEPARATE meshes, on two lists, and not into two
@@ -325,11 +358,16 @@ func _close_chunk() -> void:
 		_water_ready.append(
 			_mesh_of(_water_vertices, _water_normals, _water_uvs, _water_colors)
 		)
+	if not _tuft_vertices.is_empty():
+		_tuft_ready.append(_mesh_of(
+			_tuft_vertices, _tuft_normals, _tuft_uvs, _tuft_colors, _tuft_uv2s
+		))
 
 
 func _mesh_of(
 	vertices: PackedVector3Array, normals: PackedVector3Array,
-	uvs: PackedVector2Array, colors: PackedColorArray
+	uvs: PackedVector2Array, colors: PackedColorArray,
+	uv2s: PackedVector2Array = PackedVector2Array()
 ) -> ArrayMesh:
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -337,6 +375,8 @@ func _mesh_of(
 	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_COLOR] = colors
+	if not uv2s.is_empty():
+		arrays[Mesh.ARRAY_TEX_UV2] = uv2s
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
@@ -1968,12 +2008,12 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	var cap: int = _band_tile(tx, ty, maxi(here / BAND - 1, 0)) if is_volume else tile
 	# The one quad that is the water's own surface. The bank around it is not: the
 	# faces below are the shore, they wear the shore's art, and they are terrain.
-	_sink_water = _is_water(at)
+	_sink = SINK_WATER if _is_water(at) else SINK_TERRAIN
 	_face_top(
 		tx, ty, float(here), atlas.uv(cap),
 		SHADE_TOP_VOLUME if is_volume else SHADE_TOP_FLAT
 	)
-	_sink_water = false
+	_sink = SINK_TERRAIN
 
 	_side(tx, ty, here, _height_at(tx, ty + 1), Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
 	_side(tx, ty, here, _height_at(tx, ty - 1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
@@ -2026,6 +2066,12 @@ func _tufts(
 	var middle: float = _world_z(ty) + TILE * 0.5
 	var back: float = middle - TUFT_THICK * 0.5
 	var front: float = middle + TUFT_THICK * 0.5
+	# ONE PHASE PER CLUMP, off the tile's own position, so a field bends in
+	# patches rather than as one sheet. Per tile rather than per cell, which is
+	# what makes the two rows of a cell move against each other the way the 2D
+	# view's overdraw implies they are separate.
+	var phase: float = _hash_spot(Vector2i(tx, ty))
+	_sink = SINK_TUFT
 	for py: int in edge:
 		var run: int = -1
 		for px: int in edge + 1:
@@ -2035,9 +2081,10 @@ func _tufts(
 			elif not blade and run >= 0:
 				_tuft_run(
 					tx, tile, atlas, run, px, py, base, back, front, ground,
-					stretch
+					stretch, phase
 				)
 				run = -1
+	_sink = SINK_TERRAIN
 
 
 ## One run of blade along one row of the drawing, stood up as a box. The row is
@@ -2045,7 +2092,8 @@ func _tufts(
 ## top of the thing.
 func _tuft_run(
 	tx: int, tile: int, atlas: RefCounted, from: int, to: int, py: int,
-	base: float, back: float, front: float, ground: int, stretch: float
+	base: float, back: float, front: float, ground: int, stretch: float,
+	phase: float
 ) -> void:
 	var x0: float = _world_x(tx) + float(from)
 	var x1: float = _world_x(tx) + float(to)
@@ -2053,6 +2101,14 @@ func _tuft_run(
 	# proportions and only stands taller: a row scaled on its own leaves gaps.
 	var low: float = base + float(int(TILE) - 1 - py) * stretch
 	var high: float = low + stretch
+	# HOW FAR UP THE CLUMP THIS ROW STANDS, which is what the sway is scaled by.
+	# One value for the whole box rather than one per corner: a row is a pixel
+	# tall against a clump of eight, so the difference across it is nothing, and
+	# a clump built of boxes that each lean by their own amount is exactly the
+	# staircase a voxel drawing of a bending thing should be.
+	_sink_uv2 = Vector2(
+		float(int(TILE) - 1 - py) / float(int(TILE) - 1), phase
+	)
 	var uv: Rect2 = atlas.uv_box(tile, Rect2i(from, py, to - from, 1))
 	_quad(
 		Vector3(x0, low, front), Vector3(x1, low, front),
@@ -2301,9 +2357,9 @@ func _emit_skirt(tx: int, ty: int, atlas: RefCounted) -> void:
 	# it has to reach the water's own material or a coast runs out as a flat blue
 	# floor beyond the last rippling tile. The recess is what says so, exactly as
 	# it does inside the map.
-	_sink_water = floor_at.y < 0
+	_sink = SINK_WATER if floor_at.y < 0 else SINK_TERRAIN
 	_face_top(tx, ty, float(floor_at.y), atlas.uv(floor_at.x), SHADE_TOP_FLAT)
-	_sink_water = false
+	_sink = SINK_TERRAIN
 
 
 ## The tile id and height of the floor at one grid edge position, as a Vector2i.
@@ -2457,13 +2513,20 @@ func _tri(
 
 
 func _push(vertex: Vector3, normal: Vector3, uv: Vector2, shade: Color) -> void:
-	if _sink_water:
-		_water_vertices.push_back(vertex)
-		_water_normals.push_back(normal)
-		_water_uvs.push_back(uv)
-		_water_colors.push_back(shade)
-		return
-	_vertices.push_back(vertex)
-	_normals.push_back(normal)
-	_uvs.push_back(uv)
-	_colors.push_back(shade)
+	match _sink:
+		SINK_WATER:
+			_water_vertices.push_back(vertex)
+			_water_normals.push_back(normal)
+			_water_uvs.push_back(uv)
+			_water_colors.push_back(shade)
+		SINK_TUFT:
+			_tuft_vertices.push_back(vertex)
+			_tuft_normals.push_back(normal)
+			_tuft_uvs.push_back(uv)
+			_tuft_colors.push_back(shade)
+			_tuft_uv2s.push_back(_sink_uv2)
+		_:
+			_vertices.push_back(vertex)
+			_normals.push_back(normal)
+			_uvs.push_back(uv)
+			_colors.push_back(shade)

@@ -71,11 +71,12 @@ func _initialize() -> void:
 		# are counted once and the stamps are counted as what they cost, which is
 		# one instance each and not one mesh each.
 		#
-		# THE WATER IS ON ITS OWN LIST and has to be asked for separately, or a
-		# sea route reads as free: it is drawn with its own material, so it is its
-		# own mesh, and `emit` answers the terrain alone.
+		# THE WATER AND THE GRASS ARE ON THEIR OWN LISTS and have to be asked for
+		# separately, or a sea route and a meadow both read as free: each is drawn
+		# with its own material, so each is its own mesh, and `emit` answers the
+		# terrain alone.
 		var faces: int = 0
-		for mesh: ArrayMesh in meshes + mesher.take_water():
+		for mesh: ArrayMesh in meshes + mesher.take_water() + mesher.take_tufts():
 			for surface: int in mesh.get_surface_count():
 				faces += (mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
 					as PackedVector3Array).size()

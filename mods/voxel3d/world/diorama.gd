@@ -10,6 +10,7 @@ extends RefCounted
 
 const Sky3D: GDScript = preload("sky.gd")
 const Water3D: GDScript = preload("water.gd")
+const Grass3D: GDScript = preload("grass.gd")
 
 const CELL: float = 16.0
 
@@ -86,6 +87,10 @@ var _material: StandardMaterial3D = null
 ## mesh: see `mesher.gd:_close_chunk`.
 var _water: Array[MeshInstance3D] = []
 var _water_shader: RefCounted = null
+## The standing grass and what draws it. Its own instances for the same reason
+## the water has its own: it moves, and moving is a vertex shader.
+var _tufts: Array[MeshInstance3D] = []
+var _grass_shader: RefCounted = null
 ## The authored models and their own material: they carry no texture at all,
 ## because their colour comes off the drawing at build time rather than out of
 ## the atlas at draw time. See `shape/model.gd`.
@@ -150,6 +155,7 @@ func _init() -> void:
 	_material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 
 	_water_shader = Water3D.new()
+	_grass_shader = Grass3D.new()
 
 	_model_material = StandardMaterial3D.new()
 	_model_material.vertex_color_use_as_albedo = true
@@ -261,9 +267,29 @@ func set_water(meshes: Array) -> void:
 		_water[index].visible = false
 
 
+## The standing GRASS, as one instance per chunk that holds any.
+##
+## It casts, and that is not free but is the point: the tufts are the one thing
+## in the frame the player walks INTO rather than past, and a clump with no
+## shadow floats above the floor it is drawn on.
+func set_tufts(meshes: Array) -> void:
+	for index: int in meshes.size():
+		if index >= _tufts.size():
+			var instance := MeshInstance3D.new()
+			instance.material_override = _grass_shader.material
+			viewport.add_child(instance)
+			_tufts.append(instance)
+		_tufts[index].mesh = meshes[index]
+		_tufts[index].visible = true
+	for index: int in range(meshes.size(), _tufts.size()):
+		_tufts[index].mesh = null
+		_tufts[index].visible = false
+
+
 func set_texture(texture: Texture2D) -> void:
 	_material.albedo_texture = texture
 	_water_shader.set_atlas(texture)
+	_grass_shader.set_atlas(texture)
 
 
 ## The sky takes the palette's own background, which is the colour the 2D view

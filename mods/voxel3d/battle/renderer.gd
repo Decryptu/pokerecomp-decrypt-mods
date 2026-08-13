@@ -212,6 +212,7 @@ func _build_arena() -> void:
 	if _data == null or _context == null:
 		_stage.set_terrain([])
 		_stage.set_water([])
+		_stage.set_tufts([])
 		_arena.stage(null)
 		return
 	var map: Gen2WorldMap = _data.world_map(_context.map_group(), _context.map_number())
@@ -219,6 +220,7 @@ func _build_arena() -> void:
 	if map == null or tileset == null:
 		_stage.set_terrain([])
 		_stage.set_water([])
+		_stage.set_tufts([])
 		_arena.stage(null)
 		return
 
@@ -244,6 +246,7 @@ func _build_arena() -> void:
 	# clearing on a blue floor: neither is in the terrain mesh, a tree because it
 	# is instanced and a lake because it is drawn with its own material.
 	_stage.set_water(_mesher.take_water())
+	_stage.set_tufts(_mesher.take_tufts())
 	_stage.set_models(_mesher.take_models())
 	# Staged AFTER the mesh, because choosing where the fight goes asks how tall
 	# the things around it turned out to be, and only the mesh knows that.

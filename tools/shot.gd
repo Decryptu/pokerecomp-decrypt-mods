@@ -77,7 +77,11 @@ func _initialize() -> void:
 		# rather than a fixed blue that belongs to no map. Overridable, because
 		# what the void behind an INTERIOR should be is an open question and the
 		# only way to put two answers in front of a person is to shoot both.
-		if args.size() > 9:
+		# An EMPTY sky argument means the map's own, not black. The arguments are
+		# positional, so asking for a HOLD without an override needs a placeholder,
+		# and `Color("")` is black: the trap costs a render and looks like the sky
+		# has broken.
+		if args.size() > 9 and not args[9].is_empty():
 			_stage.set_background(Color(args[9]))
 		elif source.outside():
 			_stage.set_background(atlas.background(), true)
@@ -85,6 +89,7 @@ func _initialize() -> void:
 			_stage.set_background(atlas.void_color(), false)
 	_stage.set_terrain(mesher.build(source, shape, atlas))
 	_stage.set_water(mesher.take_water())
+	_stage.set_tufts(mesher.take_tufts())
 	_stage.set_models(mesher.take_models())
 
 	var focus := Vector3((float(args[3]) + 0.5) * TILE, 0.0, (float(args[4]) + 0.5) * TILE)
