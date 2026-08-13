@@ -266,6 +266,18 @@ shade, and what the flood cannot reach is the tree. The shadow pooled under a
 canopy is dark but is not enclosed by the outline, so it floods away with the
 grass, which is what should happen to it.
 
+## Tall grass lies flat and stands up at the same time
+
+The cartridge draws the tufts on the ground and then draws them again over the
+player as they walk through. That overdraw is the whole statement: the grass is
+taller than they are, and a flat tile page can only say so by drawing it twice.
+
+A diorama says it with geometry. The floor keeps the drawing and a thin slab of
+the same drawing stands out of it, one slab per tile at that tile's own depth, so
+the player walks between the two rows of a cell exactly as the 2D view meant.
+Only the blades stand: whatever index the tile spends most of itself on is the
+ground they are drawn on.
+
 ## Some things are MODELLED, not carved
 
 A tree is where standing the drawing up stops working, and it is worth saying

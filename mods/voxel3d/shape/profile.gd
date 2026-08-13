@@ -76,6 +76,9 @@ const HEIGHTS: Dictionary = {
 	# built flat, and the ramp needs the ground on both sides of it to have a
 	# height first, which is open work.
 	&"stairs": 0,
+	# Tall grass is FLOOR. It is walked through, not over, and what stands up in
+	# it is tufts: see TUFTS below.
+	&"tall_grass": 0,
 }
 
 ## How thick a cutout stands, in world pixels.
@@ -138,6 +141,24 @@ const ROUND: Dictionary = {
 ## work 3 says why.
 const OUTLINE: Dictionary = {
 	&"canopy": 1,
+}
+
+## The classes that lie flat AND stand a thin slab of their own drawing up.
+##
+## Tall grass is the one, and it is neither a floor nor an object. The cartridge
+## draws the tufts from above, on the ground, and then draws them AGAIN over the
+## player's feet as they walk through: the overdraw is what says the grass is
+## taller than they are. A diorama has to say the same thing with geometry, so
+## the floor keeps the drawing and the tufts stand up out of it, one thin slab
+## per tile at that tile's own depth. The player then walks BETWEEN the two rows
+## of a cell, which is what the 2D view meant.
+##
+## The reference learned the shape of this the hard way and the note is worth
+## keeping: one TILE is one standing piece at full height. Splitting each tile
+## again into its top and bottom halves and standing those at two depths cuts
+## every blade in half, and a clump reads as two stubs.
+const TUFTS: Dictionary = {
+	&"tall_grass": true,
 }
 
 ## The classes built as an AUTHORED MODEL rather than carved from the drawing.
@@ -303,6 +324,7 @@ const ART: Dictionary = {
 	&"facade": &"upright",
 	&"on_furniture": &"upright",
 	&"stairs": &"flat",
+	&"tall_grass": &"flat",
 	&"roof_edge": &"top",
 	&"roof_corner": &"top",
 	# cutout: not a box at all. The drawing's own silhouette stands up one run of
@@ -345,6 +367,7 @@ const TILESETS: Dictionary = {
 		# what stands NEXT to it: grass under a ledge lip, and the stone floor
 		# of a plateau.
 		&"ground": [17, 44, 57],
+		&"tall_grass": [82],
 		# A lip drawn from above, lying low. Where the collision says a lip can be
 		# HOPPED, `mesher.gd:_measure_ledges` overrides this with a wedge; the pin
 		# is what the rest of them keep.
@@ -379,6 +402,20 @@ const TILESETS: Dictionary = {
 		&"flowers": [42, 43, 94, 95, 84, 85],
 		# The potted plant, eight tiles: two wide and four tall, leaves over pot.
 		&"planter": [8, 9, 10, 11, 24, 25, 26, 27],
+	},
+	# TALL GRASS, pinned from the full pass's own words. Which CELLS are tall
+	# grass is the cartridge's to say and it says it in the collision byte, but
+	# the host offers no accessor for those four codes yet: see the engine
+	# request. Until it does, the tiles are named from their drawings, which is
+	# what the profile is for anyway.
+	1: {
+		&"tall_grass": [4],
+	},
+	2: {
+		&"tall_grass": [4],
+	},
+	17: {
+		&"tall_grass": [87],
 	},
 	# THE BIG TREE, and it is one whole block: four tiles by four, canopy, trunk
 	# and the shadow ellipse it stands in, described tile by tile in the full

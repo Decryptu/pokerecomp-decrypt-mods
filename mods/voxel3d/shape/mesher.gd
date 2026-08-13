@@ -73,6 +73,8 @@ var _filled := PackedByteArray()
 var _outlined := PackedByteArray()
 ## Per tile: whether an authored MODEL stands here rather than carved geometry.
 var _modelled := PackedByteArray()
+## Per tile: whether a slab of its own drawing stands up out of the floor.
+var _tufted := PackedByteArray()
 ## Per tile: how many cells across and down the drawing this cutout belongs to
 ## is, which is what the mask is cut over, and which class it is.
 var _span_x := PackedByteArray()
@@ -293,6 +295,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_border.clear()
 	# Keyed on tile ids, which mean nothing without the tileset they came from.
 	_model_meshes.clear()
+	_commonest_index.clear()
 	if source == null or not source.valid():
 		return
 	_outside = source.outside()
@@ -305,6 +308,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_filled.resize(count)
 	_outlined.resize(count)
 	_modelled.resize(count)
+	_tufted.resize(count)
 	_span_x.resize(count)
 	_span_y.resize(count)
 	_lying.resize(count)
@@ -348,6 +352,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_filled[at] = 1 if shape.is_filled(shape_class) else 0
 			_outlined[at] = shape.outline_shades(shape_class)
 			_modelled[at] = 1 if shape.is_model(shape_class) else 0
+			_tufted[at] = 1 if shape.is_tufted(shape_class) else 0
 			_lying[at] = 1 if shape.is_lying(shape_class) else 0
 			_on_furniture[at] = 1 if shape_class == &"on_furniture" else 0
 			var span: Vector2i = shape.span_cells(shape_class)
@@ -1777,6 +1782,110 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	_side(tx, ty, here, _height_at(tx, ty - 1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
 	_side(tx, ty, here, _height_at(tx + 1, ty), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 	_side(tx, ty, here, _height_at(tx - 1, ty), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
+	if _tufted[at] == 1:
+		_tufts(tx, ty, float(here), atlas)
+
+
+## TALL GRASS: the floor keeps the drawing and the tufts stand up out of it.
+##
+## The cartridge draws the tufts on the ground and then draws them AGAIN over the
+## player as they walk through, and that overdraw is the whole statement: the
+## grass is taller than they are. Standing a slab of the same drawing up says it
+## in geometry, and because each TILE stands at its own depth the player walks
+## between the two rows of a cell exactly as the 2D view meant.
+##
+## Only the tufts stand. The commonest index in the tile is the ground it is
+## drawn on, and everything else is a blade; runs of blade along a row become one
+## box each, which is what keeps a field of it affordable.
+##
+## One tile is ONE piece at full height. The reference split each tile again into
+## its top and bottom halves and stood those at two depths, which cuts every
+## blade in half and reads as two stubs rather than a clump.
+const TUFT_THICK: float = 2.0
+
+
+func _tufts(tx: int, ty: int, base: float, atlas: RefCounted) -> void:
+	var tile: int = _tiles[ty * _size.x + tx]
+	if tile < 0:
+		return
+	var ground: int = _commonest(tile, atlas)
+	var edge: int = int(TILE)
+	var middle: float = float(ty) * TILE + TILE * 0.5
+	var back: float = middle - TUFT_THICK * 0.5
+	var front: float = middle + TUFT_THICK * 0.5
+	for py: int in edge:
+		var run: int = -1
+		for px: int in edge + 1:
+			var blade: bool = px < edge and atlas.pixel(tile, px, py) != ground
+			if blade and run < 0:
+				run = px
+			elif not blade and run >= 0:
+				_tuft_run(tx, tile, atlas, run, px, py, base, back, front, ground)
+				run = -1
+
+
+## One run of blade along one row of the drawing, stood up as a box. The row is
+## read the way every upright face in this mod is: the drawing's top row is the
+## top of the thing.
+func _tuft_run(
+	tx: int, tile: int, atlas: RefCounted, from: int, to: int, py: int,
+	base: float, back: float, front: float, ground: int
+) -> void:
+	var x0: float = float(tx) * TILE + float(from)
+	var x1: float = float(tx) * TILE + float(to)
+	var low: float = base + float(int(TILE) - 1 - py)
+	var high: float = low + 1.0
+	var uv: Rect2 = atlas.uv_box(tile, Rect2i(from, py, to - from, 1))
+	_quad(
+		Vector3(x0, low, front), Vector3(x1, low, front),
+		Vector3(x1, high, front), Vector3(x0, high, front),
+		Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
+	)
+	_quad(
+		Vector3(x1, low, back), Vector3(x0, low, back),
+		Vector3(x0, high, back), Vector3(x1, high, back),
+		Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
+	)
+	# A lid only where nothing stands on this run, and ends only where the blade
+	# stops: a face inside the clump is never seen and is not worth emitting.
+	if py == 0 or atlas.pixel(tile, from, py - 1) == ground:
+		_quad(
+			Vector3(x0, high, front), Vector3(x1, high, front),
+			Vector3(x1, high, back), Vector3(x0, high, back),
+			Vector3.UP, uv, SHADE_TOP_FLAT
+		)
+	_quad(
+		Vector3(x0, low, back), Vector3(x0, low, front),
+		Vector3(x0, high, front), Vector3(x0, high, back),
+		Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
+	)
+	_quad(
+		Vector3(x1, low, front), Vector3(x1, low, back),
+		Vector3(x1, high, back), Vector3(x1, high, front),
+		Vector3(1.0, 0.0, 0.0), uv, SHADE_SIDE
+	)
+
+
+## The index a tile spends most of itself on, which for tall grass is the ground
+## the blades are drawn on.
+var _commonest_index: Dictionary = {}
+
+
+func _commonest(tile: int, atlas: RefCounted) -> int:
+	if _commonest_index.has(tile):
+		return int(_commonest_index[tile])
+	var counts: Dictionary = {}
+	var best: int = -1
+	var most: int = -1
+	for py: int in int(TILE):
+		for px: int in int(TILE):
+			var index: int = atlas.pixel(tile, px, py)
+			counts[index] = int(counts.get(index, 0)) + 1
+			if int(counts[index]) > most:
+				most = int(counts[index])
+				best = index
+	_commonest_index[tile] = best
+	return best
 
 
 ## One jumping ledge, as an extruded triangle: a ramp rising toward the drop and

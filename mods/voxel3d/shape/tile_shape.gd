@@ -96,6 +96,12 @@ func is_round(shape_class: StringName) -> bool:
 	return bool(_profile.ROUND.get(shape_class, false))
 
 
+## Whether the class stands a slab of its own drawing up over the floor it also
+## draws. See `profile.gd:TUFTS`.
+func is_tufted(shape_class: StringName) -> bool:
+	return bool(_profile.TUFTS.get(shape_class, false))
+
+
 ## Whether the class is built as an authored model rather than carved from its
 ## drawing. See `profile.gd:MODEL`.
 func is_model(shape_class: StringName) -> bool:
