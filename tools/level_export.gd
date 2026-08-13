@@ -116,24 +116,35 @@ func _initialize() -> void:
 				# floor, and water is recessed on purpose and is not a level down.
 				# Reading either of those put levels 2 and 3 through the middle of
 				# a cave and made the guess worse than no guess at all.
+				#
+				# A WALL here means a TRANSITION between two levels, and the only
+				# thing that draws one is a cliff FACE, which the profile names.
+				# Flagging everything that stands up was the first version and it
+				# was plainly wrong: it made a wall of every tree and every house,
+				# neither of which is a change of level. A tree is a thing on a
+				# floor and the floor under it is what gets painted.
 				var floor_px: int = 1 << 30
-				var stands: bool = false
+				var faces: bool = false
 				for ty: int in range(cy * CELL_TILES, (cy + 1) * CELL_TILES):
 					for tx: int in range(cx * CELL_TILES, (cx + 1) * CELL_TILES):
 						var at: int = ty * size.x + tx
-						if mesher._art[at] == ART_UPRIGHT:
-							stands = true
-							continue
+						if shape.is_cliff(mesher._tiles[at]):
+							faces = true
 						if mesher._art[at] != ART_FLAT:
 							continue
 						var height: int = mesher._heights[at]
 						if height >= 0:
 							floor_px = mini(floor_px, height)
-				# A cell with no floor in it at all is the inside of a structure,
-				# and it takes the level of nothing: zero, flagged as wall.
+				# A wall carries no level at all, because its height comes from the
+				# floors either side of it. Writing one anyway is a number that
+				# means nothing and reads as though it does.
+				if faces:
+					level_row.append(null)
+					wall_row.append(1)
+					continue
 				var height_px: int = 0 if floor_px >= (1 << 30) else floor_px
 				level_row.append(floori(float(height_px) / float(BAND)))
-				wall_row.append(1 if stands else 0)
+				wall_row.append(0)
 			levels.append(level_row)
 			walls.append(wall_row)
 

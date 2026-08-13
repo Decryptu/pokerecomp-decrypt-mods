@@ -76,6 +76,7 @@ PAGE = """<!doctype html>
   <span class="levels" id="palette"></span>
   <button id="brush">brush</button>
   <button id="rect">rectangle</button>
+  <button id="fill">fill</button>
   <span class="grow"></span>
   <button id="reset">reset this map</button>
   <button id="save">SAVE levels.json</button>
@@ -84,6 +85,7 @@ PAGE = """<!doctype html>
   <div class="wrap"><canvas id="art"></canvas></div>
   <p class="hint">
     <b>Hold and drag to paint.</b> <kbd>B</kbd> brush, <kbd>R</kbd> rectangle,
+    <kbd>F</kbd> fill,
     <kbd>0</kbd>-<kbd>5</kbd> pick a level, <kbd>-</kbd> and <kbd>=</kbd> step it,
     <kbd>W</kbd> the wall, <kbd>Ctrl</kbd>+<kbd>Z</kbd>
     undoes a whole stroke, <kbd>[</kbd> <kbd>]</kbd> zoom. Every cell shows its
@@ -106,10 +108,18 @@ PAGE = """<!doctype html>
     GROUND those things sit against and nothing else.
   </p>
   <p class="hint">
-    <b>Walls are not yours to height.</b> A hatched cell is a transition, which
-    belongs to two levels at once, and its height and its slope are worked out
-    from the floors you paint either side of it. They are pre-filled from the
-    geometry and are mostly right, so leave them alone unless one is wrong.
+    <b>A wall is a TRANSITION, and it carries no level.</b> A hatched cell is
+    where one level becomes another, and its height and its slope are worked out
+    from the floors you paint either side of it, so it has no number and cannot
+    have one. A level and a wall are exclusive: painting either clears the other.
+  </p>
+  <p class="hint">
+    <b>A tree or a house is not a wall.</b> It is a thing standing on a floor,
+    and the floor under it is what you paint. Walls are pre-filled only from the
+    cliff faces the mod already knows, which is why an outdoor map arrives with
+    its rock wall marked and a CAVE arrives with nothing marked at all: whether a
+    cave wall separates two levels is the question being asked. Use <kbd>F</kbd>
+    to fill a whole rock mass in one click.
   </p>
 </main>
 <footer>
@@ -186,9 +196,11 @@ function draw() {
     for (let cx = 0; cx < m.cells[0]; cx++) {
       const x = cx * CELL * scale, y = cy * CELL * scale, s = CELL * scale;
       const lv = m._levels[cy][cx];
-      g.globalAlpha = TINT; g.fillStyle = COLORS[String(lv)] || "#6b7280";
+      const isWall = m._walls[cy][cx] === 1;
+      g.globalAlpha = TINT;
+      g.fillStyle = isWall ? "#1a1a20" : (COLORS[String(lv)] || "#6b7280");
       g.fillRect(x, y, s, s); g.globalAlpha = 1;
-      if (m._walls[cy][cx]) {
+      if (isWall) {
         g.strokeStyle = "rgba(255,255,255,0.6)"; g.lineWidth = 1;
         g.save(); g.beginPath(); g.rect(x, y, s, s); g.clip(); g.beginPath();
         for (let d = -s; d < s; d += 5) {
@@ -198,7 +210,10 @@ function draw() {
       }
       // The number, so a level is readable and not only comparable. Drawn with
       // its own shadow because it sits over the cartridge's own art.
-      if (s >= 22) {
+      // A wall carries NO number, because it carries no level: its height comes
+      // from the floors either side of it. A number there is one that means
+      // nothing and reads as though it does.
+      if (s >= 22 && !isWall && lv !== null) {
         g.fillStyle = "rgba(0,0,0,0.75)";
         g.fillText(label(lv), x + s / 2 + 1, y + s / 2 + 1);
         g.fillStyle = "#fff";
@@ -274,9 +289,11 @@ function build() {
     if (e.key === "]") { scale = Math.min(6, scale + 1); draw(); }
     if (e.key === "b" || e.key === "B") { tool = "brush"; tools(); }
     if (e.key === "r" || e.key === "R") { tool = "rect"; tools(); }
+    if (e.key === "f" || e.key === "F") { tool = "fill"; tools(); }
   };
   $("brush").onclick = () => { tool = "brush"; tools(); };
   $("rect").onclick = () => { tool = "rect"; tools(); };
+  $("fill").onclick = () => { tool = "fill"; tools(); };
   const c = $("art");
   let from = null;
   const cellOf = (e) => {
@@ -290,6 +307,7 @@ function build() {
     from = cellOf(e);
     open_stroke();
     if (tool === "brush") { paint(from, from, paintWall); }
+    if (tool === "fill") { flood(from, paintWall); }
     e.preventDefault();
   };
   // Hold and drag. A brush paints every cell it crosses; a rectangle only
@@ -312,8 +330,39 @@ function build() {
 
 
 function tools() {
-  $("brush").style.borderColor = tool === "brush" ? "#6ea8fe" : "#3a3a44";
-  $("rect").style.borderColor = tool === "rect" ? "#6ea8fe" : "#3a3a44";
+  for (const k of ["brush", "rect", "fill"])
+    $(k).style.borderColor = tool === k ? "#6ea8fe" : "#3a3a44";
+}
+
+
+// Everything joined to the cell clicked that reads the same as it does now. A
+// cave is one rock mass and four hundred cells, and painting it a cell at a time
+// is not a job worth giving a person.
+function flood(seed, wall) {
+  const m = state(at);
+  const [sx, sy] = seed;
+  if (sx < 0 || sy < 0 || sx >= m.cells[0] || sy >= m.cells[1]) return;
+  const same = (x, y) =>
+    m._walls[y][x] === m._walls[sy][sx] && m._levels[y][x] === m._levels[sy][sx];
+  if (m._walls[sy][sx] === (wall ? 1 : 0)
+      && (wall || m._levels[sy][sx] === band)) return;
+  const seen = new Set();
+  const stack = [[sx, sy]];
+  seen.add(sy * m.cells[0] + sx);
+  const hit = [];
+  while (stack.length) {
+    const [x, y] = stack.pop();
+    hit.push([x, y]);
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= m.cells[0] || ny >= m.cells[1]) continue;
+      const key = ny * m.cells[0] + nx;
+      if (seen.has(key) || !same(nx, ny)) continue;
+      seen.add(key);
+      stack.push([nx, ny]);
+    }
+  }
+  for (const [x, y] of hit) paint([x, y], [x, y], wall);
 }
 
 
@@ -351,11 +400,12 @@ function paint(a, b, wall) {
   let moved = false;
   for (let y = y0; y <= y1; y++)
     for (let x = x0; x <= x1; x++) {
-      // A wall PAINTS rather than toggles: a brush dragged over one cell twice
-      // would otherwise set it and unset it again. Painting a level CLEARS the
-      // wall on that cell, because a cell that has a floor is not a transition,
-      // and that is the whole of how a mistaken wall is taken back.
-      const lv = wall ? m._levels[y][x] : band;
+      // A LEVEL AND A WALL ARE EXCLUSIVE. A cell is a floor at some level or it
+      // is the transition between two, never both, and letting it be both put a
+      // number under a wall that nothing would ever read. A wall PAINTS rather
+      // than toggles, or a brush crossing one cell twice would set it and unset
+      // it again; painting a level over a wall is how a wrong one is taken back.
+      const lv = wall ? null : band;
       const w = wall ? 1 : 0;
       if (lv === m._levels[y][x] && w === m._walls[y][x]) continue;
       if (stroke) stroke.push([x, y, m._levels[y][x], m._walls[y][x]]);
