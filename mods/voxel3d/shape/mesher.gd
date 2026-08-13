@@ -97,8 +97,10 @@ var _outlined := PackedByteArray()
 ## and whether that model sits on the ground rather than standing on a trunk.
 var _modelled := PackedByteArray()
 var _shrub := PackedByteArray()
-## Per tile: whether a slab of its own drawing stands up out of the floor.
+## Per tile: whether a slab of its own drawing stands up out of the floor, and
+## whether the collision calls it LONG grass rather than tall.
 var _tufted := PackedByteArray()
+var _long_grass := PackedByteArray()
 ## Per tile: how many cells across and down the drawing this cutout belongs to
 ## is, which is what the mask is cut over, and which class it is.
 var _span_x := PackedByteArray()
@@ -414,6 +416,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_modelled.resize(count)
 	_shrub.resize(count)
 	_tufted.resize(count)
+	_long_grass.resize(count)
 	_span_x.resize(count)
 	_span_y.resize(count)
 	_lying.resize(count)
@@ -466,9 +469,15 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			# game instead of the four tilesets whose grass tile anyone had got
 			# round to naming. The pin stays as an override, for a drawing that
 			# should stand up where no collision code says so.
-			_tufted[at] = 1 if shape.is_tufted(shape_class) or Gen2WorldCollision.is_grass(
-				source.code_at(Vector2i((tx - _margin.x) >> 1, cell_y))
-			) else 0
+			var grass_code: int = source.code_at(
+				Vector2i((tx - _margin.x) >> 1, cell_y)
+			)
+			_tufted[at] = 1 if shape.is_tufted(shape_class) \
+				or Gen2WorldCollision.is_grass(grass_code) else 0
+			# LONG grass is the cartridge's own distinction and it draws its own
+			# tile for it: taller, denser and with a ground line under it, where
+			# tall grass is a sparse tuft. See `_tufts`.
+			_long_grass[at] = 1 if Gen2WorldCollision.is_long_grass(grass_code) else 0
 			_lying[at] = 1 if shape.is_lying(shape_class) else 0
 			_on_furniture[at] = 1 if shape_class == &"on_furniture" else 0
 			var span: Vector2i = shape.span_cells(shape_class)
@@ -1971,7 +1980,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	_side(tx, ty, here, _height_at(tx + 1, ty), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 	_side(tx, ty, here, _height_at(tx - 1, ty), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 	if _tufted[at] == 1:
-		_tufts(tx, ty, float(here), atlas)
+		_tufts(tx, ty, float(here), atlas, _long_grass[at] == 1)
 
 
 ## TALL GRASS: the floor keeps the drawing and the tufts stand up out of it.
@@ -1990,12 +1999,28 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 ## its top and bottom halves and stood those at two depths, which cuts every
 ## blade in half and reads as two stubs rather than a clump.
 const TUFT_THICK: float = 2.0
+## How much taller LONG grass stands than tall grass, as a multiple of the rows
+## its own drawing has.
+##
+## The cartridge separates the two in the collision byte and draws its own tile
+## for each, and the long one is already the taller drawing: dense blades over a
+## ground line, filling its tile where tall grass is a sparse tuft. So most of
+## the difference arrives for nothing, because a tuft stands at the pixel row the
+## artist put it on. What the drawing CANNOT say is that the long grass reaches
+## past the player, and the cartridge says that elsewhere: it doubles the
+## encounter rate there, which is the same statement in the only other language
+## the hardware had. Eight pixels of art becomes fourteen, which is under a walk
+## cell and over the head of a sprite drawn sixteen tall.
+const LONG_GRASS_STRETCH: float = 1.75
 
 
-func _tufts(tx: int, ty: int, base: float, atlas: RefCounted) -> void:
+func _tufts(
+	tx: int, ty: int, base: float, atlas: RefCounted, long: bool = false
+) -> void:
 	var tile: int = _tiles[ty * _size.x + tx]
 	if tile < 0:
 		return
+	var stretch: float = LONG_GRASS_STRETCH if long else 1.0
 	var ground: int = _commonest(tile, atlas)
 	var edge: int = int(TILE)
 	var middle: float = _world_z(ty) + TILE * 0.5
@@ -2008,7 +2033,10 @@ func _tufts(tx: int, ty: int, base: float, atlas: RefCounted) -> void:
 			if blade and run < 0:
 				run = px
 			elif not blade and run >= 0:
-				_tuft_run(tx, tile, atlas, run, px, py, base, back, front, ground)
+				_tuft_run(
+					tx, tile, atlas, run, px, py, base, back, front, ground,
+					stretch
+				)
 				run = -1
 
 
@@ -2017,12 +2045,14 @@ func _tufts(tx: int, ty: int, base: float, atlas: RefCounted) -> void:
 ## top of the thing.
 func _tuft_run(
 	tx: int, tile: int, atlas: RefCounted, from: int, to: int, py: int,
-	base: float, back: float, front: float, ground: int
+	base: float, back: float, front: float, ground: int, stretch: float
 ) -> void:
 	var x0: float = _world_x(tx) + float(from)
 	var x1: float = _world_x(tx) + float(to)
-	var low: float = base + float(int(TILE) - 1 - py)
-	var high: float = low + 1.0
+	# The whole clump is stretched, not each row, so the drawing keeps its own
+	# proportions and only stands taller: a row scaled on its own leaves gaps.
+	var low: float = base + float(int(TILE) - 1 - py) * stretch
+	var high: float = low + stretch
 	var uv: Rect2 = atlas.uv_box(tile, Rect2i(from, py, to - from, 1))
 	_quad(
 		Vector3(x0, low, front), Vector3(x1, low, front),
