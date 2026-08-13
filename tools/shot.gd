@@ -24,7 +24,7 @@ func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.size() < 6:
 		print("usage: <cache> <group> <number> <tile x> <tile y> <out.png>"
-			+ " [pitch] [back] [time 0-3]")
+			+ " [pitch] [back] [time 0-3] [sky #rrggbb]")
 		quit(1)
 		return
 	var data: GameData = GameData.open_directory(args[0])
@@ -67,8 +67,12 @@ func _initialize() -> void:
 	if atlas.build(data, map, tileset, time_of_day):
 		_stage.set_texture(atlas.texture)
 		# The map's own background, so a shot shows the sky the player would see
-		# rather than a fixed blue that belongs to no map.
-		_stage.set_background(atlas.background())
+		# rather than a fixed blue that belongs to no map. Overridable, because
+		# what the void behind an INTERIOR should be is an open question and the
+		# only way to put two answers in front of a person is to shoot both.
+		_stage.set_background(
+			Color(args[9]) if args.size() > 9 else atlas.background()
+		)
 	_stage.set_terrain(mesher.build(source, shape, atlas))
 
 	var focus := Vector3((float(args[3]) + 0.5) * TILE, 0.0, (float(args[4]) + 0.5) * TILE)
