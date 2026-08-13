@@ -1098,14 +1098,36 @@ func _structure_mask(
 	return mask
 
 
-## How deep each drawn pixel stands, as a step from 1 to LEVELS.
+## How deep each drawn pixel stands, IN WHOLE PIXELS.
 ##
 ## A slab of a bollard or a bush reads as a sheet of paper from above, so a round
-## class takes an ELLIPTICAL plan: each row's own run of pixels is a circle seen
-## from above, deepest at its middle and pinched to nothing at its ends. Stepped
-## rather than smooth, because a step is what lets neighbouring pixels merge into
-## one rectangle, and three steps is already round enough at this scale to cost
-## an eighth of the geometry a per-pixel curve would.
+## class takes a carved plan: each row's own run of pixels is a circle seen from
+## above, deepest at the middle of the run and pinched to one pixel at its ends.
+##
+## ONE SPAN PER ROW, from the row's first drawn pixel to its last, and NOT one
+## per contiguous run. These drawings are dithered, so a row of one bush is half
+## a dozen short runs with floor showing between them, and revolving each run
+## separately makes one dome into six little cylinders in a line. The reference
+## takes the row's extent for exactly this reason (`Structures.lua:roundTemplate`,
+## `lo = lo or ix; hi = ix` over the whole row): a gap in the drawing is a gap in
+## the SURFACE, not a new object. Measured over every map, it is also very
+## slightly cheaper than splitting per run, 6.066M triangles against 6.087M.
+##
+## STEPPED, and the reference's own per-pixel chord was tried against this and
+## REJECTED on the picture. `roundTemplate` gives every mask pixel a chord of its
+## row's span circle, `n = 2 * sqrt(hw^2 - dx^2)`, which here means up to seven
+## depths on a bush instead of three. Each depth change exposes another top face,
+## and a top face on a dithered drawing wears a dark texel: a real hedge came out
+## banded with dark shelves and read as chewed rather than round, for 6.5M
+## triangles against 6.1M. Three steps is not a compromise at this scale, it is
+## what the art can carry. The reference's own hull machinery is what makes the
+## finer carve work over there, and it is not here: spray-gap backing, shade
+## classes and a per-band mask.
+##
+## The class's own DEPTH is the maximum, not the run's width. A true revolve
+## makes a thing as deep as it is wide, and the reviewer chose against exactly
+## that with three renders of a real hedge in front of them: as deep as wide
+## leaves a gap between rank and rank.
 ##
 ## Every face still wears the FRONT drawing's texel at its own column, which is
 ## the reviewer's call and the right one: the outline of these drawings is dark,
@@ -1113,29 +1135,36 @@ func _structure_mask(
 const LEVELS: int = 3
 
 
-func _cell_levels(mask: PackedByteArray, span: Vector2i, round_plan: bool) -> PackedByteArray:
+func _cell_levels(
+	mask: PackedByteArray, span: Vector2i, round_plan: bool, depth: int
+) -> PackedByteArray:
 	var levels := PackedByteArray()
 	levels.resize(mask.size())
+	var deepest: int = clampi(depth, 1, 255)
 	if not round_plan:
 		for at: int in mask.size():
-			levels[at] = LEVELS if mask[at] == 1 else 0
+			levels[at] = deepest if mask[at] == 1 else 0
 		return levels
 	for py: int in span.y:
-		var px: int = 0
-		while px < span.x:
-			if mask[py * span.x + px] == 0:
-				px += 1
+		var first: int = -1
+		var last: int = -1
+		for px: int in span.x:
+			if mask[py * span.x + px] == 1:
+				if first < 0:
+					first = px
+				last = px
+		if first < 0:
+			continue
+		var middle: float = (float(first) + float(last) + 1.0) * 0.5
+		var radius: float = maxf((float(last) + 1.0 - float(first)) * 0.5, 0.5)
+		for step: int in range(first, last + 1):
+			if mask[py * span.x + step] == 0:
 				continue
-			var last: int = px
-			while last + 1 < span.x and mask[py * span.x + last + 1] == 1:
-				last += 1
-			var middle: float = (float(px) + float(last) + 1.0) * 0.5
-			var radius: float = maxf((float(last) + 1.0 - float(px)) * 0.5, 0.5)
-			for step: int in range(px, last + 1):
-				var away: float = (float(step) + 0.5 - middle) / radius
-				var half: float = sqrt(maxf(1.0 - away * away, 0.0))
-				levels[py * span.x + step] = clampi(ceili(half * LEVELS), 1, LEVELS)
-			px = last + 1
+			var away: float = (float(step) + 0.5 - middle) / radius
+			var chord: float = sqrt(maxf(1.0 - away * away, 0.0))
+			levels[py * span.x + step] = clampi(
+				ceili(chord * float(LEVELS)) * deepest / LEVELS, 1, deepest
+			)
 	return levels
 
 
@@ -1168,7 +1197,7 @@ func _cutout(
 			tiles.append(_tile_at(start.x + column, start.y + row))
 	var span := across * int(TILE)
 	var mask: PackedByteArray = _structure_mask(tiles, across, atlas, filled)
-	var levels: PackedByteArray = _cell_levels(mask, span, round_plan)
+	var levels: PackedByteArray = _cell_levels(mask, span, round_plan, roundi(depth))
 
 	var edge: int = int(TILE)
 	var tile: int = _tiles[at]
@@ -1225,7 +1254,7 @@ func _cutout(
 			for down: int in tall:
 				for across_step: int in wide:
 					taken[(row + down) * edge + column + across_step] = 1
-			var half: float = depth * 0.5 * float(level) / float(LEVELS)
+			var half: float = float(level) * 0.5
 			_cutout_box(
 				tx, tile, atlas, mask, origin, span, top + base,
 				Rect2i(column, row, wide, tall), mid - half, mid + half

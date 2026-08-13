@@ -23,7 +23,8 @@ var _frames: int = 0
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.size() < 6:
-		print("usage: <cache> <group> <number> <tile x> <tile y> <out.png> [pitch] [back]")
+		print("usage: <cache> <group> <number> <tile x> <tile y> <out.png>"
+			+ " [pitch] [back] [time 0-3]")
 		quit(1)
 		return
 	var data: GameData = GameData.open_directory(args[0])
@@ -59,10 +60,15 @@ func _initialize() -> void:
 	_stage.container.size = Vector2(VIEW)
 	_stage.viewport.size = VIEW
 
-	_stage.set_time_of_day(Gen2WorldPalette.TIME_DAY)
-	if atlas.build(data, map, tileset, Gen2WorldPalette.TIME_DAY):
+	# The hour is an argument because the light now MOVES with it: the sun's
+	# bearing is what a shot at one time says and a shot at another cannot.
+	var time_of_day: int = clampi(int(args[8]) if args.size() > 8 else 1, 0, 3)
+	_stage.set_time_of_day(time_of_day)
+	if atlas.build(data, map, tileset, time_of_day):
 		_stage.set_texture(atlas.texture)
-		_stage.set_background(Color(0.36, 0.55, 0.78))
+		# The map's own background, so a shot shows the sky the player would see
+		# rather than a fixed blue that belongs to no map.
+		_stage.set_background(atlas.background())
 	_stage.set_terrain(mesher.build(source, shape, atlas))
 
 	var focus := Vector3((float(args[3]) + 0.5) * TILE, 0.0, (float(args[4]) + 0.5) * TILE)

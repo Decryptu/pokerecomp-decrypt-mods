@@ -35,7 +35,15 @@ const BLOCK_CELLS: int = 2
 ## The window around the tile, in tiles. Fifteen is most of a Game Boy screen,
 ## which is the frame the drawing was composed to be read in.
 const WINDOW: int = 15
-const RING := Color(1.0, 0.16, 0.18)
+## RINGED TWICE, in two colours, because one ring is not enough on art of its own
+## colour. A red ring is nearly invisible over red art and three tilesets lost
+## tiles to exactly that: ts16's 4, 20 and 54 were reported as missing art and
+## are a red and cream checked mat, and ts23's 24 is a red rug. Magenta is the
+## outer ring because the cartridge's terrain palettes never reach it, and white
+## the inner one, so whichever of the two the art happens to be wearing, the
+## other still reads.
+const RING_OUTER := Color(1.0, 0.0, 1.0)
+const RING_INNER := Color(1.0, 1.0, 1.0)
 ## Screen pixels per art pixel in the full pass's crops.
 const SCALE: int = 4
 
@@ -224,17 +232,23 @@ func _crop(map_image: Image, at: Vector2i, number: int, tile: int) -> String:
 	))
 	var out: Image = map_image.get_region(box)
 
-	# Drawn a pixel outside the tile, so the ring never covers the thing it is
-	# pointing at.
-	var ring := Rect2i((at - origin) * TILE - Vector2i.ONE, Vector2i(TILE + 2, TILE + 2))
-	for x: int in range(ring.position.x, ring.end.x):
-		for y: int in [ring.position.y, ring.end.y - 1]:
-			if x >= 0 and y >= 0 and x < out.get_width() and y < out.get_height():
-				out.set_pixel(x, y, RING)
-	for y: int in range(ring.position.y, ring.end.y):
-		for x: int in [ring.position.x, ring.end.x - 1]:
-			if x >= 0 and y >= 0 and x < out.get_width() and y < out.get_height():
-				out.set_pixel(x, y, RING)
+	# Drawn OUTSIDE the tile, so neither ring ever covers the thing it is pointing
+	# at. The inner one is against the tile and the outer one a pixel further out.
+	for step: int in 2:
+		var color: Color = RING_INNER if step == 0 else RING_OUTER
+		var inset: int = step + 1
+		var ring := Rect2i(
+			(at - origin) * TILE - Vector2i(inset, inset),
+			Vector2i(TILE + inset * 2, TILE + inset * 2)
+		)
+		for x: int in range(ring.position.x, ring.end.x):
+			for y: int in [ring.position.y, ring.end.y - 1]:
+				if x >= 0 and y >= 0 and x < out.get_width() and y < out.get_height():
+					out.set_pixel(x, y, color)
+		for y: int in range(ring.position.y, ring.end.y):
+			for x: int in [ring.position.x, ring.end.x - 1]:
+				if x >= 0 and y >= 0 and x < out.get_width() and y < out.get_height():
+					out.set_pixel(x, y, color)
 
 	# Blown up for the full pass, because a 120px crop is unreadable and every
 	# reader of one would otherwise scale it themselves. Nearest, or the ring and
