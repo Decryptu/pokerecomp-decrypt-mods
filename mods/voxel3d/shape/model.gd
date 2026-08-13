@@ -132,7 +132,18 @@ static func measure(
 		return out
 
 	var narrow: int = maxi(widest / 2, 1)
-	var crown_bottom: int = first_row
+	# The crown ends where the drawing narrows to a stick BELOW ITS WIDEST ROW,
+	# which is not the same as the first narrow row and the difference is a whole
+	# class of tree. A fir is pointed: its top row is two pixels across, so a scan
+	# starting at the top stops before it has begun and the crown comes out one row
+	# of the widest radius, which is a flat disk on a stump. Every conifer in the
+	# game is drawn that way, and the round tree only escaped it by one pixel.
+	var widest_row: int = first_row
+	for py: int in range(first_row, last_row + 1):
+		if widths[py] == widest:
+			widest_row = py
+			break
+	var crown_bottom: int = widest_row
 	while crown_bottom <= last_row and widths[crown_bottom] > narrow:
 		crown_bottom += 1
 	var trunk_bottom: int = crown_bottom

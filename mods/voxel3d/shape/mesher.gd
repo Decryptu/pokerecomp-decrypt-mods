@@ -866,6 +866,18 @@ func _measure_furniture() -> void:
 ## drawn out of the same top and bottom tiles, one cell of them and two, and no
 ## tile id can tell those apart. So the class's own box is taken where every cell
 ## in it carries that class, and one cell otherwise.
+##
+## Carrying the class is not enough on its own, because a thing standing next to
+## another of itself carries it twice. A DRAWING THAT REPEATS IS NOT ONE DRAWING:
+## where a cell of the box draws exactly what another cell of it draws, the box
+## is a row of small things rather than one large one. Tileset 1 is the case and
+## it is 4542 trees: a tall conifer is a pointed cell over a footed cell and the
+## two differ, where a pair of short ones is the same cell twice.
+##
+## Except where the extra cells are DEPTH, because there a repeat is the drawing:
+## the long flower bed is the same bed carrying on away from the eye and draws
+## the identical cell twice on purpose. `LYING` is that distinction and it is
+## already made.
 func _measure_cutouts() -> void:
 	for ty: int in _size.y:
 		for tx: int in _size.x:
@@ -884,9 +896,31 @@ func _measure_cutouts() -> void:
 						break
 				if not whole:
 					break
+			if whole and _lying[at] == 0:
+				whole = not _repeats(start, Vector2i(int(_span_x[at]), int(_span_y[at])))
 			if not whole:
 				_span_x[at] = 1
 				_span_y[at] = 1
+
+
+## Whether any cell of the box at [param start] draws exactly what another cell
+## of it draws, in walk cells.
+func _repeats(start: Vector2i, span: Vector2i) -> bool:
+	var seen: Dictionary = {}
+	for row: int in span.y:
+		for column: int in span.x:
+			var cell: Array = []
+			for down: int in CELL_TILES:
+				for right: int in CELL_TILES:
+					cell.append(_tile_at(
+						start.x + column * CELL_TILES + right,
+						start.y + row * CELL_TILES + down
+					))
+			var key: String = str(cell)
+			if seen.has(key):
+				return true
+			seen[key] = true
+	return false
 
 
 ## The jumping ledges, taken from the COLLISION byte rather than from a drawing.

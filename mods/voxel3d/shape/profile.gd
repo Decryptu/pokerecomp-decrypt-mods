@@ -31,7 +31,6 @@ const HEIGHTS: Dictionary = {
 	&"void": 0,
 	&"ledge": 8,
 	&"wall": 16,
-	&"tree": 16,
 	&"fence": 8,
 	&"sign": 16,
 	&"roof": 24,
@@ -65,6 +64,7 @@ const HEIGHTS: Dictionary = {
 	&"stand": 0,
 	&"lie": 0,
 	&"canopy": 0,
+	&"tree": 0,
 	# A raised flat surface seen from above: a counter, a table top, a stool. One
 	# cell, because that is what a counter is in a game built on 16px cells.
 	&"surface": 16,
@@ -141,6 +141,7 @@ const ROUND: Dictionary = {
 ## work 3 says why.
 const OUTLINE: Dictionary = {
 	&"canopy": 1,
+	&"tree": 1,
 }
 
 ## The classes that lie flat AND stand a thin slab of their own drawing up.
@@ -170,6 +171,7 @@ const TUFTS: Dictionary = {
 ## plates or a black hedge. `model.gd` has the reasoning and the geometry.
 const MODEL: Dictionary = {
 	&"canopy": true,
+	&"tree": true,
 }
 
 ## How many walk cells a cutout's DRAWING covers, where it is more than one.
@@ -186,6 +188,11 @@ const SPANS: Dictionary = {
 	&"planter": Vector2i(1, 2),
 	&"flowers": Vector2i(1, 2),
 	&"canopy": Vector2i(2, 2),
+	# The conifer: one cell across and TWO down, which is what the routes mostly
+	# draw. Measured over the 29 maps of tileset 1: 3696 tall trees, top half and
+	# bottom half in exactly equal numbers, against 846 short ones drawn in a
+	# single cell. The short one is the same class collapsed by its placement.
+	&"tree": Vector2i(1, 2),
 }
 
 ## The cutouts whose extra cells are DEPTH rather than height.
@@ -313,7 +320,6 @@ const ART: Dictionary = {
 	&"roof": &"top",
 	&"bed": &"top",
 	&"wall": &"upright",
-	&"tree": &"upright",
 	&"fence": &"upright",
 	&"sign": &"upright",
 	&"cliff": &"upright",
@@ -343,6 +349,9 @@ const ART: Dictionary = {
 	# A whole tree: canopy, trunk and the shadow it stands on, drawn as one 2x2
 	# cell picture. The reference carves the same thing as one 32px hull.
 	&"canopy": &"cutout",
+	# The other tree the game draws, and the commoner one: a CONIFER, pointed at
+	# the top, one cell across and drawn either one or two cells tall.
+	&"tree": &"cutout",
 	&"surface": &"top",
 }
 
@@ -410,6 +419,13 @@ const TILESETS: Dictionary = {
 	# what the profile is for anyway.
 	1: {
 		&"tall_grass": [4],
+		# THE CONIFER, and tileset 1 is 29 maps: more of the game's outdoors than
+		# any other. Six tiles, drawn as a pointed top over an optional middle over
+		# a foot, and the middle is what makes a tall one: 3696 cells carry
+		# [30,31,46,47] and exactly 3696 carry [46,47,62,63], so every tall tree is
+		# a matched pair, while 846 cells draw [30,31,62,63] on its own and are the
+		# short one. `SPANS` declares the tall one and the placement collapses it.
+		&"tree": [30, 31, 46, 47, 62, 63],
 	},
 	2: {
 		&"tall_grass": [4],
@@ -421,13 +437,11 @@ const TILESETS: Dictionary = {
 	# and the shadow ellipse it stands in, described tile by tile in the full
 	# pass and standing as one plain box before this.
 	#
-	# Tileset 31 draws a tree at the same sixteen ids and is deliberately NOT
-	# pinned. Its crown fills the block edge to edge, so revolving it makes a
-	# 30px drum, and the row-to-row jitter of a dithered mass turns that into a
-	# stack of plates. Squashing the plan was tried at half depth and changed
-	# nothing, because the fault is the jitter and not the depth. That block is a
-	# repeating forest MASS wearing a trunk, which is a different thing from a
-	# tree and wants the reference's own second rule. See open work 3.
+	# Tileset 31 draws the same tree at the same sixteen ids, and once the mask is
+	# cut on the drawing's own outline the two profiles agree to the decimal. It
+	# was held back while the tree was CARVED, because a crown filling its block
+	# edge to edge revolves into a drum and a dither's row jitter turns that into a
+	# stack of plates; turning a model off the same silhouette has neither fault.
 	31: {
 		&"canopy": [
 			12, 13, 14, 15, 28, 29, 30, 31, 44, 45, 46, 47, 60, 61, 62, 63,

@@ -295,6 +295,9 @@ func _build(number: int) -> bool:
 		_stage.set_background(Color(0.09, 0.09, 0.11))
 	var shape: RefCounted = _tile_shape.new(_profile, number)
 	_stage.set_terrain(_mesher.build(_map_source.new(null, map, tileset), shape, _atlas))
+	# And the models, or every block built as one shows an empty patch of grass
+	# and the sheet asks the reviewer to grade a hole.
+	_stage.set_models(_mesher.take_models())
 
 	_paint_2d(map, tileset, places).save_png("%s/ts%d_2d.png" % [_out, number])
 

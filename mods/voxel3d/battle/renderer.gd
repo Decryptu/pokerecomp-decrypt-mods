@@ -222,6 +222,9 @@ func _build_arena() -> void:
 	_mesher = _resolved_for(map, tileset, source)
 	_stage.set_view_distance(float(_draw_cells) * CELL)
 	_stage.set_terrain(_mesher.emit(_atlas, _window(_context.player_cell)))
+	# The stamped models too, or a fight on a route is staged in a clearing: a
+	# tree emits no carved geometry at all and is nothing but its instances.
+	_stage.set_models(_mesher.take_models())
 	# Staged AFTER the mesh, because choosing where the fight goes asks how tall
 	# the things around it turned out to be, and only the mesh knows that.
 	_arena.stage(_context, source, _mesher)

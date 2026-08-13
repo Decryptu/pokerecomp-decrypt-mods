@@ -298,6 +298,13 @@ One mesh is built per distinct tree and stamped wherever that tree stands, so a
 forest of two hundred is one tree of geometry drawn two hundred times and culled
 as a single instance. It is cheaper than the flat wall it replaces.
 
+The silhouette is read down from its WIDEST row, which is what lets the same
+recipe turn a conifer. A fir is pointed: its top row is two pixels across, and a
+reading that starts at the top mistakes that point for the trunk and comes out a
+disc on a stump. How TALL a tree is drawn is the drawing's business too, so the
+one class covers both the conifer drawn in a single cell and the one drawn in
+two, and the placement is what says which.
+
 ## Where a shape comes from
 
 `shape/tile_shape.gd` resolves every tile, in this order:
