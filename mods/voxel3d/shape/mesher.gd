@@ -1435,7 +1435,7 @@ func _place_model(tx: int, ty: int, atlas: RefCounted) -> void:
 		var measured: RefCounted = Model.measure(
 			mask, across * int(TILE), tiles, across, atlas
 		)
-		_model_meshes[key] = (Model.new() as RefCounted).tree(measured, Model.BALL)
+		_model_meshes[key] = (Model.new() as RefCounted).tree(measured)
 		_model_spots[key] = {}
 	# The middle of the drawing's own footprint, on the ground beside it.
 	var spot := Vector3(
