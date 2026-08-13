@@ -35,29 +35,35 @@ extends RefCounted
 ## atlas repaints the water slot from `Gen2WorldAnimation` frame by frame, so the
 ## drawing already ripples; what is added is the surface it ripples on.
 
+## EVERY NUMBER BELOW IS THE REVIEWER'S, picked in round nine off three built and
+## photographed looks rather than described: a wide gentle swell under a calm sky.
+## `answers_round9.txt`, and the three are `wat_a_sea.png`, `wat_b_sea.png` and
+## `wat_c_sea.png` in the survey directory.
+##
 ## How far the wave tilts the surface, as a gradient. This is a normal and not a
 ## displacement, and a lake whose normal swings far enough to catch the sky at
 ## every point reads as crumpled foil rather than as water.
-const WAVE_TILT: float = 0.34
+const WAVE_TILT: float = 0.22
 ## The two wavelengths that cross, in world pixels, and how fast each travels.
 ## Deliberately not a ratio of one another, or the two sum into one standing wave
 ## that pulses in place instead of travelling.
 ##
-## SHORT, about two tiles and one. Four tiles and one and a half was built and
-## photographed first and it is not water: at that size the swell is wider than
-## anything else in the frame and reads as haze lying over the sea rather than as
-## its surface. The picture is `wat_a_sea.png` beside `wat_c_sea.png`.
-const WAVE_LENGTH_A: float = 17.0
-const WAVE_LENGTH_B: float = 11.0
+## LONG, about four tiles and two: a slow swell running under the whole lake
+## rather than a chop on top of it. A wavelength of two tiles was built and put
+## up beside it and the reviewer did not take it.
+const WAVE_LENGTH_A: float = 34.0
+const WAVE_LENGTH_B: float = 19.0
 const WAVE_SPEED_A: float = 7.0
 const WAVE_SPEED_B: float = -4.5
 ## How much of the sky the flattest water takes, and the most it takes edge on.
 ## The floor is not zero: a lake lit only by its own texel is the blue floor this
 ## replaces, and a little sky everywhere is what makes it a surface at all. The
-## ceiling is well under one: a sea that goes fully to the sky at the horizon
-## loses the cartridge's own blue exactly where most of the sea is.
-const REFLECT_LEAST: float = 0.14
-const REFLECT_MOST: float = 0.55
+## ceiling is well under one: a sea that goes fully to the sky at grazing angles
+## loses the cartridge's own blue exactly where most of the sea is. These are the
+## calmest of the three that were offered, so the water stays the colour the
+## cartridge painted it and the sky is what grades it toward the horizon.
+const REFLECT_LEAST: float = 0.10
+const REFLECT_MOST: float = 0.45
 
 const CODE: String = """
 shader_type spatial;
