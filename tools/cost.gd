@@ -46,6 +46,7 @@ func _initialize() -> void:
 
 	var lines: Array = []
 	var triangles: int = 0
+	var rasterised: int = 0
 	var resolve_usec: int = 0
 	var emit_usec: int = 0
 	var by_tileset: Dictionary = {}
@@ -80,25 +81,37 @@ func _initialize() -> void:
 			for surface: int in mesh.get_surface_count():
 				faces += (mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
 					as PackedVector3Array).size()
+		# AND WHAT THEY COST TO DRAW, which is the other number and is not the same
+		# one: geometry is stored once per drawing and rasterised once per stamp, so
+		# a forest is one mesh to hold and two hundred trees to draw. A model built
+		# at a finer voxel is nearly free in the first and multiplied in the second.
 		var stamps: int = 0
+		var drawn: int = 0
 		for model: Array in mesher.take_models():
+			var model_faces: int = 0
 			for surface: int in (model[0] as ArrayMesh).get_surface_count():
-				faces += ((model[0] as ArrayMesh).surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
+				model_faces += ((model[0] as ArrayMesh).surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
 					as PackedVector3Array).size()
+			faces += model_faces
 			stamps += (model[1] as Array).size()
+			drawn += model_faces * (model[1] as Array).size()
 		@warning_ignore("integer_division")
 		var count: int = faces / 3
+		@warning_ignore("integer_division")
+		var on_screen: int = (faces + drawn) / 3
 
 		lines.append({
 			"map": "%d,%d" % [map.group, map.number],
 			"tileset": map.tileset,
 			"cells": [map.width_blocks * 2, map.height_blocks * 2],
 			"triangles": count,
+			"drawn": on_screen,
 			"models": stamps,
 			"resolve_ms": float(resolved) / 1000.0,
 			"emit_ms": float(emitted) / 1000.0,
 		})
 		triangles += count
+		rasterised += on_screen
 		resolve_usec += resolved
 		emit_usec += emitted
 		if not by_tileset.has(map.tileset):
@@ -106,8 +119,8 @@ func _initialize() -> void:
 		(by_tileset[map.tileset] as Array)[0] += count
 		(by_tileset[map.tileset] as Array)[1] += 1
 
-	print("%d maps  %.2fM triangles  %.2f s resolve  %.2f s emit" % [
-		lines.size(), float(triangles) / 1000000.0,
+	print("%d maps  %.2fM triangles  %.2fM drawn  %.2f s resolve  %.2f s emit" % [
+		lines.size(), float(triangles) / 1000000.0, float(rasterised) / 1000000.0,
 		float(resolve_usec) / 1000000.0, float(emit_usec) / 1000000.0,
 	])
 	lines.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -115,10 +128,10 @@ func _initialize() -> void:
 	print("dearest maps:")
 	for index: int in mini(WORST, lines.size()):
 		var line: Dictionary = lines[index]
-		print("  %-7s ts%-3d %3dx%-3d %8d tri  %5d models  %6.1f ms resolve  %7.1f ms emit" % [
+		print("  %-7s ts%-3d %3dx%-3d %8d tri %8d drawn %5d models  %6.1f ms resolve  %7.1f ms emit" % [
 			line["map"], line["tileset"], (line["cells"] as Array)[0],
-			(line["cells"] as Array)[1], line["triangles"], line["models"],
-			line["resolve_ms"], line["emit_ms"],
+			(line["cells"] as Array)[1], line["triangles"], line["drawn"],
+			line["models"], line["resolve_ms"], line["emit_ms"],
 		])
 	var tilesets: Array = by_tileset.keys()
 	tilesets.sort_custom(func(a: int, b: int) -> bool:
