@@ -80,7 +80,7 @@ func _initialize() -> void:
 			for surface: int in (model[0] as ArrayMesh).get_surface_count():
 				faces += ((model[0] as ArrayMesh).surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
 					as PackedVector3Array).size()
-			stamps += (model[1] as PackedVector3Array).size()
+			stamps += (model[1] as Array).size()
 		@warning_ignore("integer_division")
 		var count: int = faces / 3
 

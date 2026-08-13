@@ -1476,25 +1476,51 @@ func _place_model(tx: int, ty: int, atlas: RefCounted) -> void:
 		)
 		_model_meshes[key] = (Model.new() as RefCounted).tree(measured)
 		_model_spots[key] = {}
-	# The middle of the drawing's own footprint, on the ground beside it.
+	# The middle of the drawing's own footprint, on the ground beside it, TURNED
+	# AND NUDGED off the grid it was authored on. The cartridge places its trees
+	# on a 16px lattice and one mesh stamped at every lattice point reads as an
+	# orchard: the eye finds the rows immediately, and the rows are the one thing
+	# about a forest that is an artefact of the tile map rather than of the world.
+	# A quarter turn costs nothing and keeps every voxel axis-aligned, which is
+	# what a rotation of any other angle would throw away, and it shows a
+	# different side of the same baked leaf noise. The nudge is a couple of pixels
+	# on a 16px cell, enough to break the line and too little to leave the cell.
+	# Both come off the anchor, so a tree does not walk when the window rebuilds.
+	var wobble: float = _hash_spot(start)
 	var spot := Vector3(
-		(float(start.x) + float(across.x) * 0.5) * TILE,
+		(float(start.x) + float(across.x) * 0.5) * TILE + (wobble - 0.5) * MODEL_NUDGE,
 		float(_ground_art(tx, ty).y),
 		(float(start.y) + float(across.y) * 0.5) * TILE
+			+ (_hash_spot(start + Vector2i(37, 0)) - 0.5) * MODEL_NUDGE
 	)
-	(_model_spots[key] as Dictionary)[str(start)] = spot
+	var turn: float = floorf(_hash_spot(start + Vector2i(0, 91)) * 4.0) * PI * 0.5
+	(_model_spots[key] as Dictionary)[str(start)] = Transform3D(
+		Basis(Vector3(0.0, 1.0, 0.0), turn), spot
+	)
 
 
-## The models this emit placed: a list of [mesh, spots], one per distinct
-## drawing. Empty until an emit has run.
+## How far a stamped model is nudged off its lattice point, in world pixels,
+## across the whole span of the wobble.
+const MODEL_NUDGE: float = 5.0
+
+
+## A settled number in 0 to 1 for a placement, so a forest is varied and a tree
+## is still in the same place every time the window is rebuilt.
+func _hash_spot(anchor: Vector2i) -> float:
+	var value: float = sin(float(anchor.x) * 127.1 + float(anchor.y) * 311.7) * 43758.5453
+	return value - floorf(value)
+
+
+## The models this emit placed: a list of [mesh, placements], one per distinct
+## drawing, each placement a `Transform3D`. Empty until an emit has run.
 func take_models() -> Array:
 	var out: Array = []
 	for key: String in _model_meshes:
-		var spots := PackedVector3Array()
-		for spot: Vector3 in (_model_spots[key] as Dictionary).values():
-			spots.append(spot)
-		if not spots.is_empty():
-			out.append([_model_meshes[key], spots])
+		var placed: Array[Transform3D] = []
+		for placement: Transform3D in (_model_spots[key] as Dictionary).values():
+			placed.append(placement)
+		if not placed.is_empty():
+			out.append([_model_meshes[key], placed])
 	return out
 
 

@@ -221,12 +221,10 @@ func set_models(models: Array) -> void:
 		var multi := MultiMesh.new()
 		multi.transform_format = MultiMesh.TRANSFORM_3D
 		multi.mesh = models[index][0]
-		var spots: PackedVector3Array = models[index][1]
-		multi.instance_count = spots.size()
-		for spot: int in spots.size():
-			multi.set_instance_transform(
-				spot, Transform3D(Basis.IDENTITY, spots[spot])
-			)
+		var placements: Array[Transform3D] = models[index][1]
+		multi.instance_count = placements.size()
+		for spot: int in placements.size():
+			multi.set_instance_transform(spot, placements[spot])
 		_models[index].multimesh = multi
 		_models[index].visible = true
 	for index: int in range(models.size(), _models.size()):
