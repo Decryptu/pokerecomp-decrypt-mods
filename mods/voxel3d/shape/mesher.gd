@@ -56,6 +56,8 @@ const ART_FLAT: int = 0
 const ART_TOP: int = 1
 const ART_UPRIGHT: int = 2
 const ART_CUTOUT: int = 3
+## Not a class's art but a shape the COLLISION asks for: see `_measure_ledges`.
+const ART_LEDGE: int = 4
 
 var _size := Vector2i.ZERO
 var _tiles := PackedInt32Array()
@@ -96,6 +98,16 @@ var _lip := PackedByteArray()
 ## structure shows the same drawing standing up and a face exposed at its back
 ## does not sample the ground behind it.
 var _bases := PackedInt32Array()
+## Per tile: which way a jumping ledge's drop faces, as a step, packed one to a
+## byte. Zero everywhere else.
+const LEDGE_NONE: int = 0
+const LEDGE_SOUTH: int = 1
+const LEDGE_NORTH: int = 2
+const LEDGE_EAST: int = 3
+const LEDGE_WEST: int = 4
+## How far the wedge rises: one band, which is what the lip is drawn as.
+const LEDGE_RISE: int = BAND
+var _ledge := PackedByteArray()
 
 
 ## Resolves a map and builds it, as one mesh per chunk. Empty when there is
@@ -295,6 +307,10 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_front.resize(count)
 	_lip.resize(count)
 	_bases.resize(count)
+	# Written only where there is a ledge, so it is the one array that has to be
+	# cleared rather than filled in by the pass below.
+	_ledge.resize(count)
+	_ledge.fill(LEDGE_NONE)
 
 	for ty: int in _size.y:
 		var cell_y: int = ty >> 1
@@ -359,6 +375,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_settle_unmeasured()
 	_measure_furniture()
 	_measure_cutouts()
+	# Last, because it overrides whatever the passes above made of a ledge tile
+	# and reads the ground they settled either side of it.
+	_measure_ledges(source)
 
 
 ## The floors a PERSON painted, where they painted any.
@@ -850,6 +869,109 @@ func _measure_cutouts() -> void:
 			if not whole:
 				_span_x[at] = 1
 				_span_y[at] = 1
+
+
+## The jumping ledges, taken from the COLLISION byte rather than from a drawing.
+##
+## Which way a ledge faces is not a judgement and must not be read off the art:
+## `Gen2WorldCollision.allows_hop` decodes it bit for bit against the cartridge's
+## own .TryJump. The code sits on the cell the player STANDS on, so the ledge
+## itself is the blocked cell the hop passes over, and the lip is drawn in the
+## FAR HALF of that cell, one tile deep, with the near half plain floor. Measured
+## over every map: 1380 cells hopped over, 2760 lip tiles, 72 maps, and not one
+## tile is claimed by two facings, so a wedge never has to choose. Only south,
+## east and west occur; nothing in the game is hopped northward.
+##
+## They stood a full walk cell tall before this, which is a wall you cannot see
+## over: 2298 of the 2760 measured 16px up the column, because a blocked cell
+## with no pin resolves to `wall` like everything else. The wedge is one band,
+## which is what the cartridge draws the lip as.
+##
+## The foot of the ramp is the ground the player hops FROM, not the tile beside
+## it. In 240 cases the near half of the cell is itself a structure, and taking
+## its height would stand the ledge on top of the wall it is cut into.
+##
+## The height written here is the foot, so every neighbour sees the wedge at the
+## ground it rises from and skirts down to it as it would to any floor. Nothing
+## else in the mesh has to know about the slope.
+func _measure_ledges(source: RefCounted) -> void:
+	@warning_ignore("integer_division")
+	var cells := Vector2i(_size.x / CELL_TILES, _size.y / CELL_TILES)
+	for cy: int in cells.y:
+		for cx: int in cells.x:
+			var code: int = source.code_at(Vector2i(cx, cy))
+			if (code & 0xF0) != Gen2WorldCollision.HI_NYBBLE_LEDGES:
+				continue
+			var base: int = _cell_floor(cx, cy)
+			for step: Vector2i in [
+				Vector2i.DOWN, Vector2i.UP, Vector2i.RIGHT, Vector2i.LEFT
+			]:
+				if not Gen2WorldCollision.allows_hop(code, step):
+					continue
+				var over := Vector2i(cx, cy) + step
+				if over.x < 0 or over.y < 0 or over.x >= cells.x or over.y >= cells.y:
+					continue
+				for tile: Vector2i in _far_half(over, step):
+					var at: int = tile.y * _size.x + tile.x
+					if _tiles[at] < 0:
+						continue
+					_ledge[at] = _ledge_facing(step)
+					_heights[at] = base
+					_art[at] = ART_LEDGE
+					_volume[at] = 0
+					_cliff[at] = 0
+					_front[at] = 0
+					_lip[at] = 0
+					# The drop wears the lip's own drawing rather than folding in
+					# whatever structure the column pass had put this tile in.
+					_bases[at] = tile.y
+
+
+## The two tiles of [param cell] on the far side of [param step].
+func _far_half(cell: Vector2i, step: Vector2i) -> Array:
+	var base: Vector2i = cell * CELL_TILES
+	if step.y > 0:
+		return [Vector2i(base.x, base.y + 1), Vector2i(base.x + 1, base.y + 1)]
+	if step.y < 0:
+		return [Vector2i(base.x, base.y), Vector2i(base.x + 1, base.y)]
+	if step.x > 0:
+		return [Vector2i(base.x + 1, base.y), Vector2i(base.x + 1, base.y + 1)]
+	return [Vector2i(base.x, base.y), Vector2i(base.x, base.y + 1)]
+
+
+func _ledge_facing(step: Vector2i) -> int:
+	if step.y > 0:
+		return LEDGE_SOUTH
+	if step.y < 0:
+		return LEDGE_NORTH
+	if step.x > 0:
+		return LEDGE_EAST
+	return LEDGE_WEST
+
+
+func _ledge_step(facing: int) -> Vector2i:
+	match facing:
+		LEDGE_SOUTH:
+			return Vector2i(0, 1)
+		LEDGE_NORTH:
+			return Vector2i(0, -1)
+		LEDGE_EAST:
+			return Vector2i(1, 0)
+	return Vector2i(-1, 0)
+
+
+## The floor of one walk cell: the highest flat tile in it, and zero where the
+## cell holds none.
+func _cell_floor(cell_x: int, cell_y: int) -> int:
+	var best: int = 0
+	for ty: int in range(cell_y * CELL_TILES, (cell_y + 1) * CELL_TILES):
+		for tx: int in range(cell_x * CELL_TILES, (cell_x + 1) * CELL_TILES):
+			if tx >= _size.x or ty >= _size.y:
+				continue
+			var at: int = ty * _size.x + tx
+			if _art[at] == ART_FLAT and _heights[at] > best:
+				best = _heights[at]
+	return best
 
 
 ## A building is measured off its own drawing's GRID, not off its tile ids.
@@ -1492,6 +1614,9 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 			float(ground.y), atlas
 		)
 		return
+	if _art[at] == ART_LEDGE:
+		_wedge(tx, ty, atlas)
+		return
 	var here: int = _heights[at]
 	var is_volume: bool = _volume[at] == 1
 
@@ -1509,6 +1634,124 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	_side(tx, ty, here, _height_at(tx, ty - 1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
 	_side(tx, ty, here, _height_at(tx + 1, ty), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 	_side(tx, ty, here, _height_at(tx - 1, ty), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
+
+
+## One jumping ledge, as an extruded triangle: a ramp rising toward the drop and
+## a vertical face at the drop itself.
+##
+## Which is the collision rule drawn as a shape. Going the way the hop goes, the
+## ground rises a band and falls away under you; coming back the other way there
+## is a small wall in front of you, which is exactly what the cartridge allows
+## and refuses. Nothing about the facing is guessed: see `_measure_ledges`.
+func _wedge(tx: int, ty: int, atlas: RefCounted) -> void:
+	var at: int = ty * _size.x + tx
+	var step: Vector2i = _ledge_step(_ledge[at])
+	var base: int = _heights[at]
+	var top: int = base + LEDGE_RISE
+	var uv: Rect2 = atlas.uv(maxi(_tiles[at], 0))
+	var x0: float = float(tx) * TILE
+	var x1: float = x0 + TILE
+	var z0: float = float(ty) * TILE
+	var z1: float = z0 + TILE
+	# The ramp, cornered in `_face_top`'s own order so the drawing keeps its
+	# north-up orientation, each corner lifted by how far along the slope it is.
+	_quad(
+		Vector3(x0, _wedge_y(base, step, 0, 1), z1),
+		Vector3(x1, _wedge_y(base, step, 1, 1), z1),
+		Vector3(x1, _wedge_y(base, step, 1, 0), z0),
+		Vector3(x0, _wedge_y(base, step, 0, 0), z0),
+		Vector3(-float(step.x), 1.0, -float(step.y)).normalized(), uv, SHADE_TOP_FLAT
+	)
+	# The drop is the one side standing at the top of the ramp. The other three
+	# skirt from the foot down to whatever is beside them, as any tile does.
+	_side(tx, ty, top if step.y > 0 else base, _height_at(tx, ty + 1),
+		Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
+	_side(tx, ty, top if step.y < 0 else base, _height_at(tx, ty - 1),
+		Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
+	_side(tx, ty, top if step.x > 0 else base, _height_at(tx + 1, ty),
+		Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
+	_side(tx, ty, top if step.x < 0 else base, _height_at(tx - 1, ty),
+		Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
+	# The slope's own profile closes the two ends of a run of them.
+	var across := Vector2i(step.y, step.x)
+	_wedge_end(tx, ty, across, step, base, top, uv)
+	_wedge_end(tx, ty, -across, step, base, top, uv)
+
+
+## The triangle that ends a ledge sideways. A neighbour facing the same way
+## carries the ramp on and needs none, and one standing at the top of it buries
+## it.
+func _wedge_end(
+	tx: int, ty: int, side: Vector2i, step: Vector2i,
+	base: int, top: int, uv: Rect2
+) -> void:
+	var nx: int = tx + side.x
+	var ny: int = ty + side.y
+	if _ledge_at(nx, ny) == _ledge[ty * _size.x + tx]:
+		return
+	if _height_at(nx, ny) >= top:
+		return
+	var x0: float = float(tx) * TILE
+	var x1: float = x0 + TILE
+	var z0: float = float(ty) * TILE
+	var z1: float = z0 + TILE
+	var low: float = float(base)
+	# The face's own bottom edge, read left to right from outside the way `_quad`
+	# reads every side, so the drawing lands the same way up as it does on a wall.
+	var a := Vector3.ZERO
+	var b := Vector3.ZERO
+	var normal := Vector3.ZERO
+	var shade: Color = SHADE_SIDE
+	if side.y > 0:
+		a = Vector3(x0, low, z1)
+		b = Vector3(x1, low, z1)
+		normal = Vector3(0.0, 0.0, 1.0)
+		shade = SHADE_SOUTH
+	elif side.y < 0:
+		a = Vector3(x1, low, z0)
+		b = Vector3(x0, low, z0)
+		normal = Vector3(0.0, 0.0, -1.0)
+		shade = SHADE_NORTH
+	elif side.x > 0:
+		a = Vector3(x1, low, z1)
+		b = Vector3(x1, low, z0)
+		normal = Vector3(1.0, 0.0, 0.0)
+	else:
+		a = Vector3(x0, low, z0)
+		b = Vector3(x0, low, z1)
+		normal = Vector3(-1.0, 0.0, 0.0)
+	# The apex stands over whichever end of that edge the ramp climbs toward.
+	var over_a: bool = (a - b).dot(Vector3(float(step.x), 0.0, float(step.y))) > 0.0
+	var apex: Vector3 = (a if over_a else b) + Vector3(0.0, float(top - base), 0.0)
+	_tri(
+		a, b, apex, normal,
+		Vector2(uv.position.x, uv.position.y + uv.size.y),
+		Vector2(uv.position.x + uv.size.x, uv.position.y + uv.size.y),
+		Vector2(uv.position.x if over_a else uv.position.x + uv.size.x, uv.position.y),
+		shade
+	)
+
+
+## How high one corner of the ramp stands: the foot on the side the player hops
+## from, a band higher on the side it drops. [param u] and [param v] are the
+## corner, 0 or 1 along x and along z.
+func _wedge_y(base: int, step: Vector2i, u: int, v: int) -> float:
+	var along: int = 0
+	if step.x > 0:
+		along = u
+	elif step.x < 0:
+		along = 1 - u
+	elif step.y > 0:
+		along = v
+	else:
+		along = 1 - v
+	return float(base + LEDGE_RISE * along)
+
+
+func _ledge_at(tx: int, ty: int) -> int:
+	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
+		return LEDGE_NONE
+	return _ledge[ty * _size.x + tx]
 
 
 ## What lies past the edge of the map: the FLOOR at that edge, carried outward.
@@ -1640,6 +1883,18 @@ func _quad(
 	_push(a, normal, Vector2(u0, v1), shade)
 	_push(d, normal, Vector2(u0, v0), shade)
 	_push(c, normal, Vector2(u1, v0), shade)
+
+
+## Half of a `_quad`, and the same corner order: [param a] to [param b] is the
+## lower edge left to right from outside, with [param c] the single vertex above
+## it. Reversed the same way, because Godot's front faces wind clockwise.
+func _tri(
+	a: Vector3, b: Vector3, c: Vector3, normal: Vector3,
+	uv_a: Vector2, uv_b: Vector2, uv_c: Vector2, shade: Color
+) -> void:
+	_push(a, normal, uv_a, shade)
+	_push(c, normal, uv_c, shade)
+	_push(b, normal, uv_b, shade)
 
 
 func _push(vertex: Vector3, normal: Vector3, uv: Vector2, shade: Color) -> void:

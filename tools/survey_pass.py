@@ -47,7 +47,7 @@ CLASSES = """
 | `roof_flat` | a roof seen from above, the flat part, including its straight edges and corners | lies flat on top of the facade under it |
 | `roof_edge` | a sloped roof tile one step down from the flat part | flat, one 8px band lower |
 | `roof_corner` | a sloped roof tile at the very corner of the building, two steps down | flat, two 8px bands lower |
-| `ledge` | a jumping ledge or a low lip drawn from ABOVE | a box 8px tall wearing its art on top |
+| `ledge` | a low lip drawn from ABOVE, jumping ledge or not | a box 8px tall wearing its art on top. Where the collision says the lip can be hopped, the mesher builds a wedge there instead and this word costs nothing |
 | `top` | a raised flat surface seen from above: a counter top, a table top, a bed | a box wearing its art on top |
 | `stand` | a thing with its own outline standing on the ground: a post, a sign, a bush, a sapling, a tombstone, a statue | the drawing's own silhouette, cut out and stood up |
 | `lie` | a low thing with its own outline: a flower bed, a planter, a basket | the silhouette, lying at the height of one cell |

@@ -144,6 +144,23 @@ Three models come out of that, and `shape/mesher.gd` builds them:
 The fold is the whole trick. Most of Generation II is drawn face-on, so standing
 the drawing up is what turns a wall into a wall.
 
+## A jumping ledge comes out of the collision, not out of a drawing
+
+Nothing in the tile layer says which way a ledge can be hopped, and no drawing
+does either: the answer is in the collision byte, and `Gen2WorldCollision`
+decodes it against the cartridge's own rule. The code sits on the cell the player
+stands on, so the ledge is the blocked cell the hop passes over, and the lip is
+drawn in the far half of it.
+
+Those tiles are built as a wedge: a ramp rising a band toward the drop and a
+vertical face at it. Which is the collision rule drawn as a shape. Going the way
+the hop goes, the ground rises and falls away under you; coming back, there is a
+small wall in front of you.
+
+Before that they stood a full walk cell tall, because a blocked cell with no pin
+is a wall like any other, and a route was fenced by 16px walls you could not see
+over. 1380 cells of 72 maps are hopped over.
+
 ## A building is several of those at once
 
 One house drawing packs the lot: the bottom rows are the facade seen face-on,

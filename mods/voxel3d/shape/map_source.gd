@@ -78,6 +78,20 @@ func outside() -> bool:
 	return _map != null and Gen2WorldPhoneHost.is_outside_environment(_map.environment)
 
 
+## The walk cell's WHOLE collision byte, or -1 off the map.
+##
+## The permission is only half of what that byte says. The other half is the
+## jumping ledges: which way one can be hopped over is in the low bits, and
+## `Gen2WorldCollision.allows_hop` decodes them against the cartridge's own
+## .TryJump. Nothing in the tile layer says it.
+func code_at(cell: Vector2i) -> int:
+	if _world != null:
+		return _world.collision_code_at(cell)
+	if _map == null:
+		return -1
+	return _map.collision_at(cell.x, cell.y)
+
+
 ## The walk cell's collision permission, which is what decides a shape.
 func permission_at(cell: Vector2i) -> int:
 	if _world != null:

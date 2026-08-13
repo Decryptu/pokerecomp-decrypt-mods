@@ -309,7 +309,9 @@ const TILESETS: Dictionary = {
 		# what stands NEXT to it: grass under a ledge lip, and the stone floor
 		# of a plateau.
 		&"ground": [17, 44, 57],
-		# A jumping ledge is drawn from above and lies low.
+		# A lip drawn from above, lying low. Where the collision says a lip can be
+		# HOPPED, `mesher.gd:_measure_ledges` overrides this with a wedge; the pin
+		# is what the rest of them keep.
 		&"ledge": [52, 54],
 		# The house facade, face-on: brick, plain and plank walls, the shadow row
 		# under them, both wall edges and both bottom corners, the windows, the
