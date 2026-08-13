@@ -1229,8 +1229,9 @@ func _measure_stairs(shape: RefCounted) -> void:
 					continue
 				var base: int = _cell_floor(tx >> 1, ty >> 1)
 				var index: int = _stairs.size()
-				_stairs.append([flight, Vector2i(tx, ty), base])
-				var fall: int = -STAIR_RISE if bool(flight[&"down"]) else 0
+				_stairs.append([flight, Vector2i(tx, ty), base, across])
+				var rise: int = int(flight.get(&"rise", STAIR_RISE))
+				var fall: int = -rise if bool(flight[&"down"]) else 0
 				for row: int in across.y:
 					for column: int in across.x:
 						var at: int = (ty + row) * _size.x + tx + column
@@ -2171,21 +2172,31 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 	var base: float = float(entry[2])
 	var step: Vector2i = flight[&"step"]
 	var down: bool = bool(flight[&"down"])
+	var across: Vector2i = entry[3]
 	var steps: int = int(flight.get(&"steps", STAIR_STEPS))
-	var rise: float = float(STAIR_RISE) / float(steps)
-	var span: int = CELL_TILES * int(TILE)
+	var climb: int = int(flight.get(&"rise", STAIR_RISE))
+	# HOW LONG THE FLIGHT IS is the pattern's own width, not a walk cell: the grand
+	# staircase of tileset 15 is four tiles by four and climbs two levels in eight
+	# steps, and every other one in the game is two by two and climbs one in four.
+	# The tread stays four pixels either way, which is what keeps them all at 45
+	# degrees.
+	var run: int = (across.x if step.x != 0 else across.y) * int(TILE)
+	var rise: float = float(climb) / float(steps)
+	var tread_deep: float = float(run) / float(steps)
 	if not down:
-		_stair_head(start, base, step, atlas)
+		_stair_head(start, base, step, across, climb, atlas)
 	for tread: int in steps:
 		# Where this step sits inside the cell, in the cell's own pixels. The
 		# descent runs along whichever axis `step` names, from the edge the flight
 		# is entered by, and the step is the full width of the cell across it.
-		var from: int = int(float(tread) * rise)
-		var box := Rect2i(0, 0, span, span)
+		var from: int = int(float(tread) * tread_deep)
+		var deep: int = roundi(tread_deep)
+		var wide: int = (across.y if step.x != 0 else across.x) * int(TILE)
+		var box := Rect2i(0, 0, wide, wide)
 		if step.x != 0:
-			box = Rect2i(from if step.x > 0 else span - from - roundi(rise), 0, roundi(rise), span)
+			box = Rect2i(from if step.x > 0 else run - from - deep, 0, deep, wide)
 		else:
-			box = Rect2i(0, from if step.y > 0 else span - from - roundi(rise), span, roundi(rise))
+			box = Rect2i(0, from if step.y > 0 else run - from - deep, wide, deep)
 		var height: float = base + float(tread + 1) * rise * (-1.0 if down else 1.0)
 		var above: float = height + rise * (1.0 if down else -1.0)
 		# The riser stands at the step's own entry edge, facing back the way the
@@ -2257,19 +2268,26 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 ## The head of a flight that stands on the floor: the wall under its topmost
 ## tread, at the edge of the cell the climb ends at. A pit needs none, its
 ## neighbours having skirted every side of it already.
-func _stair_head(start: Vector2i, base: float, step: Vector2i, atlas: RefCounted) -> void:
-	var span: int = CELL_TILES * int(TILE)
+func _stair_head(
+	start: Vector2i, base: float, step: Vector2i, across: Vector2i, climb: int,
+	atlas: RefCounted
+) -> void:
 	var edge: int = int(TILE)
-	var high: float = base + float(STAIR_RISE)
-	for piece: int in CELL_TILES:
+	# ALONG the climb and ACROSS it, which are the same only because every flight
+	# in the game happens to be square. Keeping them apart costs nothing and a
+	# staircase wider than it is long would otherwise put its head in mid air.
+	var run: int = (across.x if step.x != 0 else across.y) * edge
+	var wide: int = (across.y if step.x != 0 else across.x)
+	var high: float = base + float(climb)
+	for piece: int in wide:
 		var along: int = piece * edge
 		var tile: int = _tile_at(
-			start.x + (CELL_TILES - 1 if step.x > 0 else (0 if step.x < 0 else piece)),
-			start.y + (CELL_TILES - 1 if step.y > 0 else (0 if step.y < 0 else piece))
+			start.x + (across.x - 1 if step.x > 0 else (0 if step.x < 0 else piece)),
+			start.y + (across.y - 1 if step.y > 0 else (0 if step.y < 0 else piece))
 		)
 		var uv: Rect2 = atlas.uv_box(tile, Rect2i(0, 0, edge, edge))
 		if step.x != 0:
-			var x: float = _world_x(start.x) + float(span if step.x > 0 else 0)
+			var x: float = _world_x(start.x) + float(run if step.x > 0 else 0)
 			var z0: float = _world_z(start.y) + float(along)
 			var z1: float = z0 + float(edge)
 			if step.x > 0:
@@ -2285,7 +2303,7 @@ func _stair_head(start: Vector2i, base: float, step: Vector2i, atlas: RefCounted
 					Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
 				)
 			continue
-		var z: float = _world_z(start.y) + float(span if step.y > 0 else 0)
+		var z: float = _world_z(start.y) + float(run if step.y > 0 else 0)
 		var x0: float = _world_x(start.x) + float(along)
 		var x1: float = x0 + float(edge)
 		if step.y > 0:

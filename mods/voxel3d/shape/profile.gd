@@ -550,6 +550,21 @@ const STAIRS: Dictionary = {
 		},
 	],
 	15: [
+		# THE GRAND STAIRCASE, and the only flight in the game that is not one walk
+		# cell. Four tiles by four, a banister down each edge and the treads
+		# between them, and the reviewer counted what it does: four steps in each
+		# half, so eight over the whole of it, climbing TWO levels rather than one.
+		# The tread stays four pixels, which is what keeps every flight in the game
+		# at the same 45 degrees whatever its length.
+		{
+			&"tiles": [
+				[83, 84, 89, 83], [83, 84, 89, 83], [83, 84, 89, 83], [83, 84, 89, 83],
+			],
+			&"down": false,
+			&"step": Vector2i(0, -1),
+			&"steps": 8,
+			&"rise": 32,
+		},
 		{
 			&"tiles": [[64, 65], [66, 67]],
 			&"down": true,
