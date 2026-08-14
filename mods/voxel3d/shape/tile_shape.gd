@@ -165,6 +165,14 @@ func facade_margin(tile: int) -> Vector2i:
 	return table.get(tile, Vector2i.ZERO)
 
 
+## Whether a facade tile draws the front SLOPE of a roof rather than a wall. Per
+## TILE for the same reason a margin is: it is a fact about one drawing, and
+## `facade` covers both. See `profile.gd:FACADE_SLOPE`.
+func is_facade_slope(tile: int) -> bool:
+	var tiles: Variant = _profile.FACADE_SLOPE.get(_tileset_number, null)
+	return tiles is Array and (tiles as Array).has(tile)
+
+
 ## The OBJECTS this tileset draws, which are declared per tileset and never per
 ## class: an object is identified by the arrangement of tile ids it is drawn out
 ## of, because no one of those tiles is the object. See `profile.gd:OBJECTS`.

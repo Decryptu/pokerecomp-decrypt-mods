@@ -161,6 +161,9 @@ const PART_WALL: int = 1
 const PART_ROOF: int = 2
 var _part := PackedByteArray()
 var _drop := PackedByteArray()
+## Per tile: whether a PART_WALL tile draws the front SLOPE of a roof rather than
+## a wall, which is what leans it back over the footprint. See `_facade_pitch`.
+var _slope := PackedByteArray()
 ## Per tile: whether it is the VOID past the edge of the world rather than ground.
 ## Both draw one flat quad at the same height and nothing else in the mesh has had
 ## to tell them apart. A great roof does: it falls away from the floor a person
@@ -518,6 +521,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_klass.resize(count)
 	_part.resize(count)
 	_drop.resize(count)
+	_slope.resize(count)
 	_void.resize(count)
 	_margin_left.resize(count)
 	_margin_right.resize(count)
@@ -593,6 +597,8 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 				_:
 					_part[at] = PART_NONE
 			_drop[at] = shape.roof_drop(shape_class)
+			_slope[at] = 1 if _part[at] == PART_WALL and shape.is_facade_slope(tile) \
+				else 0
 			_void[at] = 1 if shape_class == &"void" else 0
 			# How much of this tile is the ground beside the house rather than the
 			# house. Nearly always nothing, which is why it is stored per tile and
@@ -1480,6 +1486,8 @@ func _cell_floor(cell_x: int, cell_y: int) -> int:
 ##   a wall run  folds face-on the way any volume does. The whole run is one
 ##               height, so a facade is a wall and not a staircase, and its fold
 ##               starts at the run's own bottom row lifted by what is beneath it.
+##               Where its top bands are a roof drawn face-on they LEAN BACK over
+##               the footprint instead of standing square: see `_facade_pitch`.
 ##   a roof row  lies flat at the height its own row agrees on, and passes that
 ##               height up to whatever stands on it.
 ##
@@ -1511,18 +1519,42 @@ func _measure_buildings() -> void:
 			# differently comes out as a staircase rather than as a wall.
 			var runs: PackedInt32Array = PackedInt32Array()
 			var bands: int = 0
+			# THE STRETCH AGREES ON ITS PITCH TOO, and on the SHALLOWEST of them,
+			# for the reason it agrees on one height: a roof is one plane across
+			# the whole building. One column of the stretch whose top is a wall
+			# rather than a roof says the roof does not reach along here at all,
+			# and leaning the rest would notch a corner off the tower whose end
+			# board alternates with its gallery post for seven storeys.
+			var pitch: int = 0x7fffffff
 			for tx: int in range(wall, last + 1):
 				var run: int = 1
 				while ty - run >= 0 and _part[(ty - run) * _size.x + tx] == PART_WALL:
 					run += 1
 				runs.append(run)
+				pitch = mini(pitch, _facade_pitch(tx, ty, run))
 				bands = maxi(bands, _facade_period(tx, ty, run))
+			# A PITCH DEEPER THAN THE DRAWING IS TALL is two readings of the same
+			# column contradicting each other, and the period is the older one:
+			# where a run repeats, the stretch stands as many bands as the repeat
+			# and there are not enough of them for the roof the tiles claim. The
+			# storeyed houses are where that happens, and taking the pitch anyway
+			# leaves the wall at nothing.
+			if pitch > bands:
+				pitch = 0
 			for tx: int in range(wall, last + 1):
 				var under: int = column[tx]
 				var top: int = under + bands * BAND
+				# A FACE-ON ROOF SLOPE LEANS BACK, a tile of depth per band of
+				# height, and the run's total height does not move: the topmost
+				# band still stands at `top` and every band below it steps down
+				# and forward until the wall, which keeps the drawing's own bands.
+				# So the pitch is redistributed inside the footprint the fold
+				# already gave the building and nothing outside it sees a change.
+				var flat: int = runs[tx - wall] - pitch
 				for step: int in runs[tx - wall]:
 					var index: int = (ty - step) * _size.x + tx
-					_heights[index] = top
+					var climbed: int = clampi(step - flat + 1, 0, pitch)
+					_heights[index] = top - (pitch - climbed) * BAND
 					@warning_ignore("integer_division")
 					_bases[index] = ty + under / BAND
 					_volume[index] = 1
@@ -1564,6 +1596,54 @@ func _facade_period(tx: int, bottom: int, run: int) -> int:
 		if repeats:
 			return length
 	return run
+
+
+## HOW MANY BANDS AT THE TOP OF A FACADE RUN ARE A ROOF SLOPE rather than a wall.
+##
+## Tileset 1's houses draw the front PITCH of their roof face-on, so the fold
+## stood every one of them up square and a house came out a barn: a tall box with
+## plank texture down its upper half and a flat lid. `profile.gd:FACADE_SLOPE`
+## names those tiles and this counts them off the top of the run, which is where
+## a roof is: the wall below keeps the drawing's own bands and the pitch leans
+## back over the footprint, a tile of depth per band of height.
+##
+## TWO THINGS STOP THE COUNT and both are real drawings rather than caution.
+##
+## A ROOF DECK STANDING ON THE RUN is not this. Five columns in the game put a
+## face-on eave band under a roof seen from above: there the band is the fascia
+## at the front of that deck, standing on the wall exactly where it is drawn, and
+## leaning it would step the wall's top back from under its own roof.
+##
+## AND A COLUMN THAT DRAWS ROOF MORE THAN ONCE IS A STACK OF STOREYS rather than
+## one building with a pitch on top. Ecruteak's dance hall is seven storeys of
+## gallery each carrying its own plank roof band, and its two-storey houses are
+## the same thing twice: read as one run their roof reaches the ground. That is
+## the file's rule that A DRAWING WHICH REPEATS IS NOT ONE DRAWING, asked of the
+## roof, and it is read twice because the repeat shows up two ways. The count
+## stops where a slope band RETURNS to a tile the column has already left, a tile
+## repeated straight away being the same face carrying on; and if any slope band
+## is left below the count, there is no single pitch and the run has none.
+func _facade_pitch(tx: int, bottom: int, run: int) -> int:
+	var top: int = bottom - run + 1
+	if top > 0 and _part[(top - 1) * _size.x + tx] == PART_ROOF:
+		return 0
+	var pitch: int = 0
+	var seen: Dictionary = {}
+	var last: int = -1
+	while pitch < run:
+		var at: int = (top + pitch) * _size.x + tx
+		if _slope[at] == 0:
+			break
+		var tile: int = _tiles[at]
+		if tile != last and seen.has(tile):
+			break
+		seen[tile] = true
+		last = tile
+		pitch += 1
+	for step: int in range(pitch, run):
+		if _slope[(top + step) * _size.x + tx] == 1:
+			return 0
+	return pitch
 
 
 ## HOW FAR EACH TILE OF A ROOF RUN HAS FALLEN, in bands.

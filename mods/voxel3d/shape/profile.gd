@@ -1123,6 +1123,38 @@ const FACADE_MARGIN: Dictionary = {
 	},
 }
 
+## WHICH FACADE TILES ARE THE FRONT SLOPE OF A ROOF, per tileset and tile.
+##
+## A facade is a wall seen face-on and it stands up square, which is right for a
+## wall and wrong for the other thing Generation II draws face-on. Tileset 1's
+## houses do not draw their roof from above at all: they draw the front PITCH of
+## it, four rows of plank or of speckled tile over two rows of wall, and the full
+## pass reads every one of them the same way, "drawn FACE-ON, this is the front
+## slope of the roof and not a view from above". Stood up square that is a barn:
+## a tall box with roof texture down its upper half and a flat lid, on every
+## house of the twenty-four maps tileset 1 carries.
+##
+## So those bands LEAN BACK over the building's own footprint, one tile of depth
+## per band of height, which is the reference's band table
+## (`sprite_to_voxel_methodology.md`, "the taper rate IS the slope"). The fold
+## already makes a house as deep as its drawing is tall, so the pitch leans back
+## INTO the footprint and the building's total height does not move by a pixel.
+##
+## Per TILE and not per class, for `FACADE_MARGIN`'s reason: which surface a
+## drawing depicts is a fact about that drawing, and `facade` covers both.
+const FACADE_SLOPE: Dictionary = {
+	# The plank roof of the wooden house, six tiles across and four rows down over
+	# a veranda storey: 82 and 83 are its field, 81/65/49 and 84/68/52 the end
+	# boards that close it off at either side. And the speckled brown roof of the
+	# small brick house, 82 again for its eave with 72 and 54 above it.
+	1: [49, 52, 54, 65, 68, 72, 81, 82, 83, 84],
+	# The same reading on the one map tileset 4 draws a house on, in cyan
+	# corrugated sheet: "the roof being about three rows tall, FACE-ON rather than
+	# from above". Pinned with tileset 1 so the two cannot drift apart, which is
+	# the lesson the conifer and the notice board both cost.
+	4: [10, 11, 12, 13, 14, 15, 16, 17, 18],
+}
+
 ## How the mesher draws each class.
 ##
 ##   flat     one quad, no box. Ground, water, the void past a map edge.
