@@ -102,17 +102,27 @@ func _initialize() -> void:
 				% [name, int(record["placements"]), found])
 		corrected += 1
 		placements += found
-		# HOW MANY TILES THE PAINTING CUTS, which is the part of it the mesher
-		# cannot build yet: a tile painted two ways at once wants the wall's top
-		# read per pixel COLUMN, and until that emitter exists those tiles keep
-		# the answer the passes gave them. Said out loud rather than left silent,
-		# because it is the difference between what was painted and what stands.
+		# A ROOF SITTING STRAIGHT ON A WALL IS ALMOST ALWAYS A MISSED BAND. The
+		# cartridge draws the roof's own edge as two or three dark rows just above
+		# the wall, and painted `roof` instead of `roof, from the front` they are
+		# read as more of the surface seen from above: the slab measures no
+		# thickness, and the mesh stands the walls up with no roof on them at all.
+		# Drawing 11 was exactly that and the reviewer caught it from the render.
+		if _rows_of(paint, WALL) > 0 and _rows_of(paint, ROOF) > 0 \
+				and _rows_of(paint, FRONT) == 0:
+			notes.append("%s: a wall and a roof but no roof-from-the-front, so its"
+				% name + " roof has no thickness. Look at the rows just above the"
+				+ " wall")
+		# HOW MANY TILES THE PAINTING CUTS. A tile painted two ways at once is read
+		# per pixel COLUMN by `mesher.gd:_emit_house`, so this is no longer work
+		# waiting to be done; it is how much of a drawing is diagonal, which is
+		# what says whether it has a hipped end in it.
 		var cut: int = _cut(paint)
 		if cut > 0:
-			notes.append("%s: %d of its %d tiles are painted two ways and wait on the"
+			notes.append("%s: %d of its %d tiles are painted two ways, so it is read"
 				% [name, cut, (record["tiles"] as Array).size()
 					* ((record["tiles"][0] as Array).size())]
-				+ " per-column emitter")
+				+ " per pixel column")
 		entries.append(_entry(record))
 
 	var out: String = _script(entries, corrected, placements, unchanged)
@@ -144,6 +154,17 @@ func _same(paint: Array, guess: Array) -> bool:
 		if String(paint[row]) != String(guess[row]):
 			return false
 	return true
+
+
+## How many rows of a painting carry one word at all. A whole word missing from a
+## drawing is a different fault from a word in the wrong place, and it is the one
+## that leaves geometry out rather than misplaced.
+func _rows_of(paint: Array, word: String) -> int:
+	var count: int = 0
+	for row: String in paint:
+		if row.contains(word):
+			count += 1
+	return count
 
 
 ## How many tiles of a painting are cut rather than filled: the diagonals.
@@ -211,6 +232,7 @@ func _entry(record: Dictionary) -> String:
 		"drawing %d" % int(record["id"]), int(record["placements"]),
 		(record["maps"] as Array).size(), record["where"]
 	])
+	lines.append("\t\t\"id\": %d," % int(record["id"]))
 	lines.append("\t\t\"tileset\": %d," % int(record["tileset"]))
 	lines.append("\t\t\"tiles\": [")
 	for row: Array in record["tiles"] as Array:
@@ -272,6 +294,8 @@ const FRONT := "F"
 
 ## One entry per corrected drawing:
 ##
+##   id       the drawing's number on the page it was painted on, which is how a
+##            single drawing is named while it is being read one at a time
 ##   tileset  the tileset its tile ids belong to
 ##   tiles    the rectangle of tile ids that identifies it, north row first
 ##   paint    one string per PIXEL row, a character per pixel, so eight rows and

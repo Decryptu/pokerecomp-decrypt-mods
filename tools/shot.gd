@@ -59,8 +59,15 @@ func _initialize() -> void:
 	var shape: RefCounted = (load("%s/shape/tile_shape.gd" % MOD) as GDScript).new(
 		profile, map.tileset
 	)
+	# THE CARTRIDGE IS PASSED, and without it this tool photographs a different
+	# world from the one the game builds. `map_source.gd` folds a map's
+	# CONNECTIONS into everything past its edge, and it can only do that with the
+	# records in hand; given none it answers the map's own border block instead.
+	# So a building that straddles a map boundary, which is how the cartridge
+	# draws several of them, loses everything on the far side and every render of
+	# it here is wrong in a way no probe reports.
 	var source: RefCounted = (load("%s/shape/map_source.gd" % MOD) as GDScript).new(
-		null, map, tileset
+		null, map, tileset, data
 	)
 	_stage = (load("%s/world/diorama.gd" % MOD) as GDScript).new()
 	# THE SHUTTER IS ON THE COMPOSITE, not on the stage's own viewport.
