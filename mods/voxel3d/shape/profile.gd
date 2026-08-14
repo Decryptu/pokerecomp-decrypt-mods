@@ -534,6 +534,12 @@ const OBJECTS: Dictionary = {
 ## `step` is the direction it DESCENDS in the world plane, or climbs where `down`
 ## is false, and it is the one thing a person has to say: the reviewer read
 ## tileset 7's as going "from right to left to go underground", which is west.
+##
+## `corner` REPLACES `step` for a landing where two runs meet, and names both
+## climb directions at once: (1, -1) climbs east and north, which is a raised
+## platform's bottom-left corner. A tread there is an L wrapping the corner
+## rather than a strip across a cell, and `mesher.gd:_emit_stair_corner` has the
+## one line the whole shape falls out of.
 const STAIRS: Dictionary = {
 	5: [
 		{
@@ -689,6 +695,26 @@ const STAIRS: Dictionary = {
 			&"tiles": [[148, 148], [147, 147]],
 			&"down": false,
 			&"step": Vector2i(0, -1),
+			&"steps": 5,
+		},
+		# THE TWO CORNER LANDINGS, where the west and east runs meet the south
+		# skirt, and the only flight in the game that TURNS. The reviewer read both
+		# and their words are the specification: "both horizontal and vertical steps
+		# are meeting, so to go up you walk from bottom left to top right", and the
+		# same for the bottom right the other way about.
+		#
+		# A key of tileset and tile is NOT unique here: 136 is the first tile of the
+		# west run as well, and only the whole arrangement tells the two apart.
+		{
+			&"tiles": [[136, 144], [141, 142]],
+			&"down": false,
+			&"corner": Vector2i(1, -1),
+			&"steps": 5,
+		},
+		{
+			&"tiles": [[146, 140], [142, 143]],
+			&"down": false,
+			&"corner": Vector2i(-1, -1),
 			&"steps": 5,
 		},
 		{

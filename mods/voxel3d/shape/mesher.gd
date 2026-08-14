@@ -2203,11 +2203,17 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 	var flight: Dictionary = entry[0]
 	var start: Vector2i = entry[1]
 	var base: float = float(entry[2])
-	var step: Vector2i = flight[&"step"]
 	var down: bool = bool(flight[&"down"])
 	var across: Vector2i = entry[3]
 	var steps: int = int(flight.get(&"steps", STAIR_STEPS))
 	var climb: int = int(flight.get(&"rise", STAIR_RISE))
+	# A LANDING TURNS and has no single step direction, so it is its own shape.
+	if flight.has(&"corner"):
+		_emit_stair_corner(
+			start, base, flight[&"corner"], across, steps, climb, atlas
+		)
+		return
+	var step: Vector2i = flight[&"step"]
 	# HOW LONG THE FLIGHT IS is the pattern's own width, not a walk cell: the grand
 	# staircase of tileset 15 is four tiles by four and climbs two levels in eight
 	# steps, and every other one in the game is two by two and climbs one in four.
@@ -2296,6 +2302,156 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 						Vector3(x1, high, rz), Vector3(x0, high, rz),
 						Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
 					)
+
+
+## A FLIGHT THAT TURNS: the corner landing where two runs of steps meet, which is
+## the League platform's own and the only geometry of its kind in the game.
+##
+## The reviewer's words are the specification: "both horizontal and vertical
+## steps are meeting, so to go up you walk from bottom left to top right". So a
+## tread here is not a strip across a cell, it is an L wrapping the corner, and
+## the whole of the shape falls out of one line: how high a point stands is how
+## far it has come in the direction it has come LEAST far.
+##
+##     tier = floor(min(u, v) / tread)
+##
+## with u and v measured in from the two OUTER edges. Far along one face that is
+## the flight beside it, tread for tread, so the two join without a seam; at the
+## corner itself it mitres at 45 degrees, which is what the cartridge draws.
+##
+## [param corner] names both climb directions at once, so (1, -1) is a landing
+## climbing east and north, which is a platform's bottom-left corner.
+##
+## Each tier is emitted as TWO rectangles, the arm along v including the corner
+## square and the arm along u without it, so the L is covered exactly once.
+func _emit_stair_corner(
+	start: Vector2i, base: float, corner: Vector2i, across: Vector2i,
+	steps: int, climb: int, atlas: RefCounted
+) -> void:
+	var span: int = mini(across.x, across.y) * int(TILE)
+	var rise: float = float(climb) / float(steps)
+	# Whole-pixel tread boundaries, so the tiers tile the cell exactly rather
+	# than leaving the last fraction of a pixel bare the way a fixed tread would.
+	var edge := PackedInt32Array()
+	for tier: int in steps + 1:
+		edge.append(roundi(float(tier * span) / float(steps)))
+
+	for tier: int in steps:
+		var low: int = edge[tier]
+		var high: int = edge[tier + 1]
+		if high <= low:
+			continue
+		var top: float = base + float(tier + 1) * rise
+		for arm: Rect2i in [
+			Rect2i(low, low, high - low, span - low),
+			Rect2i(high, low, span - high, high - low),
+		]:
+			if arm.size.x <= 0 or arm.size.y <= 0:
+				continue
+			_stair_corner_top(start, corner, span, arm, top, atlas)
+		# The two risers, each the full outer boundary of the L at this tier, so
+		# the corner square gets one on both of its outer sides.
+		_stair_corner_riser(
+			start, corner, span, true, low, span, top - rise, top, atlas
+		)
+		_stair_corner_riser(
+			start, corner, span, false, low, span, top - rise, top, atlas
+		)
+
+
+## One arm of a tier, laid flat, cut per tile so each piece wears its own art.
+##
+## [param arm] is in (u, v), which is why it is turned into world coordinates
+## here and nowhere else: the four corners differ only by which way those two
+## axes point.
+func _stair_corner_top(
+	start: Vector2i, corner: Vector2i, span: int, arm: Rect2i, top: float,
+	atlas: RefCounted
+) -> void:
+	var box := Rect2i(
+		arm.position.x if corner.x > 0 else span - arm.end.x,
+		arm.position.y if corner.y > 0 else span - arm.end.y,
+		arm.size.x, arm.size.y
+	)
+	for piece: Rect2i in _tile_pieces(box):
+		var tile: int = _tile_at(
+			start.x + piece.position.x / int(TILE), start.y + piece.position.y / int(TILE)
+		)
+		var uv: Rect2 = atlas.uv_box(tile, Rect2i(
+			piece.position.x % int(TILE), piece.position.y % int(TILE),
+			piece.size.x, piece.size.y
+		))
+		var x0: float = _world_x(start.x) + float(piece.position.x)
+		var x1: float = x0 + float(piece.size.x)
+		var z0: float = _world_z(start.y) + float(piece.position.y)
+		var z1: float = z0 + float(piece.size.y)
+		_quad(
+			Vector3(x0, top, z1), Vector3(x1, top, z1),
+			Vector3(x1, top, z0), Vector3(x0, top, z0),
+			Vector3.UP, uv, SHADE_TOP_FLAT
+		)
+
+
+## One tier's riser along one of the two faces, standing at [param at] measured
+## in from that face's outer edge and reaching to [param until].
+##
+## [param along_u] picks which face: the one whose steps run in the x direction,
+## or the one whose steps run in z.
+func _stair_corner_riser(
+	start: Vector2i, corner: Vector2i, span: int, along_u: bool,
+	at: int, until: int, low: float, high: float, atlas: RefCounted
+) -> void:
+	# Where the riser's plane sits, and which side of it the tread is on: the tile
+	# whose drawing the riser wears is the one it is holding up.
+	var plane: int = at if (corner.x > 0 if along_u else corner.y > 0) else span - at
+	var inward: int = plane if (corner.x > 0 if along_u else corner.y > 0) else plane - 1
+	# The strip the riser runs along, as a one-pixel box in local pixels, so the
+	# same per-tile cut a tread gets applies to it.
+	var lo: int = at if (corner.y > 0 if along_u else corner.x > 0) else span - until
+	var hi: int = until if (corner.y > 0 if along_u else corner.x > 0) else span - at
+	var box := Rect2i(inward, lo, 1, hi - lo) if along_u \
+		else Rect2i(lo, inward, hi - lo, 1)
+	for piece: Rect2i in _tile_pieces(box):
+		var tile: int = _tile_at(
+			start.x + piece.position.x / int(TILE),
+			start.y + piece.position.y / int(TILE)
+		)
+		var uv: Rect2 = atlas.uv_box(tile, Rect2i(
+			piece.position.x % int(TILE), piece.position.y % int(TILE),
+			piece.size.x, piece.size.y
+		))
+		var x0: float = _world_x(start.x) + float(piece.position.x)
+		var z0: float = _world_z(start.y) + float(piece.position.y)
+		if along_u:
+			var rx: float = _world_x(start.x) + float(plane)
+			var z1: float = z0 + float(piece.size.y)
+			if corner.x > 0:
+				_quad(
+					Vector3(rx, low, z0), Vector3(rx, low, z1),
+					Vector3(rx, high, z1), Vector3(rx, high, z0),
+					Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
+				)
+			else:
+				_quad(
+					Vector3(rx, low, z1), Vector3(rx, low, z0),
+					Vector3(rx, high, z0), Vector3(rx, high, z1),
+					Vector3(1.0, 0.0, 0.0), uv, SHADE_SIDE
+				)
+		else:
+			var rz: float = _world_z(start.y) + float(plane)
+			var x1: float = x0 + float(piece.size.x)
+			if corner.y > 0:
+				_quad(
+					Vector3(x1, low, rz), Vector3(x0, low, rz),
+					Vector3(x0, high, rz), Vector3(x1, high, rz),
+					Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
+				)
+			else:
+				_quad(
+					Vector3(x0, low, rz), Vector3(x1, low, rz),
+					Vector3(x1, high, rz), Vector3(x0, high, rz),
+					Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
+				)
 
 
 ## The head of a flight that stands on the floor: the wall under its topmost
