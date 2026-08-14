@@ -170,6 +170,17 @@ breathing adds on top is corrected per sprite, lerped along the line between the
 two, since an orbit carries the near battler one way and the far one the other
 and a single offset for the whole layer would cancel itself.
 
+An animation has a second half, and it is the one that reaches the whole screen.
+The hardware flashes by rewriting its BACKGROUND palettes, one byte written
+across all seven at once, and that byte is a permutation: colour i of every
+palette drawn as colour `(byte >> i * 2) & 3`. So what it has is not an overlay,
+it is a TONE CURVE over the four levels a Game Boy palette has, and a sixth of
+every move played carries one. The diorama takes that curve read as a smooth line
+through those four points, exact at each of the hardware's own levels, moving
+luminance alone so a picture's colour survives everything but the ends. The two
+battlers take the permutation exactly instead, because a pic really is four
+palette entries and the map is a lookup among them.
+
 ## How a flat drawing becomes a solid
 
 A Game Boy overworld drawing is a fake-3D projection: it packs several facings
@@ -224,6 +235,22 @@ under them at all: the flat section is what knows how high the roof is, and a
 sloped tile is that height less the band or two its drawing has fallen. A run
 breaks at every column that is not roof, so two buildings never agree with each
 other.
+
+A roof tile's top is a quad with four corner heights, each the mean of the roof
+tiles touching it, so a fall reads as a tilt rather than as a ziggurat. That is
+continuous by construction: two roof tiles sharing an edge compute both of its
+corners from the same neighbours, so their surfaces meet exactly whatever their
+nominal heights are.
+
+How far a tile has fallen is read two ways, and one map in the game is why. A
+drop is a fall from the FLAT section of the same roof, which is what a gable is
+drawn as: one band down beside the flat, two at the corner of the house. A great
+roof has no flat section in the run at all. Its whole width is the pitch, twelve
+tiles of it falling from a ridge to the eaves, and there the drop is read as a
+RATE instead: each tile falls one more band than the tile before it. Which end of
+such a run is the ridge is the one thing no drawing says, and what answers it is
+what lies beyond, since a roof falls away from the floor a person stands on and
+toward the void past the edge of the world.
 
 ## Past the edge of the map
 
@@ -332,6 +359,14 @@ How TALL a thing is, though, is not the drawing's to say. A chair's twelve drawn
 rows stood up as twelve pixels is a cabinet beside a desk half its height. What a
 face-on drawing states honestly is its width.
 
+Six things are declared this way: a desk, three chairs, a ship and a stone
+vessel. The ship is what made the machinery general, because a rectangle is not a
+footprint: a hull's bounding box is a quarter open sea, and a tile the box holds
+and the object is not has to be named as such, matched against nothing and
+covered by nothing. It still counts as part of the rectangle the mask is cut
+over, since a mask floods in from the border and the border of the hull's own box
+is hull.
+
 The largest of them is the ship at the port, fifteen tiles by six, and it added
 the one rule the smaller ones did not need: a bounding box is not a footprint. The
 box around something that is not rectangular holds tiles that are not the object,
@@ -406,6 +441,22 @@ reading that starts at the top mistakes that point for the trunk and comes out a
 disc on a stump. How TALL a tree is drawn is the drawing's business too, so the
 one class covers both the conifer drawn in a single cell and the one drawn in
 two, and the placement is what says which.
+
+Bushes and boulders go the same way, and the differences between them are the
+interesting part. A bush is not a small tree: a tree's sprite is foreshortened
+and its trunk is drawn behind its crown, so reading a bush that way stands it on
+a stalk. A boulder is not a plant at all: it takes one world pixel per voxel
+rather than two, because a 16px stone six voxels across is a pillow; it does not
+sway; and its colour is read in horizontal BANDS off the drawing, since a stone
+is drawn pale where the sky reaches it and dark underneath.
+
+A round stool takes the stone's reading and adds the one thing none of the others
+needs. Everything above can take its own DRAWN height, because a tree, a bush and
+a rock are all drawn standing. Half of a stool's drawing is the seat seen from
+ABOVE, which is depth on the page and no height at all, so read literally a
+knee-high seat stands a full walk cell and comes out a barrel. How tall a
+modelled thing stands is therefore authored, per class, against how tall it is
+drawn.
 
 ## Where a shape comes from
 
