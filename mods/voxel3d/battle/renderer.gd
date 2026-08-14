@@ -41,6 +41,9 @@ var _context: Gen2BattleWorldContext = null
 
 var _stage: RefCounted = null
 var _arena: RefCounted = null
+## How long each held camera control has been held, which is what turns a stick
+## from a step into a glide. See `steering.gd:Glide`.
+var _held := Steering.Glide.new()
 var _atlas: RefCounted = null
 var _mesher: RefCounted = null
 var _profile: GDScript = null
@@ -175,6 +178,15 @@ func _on_action_changed(id: StringName, key: StringName, pressed: bool) -> void:
 	_arena.steer(key)
 
 
+## A control HELD rather than pressed, which is the half of the binding an edge
+## cannot carry. The overworld's own wiring, and deliberately the same: what
+## differs between the two views is the rig, never the binding.
+func _glide(delta: float) -> void:
+	var held: Dictionary = _held.notches(delta, Options.strength)
+	for command: StringName in held:
+		_arena.steer_by(command, float(held[command]))
+
+
 func set_native_size(size_pixels: Vector2i) -> void:
 	_native = size_pixels
 	size = Vector2(size_pixels)
@@ -223,6 +235,7 @@ func handle_battle_input(event: InputEvent) -> bool:
 ## Framed every frame rather than only when the tween is running, so no ordering
 ## between the context, the first view and the tree can leave the shot stale.
 func _process(delta: float) -> void:
+	_glide(delta)
 	_arena.advance(delta)
 	_frame_camera()
 	_place_battlers()

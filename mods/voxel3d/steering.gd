@@ -118,6 +118,63 @@ const ZOOM_STEP: float = 0.12
 ## How long any steer takes to settle, in seconds.
 const TWEEN_TIME: float = 0.22
 
+## WHICH COMMANDS MAY BE HELD, and what holding one does.
+##
+## Every command arrives as a PRESS and a press is a notch: the rigs ease to a
+## goal, so a tap moves the shot one rung and settles. A stick is not a press,
+## and stepping it one rung per push is the one control in this mod that feels
+## wrong on a pad or a phone. `Gen2ModHost.action_strength` answers how far past
+## its deadzone the control is being pushed, 0 to 1, so a held one moves the GOAL
+## at the rate it is pushed and the shot glides.
+##
+## THE NOTCH IS KEPT, which is what a keyboard wants: a tap is one rung and
+## nothing else, because the glide does not start until the control has been held
+## past GLIDE_DELAY. Without that a tap is a rung plus whatever fraction of one
+## the player's thumb happened to be worth, and no two taps agree.
+##
+## RESET is not here. It is not a nudge and there is nothing for holding it to
+## mean.
+const HELD: Array[StringName] = [
+	PITCH_UP, PITCH_DOWN, SWING_LEFT, SWING_RIGHT,
+	ZOOM_IN, ZOOM_OUT, DOLLY_IN, DOLLY_OUT,
+]
+## How long a control is a press before it becomes a glide, in seconds.
+const GLIDE_DELAY: float = 0.2
+## How many notches a second a control held at full travel is worth. Seven takes
+## the overworld across its whole pitch range in under two seconds, and every
+## ladder in either rig is about the same width in notches, so one rate serves
+## all of them and a swing feels like a zoom.
+const GLIDE_RATE: float = 7.0
+
+
+## How long each held command has been held, which is the whole state a glide
+## has. One per view, because the two rigs are steered separately.
+class Glide extends RefCounted:
+	var _held: Dictionary = {}
+
+	## How many NOTCHES of its own step each held command is worth this frame, as
+	## command -> notches, and empty while nothing is held past the delay.
+	##
+	## [param strength] takes a command name and answers what
+	## `Gen2ModHost.action_strength` does for it, so nothing here has to know how
+	## the mod names itself to the host.
+	func notches(delta: float, strength: Callable) -> Dictionary:
+		var out: Dictionary = {}
+		for command: StringName in HELD:
+			var pushed: float = clampf(float(strength.call(command)), 0.0, 1.0)
+			if pushed <= 0.0:
+				_held[command] = 0.0
+				continue
+			var since: float = float(_held.get(command, 0.0)) + delta
+			_held[command] = since
+			# Only the part of this frame that is past the delay counts, so the
+			# glide starts from nothing however long the frame was.
+			var gliding: float = minf(delta, since - GLIDE_DELAY)
+			if gliding <= 0.0:
+				continue
+			out[command] = pushed * GLIDE_RATE * gliding
+		return out
+
 
 ## The command [param event] carries, or [constant NONE].
 ##

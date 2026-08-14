@@ -373,6 +373,49 @@ func steer(command: StringName) -> bool:
 	return true
 
 
+## The same command held rather than pressed, worth [param notches] of its own
+## step this frame. See `steering.gd:Glide`.
+##
+## A press aims at a goal and eases to it; a hold moves the goal itself, so the
+## value, the ease's starting point and the goal all shift together and anything
+## already easing goes on easing to the shifted goal. The DRIFT is untouched: it
+## rides the arm from the focus and is not a steer.
+func steer_by(command: StringName, notches: float) -> bool:
+	match command:
+		Steering.ZOOM_IN:
+			_glide(0.0, 0.0, -Steering.ZOOM_STEP * notches)
+		Steering.ZOOM_OUT:
+			_glide(0.0, 0.0, Steering.ZOOM_STEP * notches)
+		Steering.PITCH_UP:
+			_glide(0.0, CLIMB_STEP * notches, 0.0)
+		Steering.PITCH_DOWN:
+			_glide(0.0, -CLIMB_STEP * notches, 0.0)
+		Steering.SWING_RIGHT:
+			_glide(SWING_STEP * notches, 0.0, 0.0)
+		Steering.SWING_LEFT:
+			_glide(-SWING_STEP * notches, 0.0, 0.0)
+		_:
+			return false
+	return true
+
+
+func _glide(swing: float, climb: float, zoom: float) -> void:
+	var moved: float = clampf(_swing_goal + swing, 0.0, 1.0) - _swing_goal
+	_swing += moved
+	_swing_from += moved
+	_swing_goal += moved
+	moved = clampf(_climb_goal + climb, 0.0, 1.0) - _climb_goal
+	_climb += moved
+	_climb_from += moved
+	_climb_goal += moved
+	moved = clampf(
+		_zoom_goal + zoom, Steering.ZOOM_LIMITS.x, Steering.ZOOM_LIMITS.y
+	) - _zoom_goal
+	_zoom += moved
+	_zoom_from += moved
+	_zoom_goal += moved
+
+
 func set_wheel_sign(sign_of_wheel: int) -> void:
 	_wheel_sign = 1 if sign_of_wheel >= 0 else -1
 

@@ -100,6 +100,18 @@ static func value(key: StringName, fallback: Variant) -> Variant:
 	return fallback if chosen == null else chosen
 
 
+## How hard a control is being HELD, 0 to 1, which is the one thing about the
+## bindings a view has to poll rather than be told: an edge cannot say how far a
+## stick has travelled and a glide is made of nothing else. A key answers 0 or 1,
+## and no host at all answers 0, which is what leaves a probe or a tool with a
+## still camera. See `steering.gd:Glide`.
+static func strength(key: StringName) -> float:
+	var host: Gen2ModHost = Gen2ModHost.instance()
+	if host == null or not host.has_method("action_strength"):
+		return 0.0
+	return host.action_strength(MOD_ID, key)
+
+
 ## Connects [param handler] to the host's own change signal, so a view reacts to
 ## a press instead of polling. Answers false when there is no host to listen to.
 static func listen(handler: Callable) -> bool:

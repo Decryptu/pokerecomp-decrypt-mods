@@ -40,6 +40,9 @@ var _stage: RefCounted = null
 var _atlas: RefCounted = null
 var _mesher: RefCounted = null
 var _rig: RefCounted = null
+## How long each held camera control has been held, which is what turns a stick
+## from a step into a glide. See `steering.gd:Glide`.
+var _held := Steering.Glide.new()
 var _shape: RefCounted = null
 var _profile: GDScript = null
 var _tile_shape_script: GDScript = null
@@ -169,6 +172,7 @@ func handle_world_input(event: InputEvent) -> bool:
 ## player's position carries a fractional in-flight step, and the actors are
 ## rebuilt with it so a walk frame advances while a step is being drawn.
 func _process(delta: float) -> void:
+	_glide(delta)
 	_rig.advance(delta)
 	_advance_build()
 	_recentre_window()
@@ -211,6 +215,15 @@ func _on_action_changed(id: StringName, key: StringName, pressed: bool) -> void:
 	if id != Options.MOD_ID or not pressed:
 		return
 	_rig.steer(key)
+
+
+## A control HELD rather than pressed, which is the half of the binding an edge
+## cannot carry. `steering.gd` owns how far a hold is worth and the rig owns what
+## the command means; this is only the wiring between them.
+func _glide(delta: float) -> void:
+	var held: Dictionary = _held.notches(delta, Options.strength)
+	for command: StringName in held:
+		_rig.steer_by(command, float(held[command]))
 
 
 func _load_modules() -> Dictionary:

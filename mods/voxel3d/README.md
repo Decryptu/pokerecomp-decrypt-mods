@@ -23,6 +23,13 @@ on-screen pad. The defaults:
 `V` switches between this and the Game Boy Color view; the host owns that one, in
 the overworld and in a battle alike.
 
+TAP FOR A NOTCH, HOLD TO GLIDE. A press moves the shot one rung and eases to it,
+which is what a key wants; a stick is not a press, and stepping it a rung per
+push is the one control here that felt wrong on a pad or a phone. Held past a
+fifth of a second, a control moves the goal at the rate it is being pushed, so a
+stick half over glides at half the speed and a key held down runs at full. Seven
+rungs a second, which crosses the overworld's whole pitch range in under two.
+
 Why declared and not read: a screen turns every bound event into one of the
 cartridge's eight buttons and takes it before a renderer is offered anything, so
 a mod key that is also a binding never arrives. These were `W`, `A`, `S` and `D`,

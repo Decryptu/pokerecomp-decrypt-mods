@@ -91,6 +91,60 @@ func steer(command: StringName) -> bool:
 	return true
 
 
+## The same command held rather than pressed, worth [param notches] of its own
+## step this frame. See `steering.gd:Glide`.
+##
+## A press aims at a goal and eases to it; a hold moves the goal itself, so this
+## carries the value, the ease's starting point and the goal together. Anything
+## already easing goes on easing to the shifted goal, and the PAN is untouched:
+## a text box opening while the player holds the stick has its own tween running
+## through this one.
+func steer_by(command: StringName, notches: float) -> bool:
+	match command:
+		Steering.ZOOM_IN:
+			_glide_zoom(-Steering.ZOOM_STEP * notches)
+		Steering.ZOOM_OUT:
+			_glide_zoom(Steering.ZOOM_STEP * notches)
+		Steering.PITCH_UP:
+			_glide_pitch(PITCH_STEP * notches)
+		Steering.PITCH_DOWN:
+			_glide_pitch(-PITCH_STEP * notches)
+		Steering.DOLLY_IN:
+			_glide_distance(-DISTANCE_STEP * notches)
+		Steering.DOLLY_OUT:
+			_glide_distance(DISTANCE_STEP * notches)
+		_:
+			return false
+	return true
+
+
+func _glide_pitch(degrees: float) -> void:
+	var moved: float = clampf(
+		_pitch_goal + degrees, PITCH_LIMITS.x, PITCH_LIMITS.y
+	) - _pitch_goal
+	_pitch += moved
+	_pitch_from += moved
+	_pitch_goal += moved
+
+
+func _glide_distance(pixels: float) -> void:
+	var moved: float = clampf(
+		_distance_goal + pixels, DISTANCE_LIMITS.x, DISTANCE_LIMITS.y
+	) - _distance_goal
+	_distance += moved
+	_distance_from += moved
+	_distance_goal += moved
+
+
+func _glide_zoom(amount: float) -> void:
+	var moved: float = clampf(
+		_zoom_goal + amount, Steering.ZOOM_LIMITS.x, Steering.ZOOM_LIMITS.y
+	) - _zoom_goal
+	_zoom += moved
+	_zoom_from += moved
+	_zoom_goal += moved
+
+
 func set_wheel_sign(sign_of_wheel: int) -> void:
 	_wheel_sign = 1 if sign_of_wheel >= 0 else -1
 
