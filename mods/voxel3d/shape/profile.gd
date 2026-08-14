@@ -1047,6 +1047,13 @@ const TILESETS: Dictionary = {
 	# a drawing up where no collision code says so.
 	1: {
 		&"tall_grass": [4],
+		# THE ROUTE NOTICE BOARD, 78 of them over 22 maps and the largest thing left
+		# in the full pass's `stand` fallback. `stand` is ROUND, so a board with a
+		# frame, four lines of writing and two legs was revolved into a drum. It is
+		# the same drawing as tileset 3's wooden route sign, which the reviewer
+		# measured themselves: a plate on posts, cut on its own outline and standing
+		# as many pixels as it is drawn.
+		&"sign_post": [78, 79, 94, 95],
 		# THE SEA ROCK, one 8px tile drawn as a small oval stone and laid in
 		# diagonal chains across the water: 802 cells of it, every one drawing the
 		# tile four times, so a cell is four separate stones and the model is placed
