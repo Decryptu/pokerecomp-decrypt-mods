@@ -530,6 +530,60 @@ const OBJECTS: Dictionary = {
 			&"height": 6,
 		},
 	],
+	8: [
+		# THE SAME CHAIR A FOURTH TIME, drawn 12 px square over a whole walk cell on
+		# the chequered floor of the Goldenrod flower shop and two houses. Its four
+		# tiles are its own and the block places it against floor tile 1 on every
+		# side, so nothing here is new but the ids: it takes the 6 and 6 the reviewer
+		# measured in round eleven, as tilesets 11, 13 and 14 do.
+		{
+			&"name": &"chair",
+			&"tiles": [[84, 85], [86, 87]],
+			&"window": Rect2i(2, 2, 12, 12),
+			&"top": 0,
+			&"depth": 6,
+			&"height": 6,
+		},
+	],
+	10: [
+		# AND A FIFTH, under the desks of the Goldenrod radio studio, drawn a row
+		# lower in its cell than tileset 8 draws it. The desk above it is already a
+		# counter and stands correctly; only the chair fell to `stand` and was
+		# revolved into a drum.
+		{
+			&"name": &"chair",
+			&"tiles": [[64, 65], [80, 81]],
+			&"window": Rect2i(2, 3, 12, 12),
+			&"top": 0,
+			&"depth": 6,
+			&"height": 6,
+		},
+	],
+	17: [
+		# THE MAGNET TRAIN TICKET GATE, two of them side by side at the head of the
+		# stairs with the walkway between, and the largest thing left in the `stand`
+		# fallback that is one drawing rather than a tail. Revolved, each was a drum
+		# in a doorway.
+		#
+		# One cell wide and two deep: a cream body running 24 rows AWAY from the eye,
+		# which is the gate seen from above, and a dark chunk of 8 rows at its near
+		# end, which is its face. So the depth is the drawing's own 24 and the height
+		# is its own 8, the rule the desk, the stone vessel and the ship all took;
+		# the reviewer confirmed the 8 in round twenty-two against 12 and 16.
+		#
+		# The window is the whole rectangle: the gate's dark side rails run to the
+		# tile edge over its middle rows, so there is no margin to crop to. The flood
+		# still cuts it, because those rails ARE the outline it stops at and the rest
+		# of the border is the station's plain grey floor.
+		{
+			&"name": &"ticket_gate",
+			&"tiles": [[53, 54], [55, 56], [57, 58], [59, 60]],
+			&"window": Rect2i(0, 0, 16, 32),
+			&"top": 24,
+			&"depth": 24,
+			&"height": 8,
+		},
+	],
 	26: [
 		# THE STONE VESSEL, and it needs no person at all: it draws a TOP BAND, so
 		# the band's own row count IS the depth and the rows below it are the face.
@@ -1494,6 +1548,17 @@ const TILESETS: Dictionary = {
 ## floor with a rail on it, would open a hole through the wall it is joined to.
 const UNPINNED: Dictionary = {
 	13: [162],
+	# THE MAGNET TRAIN STATION'S CREAM PILLARS, which the pass called `stand` and
+	# revolved into drums standing in a wall. They are the vertical strips between
+	# the blue brick panels and they are the wall: unpinned and blocked, a tile
+	# resolves `wall` and stands the full cell, flush with the brick beside it,
+	# which is the reviewer's own answer in round twenty-two.
+	#
+	# THE SAME TWO IDS ARE THE TICKET GATE'S MIDDLE ROWS, so this cannot be done
+	# without the gate below and the gate cannot be done without this. An object is
+	# found by its whole ARRANGEMENT and overrides whatever its tiles resolved to,
+	# so the gate keeps its shape while these tiles stop being a class of their own.
+	17: [55, 56],
 }
 
 
