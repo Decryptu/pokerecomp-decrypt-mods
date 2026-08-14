@@ -38,6 +38,8 @@ const FRONT := "F"
 
 ## One entry per corrected drawing:
 ##
+##   id       the drawing's number on the page it was painted on, which is how a
+##            single drawing is named while it is being read one at a time
 ##   tileset  the tileset its tile ids belong to
 ##   tiles    the rectangle of tile ids that identifies it, north row first
 ##   paint    one string per PIXEL row, a character per pixel, so eight rows and
@@ -45,6 +47,7 @@ const FRONT := "F"
 const HOUSES: Array = [
 	{
 		# drawing 1, placed 24 times on 13 maps, first at 1,14 @ tile 24,28
+		"id": 1,
 		"tileset": 1,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18],
@@ -90,6 +93,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 2, placed 11 times on 11 maps, first at 6,2 @ tile 24,0
+		"id": 2,
 		"tileset": 7,
 		"tiles": [
 			[6],
@@ -126,6 +130,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 3, placed 11 times on 11 maps, first at 6,2 @ tile 29,0
+		"id": 3,
 		"tileset": 7,
 		"tiles": [
 			[7],
@@ -162,6 +167,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 4, placed 10 times on 9 maps, first at 12,3 @ tile 40,32
+		"id": 4,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 7, 7, 7, 7, 8, 9],
@@ -207,6 +213,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 5, placed 8 times on 8 maps, first at 1,14 @ tile 24,36
+		"id": 5,
 		"tileset": 1,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18],
@@ -288,6 +295,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 6, placed 7 times on 6 maps, first at 6,5 @ tile 12,0
+		"id": 6,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77],
@@ -369,6 +377,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 7, placed 6 times on 6 maps, first at 1,14 @ tile 16,16
+		"id": 7,
 		"tileset": 1,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 18],
@@ -450,6 +459,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 8, placed 6 times on 4 maps, first at 3,81 @ tile 36,54
+		"id": 8,
 		"tileset": 1,
 		"tiles": [
 			[49, 83, 83, 83, 83, 83, 83, 52],
@@ -513,6 +523,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 9, placed 5 times on 4 maps, first at 7,17 @ tile 56,16
+		"id": 9,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 7, 7, 7, 7, 8, 9],
@@ -558,6 +569,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 11, placed 5 times on 5 maps, first at 1,14 @ tile 36,28
+		"id": 11,
 		"tileset": 1,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18],
@@ -600,9 +612,9 @@ const HOUSES: Array = [
 			"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
 			"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
 			"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
-			"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
-			"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
-			"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
+			"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+			"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+			"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
 			"...WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW...",
 			"...WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW...",
 			"...WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW...",
@@ -639,6 +651,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 12, placed 5 times on 5 maps, first at 1,12 @ tile 72,12
+		"id": 12,
 		"tileset": 1,
 		"tiles": [
 			[49, 54, 54, 54, 54, 54, 54, 52],
@@ -720,6 +733,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 13, placed 4 times on 2 maps, first at 8,7 @ tile 16,8
+		"id": 13,
 		"tileset": 2,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18],
@@ -765,6 +779,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 14, placed 4 times on 2 maps, first at 3,15 @ tile 68,28
+		"id": 14,
 		"tileset": 25,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 18],
@@ -882,6 +897,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 15, placed 4 times on 4 maps, first at 12,3 @ tile 36,4
+		"id": 15,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77],
@@ -963,6 +979,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 16, placed 4 times on 4 maps, first at 6,8 @ tile 20,16
+		"id": 16,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77],
@@ -1044,6 +1061,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 17, placed 4 times on 1 maps, first at 4,9 @ tile 32,2
+		"id": 17,
 		"tileset": 1,
 		"tiles": [
 			[49, 83, 83, 83, 83, 83, 83, 52],
@@ -1107,6 +1125,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 18, placed 4 times on 4 maps, first at 12,3 @ tile 40,20
+		"id": 18,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77],
@@ -1188,6 +1207,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 19, placed 3 times on 3 maps, first at 18,4 @ tile 24,16
+		"id": 19,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 77],
@@ -1269,6 +1289,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 20, placed 3 times on 2 maps, first at 7,16 @ tile 92,6
+		"id": 20,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 7, 7, 7, 7, 8, 9],
@@ -1332,6 +1353,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 21, placed 3 times on 3 maps, first at 12,3 @ tile 12,32
+		"id": 21,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 83, 83, 83, 83, 83, 83, 83, 83, 8, 9],
@@ -1413,6 +1435,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 22, placed 3 times on 3 maps, first at 5,9 @ tile 12,68
+		"id": 22,
 		"tileset": 1,
 		"tiles": [
 			[49, 54, 54, 54, 54, 54, 54, 52],
@@ -1458,6 +1481,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 23, placed 3 times on 3 maps, first at 22,1 @ tile 16,4
+		"id": 23,
 		"tileset": 1,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18],
@@ -1539,6 +1563,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 24, placed 3 times on 3 maps, first at 1,14 @ tile 12,36
+		"id": 24,
 		"tileset": 1,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18],
@@ -1620,6 +1645,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 25, placed 2 times on 2 maps, first at 17,3 @ tile 0,4
+		"id": 25,
 		"tileset": 3,
 		"tiles": [
 			[78, 78, 78, 77],
@@ -1701,6 +1727,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 26, placed 2 times on 2 maps, first at 7,17 @ tile 24,52
+		"id": 26,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 83, 83, 83, 83, 8, 9],
@@ -1782,6 +1809,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 27, placed 2 times on 2 maps, first at 17,5 @ tile 76,40
+		"id": 27,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78],
@@ -1863,6 +1891,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 28, placed 2 times on 2 maps, first at 10,2 @ tile 4,4
+		"id": 28,
 		"tileset": 1,
 		"tiles": [
 			[49, 54, 54, 54, 54, 54, 54, 52],
@@ -1944,6 +1973,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 30, placed 2 times on 1 maps, first at 11,2 @ tile 68,4
+		"id": 30,
 		"tileset": 2,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18],
@@ -1989,6 +2019,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 31, placed 2 times on 1 maps, first at 11,2 @ tile 8,68
+		"id": 31,
 		"tileset": 2,
 		"tiles": [
 			[16, 17, 17, 18],
@@ -2034,6 +2065,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 32, placed 2 times on 2 maps, first at 13,2 @ tile 20,16
+		"id": 32,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 77],
@@ -2115,6 +2147,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 34, placed 2 times on 1 maps, first at 25,2 @ tile 12,32
+		"id": 34,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77],
@@ -2232,6 +2265,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 35, placed 1 times on 1 maps, first at 17,5 @ tile 8,48
+		"id": 35,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 83, 83, 83, 83, 83, 83, 83, 83, 8, 9, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 76, 78, 78, 78, 78, 78, 78, 77],
@@ -2313,6 +2347,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 36, placed 1 times on 1 maps, first at 17,5 @ tile 52,50
+		"id": 36,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 7, 7, 7, 7, 8, 9, 35, 35, 35, 35, 35, 35, 35, 35],
@@ -2376,6 +2411,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 37, placed 1 times on 1 maps, first at 17,5 @ tile 32,0
+		"id": 37,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 77],
@@ -2457,6 +2493,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 38, placed 1 times on 1 maps, first at 18,3 @ tile 24,24
+		"id": 38,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 77],
@@ -2574,6 +2611,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 42, placed 1 times on 1 maps, first at 16,1 @ tile 12,0
+		"id": 42,
 		"tileset": 3,
 		"tiles": [
 			[15, 10, 50, 50, 50, 10, 50, 10, 50, 10, 50, 10, 50, 10, 50, 31],
@@ -2691,6 +2729,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 45, placed 1 times on 1 maps, first at 14,2 @ tile 20,4
+		"id": 45,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 83, 83, 83, 83, 83, 83, 83, 83, 83, 83, 83, 83, 8, 9, 76, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 77],
@@ -2808,6 +2847,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 46, placed 1 times on 1 maps, first at 25,2 @ tile 8,52
+		"id": 46,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77],
@@ -2889,6 +2929,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 47, placed 1 times on 1 maps, first at 25,2 @ tile 52,52
+		"id": 47,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77],
@@ -2970,6 +3011,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 48, placed 1 times on 1 maps, first at 25,2 @ tile 4,64
+		"id": 48,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77, 42, 43, 42, 43, 35, 35, 35, 35, 42, 43, 42, 43, 76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77],
@@ -3051,6 +3093,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 49, placed 1 times on 1 maps, first at 22,16 @ tile 8,0
+		"id": 49,
 		"tileset": 4,
 		"tiles": [
 			[192, 193, 193, 193, 193, 193, 194, 131, 132, 133, 134, 132, 139, 197, 193, 193, 193, 193, 193, 198],
@@ -3240,6 +3283,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 50, placed 1 times on 1 maps, first at 22,16 @ tile 14,44
+		"id": 50,
 		"tileset": 4,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18],
@@ -3321,6 +3365,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 51, placed 1 times on 1 maps, first at 24,3 @ tile 52,0
+		"id": 51,
 		"tileset": 1,
 		"tiles": [
 			[26, 7, 7, 7, 7, 7, 7, 28],
@@ -3366,6 +3411,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 52, placed 1 times on 1 maps, first at 21,15 @ tile 2,6
+		"id": 52,
 		"tileset": 13,
 		"tiles": [
 			[54, 55, 55, 55, 55, 56],
@@ -3429,6 +3475,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 53, placed 1 times on 1 maps, first at 21,12 @ tile 0,12
+		"id": 53,
 		"tileset": 13,
 		"tiles": [
 			[54, 55, 55, 56],
@@ -3465,6 +3512,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 54, placed 1 times on 1 maps, first at 24,4 @ tile 8,0
+		"id": 54,
 		"tileset": 1,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 18],
@@ -3546,6 +3594,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 55, placed 1 times on 1 maps, first at 25,1 @ tile 16,18
+		"id": 55,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 7, 7, 7, 7, 8, 9],
@@ -3609,6 +3658,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 56, placed 1 times on 1 maps, first at 25,2 @ tile 8,0
+		"id": 56,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 77, 5, 6, 83, 83, 83, 83, 83, 83, 83, 83, 8, 9, 5, 6, 83, 83, 83, 83, 83, 83, 83, 83, 83, 83, 83, 83, 8, 9, 76, 78, 78, 78, 78, 78, 78, 77],
@@ -3690,6 +3740,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 58, placed 1 times on 1 maps, first at 21,4 @ tile 40,52
+		"id": 58,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77],
@@ -3771,6 +3822,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 59, placed 1 times on 1 maps, first at 21,4 @ tile 4,52
+		"id": 59,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77, 5, 6, 83, 83, 83, 83, 83, 83, 83, 83, 8, 9, 76, 78, 78, 78, 78, 78, 78, 77],
@@ -3924,6 +3976,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 60, placed 1 times on 1 maps, first at 21,4 @ tile 56,32
+		"id": 60,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77],
@@ -4005,6 +4058,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 61, placed 1 times on 1 maps, first at 25,2 @ tile 8,16
+		"id": 61,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77],
@@ -4266,6 +4320,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 62, placed 1 times on 1 maps, first at 21,4 @ tile 32,32
+		"id": 62,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77],
@@ -4347,6 +4402,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 63, placed 1 times on 1 maps, first at 21,4 @ tile 28,8
+		"id": 63,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 77, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91, 91],
@@ -4464,6 +4520,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 64, placed 1 times on 1 maps, first at 21,4 @ tile 4,4
+		"id": 64,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 77, 44, 44, 44, 44, 44, 44, 44, 44],
@@ -4617,6 +4674,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 65, placed 1 times on 1 maps, first at 21,1 @ tile 8,14
+		"id": 65,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 7, 7, 7, 7, 8, 9],
@@ -4680,6 +4738,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 66, placed 1 times on 1 maps, first at 18,4 @ tile 4,24
+		"id": 66,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 7, 7, 7, 7, 8, 9, 5, 6, 7, 7, 7, 7, 8, 9],
@@ -4725,6 +4784,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 67, placed 1 times on 1 maps, first at 18,4 @ tile 0,4
+		"id": 67,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77],
@@ -4806,6 +4866,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 68, placed 1 times on 1 maps, first at 18,4 @ tile 24,0
+		"id": 68,
 		"tileset": 3,
 		"tiles": [
 			[15, 10, 50, 50, 50, 10, 50, 10, 50, 10, 50, 31],
@@ -4923,6 +4984,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 69, placed 1 times on 1 maps, first at 8,7 @ tile 28,12
+		"id": 69,
 		"tileset": 2,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18],
@@ -5004,6 +5066,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 70, placed 1 times on 1 maps, first at 8,7 @ tile 40,4
+		"id": 70,
 		"tileset": 2,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18],
@@ -5085,6 +5148,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 71, placed 1 times on 1 maps, first at 7,17 @ tile 36,52
+		"id": 71,
 		"tileset": 3,
 		"tiles": [
 			[35, 35, 35, 35, 35, 35, 35, 35, 35, 35, 35, 35, 76, 78, 78, 78, 78, 78, 78, 77, 44, 44, 44, 44, 44, 44, 44, 44],
@@ -5166,6 +5230,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 72, placed 1 times on 1 maps, first at 7,17 @ tile 48,40
+		"id": 72,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 83, 83, 83, 83, 83, 83, 83, 83, 83, 83, 83, 83, 8, 9],
@@ -5247,6 +5312,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 73, placed 1 times on 1 maps, first at 7,17 @ tile 24,36
+		"id": 73,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 8, 9, 76, 78, 78, 78, 78, 78, 78, 77],
@@ -5328,6 +5394,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 74, placed 1 times on 1 maps, first at 7,17 @ tile 52,28
+		"id": 74,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 83, 83, 83, 83, 8, 9],
@@ -5409,6 +5476,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 75, placed 1 times on 1 maps, first at 7,17 @ tile 12,28
+		"id": 75,
 		"tileset": 3,
 		"tiles": [
 			[5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 9, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 8, 9],
@@ -5454,6 +5522,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 76, placed 1 times on 1 maps, first at 7,14 @ tile 4,12
+		"id": 76,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 77],
@@ -5535,6 +5604,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 77, placed 1 times on 1 maps, first at 7,14 @ tile 20,0
+		"id": 77,
 		"tileset": 3,
 		"tiles": [
 			[15, 10, 50, 10, 10, 10, 10, 31],
@@ -5580,6 +5650,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 78, placed 1 times on 1 maps, first at 7,13 @ tile 100,32
+		"id": 78,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77],
@@ -5625,6 +5696,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 79, placed 1 times on 1 maps, first at 4,9 @ tile 72,48
+		"id": 79,
 		"tileset": 1,
 		"tiles": [
 			[49, 54, 54, 54, 54, 54, 54, 52],
@@ -5706,6 +5778,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 80, placed 1 times on 1 maps, first at 4,9 @ tile 24,18
+		"id": 80,
 		"tileset": 1,
 		"tiles": [
 			[49, 83, 83, 83, 83, 83, 83, 52, 49, 83, 83, 83, 83, 83, 83, 83, 83, 83, 83, 52],
@@ -5769,6 +5842,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 81, placed 1 times on 1 maps, first at 4,9 @ tile 8,5
+		"id": 81,
 		"tileset": 1,
 		"tiles": [
 			[160, 161, 162, 163, 164, 165, 166, 167],
@@ -5841,6 +5915,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 82, placed 1 times on 1 maps, first at 4,9 @ tile 72,0
+		"id": 82,
 		"tileset": 1,
 		"tiles": [
 			[34, 65, 148, 149, 149, 150, 68, 37],
@@ -5994,6 +6069,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 83, placed 1 times on 1 maps, first at 3,52 @ tile 8,76
+		"id": 83,
 		"tileset": 31,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 18],
@@ -6111,6 +6187,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 84, placed 1 times on 1 maps, first at 3,52 @ tile 0,0
+		"id": 84,
 		"tileset": 31,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 18],
@@ -6228,6 +6305,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 85, placed 1 times on 1 maps, first at 3,22 @ tile 12,4
+		"id": 85,
 		"tileset": 1,
 		"tiles": [
 			[49, 54, 54, 54, 54, 54, 54, 52],
@@ -6309,6 +6387,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 86, placed 1 times on 1 maps, first at 2,7 @ tile 16,0
+		"id": 86,
 		"tileset": 1,
 		"tiles": [
 			[26, 27, 27, 27, 27, 27, 27, 28],
@@ -6354,6 +6433,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 87, placed 1 times on 1 maps, first at 1,14 @ tile 36,56
+		"id": 87,
 		"tileset": 1,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18],
@@ -6435,6 +6515,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 88, placed 1 times on 1 maps, first at 1,14 @ tile 56,28
+		"id": 88,
 		"tileset": 1,
 		"tiles": [
 			[49, 54, 54, 54, 54, 54, 54, 52],
@@ -6696,6 +6777,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 89, placed 1 times on 1 maps, first at 1,14 @ tile 48,20
+		"id": 89,
 		"tileset": 1,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18, 16, 17, 17, 17, 17, 17, 17, 18],
@@ -6741,6 +6823,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 90, placed 1 times on 1 maps, first at 1,13 @ tile 0,0
+		"id": 90,
 		"tileset": 1,
 		"tiles": [
 			[90, 90, 90, 90, 90, 90, 90, 90, 16, 17, 17, 17, 17, 17, 17, 18],
@@ -6822,6 +6905,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 91, placed 1 times on 1 maps, first at 12,3 @ tile 8,4
+		"id": 91,
 		"tileset": 3,
 		"tiles": [
 			[76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77, 76, 78, 78, 78, 78, 78, 78, 77],
@@ -6903,6 +6987,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 92, placed 1 times on 1 maps, first at 12,1 @ tile 8,0
+		"id": 92,
 		"tileset": 3,
 		"tiles": [
 			[15, 50, 10, 10, 50, 75, 75, 50, 50, 10, 50, 31],
@@ -6948,6 +7033,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 93, placed 1 times on 1 maps, first at 11,2 @ tile 12,64
+		"id": 93,
 		"tileset": 2,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18, 16, 17, 17, 18, 16, 17, 17, 18],
@@ -7029,6 +7115,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 94, placed 1 times on 1 maps, first at 11,2 @ tile 28,60
+		"id": 94,
 		"tileset": 2,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18],
@@ -7110,6 +7197,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 95, placed 1 times on 1 maps, first at 11,2 @ tile 4,56
+		"id": 95,
 		"tileset": 2,
 		"tiles": [
 			[16, 17, 17, 18, 16, 17, 17, 17, 17, 17, 17, 18],
@@ -7191,6 +7279,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 96, placed 1 times on 1 maps, first at 11,2 @ tile 20,48
+		"id": 96,
 		"tileset": 2,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18, 16, 17, 17, 17, 17, 17, 17, 18],
@@ -7272,6 +7361,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 97, placed 1 times on 1 maps, first at 11,2 @ tile 52,40
+		"id": 97,
 		"tileset": 2,
 		"tiles": [
 			[17, 17, 17, 18, 6, 6, 6, 6, 16, 17, 17, 17, 17, 17, 17, 18, 6, 6, 6, 6, 16, 17, 17, 18],
@@ -7569,6 +7659,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 98, placed 1 times on 1 maps, first at 11,2 @ tile 44,36
+		"id": 98,
 		"tileset": 2,
 		"tiles": [
 			[78, 79, 6, 6, 16, 17, 17, 17, 17, 17, 17, 18, 6, 6, 6, 6, 6, 6, 6, 6],
@@ -7794,6 +7885,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 99, placed 1 times on 1 maps, first at 11,2 @ tile 8,36
+		"id": 99,
 		"tileset": 2,
 		"tiles": [
 			[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 16, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 18],
@@ -7947,6 +8039,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 100, placed 1 times on 1 maps, first at 11,2 @ tile 60,28
+		"id": 100,
 		"tileset": 2,
 		"tiles": [
 			[17, 17, 17, 18, 90, 90, 90, 90, 16, 17, 17, 17, 17, 17, 17, 18],
@@ -8100,6 +8193,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 101, placed 1 times on 1 maps, first at 11,2 @ tile 48,24
+		"id": 101,
 		"tileset": 2,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18, 54, 54, 54, 54, 54, 54, 54, 54],
@@ -8181,6 +8275,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 102, placed 1 times on 1 maps, first at 11,2 @ tile 44,8
+		"id": 102,
 		"tileset": 2,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 18, 16, 17, 17, 17, 17, 17, 17, 18],
@@ -8262,6 +8357,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 103, placed 1 times on 1 maps, first at 11,2 @ tile 56,0
+		"id": 103,
 		"tileset": 2,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 18, 16, 17, 17, 18],
@@ -8307,6 +8403,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 104, placed 1 times on 1 maps, first at 11,2 @ tile 36,0
+		"id": 104,
 		"tileset": 2,
 		"tiles": [
 			[26, 27, 27, 27, 27, 27, 27, 28],
@@ -8352,6 +8449,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 105, placed 1 times on 1 maps, first at 11,2 @ tile 8,0
+		"id": 105,
 		"tileset": 2,
 		"tiles": [
 			[43, 44, 44, 45, 43, 44, 44, 45, 16, 17, 17, 18, 16, 17, 17, 17, 17, 17, 17, 18, 6, 6, 6, 6, 6, 6, 6, 74],
@@ -8649,6 +8747,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 106, placed 1 times on 1 maps, first at 11,1 @ tile 36,88
+		"id": 106,
 		"tileset": 2,
 		"tiles": [
 			[49, 50, 50, 50],
@@ -8730,6 +8829,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 107, placed 1 times on 1 maps, first at 11,1 @ tile 24,76
+		"id": 107,
 		"tileset": 2,
 		"tiles": [
 			[49, 50, 50, 50, 50, 50, 50, 52],
@@ -8811,6 +8911,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 108, placed 1 times on 1 maps, first at 11,1 @ tile 24,24
+		"id": 108,
 		"tileset": 2,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 18],
@@ -8892,6 +8993,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 109, placed 1 times on 1 maps, first at 10,5 @ tile 56,30
+		"id": 109,
 		"tileset": 1,
 		"tiles": [
 			[49, 83, 83, 83, 83, 83, 83, 83, 83, 83, 83, 52],
@@ -8955,6 +9057,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 110, placed 1 times on 1 maps, first at 10,5 @ tile 44,2
+		"id": 110,
 		"tileset": 1,
 		"tiles": [
 			[49, 83, 83, 83, 83, 83, 83, 52],
@@ -9054,6 +9157,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 111, placed 1 times on 1 maps, first at 8,7 @ tile 16,24
+		"id": 111,
 		"tileset": 2,
 		"tiles": [
 			[16, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 18],
@@ -9135,6 +9239,7 @@ const HOUSES: Array = [
 	},
 	{
 		# drawing 112, placed 1 times on 1 maps, first at 8,7 @ tile 0,16
+		"id": 112,
 		"tileset": 2,
 		"tiles": [
 			[50, 50, 50, 52],

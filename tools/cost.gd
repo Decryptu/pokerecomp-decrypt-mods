@@ -58,7 +58,7 @@ func _initialize() -> void:
 		if not atlas.build(data, map, tileset, 1):
 			continue
 		var shape: RefCounted = shape_script.new(profile, map.tileset)
-		var source: RefCounted = source_script.new(null, map, tileset)
+		var source: RefCounted = source_script.new(null, map, tileset, data)
 		var mesher: RefCounted = mesher_script.new()
 
 		var at: int = Time.get_ticks_usec()

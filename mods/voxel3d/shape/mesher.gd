@@ -181,10 +181,15 @@ const HOUSE_GROUND: int = 1
 const HOUSE_WALL: int = 2
 const HOUSE_ROOF: int = 3
 var _house := PackedByteArray()
-## One entry per painted placement on this map: the tile it starts at and how
-## many tiles across and down it runs. The roof pass needs the PLACEMENT and not
-## the tile, because a roof takes one reference height across the whole building.
-var _house_places: Array = []
+## One entry per placement of a built drawing: the drawing, the tile it starts
+## at, how many tiles it runs, and the pixel columns its DOORS occupy.
+var _houses: Array = []
+var _house_covered := PackedByteArray()
+var _house_over: Dictionary = {}
+var _house_done: Dictionary = {}
+## What one painting measures, keyed by drawing id. It is a fact about the
+## painting alone, so it is read once rather than once per placement.
+var _house_plans: Dictionary = {}
 ## Per tile: whether it is the VOID past the edge of the world rather than ground.
 ## Both draw one flat quad at the same height and nothing else in the mesh has had
 ## to tell them apart. A great roof does: it falls away from the floor a person
@@ -302,6 +307,7 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	for key: String in _model_spots:
 		_model_spots[key] = {}
 	_object_done.clear()
+	_house_done.clear()
 	_stair_done.clear()
 	_built_model = false
 	# Chunks are cut on the world's own grid rather than on the window's corner,
@@ -666,6 +672,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# given, and after the heights, because every tile it covers goes back to
 	# standing at the floor of its own cell.
 	_measure_objects(shape)
+	# With the objects, and for the same reason: a boxed house covers its tiles
+	# and hands them back to the floor of their own cell.
+	_measure_house_boxes(source)
 	_measure_stairs(shape)
 	# Last, because it overrides whatever the passes above made of a ledge tile
 	# and reads the ground they settled either side of it.
@@ -738,7 +747,7 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 	var count: int = _size.x * _size.y
 	_house.resize(count)
 	_house.fill(HOUSE_NONE)
-	_house_places.clear()
+	_houses.clear()
 	# BIGGEST FIRST, AND FIRST CLAIM WINS, which is the reference's own rule for
 	# the same table. One house's rectangle can hold a smaller one's, and a small
 	# drawing repainting the middle of a big one would leave a building painted
@@ -757,9 +766,41 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 			for tx: int in _size.x - across.x + 1:
 				if not _pattern_at(pattern, across, tx, ty):
 					continue
-				if _house_claimed(tx, ty, across):
+				# A BUILT DRAWING IS NOT RESOLVED A TILE AT A TIME. Everything
+				# about it waits for `_measure_house_boxes`, which runs late enough
+				# to know what floor each of its cells stands on.
+				#
+				# A painting the plan finds NO BUILDING IN is left to the passes
+				# below, and that is the safety on doing this to every drawing: a
+				# rectangle with no wall in it is a roof cut off by a map edge or a
+				# scrap the page flooded on its own, and claiming it would hand its
+				# tiles to the floor with nothing left standing on them.
+				#
+				# THE CLAIM IS PER BUILDING, NOT PER RECTANGLE, and that is what
+				# lets two paintings of the same street coexist. The page flooded
+				# overlapping rectangles: Goldenrod's Pokemon Centre sits in #96,
+				# and #99 is bigger, overlaps its top four tile rows and holds no
+				# building there at all. Refusing #96 for the collision left that
+				# building to the passes below, which cut the door out of its face
+				# as a hole and stood its roof halfway down the wall. Marking only
+				# what a building actually stands on, and testing the same, lets
+				# #96 take the part #99 never used.
+				var plans: Array = _house_plan(house)
+				if not plans.is_empty():
+					var mine := PackedInt32Array()
+					for index: int in plans.size():
+						var rect: Rect2i = _house_tile_rect(plans[index], across)
+						rect.position += Vector2i(tx, ty)
+						if _house_claimed(rect):
+							continue
+						mine.append(index)
+						for row: int in rect.size.y:
+							for column: int in rect.size.x:
+								_house[(rect.position.y + row) * _size.x
+									+ rect.position.x + column] = HOUSE_WALL
+					if not mine.is_empty():
+						_houses.append([house, Vector2i(tx, ty), across, [], mine])
 					continue
-				_house_places.append([Vector2i(tx, ty), across])
 				for row: int in across.y:
 					for column: int in across.x:
 						var at: int = (ty + row) * _size.x + tx + column
@@ -799,11 +840,136 @@ func _house_word(paint: Array, row: int, column: int) -> String:
 	return first
 
 
-## Whether another painting has already taken any of this rectangle.
-func _house_claimed(tx: int, ty: int, across: Vector2i) -> bool:
-	for row: int in across.y:
-		for column: int in across.x:
-			if _house[(ty + row) * _size.x + tx + column] != HOUSE_NONE:
+## Whether any pixel of one tile of a painting is the house at all.
+## WHICH TILES OF A DRAWING A BUILDING ACTUALLY STANDS ON.
+##
+## Not every tile the painting draws on: a rectangle can hold a piece with no
+## wall under it, and a piece with no wall is not a building this can stand up.
+## Covering it anyway hands it to the floor and nothing replaces it, which is a
+## roof that vanishes. Only the tiles a planned building occupies are claimed and
+## the rest keep whatever the passes made of them.
+func _house_footprint(plans: Array, across: Vector2i) -> PackedByteArray:
+	var covered := PackedByteArray()
+	covered.resize(across.x * across.y)
+	for plan: Dictionary in plans:
+		@warning_ignore("integer_division")
+		var first := Vector2i(
+			int(plan["cover_left"]) / TILE_PX, int(plan["top_row"]) / TILE_PX
+		)
+		@warning_ignore("integer_division")
+		var last := Vector2i(
+			int(plan["cover_right"]) / TILE_PX, int(plan["south_row"]) / TILE_PX
+		)
+		for row: int in range(maxi(first.y, 0), mini(last.y, across.y - 1) + 1):
+			for column: int in range(maxi(first.x, 0), mini(last.x, across.x - 1) + 1):
+				covered[row * across.x + column] = 1
+	return covered
+
+
+## THE PAINTED HOUSES THAT ARE STOOD UP AS BOXES, given back to the FLOOR.
+##
+## Every tile a boxed drawing covers becomes a cutout standing at its own cell's
+## floor, which is the same three words an object's tiles are given and already
+## means "the ground beside me, with whatever stands on it drawn separately": the
+## seam stops extruding, the floor runs under the house and every neighbour skirts
+## to it. `_emit_house` then stands the whole building up in one piece.
+##
+## LATE, for the reason `_measure_objects` is late: `_cell_floor` reads the
+## highest flat tile of a cell, and a house asked before the ground is settled
+## would take a floor nothing had measured yet.
+##
+## THE DOORS ARE NAMED BY THE CARTRIDGE and are read here rather than painted. A
+## door is a WARP, `Gen2WorldMap.events` carries them, and the three sides the
+## drawing does not draw wear the facade with those pixel columns taken out.
+func _measure_house_boxes(source: RefCounted) -> void:
+	_house_covered.resize(_size.x * _size.y)
+	_house_covered.fill(0)
+	_house_over.clear()
+	if _houses.is_empty():
+		return
+	var warps: Array = []
+	var map: Gen2WorldMap = source.map()
+	if map != null:
+		warps = map.events.get("warps", []) as Array
+	for index: int in _houses.size():
+		var entry: Array = _houses[index]
+		var start: Vector2i = entry[1]
+		var across: Vector2i = entry[2]
+		var doors: Array = []
+		for event: Dictionary in warps:
+			var tile := Vector2i(
+				int(event.get("x", -1)) * CELL_TILES + _margin.x,
+				int(event.get("y", -1)) * CELL_TILES + _margin.y
+			)
+			if tile.x < start.x or tile.x >= start.x + across.x:
+				continue
+			if tile.y < start.y or tile.y >= start.y + across.y:
+				continue
+			var from: int = (tile.x - start.x) * TILE_PX
+			doors.append(Vector2i(from, from + CELL_TILES * TILE_PX))
+		entry[3] = doors
+		# EVERY FLOOR IS READ BEFORE ANY TILE IS MARKED, which is the trap
+		# `_measure_objects` records: marking a tile a cutout takes it out of
+		# `_cell_floor`'s own answer for the next one.
+		var floors := PackedInt32Array()
+		for row: int in across.y:
+			for column: int in across.x:
+				floors.append(_cell_floor((start.x + column) >> 1, (start.y + row) >> 1))
+		var footprint: PackedByteArray = _house_footprint(
+			_house_chosen(entry), across
+		)
+		for row: int in across.y:
+			for column: int in across.x:
+				if footprint[row * across.x + column] == 0:
+					continue
+				var at: int = (start.y + row) * _size.x + start.x + column
+				# WATER IS NOT A FLOOR AND NOT A WALL, and a drawing's rectangle
+				# reaches over it: drawing 95 holds a corner of the canal. Handing
+				# that tile back to the floor takes its recess away, and the whole
+				# body of water stands up level with the pavement as a blue slab
+				# with a face down one side. Left alone it stays water.
+				if _is_water(at):
+					continue
+				_house_covered[at] = 1
+				_art[at] = ART_CUTOUT
+				_part[at] = PART_NONE
+				_modelled[at] = 0
+				_volume[at] = 0
+				_tufted[at] = 0
+				_cliff[at] = 0
+				_front[at] = 0
+				_lip[at] = 0
+				_pitched[at] = 0
+				_margin_left[at] = 0
+				_margin_right[at] = 0
+				_heights[at] = floors[row * across.x + column]
+				var over: PackedInt32Array = _house_over.get(at, PackedInt32Array())
+				over.append(index)
+				_house_over[at] = over
+
+
+## The tiles of a drawing that one of its buildings stands on.
+func _house_tile_rect(plan: Dictionary, across: Vector2i) -> Rect2i:
+	@warning_ignore("integer_division")
+	var first := Vector2i(
+		int(plan["cover_left"]) / TILE_PX, int(plan["top_row"]) / TILE_PX
+	).clamp(Vector2i.ZERO, across - Vector2i.ONE)
+	@warning_ignore("integer_division")
+	var last := Vector2i(
+		int(plan["cover_right"]) / TILE_PX, int(plan["south_row"]) / TILE_PX
+	).clamp(Vector2i.ZERO, across - Vector2i.ONE)
+	return Rect2i(first, last - first + Vector2i.ONE)
+
+
+## Whether another building already stands on any of these tiles.
+func _house_claimed(rect: Rect2i) -> bool:
+	for row: int in rect.size.y:
+		for column: int in rect.size.x:
+			var ty: int = rect.position.y + row
+			var tx: int = rect.position.x + column
+			if ty < 0 or tx < 0 or ty >= _size.y or tx >= _size.x:
+				continue
+			if _house[ty * _size.x + tx] != HOUSE_NONE:
 				return true
 	return false
 
@@ -2605,6 +2771,699 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 		)
 
 
+## How much wall a body needs before it is a building rather than a speck.
+const HOUSE_BODY_MIN: int = 32
+
+
+## WHAT ONE PAINTING MEASURES, READ PER PIXEL COLUMN, ONE BUILDING AT A TIME.
+##
+## Everything a house needs comes off the painting and there is no number in this
+## file that a person has to author.
+##
+## A DRAWING IS NOT ONE BUILDING. Its rectangle is whatever the page flooded
+## together, and on the city tilesets that is a terrace: drawing 95 holds three
+## houses with a canal in one corner. So the painting is split first and each
+## piece is planned on its own.
+##
+## SPLIT ON THE WALLS, NOT ON THE WHOLE DRAWING, which is the reviewer's own
+## reading of that drawing and the only split that works: two houses standing
+## side by side have their ROOFS touching, so flooding the whole painting merges
+## them, and the gap the cartridge draws between their WALLS is what says they
+## are two.
+##
+## A COLUMN OF THE DRAWING IS A SECTION THROUGH THE BUILDING, read from the
+## bottom up: wall, then the roof seen from the FRONT, then the roof seen from
+## ABOVE. So every column carries its own wall height, its own eave and its own
+## roof art, and a hipped end falls out of the painting with no angle in it
+## anywhere. Per column of one building:
+##
+##   tops       the topmost WALL row, so how high the wall stands there
+##   eave_*     the run painted `roof, from the front` immediately above the
+##              wall, which is the roof slab's own face at that column
+##   cap_*      the run painted `roof` above that, which is the top surface
+##
+## And for the building as a whole:
+##
+##   left, right   the outermost columns carrying its wall
+##   cover_*       how far its roof reaches. See `_house_reach`.
+##   foot          its wall's bottom row. The rows below are the shadow the house
+##                 casts on the pavement, and the few pixels of that row that ARE
+##                 the house are the door's own posts standing proud of the face.
+##                 So a row is thrown away from the bottom up while it carries
+##                 less than HALF the wall of the row above it.
+##
+##                 AGAINST THE ROW ABOVE, NOT AGAINST THE WIDEST ROW, and that is
+##                 what makes it general. Measured over the paintings that carry a
+##                 wall: read against the widest row, seven drawings whose widest
+##                 course is a storey above their foot come back with gaps of 9,
+##                 33 and 65 rows, which takes most of their depth away.
+##   north_row,    where its footprint starts and ends down the page, which is the
+##   south_row     only thing a flat drawing says about DEPTH. A terrace stacked
+##                 down the page therefore stands as buildings one behind another
+##                 rather than as one slab.
+##   *_rise, m0,   the roof line, in `_house_rise`'s own terms.
+##   m1
+func _house_plan(house: Dictionary) -> Array:
+	var id: int = int(house.get("id", -1))
+	if _house_plans.has(id):
+		return _house_plans[id]
+	var paint: Array = house["paint"]
+	var rows: int = paint.size()
+	var cols: int = String(paint[0]).length()
+	# The walls flood into buildings, and everything the drawing holds floods into
+	# TERRACES, which is what says whose roof a shared eave column belongs to.
+	var owner: PackedInt32Array = _house_flood(paint, rows, cols, Houses.WALL)
+	var terrace: PackedInt32Array = _house_flood(paint, rows, cols, "")
+	var count: int = 0
+	for at: int in owner.size():
+		count = maxi(count, owner[at] + 1)
+	var area := PackedInt32Array()
+	area.resize(count)
+	for at: int in owner.size():
+		if owner[at] >= 0:
+			area[owner[at]] += 1
+
+	var plans: Array = []
+	for body: int in count:
+		if area[body] < HOUSE_BODY_MIN:
+			continue
+		var plan: Dictionary = _house_body(paint, rows, cols, owner, terrace, body)
+		if not plan.is_empty():
+			plans.append(plan)
+	_house_plans[id] = plans
+	return plans
+
+
+## Every pixel's connected body, or -1 where the painting draws nothing.
+##
+## [param word] floods that one word alone; an empty one floods everything the
+## painting calls the house at all.
+func _house_flood(
+	paint: Array, rows: int, cols: int, word: String
+) -> PackedInt32Array:
+	var owner := PackedInt32Array()
+	owner.resize(rows * cols)
+	owner.fill(-1)
+	var bodies: int = 0
+	var stack := PackedInt32Array()
+	for start: int in rows * cols:
+		if owner[start] >= 0:
+			continue
+		@warning_ignore("integer_division")
+		if not _house_is(paint[start / cols][start % cols], word):
+			continue
+		owner[start] = bodies
+		stack.push_back(start)
+		while not stack.is_empty():
+			var at: int = stack[stack.size() - 1]
+			stack.remove_at(stack.size() - 1)
+			@warning_ignore("integer_division")
+			var y: int = at / cols
+			var x: int = at % cols
+			for step: Vector2i in [
+				Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
+			]:
+				var nx: int = x + step.x
+				var ny: int = y + step.y
+				if nx < 0 or ny < 0 or nx >= cols or ny >= rows:
+					continue
+				var next: int = ny * cols + nx
+				if owner[next] >= 0 or not _house_is(paint[ny][nx], word):
+					continue
+				owner[next] = bodies
+				stack.push_back(next)
+		bodies += 1
+	return owner
+
+
+func _house_is(stroke: String, word: String) -> bool:
+	return stroke != Houses.NONE if word.is_empty() else stroke == word
+
+
+## HOW FAR ONE BUILDING'S ROOF REACHES ACROSS THE DRAWING IT STANDS IN.
+##
+## A roof column goes to the NEAREST wall, so two houses sharing an eave split it
+## down the middle and a free end keeps the whole overhang. [param rival] carries
+## each column's distance to the nearest wall belonging to a DIFFERENT building,
+## so that test is one comparison and the reach stays contiguous with the wall it
+## hangs off.
+##
+## AND IT STOPS AT ANOTHER ROOF, which nearness alone cannot do. A rectangle can
+## hold a roof whose own wall is outside it, cut off by the rectangle's edge:
+## Goldenrod's #99 holds the Pokemon Centre's roof and not its wall, so the
+## nearest wall to that roof is the house next door and it swallowed the whole
+## thing, blocking the painting that does hold the building. So the reach walks a
+## CHAIN: each column must draw something that overlaps the rows the last one
+## did, and a roof lying below the eave it is walking along breaks it.
+func _house_reach(
+	paint: Array, rows: int, cols: int, rival: PackedInt32Array,
+	left: int, right: int, band: Vector2i
+) -> Vector2i:
+	var reach := Vector2i(left, right)
+	var run: Vector2i = band
+	while reach.x > 0 and left - (reach.x - 1) < rival[reach.x - 1]:
+		var next: Vector2i = _house_run(paint, rows, reach.x - 1, run)
+		if next.x < 0:
+			break
+		reach.x -= 1
+		run = next
+	run = band
+	while reach.y < cols - 1 and (reach.y + 1) - right < rival[reach.y + 1]:
+		var next: Vector2i = _house_run(paint, rows, reach.y + 1, run)
+		if next.x < 0:
+			break
+		reach.y += 1
+		run = next
+	return reach
+
+
+## The run of drawn pixels in one column that overlaps a band of rows, never
+## reaching further DOWN the drawing than the band already does: a roof walks
+## sideways and along the eave, and must not fall into the storey below.
+func _house_run(paint: Array, rows: int, x: int, band: Vector2i) -> Vector2i:
+	for y: int in range(band.x, band.y + 1):
+		if y < 0 or y >= rows or paint[y][x] == Houses.NONE:
+			continue
+		var top: int = y
+		while top > 0 and paint[top - 1][x] != Houses.NONE:
+			top -= 1
+		return Vector2i(top, band.y)
+	return Vector2i(-1, -1)
+
+
+## One building out of a painting, planned on its own.
+func _house_body(
+	paint: Array, rows: int, cols: int,
+	owner: PackedInt32Array, terrace: PackedInt32Array, body: int
+) -> Dictionary:
+	var tops := PackedInt32Array()
+	var eave_from := PackedInt32Array()
+	var eave_to := PackedInt32Array()
+	var cap_from := PackedInt32Array()
+	var cap_to := PackedInt32Array()
+	for array: PackedInt32Array in [tops, eave_from, eave_to, cap_from, cap_to]:
+		array.resize(cols)
+		array.fill(-1)
+	var walls := PackedInt32Array()
+	walls.resize(rows)
+	var left: int = cols
+	var right: int = -1
+	var bottom: int = -1
+	var group: int = -1
+	for y: int in rows:
+		for x: int in cols:
+			if owner[y * cols + x] != body:
+				continue
+			walls[y] += 1
+			if tops[x] < 0:
+				tops[x] = y
+			left = mini(left, x)
+			right = maxi(right, x)
+			bottom = maxi(bottom, y)
+			group = terrace[y * cols + x]
+	if right < 0:
+		return {}
+	# See the header: the shadow and the door's posts are not the wall's bottom.
+	var foot: int = bottom
+	while foot > 0 and (walls[foot] == 0 or walls[foot] * 2 < walls[foot - 1]):
+		foot -= 1
+	var gap: int = 0
+	if foot + 1 < rows and walls[foot + 1] * 2 < walls[foot]:
+		gap = 1
+	# The section above each of this building's own wall columns.
+	var peak: int = rows
+	var top_row: int = rows
+	for x: int in range(left, right + 1):
+		if tops[x] < 0:
+			continue
+		peak = mini(peak, tops[x])
+		top_row = mini(top_row, tops[x])
+		var y: int = tops[x] - 1
+		while y >= 0 and paint[y][x] == Houses.FRONT:
+			eave_from[x] = y
+			if eave_to[x] < 0:
+				eave_to[x] = y
+			y -= 1
+		while y >= 0 and paint[y][x] == Houses.ROOF:
+			cap_from[x] = y
+			if cap_to[x] < 0:
+				cap_to[x] = y
+			y -= 1
+		if cap_from[x] >= 0:
+			top_row = mini(top_row, cap_from[x])
+		elif eave_from[x] >= 0:
+			top_row = mini(top_row, eave_from[x])
+	var rival := PackedInt32Array()
+	rival.resize(cols)
+	rival.fill(cols * 2)
+	for x: int in cols:
+		for y: int in rows:
+			var at: int = y * cols + x
+			if terrace[at] != group:
+				continue
+			if owner[at] >= 0 and owner[at] != body:
+				rival[x] = 0
+	for x: int in range(1, cols):
+		rival[x] = mini(rival[x], rival[x - 1] + 1)
+	for x: int in range(cols - 2, -1, -1):
+		rival[x] = mini(rival[x], rival[x + 1] + 1)
+	# The band the reach walks along: this building's own roof, from its top down
+	# to the course its wall starts at.
+	var cover: Vector2i = _house_reach(
+		paint, rows, cols, rival, left, right, Vector2i(top_row, peak - 1)
+	)
+	# SEEDED OUTSIDE THE BUILDING, not at its own edges: seeded at `left` and
+	# `right` the run can only ever come out the whole wall, every roof reads flat
+	# and a hipped end comes back a box.
+	var m0: int = cols
+	var m1: int = -1
+	for x: int in range(left, right + 1):
+		if tops[x] == peak:
+			m0 = mini(m0, x)
+			m1 = maxi(m1, x)
+	if m1 < 0:
+		m0 = left
+		m1 = right
+	var plan: Dictionary = {
+		"rows": rows, "cols": cols, "foot": foot, "gap": gap,
+		"left": left, "right": right,
+		"cover_left": cover.x, "cover_right": cover.y,
+		"top_row": top_row, "north_row": top_row + gap, "south_row": foot + 1,
+		"tops": tops, "eave_from": eave_from, "eave_to": eave_to,
+		"cap_from": cap_from, "cap_to": cap_to, "m0": m0, "m1": m1,
+		"peak_rise": float(foot + 1 - peak),
+		"left_rise": float(foot + 1 - tops[left]),
+		"right_rise": float(foot + 1 - tops[right]),
+		"thick": 0,
+	}
+	if eave_to[m0] >= 0:
+		plan["thick"] = eave_to[m0] - eave_from[m0] + 1
+	return plan
+
+
+## THE ROOF LINE: how high the wall stands, and so where the roof sits, at any
+## point across the building.
+##
+## THE ROOF HAS THREE PARTS, which is the reviewer's own reading of drawing 4:
+## the middle is flat and the left and right go downwards. All three fall out of
+## the painting with no angle authored anywhere. The flat part is the run of
+## columns whose wall reaches the drawing's topmost wall row; each side is a
+## straight line from the end of that run down to the outermost wall column, and
+## it CARRIES ON past the wall at the same slope, which is what keeps the roof's
+## overhang in the plane of the slope it hangs off. Drawing 4 reads 15 px in the
+## middle, 9 at both ends and 6 px over 12 columns, which is 27 degrees.
+##
+## THE WALL AND THE ROOF READ THE SAME LINE, and that is not tidiness. The
+## painting's own profile is a staircase two pixels at a time; a wall standing on
+## the staircase under a roof lying on the straight line pokes through it, which
+## the reviewer warned about before it was built.
+##
+## A drawing whose wall is one height throughout has its flat part spanning the
+## whole building and no sides at all, so this answers one number everywhere and
+## the house comes out the pair of boxes drawing 1 already is.
+func _house_rise(plan: Dictionary, x: float) -> float:
+	var peak: float = float(plan["peak_rise"])
+	var m0: float = float(plan["m0"])
+	var m1: float = float(plan["m1"]) + 1.0
+	if x >= m0 and x <= m1:
+		return peak
+	if x < m0:
+		var edge: float = float(plan["left"])
+		if m0 - edge < 1.0:
+			return peak
+		var rise: float = float(plan["left_rise"])
+		return rise + (peak - rise) * (x - edge) / (m0 - edge)
+	var far: float = float(plan["right"]) + 1.0
+	if far - m1 < 1.0:
+		return peak
+	var drop: float = float(plan["right_rise"])
+	return peak + (drop - peak) * (x - m1) / (far - m1)
+
+
+## ONE VERTICAL FACE OF A HOUSE, whose top edge follows the roof line.
+##
+## Everything standing up on a house is this shape: the wall runs from the ground
+## to the roof line, and the roof's own slab runs from there to the line plus its
+## thickness. Both slope wherever the line does.
+##
+## [param source] is the drawing COLUMN each position along the face wears, which
+## is separate from where the position IS: the front wears its own columns once
+## where the other three wear the front's columns with the doors taken out,
+## repeated all the way round, and that is the only statement a flat drawing makes
+## about the three sides it does not draw.
+##
+## [param low] and [param high] are the world heights at each position BOUNDARY,
+## so they carry one more entry than the face is long and a sloping edge comes out
+## a straight line across a run rather than a step per pixel.
+##
+## [param origin] is the face's bottom corner on the LEFT as seen from outside and
+## [param step] the unit pixel along it, so one routine serves all four faces and
+## the winding cannot be got wrong once per face. Cut per TILE both ways, because
+## a texel is only samplable out of the tile it was drawn in.
+func _house_face(
+	tiles: Array, across: Vector2i, source: PackedInt32Array,
+	from_row: PackedInt32Array, to_row: PackedInt32Array,
+	low: PackedFloat32Array, high: PackedFloat32Array,
+	origin: Vector3, step: Vector3, length: int,
+	normal: Vector3, shade: Color, atlas: RefCounted
+) -> void:
+	var at: int = 0
+	while at < length:
+		var first: int = source[at]
+		var top: int = from_row[at]
+		var bottom: int = to_row[at]
+		if top < 0 or bottom < top:
+			at += 1
+			continue
+		var run: int = 1
+		while at + run < length:
+			var next: int = source[at + run]
+			if next != first + run or next / TILE_PX != first / TILE_PX:
+				break
+			if from_row[at + run] != top or to_row[at + run] != bottom:
+				break
+			run += 1
+		var span: int = bottom - top + 1
+		var a: Vector3 = origin + step * float(at)
+		var b: Vector3 = origin + step * float(at + run)
+		var a_high: float = high[at]
+		var a_fall: float = high[at] - low[at]
+		var b_high: float = high[at + run]
+		var b_fall: float = high[at + run] - low[at + run]
+		var row: int = top
+		while row <= bottom:
+			var stop: int = mini((row / TILE_PX + 1) * TILE_PX - 1, bottom)
+			@warning_ignore("integer_division")
+			var tile: int = int(tiles[(row / TILE_PX) * across.x + first / TILE_PX])
+			var uv: Rect2 = atlas.uv_box(
+				tile, Rect2i(first % TILE_PX, row % TILE_PX, run, stop - row + 1)
+			)
+			var upper: float = float(row - top) / float(span)
+			var lower: float = float(stop + 1 - top) / float(span)
+			_quad(
+				Vector3(a.x, a_high - a_fall * lower, a.z),
+				Vector3(b.x, b_high - b_fall * lower, b.z),
+				Vector3(b.x, b_high - b_fall * upper, b.z),
+				Vector3(a.x, a_high - a_fall * upper, a.z),
+				normal, uv, shade
+			)
+			row = stop + 1
+		at += run
+
+
+## One face of the wall, or the one above it that is the roof slab's own edge.
+##
+## [param over_first] and [param over_step] say which BUILDING column each
+## position stands over, which is what decides the rows it wears and how high it
+## is; [param edge_first] and [param edge_step] say the same at each position
+## BOUNDARY, in the roof line's own coordinate, so a face running along the depth
+## can hold one column while a face running across the front walks them all.
+func _house_side(
+	tiles: Array, across: Vector2i, plan: Dictionary, source: PackedInt32Array,
+	over_first: int, over_step: int, edge_first: float, edge_step: float,
+	slab: bool, base: float, thick: float,
+	origin: Vector3, step: Vector3, length: int,
+	normal: Vector3, shade: Color, atlas: RefCounted
+) -> void:
+	if length <= 0 or source.is_empty():
+		return
+	var tops: PackedInt32Array = plan["tops"]
+	var eave_from: PackedInt32Array = plan["eave_from"]
+	var eave_to: PackedInt32Array = plan["eave_to"]
+	var left: int = int(plan["left"])
+	var right: int = int(plan["right"])
+	var foot: int = int(plan["foot"])
+	var from_row := PackedInt32Array()
+	var to_row := PackedInt32Array()
+	var low := PackedFloat32Array()
+	var high := PackedFloat32Array()
+	for at: int in length:
+		var over: int = clampi(over_first + over_step * at, left, right)
+		from_row.append(eave_from[over] if slab else tops[over])
+		to_row.append(eave_to[over] if slab else foot)
+	for at: int in length + 1:
+		var rise: float = _house_rise(plan, edge_first + edge_step * float(at))
+		low.append(base + rise if slab else base)
+		high.append(base + rise + thick if slab else base + rise)
+	_house_face(
+		tiles, across, source, from_row, to_row, low, high,
+		origin, step, length, normal, shade, atlas
+	)
+
+
+## THE ROOF'S OWN TOP SURFACE, laid back across its depth and following the roof
+## line across its width.
+##
+## The rows painted `roof` are what you are looking DOWN onto: they are depth on
+## the page and no height at all, so each column's own run of them is stretched
+## over the slab rather than stacked. Stretching each column's OWN run is what
+## puts the flat middle's art on the flat middle and the sloping end's art on the
+## slope, where one run stretched over the whole roof would drag the pavement the
+## drawing's corners hold onto the roof's corners.
+##
+## A whole tile row of the drawing goes down as ONE band: a linear stretch inside
+## a band is the same picture as one strip per row and a fraction of the
+## triangles. [param under] turns it over into the slab's soffit, which is what a
+## low eye sees under the eave and what closes the top of the wall.
+func _house_cap(
+	tiles: Array, across: Vector2i, plan: Dictionary, origin_x: float,
+	base: float, thick: float, near: float, far: float, under: bool,
+	atlas: RefCounted
+) -> void:
+	var cap_from: PackedInt32Array = plan["cap_from"]
+	var cap_to: PackedInt32Array = plan["cap_to"]
+	var eave_to: PackedInt32Array = plan["eave_to"]
+	var left: int = int(plan["left"])
+	var right: int = int(plan["right"])
+	var column: int = int(plan["cover_left"])
+	var last_column: int = int(plan["cover_right"])
+	while column <= last_column:
+		var read: int = clampi(column, left, right)
+		var top: int = eave_to[read] if under else cap_from[read]
+		var bottom: int = eave_to[read] if under else cap_to[read]
+		if top < 0 or bottom < top:
+			column += 1
+			continue
+		var run: int = 1
+		while column + run <= last_column:
+			if (column + run) / TILE_PX != column / TILE_PX:
+				break
+			var next: int = clampi(column + run, left, right)
+			if under:
+				if eave_to[next] != top:
+					break
+			elif cap_from[next] != top or cap_to[next] != bottom:
+				break
+			run += 1
+		var y_west: float = base + _house_rise(plan, float(column)) + thick
+		var y_east: float = base + _house_rise(plan, float(column + run)) + thick
+		var x0: float = origin_x + float(column)
+		var x1: float = origin_x + float(column + run)
+		var span: int = bottom - top + 1
+		var row: int = top
+		while row <= bottom:
+			var stop: int = mini((row / TILE_PX + 1) * TILE_PX - 1, bottom)
+			@warning_ignore("integer_division")
+			var tile: int = int(tiles[(row / TILE_PX) * across.x + column / TILE_PX])
+			var uv: Rect2 = atlas.uv_box(
+				tile, Rect2i(column % TILE_PX, row % TILE_PX, run, stop - row + 1)
+			)
+			var z_far: float = far + (near - far) * float(row - top) / float(span)
+			var z_near: float = far + (near - far) * float(stop + 1 - top) / float(span)
+			if under:
+				_quad(
+					Vector3(x1, y_east, z_near), Vector3(x0, y_west, z_near),
+					Vector3(x0, y_west, z_far), Vector3(x1, y_east, z_far),
+					Vector3.DOWN, uv, SHADE_NORTH
+				)
+			else:
+				_quad(
+					Vector3(x0, y_west, z_near), Vector3(x1, y_east, z_near),
+					Vector3(x1, y_east, z_far), Vector3(x0, y_west, z_far),
+					Vector3.UP, uv, SHADE_TOP_FLAT
+				)
+			row = stop + 1
+		column += run
+
+
+## ONE PAINTED HOUSE, STOOD UP. The reviewer's own reading, taken in round
+## twenty-one over drawings 1 and 4, and every number in it is measured off the
+## painting.
+##
+## A HOUSE IS A WALL WITH A ROOF SLAB SITTING ON IT, and the slab stands out past
+## the wall on all four sides, which is the eave the cartridge draws overhanging
+## the facade. Where the wall is one height throughout that is two boxes, and it
+## is drawing 1. Where it is not, the roof line has a flat middle and a straight
+## slope down each side and the wall follows it, which is drawing 4's hipped end.
+## See `_house_rise`.
+##
+## THE FRONT WALL IS A FLAT VERTICAL PICTURE AND SO IS THE DOOR. A door is not a
+## hole and not a recess: the player walks through it because walking through is
+## collision, and nothing here touches collision. It faces the same way as the
+## wall it is drawn on.
+##
+## THE THREE SIDES A DRAWING DOES NOT DRAW wear the front wall with the door
+## columns taken out, repeated all the way round. The doors are the cartridge's
+## own warps rather than anything painted.
+func _emit_house(index: int, atlas: RefCounted) -> void:
+	var entry: Array = _houses[index]
+	var start: Vector2i = entry[1]
+	var across: Vector2i = entry[2]
+	var tiles: Array = []
+	for row: int in across.y:
+		for column: int in across.x:
+			tiles.append(_tile_at(start.x + column, start.y + row))
+	# ONE DRAWING IS SEVERAL BUILDINGS, so each is stood up on its own footprint,
+	# and only the ones this placement actually claimed.
+	for plan: Dictionary in _house_chosen(entry):
+		_emit_house_body(plan, tiles, start, across, entry[3], atlas)
+
+
+## The buildings this placement claimed, which on a street of overlapping
+## paintings is not all of the drawing's. See `_match_houses`.
+func _house_chosen(entry: Array) -> Array:
+	var plans: Array = _house_plan(entry[0])
+	var out: Array = []
+	for index: int in entry[4] as PackedInt32Array:
+		if index >= 0 and index < plans.size():
+			out.append(plans[index])
+	return out
+
+
+## One of a drawing's buildings, stood up where the painting puts it.
+func _emit_house_body(
+	plan: Dictionary, tiles: Array, start: Vector2i, across: Vector2i,
+	doors: Array, atlas: RefCounted
+) -> void:
+	var left: int = int(plan["left"])
+	var right: int = int(plan["right"])
+	if right < 0:
+		return
+	var cover_left: int = int(plan["cover_left"])
+	var cover_right: int = int(plan["cover_right"])
+	var thick: float = float(plan["thick"])
+	var foot: int = int(plan["foot"])
+	# ONE ground for the whole building, taken beside its own foot. Reading it per
+	# tile would tilt one standing across two of them, and reading it at the
+	# drawing's own bottom row would take another building's ground on a terrace.
+	@warning_ignore("integer_division")
+	var base: float = float(_ground_art(
+		start.x + left / TILE_PX,
+		start.y + mini(foot / TILE_PX, across.y - 1)
+	).y)
+	var origin_x: float = _world_x(start.x)
+	var west: float = origin_x + float(left)
+	var east: float = origin_x + float(right + 1)
+	var north: float = _world_z(start.y) + float(plan["north_row"])
+	var south: float = _world_z(start.y) + float(plan["south_row"])
+
+	# THE COLUMNS THE THREE UNDRAWN SIDES WEAR: the facade with its doors removed.
+	var wrapped := PackedInt32Array()
+	for column: int in range(left, right + 1):
+		var is_door: bool = false
+		for door: Vector2i in doors:
+			if column >= door.x and column < door.y:
+				is_door = true
+		if not is_door:
+			wrapped.append(column)
+	if wrapped.is_empty():
+		for column: int in range(left, right + 1):
+			wrapped.append(column)
+
+	var wide: int = right + 1 - left
+	var deep: int = int(south - north)
+	var facade := PackedInt32Array()
+	for column: int in range(left, right + 1):
+		facade.append(column)
+	var wrap_wide := PackedInt32Array()
+	var wrap_deep := PackedInt32Array()
+	for at: int in wide:
+		wrap_wide.append(wrapped[at % wrapped.size()])
+	for at: int in deep:
+		wrap_deep.append(wrapped[at % wrapped.size()])
+
+	_house_side(
+		tiles, across, plan, facade, left, 1, float(left), 1.0, false, base, thick,
+		Vector3(west, 0.0, south), Vector3(1.0, 0.0, 0.0), wide,
+		Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas
+	)
+	_house_side(
+		tiles, across, plan, wrap_wide, right, -1, float(right + 1), -1.0,
+		false, base, thick,
+		Vector3(east, 0.0, north), Vector3(-1.0, 0.0, 0.0), wide,
+		Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas
+	)
+	_house_side(
+		tiles, across, plan, wrap_deep, right, 0, float(right + 1), 0.0,
+		false, base, thick,
+		Vector3(east, 0.0, south), Vector3(0.0, 0.0, -1.0), deep,
+		Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas
+	)
+	_house_side(
+		tiles, across, plan, wrap_deep, left, 0, float(left), 0.0,
+		false, base, thick,
+		Vector3(west, 0.0, north), Vector3(0.0, 0.0, 1.0), deep,
+		Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas
+	)
+	if thick <= 0.0:
+		return
+
+	# THE ROOF STANDS OUT PAST THE WALL, by exactly what the drawing puts either
+	# side of its own facade. Nothing draws the overhang front and back, so the
+	# side's own measurement is carried round; the reviewer took that in round
+	# twenty-one over the flush alternative, both built and photographed.
+	@warning_ignore("integer_division")
+	var out_deep: int = ((left - cover_left) + (cover_right - right)) / 2
+	var slab_west: float = origin_x + float(cover_left)
+	var slab_east: float = origin_x + float(cover_right + 1)
+	var slab_north: float = north - float(out_deep)
+	var slab_south: float = south + float(out_deep)
+	var slab_wide: int = cover_right + 1 - cover_left
+	var slab_deep: int = int(slab_south - slab_north)
+	var eaves := PackedInt32Array()
+	for column: int in range(cover_left, cover_right + 1):
+		eaves.append(column)
+	var eave_wide := PackedInt32Array()
+	var eave_deep := PackedInt32Array()
+	for at: int in slab_wide:
+		eave_wide.append(wrapped[at % wrapped.size()])
+	for at: int in slab_deep:
+		eave_deep.append(wrapped[at % wrapped.size()])
+
+	_house_side(
+		tiles, across, plan, eaves, cover_left, 1, float(cover_left), 1.0,
+		true, base, thick,
+		Vector3(slab_west, 0.0, slab_south), Vector3(1.0, 0.0, 0.0), slab_wide,
+		Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas
+	)
+	_house_side(
+		tiles, across, plan, eave_wide, cover_right, -1, float(cover_right + 1), -1.0,
+		true, base, thick,
+		Vector3(slab_east, 0.0, slab_north), Vector3(-1.0, 0.0, 0.0), slab_wide,
+		Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas
+	)
+	_house_side(
+		tiles, across, plan, eave_deep, cover_right, 0, float(cover_right + 1), 0.0,
+		true, base, thick,
+		Vector3(slab_east, 0.0, slab_south), Vector3(0.0, 0.0, -1.0), slab_deep,
+		Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas
+	)
+	_house_side(
+		tiles, across, plan, eave_deep, cover_left, 0, float(cover_left), 0.0,
+		true, base, thick,
+		Vector3(slab_west, 0.0, slab_north), Vector3(0.0, 0.0, 1.0), slab_deep,
+		Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas
+	)
+	_house_cap(
+		tiles, across, plan, origin_x, base, thick,
+		slab_south, slab_north, false, atlas
+	)
+	_house_cap(
+		tiles, across, plan, origin_x, base, 0.0,
+		slab_south, slab_north, true, atlas
+	)
+
+
 ## One flight of stairs: four treads and four risers inside one walk cell.
 ##
 ## The drawing is a picture of the flight from above, so the cell's own pixels
@@ -3456,7 +4315,13 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		# The ground under it is drawn either way; what stands ON it is a whole
 		# OBJECT stood up beside its neighbours, the drawing carved out, an authored
 		# model stamped there, or a rail on its posts.
-		if _object_covered[at] == 1:
+		if _house_covered[at] == 1:
+			for index: int in _house_over.get(at, PackedInt32Array()) as PackedInt32Array:
+				if _house_done.has(index):
+					continue
+				_house_done[index] = true
+				_emit_house(index, atlas)
+		elif _object_covered[at] == 1:
 			for index: int in _object_over.get(at, PackedInt32Array()) as PackedInt32Array:
 				if _object_done.has(index):
 					continue
