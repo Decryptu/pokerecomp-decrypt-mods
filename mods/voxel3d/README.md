@@ -475,6 +475,14 @@ rather than two, because a 16px stone six voxels across is a pillow; it does not
 sway; and its colour is read in horizontal BANDS off the drawing, since a stone
 is drawn pale where the sky reaches it and dark underneath.
 
+The stone's reading is also what puts a drawing back that was not being built at
+all. The National Park's bin stands on paving dithered in the same greys the bin
+itself is drawn in, so the rule that cuts a drawing out of the ground around it
+had nothing to cut on and the flood ate the whole thing: on that paving the mod
+drew no bin. Read as a stone it is cut on its own dark outline instead, and one
+of the few things in this game that costs more than leaving it wrong, since
+nothing at all is cheap.
+
 A round stool takes the stone's reading and adds the one thing none of the others
 needs. Everything above can take its own DRAWN height, because a tree, a bush and
 a rock are all drawn standing. Half of a stool's drawing is the seat seen from

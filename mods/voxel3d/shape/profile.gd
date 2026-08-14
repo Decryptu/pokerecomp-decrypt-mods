@@ -1428,6 +1428,19 @@ const TILESETS: Dictionary = {
 		&"canopy": [
 			12, 13, 14, 15, 28, 29, 30, 31, 44, 45, 46, 47, 60, 61, 62, 63,
 		],
+		# THE NATIONAL PARK'S BIN, and it was drawn NOWHERE AT ALL. A round grey
+		# vessel with a dark hollow in its top, one walk cell over four tiles,
+		# standing on the paving beside the benches; five placements on three maps.
+		# Photographed where the cartridge puts it, the paving is bare.
+		#
+		# The paving is dithered in the same greys the bin is drawn in, which is the
+		# case `OUTLINE` exists for and the reason nothing stood: the ground flood
+		# walks straight through the flanks. `boulder` answers all of it, because a
+		# bin is read exactly as a rock is: cut on its own dark ring, FILLED so an
+		# open rim cannot starve it, turned rather than carved, one world pixel per
+		# voxel, no sway, and coloured BY BAND, which is what a thing drawn pale on
+		# top and dark down its side wants.
+		&"boulder": [90, 91, 19, 130],
 	},
 	# THE SAME STATUE ON THE SAME PILLAR, which the full pass had as `statue` and
 	# which came out a heap of loose pieces. It is not one of the two the reviewer
