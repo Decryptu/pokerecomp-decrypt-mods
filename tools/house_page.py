@@ -45,6 +45,7 @@ SAVE writes `houses.json`: per drawing, one string per pixel row, ready for
 `tools/house_pins.gd`.
 """
 
+import base64
 import json
 import pathlib
 import sys
@@ -187,9 +188,14 @@ try {
   }
 } catch (e) {}
 
-// The drawing's own pixels, and which of its shades are the OUTLINE. Read once
-// per house: the wand needs both and nothing else does.
-let art = null, W = 0, H = 0, outline = null;
+// WHICH PIXELS ARE THE DRAWING'S OUTLINE, which is all the wand needs to know.
+// It is EXPORTED as data rather than read back off the canvas, and that is the
+// fix for a real bug rather than a preference: reading pixels off a canvas is
+// same-origin work, and a page opened as a LOCAL FILE cannot do it to a local
+// image. The first version read the canvas, so it worked perfectly served over
+// http and drew a blank rectangle the way a person actually opens it. Nothing
+// here reads a pixel now, so there is no origin left to be wrong about.
+let W = 0, H = 0, outline = null;
 
 // The pre-fill, expanded from the tile reading the mod already has. A tile word
 // covers all 64 of its pixels, which is exactly today's answer and therefore
@@ -231,28 +237,6 @@ function persist(h) {
 }
 
 const img = new Image();
-
-// Read the drawing's pixels, and rank its shades by brightness so the wand knows
-// which are the OUTLINE. A Game Boy drawing is bounded by its darkest shade,
-// which is the rule this mod already cuts every silhouette with.
-function readArt() {
-  const c = document.createElement("canvas");
-  W = img.naturalWidth; H = img.naturalHeight;
-  c.width = W; c.height = H;
-  const g = c.getContext("2d", { willReadFrequently: true });
-  g.drawImage(img, 0, 0);
-  const d = g.getImageData(0, 0, W, H).data;
-  art = new Int32Array(W * H);
-  const seen = new Map();
-  for (let i = 0; i < W * H; i++) {
-    const v = (d[i*4] << 16) | (d[i*4+1] << 8) | d[i*4+2];
-    art[i] = v;
-    seen.set(v, (seen.get(v) || 0) + 1);
-  }
-  const lum = (v) => 0.299*((v>>16)&255) + 0.587*((v>>8)&255) + 0.114*(v&255);
-  const dark = [...seen.keys()].sort((a, b) => lum(a) - lum(b));
-  outline = new Set(dark.slice(0, 1));
-}
 
 function draw() {
   const h = state(at);
@@ -375,13 +359,13 @@ function box(a, b) {
 function wand(sx, sy) {
   const h = state(at);
   if (sx < 0 || sy < 0 || sx >= W || sy >= H) return;
-  const inside = (v) => !outline.has(v);
-  const start = art[sy * W + sx];
+  const inside = (x, y) => outline[y][x] === "0";
+  const start = inside(sx, sy);
   const hit = new Uint8Array(W * H);
   const stack = [sy * W + sx];
   hit[sy * W + sx] = 1;
-  // Clicking ON the outline can only mean the outline, so that floods by colour.
-  const ok = inside(start) ? inside : ((v) => v === start);
+  // Clicking ON the outline can only mean the outline, so that floods the ink.
+  const ok = (x, y) => inside(x, y) === start;
   while (stack.length) {
     const i = stack.pop();
     const x = i % W, y = (i / W) | 0;
@@ -389,12 +373,12 @@ function wand(sx, sy) {
       const nx = x + dx, ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
       const j = ny * W + nx;
-      if (hit[j] || !ok(art[j])) continue;
+      if (hit[j] || !ok(nx, ny)) continue;
       hit[j] = 1;
       stack.push(j);
     }
   }
-  if (inside(start)) {
+  if (start) {
     // Swallow the outline around it, so the shape arrives with its own edge.
     const edge = [];
     for (let i = 0; i < W * H; i++) {
@@ -417,7 +401,9 @@ function wand(sx, sy) {
 function load() {
   const h = state(at);
   scale = Math.max(2, Math.min(14, Math.floor(900 / (h.size[0] * TILE))));
-  img.onload = () => { readArt(); draw(); };
+  W = h.size[0] * TILE; H = h.size[1] * TILE;
+  outline = h.outline;
+  img.onload = draw;
   img.src = h.art;
   const ctx = $("ctx");
   ctx.onload = () => { ctx.style.width = ctx.naturalWidth * 2 + "px"; };
@@ -543,6 +529,16 @@ def main():
     if missing:
         print("missing pictures beside the page: %s" % ", ".join(missing[:6]))
         return 1
+    # THE PAGE CARRIES ITS OWN PICTURES. The wand reads the drawing back pixel by
+    # pixel off a canvas, which is same-origin work, and a page opened as a LOCAL
+    # FILE cannot do that to a local image: the canvas is tainted and the read
+    # throws. Loading them beside the page worked perfectly over http and drew a
+    # blank rectangle the way a person actually opens it. A data URI has no origin
+    # to be wrong about. Only the drawing needs it; the context picture is only
+    # ever displayed, never read.
+    for house in houses:
+        house["art"] = "data:image/png;base64," + base64.b64encode(
+            (directory / house["art"]).read_bytes()).decode()
     out = directory / "houses.html"
     out.write_text(PAGE.replace("__HOUSES__", json.dumps(houses)))
     print("%d drawings, %d placements, %d pixels to paint over" % (
