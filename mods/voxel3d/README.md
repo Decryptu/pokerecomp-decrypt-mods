@@ -161,6 +161,15 @@ tooth, Marill's belly. The cut floods in from the border through index 0 alone
 and stops at the drawing's own black outline, so what the outline encloses
 survives and only the field is removed.
 
+A move animation is drawn as the hardware drew it, on a layer of its own over
+the top. That works for a reason worth stating: an animation is authored against
+the two picture slots the cartridge puts its battlers in, and the camera is
+solved to land both battlers in those very slots, so a beam aimed at the far slot
+is already aimed at the far Pokemon and nothing has to be re-aimed. What the
+breathing adds on top is corrected per sprite, lerped along the line between the
+two, since an orbit carries the near battler one way and the far one the other
+and a single offset for the whole layer would cancel itself.
+
 ## How a flat drawing becomes a solid
 
 A Game Boy overworld drawing is a fake-3D projection: it packs several facings
@@ -518,6 +527,7 @@ world/camera_rig.gd  pitch, distance, lens and the ease between settings
 battle/renderer.gd   the battle Node: the arena, the battlers and the panels
 battle/arena.gd      where the fight is staged and where it is shot from
 battle/panel.gd      the frost behind a panel, over whatever the world drew there
+battle/anim.gd       a move's own OAM layer, blitted the way the hardware drew it
 shape/atlas.gd       the tileset as a texture, palettes and tile animation
 shape/map_source.gd  the map, live from the world or read from its records
 shape/tile_shape.gd  tile -> shape class

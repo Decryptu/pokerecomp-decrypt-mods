@@ -58,6 +58,14 @@ const APRON_CELLS: int = 1
 ## How far from the player the search looks for that shape.
 const SEARCH_CELLS: int = 6
 
+## THE TWO ANCHORS THEMSELVES, in hardware pixels, which the header states and
+## nothing named until a move animation needed them. Bottom centre of each
+## battler's picture slot, and the marks every constant below was solved to land
+## on. A renderer measuring how far the shot has drifted off them compares a
+## projected ground point against these.
+const PLAYER_MARK := Vector2(40.0, 96.0)
+const ENEMY_MARK := Vector2(124.0, 56.0)
+
 ## The rig, in world pixels, solved against the four anchors above with the two
 ## battlers three cells apart: a 23.6 degree lens from about five cells back and
 ## two above the floor, which is what a 48 pixel picture standing on a 16 pixel

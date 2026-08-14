@@ -22,6 +22,7 @@ extends Control
 const Options: GDScript = preload("../options.gd")
 const Steering: GDScript = preload("../steering.gd")
 const Frost: GDScript = preload("panel.gd")
+const Anim: GDScript = preload("anim.gd")
 
 const CELL: float = 16.0
 
@@ -74,6 +75,20 @@ var _hud: Gen2BattleHud = null
 var _panels_backing: Array[ColorRect] = []
 var _frost: RefCounted = null
 var _hud_layers: Array[TextureRect] = []
+## The move animation's OAM layer, over everything: the hardware draws its
+## objects above the background plane the panels and both pictures live in.
+var _anim: RefCounted = null
+var _anim_layer: TextureRect = null
+## Where each battler actually landed against the hardware slot the rig was
+## solved for, in HARDWARE pixels. Zero but for the drift, and it is what keeps
+## an effect on the animal it was aimed at. See `_measure_anim_drift`.
+var _anim_player_drift := Vector2.ZERO
+var _anim_enemy_drift := Vector2.ZERO
+## Both offsets the layer was last DRAWN at, rounded the way `anim.gd` rounds
+## them, as player xy then enemy xy. A redraw is only worth doing when one of the
+## four has moved a whole hardware pixel, since nothing finer reaches the
+## picture.
+var _anim_drawn_at := Vector4i(9999, 9999, 9999, 9999)
 var _battlers: Array[TextureRect] = []
 var _pic_textures: Dictionary = {}
 var _native := Vector2i(Gen2Screen.WIDTH, Gen2Screen.HEIGHT)
@@ -106,6 +121,13 @@ func _init() -> void:
 		layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(layer)
 		_hud_layers.append(layer)
+	# Last in, so the objects draw over the panels and both pictures, which is the
+	# order the hardware draws them in. `hud_visible` is false for the length of a
+	# move anyway, so mostly there is nothing under it but the fight.
+	_anim_layer = TextureRect.new()
+	_anim_layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_anim_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_anim_layer)
 	_read_options()
 	Options.listen(_on_option_changed)
 	Options.listen_actions(_on_action_changed)
@@ -165,6 +187,7 @@ func set_battle_data(data: GameData) -> bool:
 	if data == null:
 		return false
 	_hud = Gen2BattleHud.from_data(data)
+	_anim = Anim.new(data)
 	return _hud != null
 
 
@@ -184,7 +207,9 @@ func set_view(view: Dictionary) -> void:
 func refresh() -> void:
 	_frame_camera()
 	_place_battlers()
+	_measure_anim_drift()
 	_draw_hud()
+	_draw_anim()
 
 
 ## Steering the shot. The battle screen claims its own keys first, so what
@@ -199,6 +224,11 @@ func _process(delta: float) -> void:
 	_arena.advance(delta)
 	_frame_camera()
 	_place_battlers()
+	# The OAM picture is a fact about the view and does not change here; where its
+	# sprites SIT follows the drift, so it is redrawn only when that has moved a
+	# whole hardware pixel.
+	_measure_anim_drift()
+	_follow_anim_drift()
 
 
 func _root() -> String:
@@ -598,6 +628,72 @@ func _draw_hud() -> void:
 	_show(3, gained, _data.bar_palette("exp"))
 
 
+## THE MOVE ANIMATION, over everything. `anim.gd` turns the view's OAM into one
+## hardware-sized picture and this lays it on at the same whole-number scale the
+## panels are drawn at, so an animation pixel and a panel pixel are the same
+## size.
+##
+## The drift correction is inside the picture rather than on the layer, so the
+## layer itself always sits on the hardware screen's own origin. See `anim.gd`
+## for why one offset for the whole layer would be no offset at all.
+func _draw_anim() -> void:
+	if _anim_layer == null:
+		return
+	var image: Image = null
+	if _anim != null:
+		image = _anim.image(_view, _anim_player_drift, _anim_enemy_drift)
+	if image == null:
+		_anim_layer.texture = null
+		_anim_drawn_at = Vector4i(9999, 9999, 9999, 9999)
+		return
+	_anim_layer.texture = ImageTexture.create_from_image(image)
+	_anim_drawn_at = _anim_rounded()
+	_layout_anim()
+
+
+func _layout_anim() -> void:
+	if _anim_layer == null:
+		return
+	var factor: int = _hud_scale()
+	_anim_layer.size = Vector2(Gen2Screen.WIDTH * factor, Gen2Screen.HEIGHT * factor)
+	_anim_layer.position = _hud_origin()
+
+
+## How far each battler landed from its OWN mark, in HARDWARE pixels.
+##
+## Measured through the camera rather than assumed zero. It IS zero on a still
+## shot, to within the hundredth of a pixel the rig solves to, and that is the
+## whole reason an animation can be drawn at the hardware's own coordinates in
+## the first place: this only tracks what the drift adds afterwards. Measured
+## over a whole period of both drift terms, neither exceeds 1.2 px.
+func _measure_anim_drift() -> void:
+	if _arena == null or _stage == null or _stage.camera == null:
+		return
+	var factor: float = float(_hud_scale())
+	var origin: Vector2 = _hud_origin()
+	_anim_enemy_drift = (_stage.camera.unproject_position(_arena.enemy_ground()) - origin) \
+		/ factor - _arena.ENEMY_MARK
+	_anim_player_drift = (_stage.camera.unproject_position(_arena.player_ground()) - origin) \
+		/ factor - _arena.PLAYER_MARK
+
+
+## A redraw costs forty eight-pixel blits, so it is spent only when the drift has
+## actually moved the picture: rounded to hardware pixels, nothing finer reaches
+## it. Nothing at all happens on a frame with no animation up, which is every
+## frame outside a move.
+func _follow_anim_drift() -> void:
+	if _anim_layer == null or _anim_layer.texture == null:
+		return
+	if _anim_rounded() != _anim_drawn_at:
+		_draw_anim()
+
+
+func _anim_rounded() -> Vector4i:
+	var player: Vector2 = _anim_player_drift.round()
+	var enemy: Vector2 = _anim_enemy_drift.round()
+	return Vector4i(int(player.x), int(player.y), int(enemy.x), int(enemy.y))
+
+
 func _buffer() -> PackedByteArray:
 	var out := PackedByteArray()
 	out.resize(Gen2Screen.WIDTH * Gen2Screen.HEIGHT)
@@ -621,6 +717,7 @@ func _show(index: int, indices: PackedByteArray, palette: PackedColorArray) -> v
 func _layout_hud() -> void:
 	for layer: TextureRect in _hud_layers:
 		_layout_layer(layer)
+	_layout_anim()
 	# The frost reaches the same number of HARDWARE pixels at every window size,
 	# so it does not sharpen as the window grows.
 	if _frost != null:

@@ -14,7 +14,17 @@ extends SceneTree
 ##
 ##   Godot --path <pokerecomp> -s tools/battle_shot.gd -- <cache> <group> \
 ##       <number> <cell x> <cell y> <out.png> [facing 0-3] [time 0-3] \
-##       [player species] [enemy species] [hold frames] [hp 0-1]
+##       [player species] [enemy species] [hold frames] [hp 0-1] \
+##       [anim index] [anim frame] [enemy turn 0-1]
+##
+## A MOVE ANIMATION IS RUN HEADLESS rather than mocked up, which is what makes
+## open work 7 checkable at all. `Gen2BattleAnimPlayer` is the cartridge's own
+## interpreter and needs nothing but the anim data and a script index, so this
+## creates one, steps it to the frame asked for, and puts whatever it left in
+## `wShadowOAM` into the view. ANIM FRAME 0 means the busiest frame of the first
+## ninety, which is the one worth photographing and is tedious to find by hand.
+## `hud_visible` goes false with it, because `BattleAnimClearHud` takes the
+## panels and both bars off the map for the length of a move.
 ##
 ## THE SHUTTER IS ON THE COMPOSITE and the reason is in `tools/shot.gd`: a pass
 ## over the finished picture lives on the stage container's material and only
@@ -107,6 +117,63 @@ func _initialize() -> void:
 		"exp_pixels": 20,
 	}
 	_hold = maxi(int(args[10]) if args.size() > 10 else 12, 2)
+
+	var anim_index: int = int(args[12]) if args.size() > 12 else 0
+	if anim_index > 0:
+		_load_anim(
+			data, anim_index,
+			int(args[13]) if args.size() > 13 else 0,
+			bool(int(args[14])) if args.size() > 14 else false
+		)
+
+
+## Runs one of the cartridge's own move animations to a chosen frame and puts
+## what it left in OAM into the view, which is exactly what `Gen2BattleScreen`
+## does with the same two calls on every frame of a move.
+##
+## FRAME 0 finds the busiest frame itself, by running the script once and
+## keeping where the sprite count peaked, then running a fresh player back to
+## that point. A player cannot be rewound, which is why it is built twice.
+func _load_anim(data: GameData, index: int, frame: int, enemy_turn: bool) -> void:
+	var anim_data: Gen2BattleAnimData = Gen2BattleAnimData.from_game_data(data)
+	if anim_data == null:
+		print("no battle anim data in this cache")
+		return
+	const SEARCH: int = 90
+	if frame <= 0:
+		var scout: Gen2BattleAnimPlayer = Gen2BattleAnimPlayer.create(
+			anim_data, index, enemy_turn, 0
+		)
+		if scout == null:
+			print("no anim script ", index)
+			return
+		var best: int = 0
+		for step: int in SEARCH:
+			if not scout.advance_frame():
+				break
+			if (scout.sprites() as Array).size() > best:
+				best = (scout.sprites() as Array).size()
+				frame = step + 1
+		if frame <= 0:
+			print("anim ", index, " draws no sprites in ", SEARCH, " frames")
+			return
+
+	var player: Gen2BattleAnimPlayer = Gen2BattleAnimPlayer.create(
+		anim_data, index, enemy_turn, 0
+	)
+	if player == null:
+		print("no anim script ", index)
+		return
+	for _step: int in frame:
+		if not player.advance_frame():
+			break
+	_view["anim_sprites"] = player.sprites()
+	_view["anim_tiles"] = player.tiles()
+	# `BattleAnimClearHud` takes the panels and both bars off for the length of a
+	# move, so a shot of one that leaves them up is not a picture of the game.
+	_view["hud_visible"] = false
+	print("anim ", index, " frame ", frame, ": ",
+		(player.sprites() as Array).size(), " sprites")
 
 
 func _process(_delta: float) -> bool:
