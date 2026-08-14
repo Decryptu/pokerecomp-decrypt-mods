@@ -3069,16 +3069,25 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	# The one quad that is the water's own surface. The bank around it is not: the
 	# faces below are the shore, they wear the shore's art, and they are terrain.
 	_sink = SINK_WATER if _is_water(at) else SINK_TERRAIN
-	_face_top(
-		tx, ty, float(here), atlas.uv(cap),
-		SHADE_TOP_VOLUME if is_volume else SHADE_TOP_FLAT
-	)
+	var roof: bool = _part[at] == PART_ROOF
+	if roof:
+		_face_roof(tx, ty, atlas.uv(cap), SHADE_TOP_FLAT)
+	else:
+		_face_top(
+			tx, ty, float(here), atlas.uv(cap),
+			SHADE_TOP_VOLUME if is_volume else SHADE_TOP_FLAT
+		)
 	_sink = SINK_TERRAIN
 
-	_side(tx, ty, here, _height_at(tx, ty + 1), Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
-	_side(tx, ty, here, _height_at(tx, ty - 1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
-	_side(tx, ty, here, _height_at(tx + 1, ty), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
-	_side(tx, ty, here, _height_at(tx - 1, ty), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
+	# NO RISER BETWEEN TWO ROOF TILES. The tilt already carries one into the next
+	# along a shared edge both of them computed the same way, so a face here would
+	# be a wall standing out of the slope. Everything else keeps its skirt: where a
+	# roof meets anything that is not a roof, its outermost corners are its own
+	# height and the face below still reaches them.
+	_roof_side(tx, ty, roof, here, Vector2i(0, 1), Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
+	_roof_side(tx, ty, roof, here, Vector2i(0, -1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
+	_roof_side(tx, ty, roof, here, Vector2i(1, 0), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
+	_roof_side(tx, ty, roof, here, Vector2i(-1, 0), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 	if _tufted[at] == 1:
 		_tufts(tx, ty, float(here), atlas, _long_grass[at] == 1)
 	# The flight standing in the cell whose floor this is. Asked for from every one
@@ -3482,6 +3491,71 @@ func _commonest_edge_floor() -> Vector2i:
 				best = int(counts[key])
 				_edge_floor = Vector2i(_tiles[index], _heights[index])
 	return _edge_floor
+
+
+## One face of a column, unless both sides of it are roof: see the call site.
+func _roof_side(
+	tx: int, ty: int, roof: bool, here: int, step: Vector2i,
+	normal: Vector3, shade: Color, atlas: RefCounted
+) -> void:
+	var at := Vector2i(tx + step.x, ty + step.y)
+	if roof and at.x >= 0 and at.y >= 0 and at.x < _size.x and at.y < _size.y \
+			and _part[at.y * _size.x + at.x] == PART_ROOF:
+		return
+	_side(tx, ty, here, _height_at(at.x, at.y), normal, shade, atlas)
+
+
+## A ROOF IS TILTED, NOT STEPPED, and the whole of it is one rule at the corners.
+##
+## `_roof_row` drops a roof tile a band per `ROOF_DROP`, which is what the drawing
+## says; laid out as one flat quad per tile that reads as a ziggurat, a band at a
+## time, where the cartridge draws a slope. So a roof tile's top is a quad with
+## FOUR corner heights, and each corner takes the mean of the roof tiles that
+## touch it.
+##
+## That is continuous BY CONSTRUCTION and it is why nothing here can open a hole:
+## two roof tiles sharing an edge compute both of its corners from the same set
+## of neighbours, so their surfaces meet exactly whatever their nominal heights
+## are. It is also why the roof's outer edge stays where it was: past the last
+## roof tile there is nothing to average with, so the outermost corners keep the
+## tile's own height and the wall under them still reaches it.
+##
+## `_heights` is left at the nominal band. What stands on a roof, what the battle
+## traces its sight lines through and what the skirt below it reaches are all
+## questions about the storey, not about the slope across one tile.
+func _roof_corner(tx: int, ty: int, dx: int, dy: int) -> float:
+	var total: float = 0.0
+	var found: int = 0
+	for step: Vector2i in [
+		Vector2i(0, 0), Vector2i(dx, 0), Vector2i(0, dy), Vector2i(dx, dy)
+	]:
+		var at := Vector2i(tx + step.x, ty + step.y)
+		if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
+			continue
+		var index: int = at.y * _size.x + at.x
+		if _part[index] != PART_ROOF:
+			continue
+		total += float(_heights[index])
+		found += 1
+	if found == 0:
+		return float(_heights[ty * _size.x + tx])
+	return total / float(found)
+
+
+## The tilted top of one roof tile. The corners are named the way `_quad` wants
+## them, counter-clockwise seen from outside.
+func _face_roof(tx: int, ty: int, uv: Rect2, shade: Color) -> void:
+	var x0: float = _world_x(tx)
+	var x1: float = x0 + TILE
+	var z0: float = _world_z(ty)
+	var z1: float = z0 + TILE
+	_quad(
+		Vector3(x0, _roof_corner(tx, ty, -1, 1), z1),
+		Vector3(x1, _roof_corner(tx, ty, 1, 1), z1),
+		Vector3(x1, _roof_corner(tx, ty, 1, -1), z0),
+		Vector3(x0, _roof_corner(tx, ty, -1, -1), z0),
+		Vector3.UP, uv, shade
+	)
 
 
 func _face_top(tx: int, ty: int, y: float, uv: Rect2, shade: Color) -> void:
