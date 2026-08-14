@@ -3000,6 +3000,14 @@ func _tile_at(tx: int, ty: int) -> int:
 ## under itself; the height, because that ground is what the thing stands on, and
 ## a bush beside a plateau that stood at zero instead would sink into the rock
 ## and take the floor around it with it.
+##
+## A STAIRCASE IS NOT THE GROUND BESIDE ANYTHING, and it has to be refused here.
+## A flight marks its cells flat at the height its climb STARTS from, which is a
+## walk cell below the floor for a stairwell and the bottom of the run for a
+## flight, so a cutout that took it would stand at the foot of the stairs while
+## its own cell stands at the top. The League's platform is the case: the
+## banister end at its south-east corner sat beside the east flight, took that
+## flight's zero, and opened a hole in the platform floor.
 func _ground_art(tx: int, ty: int) -> Vector2i:
 	for step: Vector2i in [
 		Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0),
@@ -3009,6 +3017,8 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 		if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
 			continue
 		var index: int = at.y * _size.x + at.x
+		if _stair_at[index] >= 0:
+			continue
 		if _art[index] == ART_FLAT and _heights[index] >= 0:
 			return Vector2i(maxi(_tiles[index], 0), _heights[index])
 	return Vector2i(maxi(_tiles[ty * _size.x + tx], 0), 0)

@@ -697,6 +697,16 @@ const STAIRS: Dictionary = {
 			&"step": Vector2i(0, -1),
 			&"steps": 5,
 		},
+		# THE SOUTH SKIRT either side of the carpet, which is the same five steps
+		# the carpet climbs, drawn on the same dais and running between the carpet
+		# and each corner landing. Folded onto a one-level wall it read as steps
+		# from most angles and as a painted stripe from above.
+		{
+			&"tiles": [[145, 145], [142, 142]],
+			&"down": false,
+			&"step": Vector2i(0, -1),
+			&"steps": 5,
+		},
 		# THE TWO CORNER LANDINGS, where the west and east runs meet the south
 		# skirt, and the only flight in the game that TURNS. The reviewer read both
 		# and their words are the specification: "both horizontal and vertical steps
@@ -705,6 +715,10 @@ const STAIRS: Dictionary = {
 		#
 		# A key of tileset and tile is NOT unique here: 136 is the first tile of the
 		# west run as well, and only the whole arrangement tells the two apart.
+		# THE SOUTH SKIRT either side of the carpet, which is the same five steps
+		# the carpet climbs, drawn on the same dais and running between the carpet
+		# and each corner landing. Folded onto a one-level wall it read as steps
+		# from most angles and as a painted stripe from above.
 		{
 			&"tiles": [[136, 144], [141, 142]],
 			&"down": false,
