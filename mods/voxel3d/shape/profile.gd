@@ -1123,6 +1123,8 @@ const TILESETS: Dictionary = {
 	# from. See "The sprite-to-model pipeline".
 	9: {
 		&"boulder": [1, 2, 17, 18],
+		# The pair flanking a doorway, one placement each on two maps.
+		&"statue_pillar": [6, 7, 22, 23, 8, 9, 24, 25],
 	},
 	24: {
 		&"boulder": [12, 13, 28, 29],
@@ -1132,6 +1134,11 @@ const TILESETS: Dictionary = {
 	},
 	17: {
 		&"tall_grass": [87],
+		# THE BRONZE FIGURE ON A STONE PLINTH, twelve of them over three maps and
+		# drawn over two different bases: the second swaps the base's top row for
+		# [16, 1], which this tileset draws nowhere else, so both are pinned or half
+		# a drawing resolves no span at all.
+		&"statue_pillar": [72, 73, 88, 89, 74, 75, 90, 91, 16, 1],
 	},
 	# THE BIG TREE, and it is one whole block: four tiles by four, canopy, trunk
 	# and the shadow ellipse it stands in, described tile by tile in the full
@@ -1172,6 +1179,31 @@ const TILESETS: Dictionary = {
 	# pinned and half not resolves no span at all.
 	23: {
 		&"statue_pillar": [34, 35, 50, 51, 18, 19, 54, 55, 74, 75, 90, 91, 76, 92],
+	},
+	# THE OTHER FIVE THE FULL PASS CALLED `statue`, all of them the same
+	# arrangement as the three above: a 2x4 run of tiles, one walk cell wide and
+	# two tall, the upper cell the figure and the lower one the base it stands on.
+	# Held back a round because moving the CLASS had moved all seven at once and
+	# tileset 26's was read as coming out worse; photographed one at a time it does
+	# not, and what it replaced there is two thin pipes.
+	#
+	# THE LEAGUE'S HALL, eight of them down a red carpet on map 16,7, and the
+	# clearest drawing of the arrangement in the game: a round head on a tiered
+	# pedestal with open floor either side of it.
+	18: {
+		&"statue_pillar": [152, 153, 154, 155, 156, 157, 158, 159],
+	},
+	# The pair flanking a doorway, one placement each on one map.
+	10: {
+		&"statue_pillar": [76, 77, 92, 93, 78, 79, 94, 95],
+	},
+	# THE RUINS OF ALPH, 42 of them over nine maps, and it is the SAME DRAWING
+	# tileset 23 places in its wooden hall, pixel for pixel over both cells and
+	# only the palette apart. Neither is cut well: it fills its 16x32 box edge to
+	# edge in the box's own shades, so the border flood is arbitrary and lands in
+	# opposite places on the two tilesets. See the open work item.
+	26: {
+		&"statue_pillar": [14, 15, 30, 31, 46, 47, 62, 63],
 	},
 	# THE SCHOOL'S NORTH WALL, which the full pass read as three more flights of
 	# stairs and the reviewer read tile by tile. One run holds two real flights set
