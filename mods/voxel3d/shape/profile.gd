@@ -303,6 +303,17 @@ const FILLED: Dictionary = {
 ## its face is 6 rows and they measured 6 or 7 high. Where a drawing has no top
 ## band at all the depth is not in the picture and is authored: their number for
 ## the chair is 6.
+##
+## A -1 in the arrangement is a tile the object covers and has no opinion about.
+## OUTSIDE is the other thing a rectangle can hold and the SHIP needed it: a
+## bounding box round something that is not rectangular holds tiles that are not
+## the object at all, and giving open sea back to the floor puts a still slab in
+## the middle of a harbour. An OUTSIDE tile is matched against nothing, is not
+## covered, and keeps whatever it already was. It is still part of the rectangle
+## the MASK is cut over, which is the whole reason to name it rather than shrink
+## the box: see the ship.
+const OUTSIDE: int = -2
+
 const OBJECTS: Dictionary = {
 	13: [
 		# The school desk, and the thing that made this whole item: 32 wide, drawn as
@@ -336,6 +347,44 @@ const OBJECTS: Dictionary = {
 			&"height": 6,
 		},
 	],
+	9: [
+		# THE SHIP, and it is the largest thing in the game: fifteen tiles by six,
+		# moored at the foot of the pier on both port maps and drawn the same way on
+		# each. The reviewer's own answer named this machinery before it existed:
+		# "flag every single part of the boat to have its global size, and just make
+		# a voxel model directly where those tiles are".
+		#
+		# ITS BOX IS A TILE OF OPEN WATER WIDER THAN ITSELF ON EVERY SIDE, and that
+		# margin is the object. A mask is cut by flooding in from the border, and the
+		# border of the hull's own rectangle is half hull: the flood read three of
+		# the four palette indices as sea and ate the ship. Ringed in water the ring
+		# is 91% one index, the flood stops at the paint and the mask is the ship.
+		# The margin tiles are OUTSIDE, so the sea is not handed to the floor.
+		#
+		# The window is the drawing and the arrangement is the rectangle it was cut
+		# from: 120 px by 48, starting a tile in and a tile down. Its top forty rows
+		# are the decks seen from above, laid across forty pixels of water; the last
+		# eight are the hull, standing eight above the waterline. Both are the
+		# drawing's own row counts, which is the rule wherever a drawing has a top
+		# band at all.
+		{
+			&"name": &"ship",
+			&"tiles": [
+				[-2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2],
+				[-2, -2, -2, -2, -2, -2, -2, 36, 37, 38, 39, 40, 41, 42, -2, -2, -2],
+				[-2, 43, 44, 45, 45, 46, 47, 48, 50, 51, 52, 53, 16, 54, 55, 56, -2],
+				[-2, 57, 58, 58, 51, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, -2],
+				[-2, 43, 44, 45, 51, 70, 71, 72, 73, 73, 74, 75, 76, 77, 78, 79, -2],
+				[-2, 57, 58, 80, 81, 82, 82, 83, 83, 84, 44, 45, 85, 86, 87, -2, -2],
+				[-2, -2, 88, 89, 90, 90, 91, 92, 92, 93, 94, 94, 94, 95, -2, -2, -2],
+				[-2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2],
+			],
+			&"window": Rect2i(8, 8, 120, 48),
+			&"top": 40,
+			&"depth": 40,
+			&"height": 8,
+		},
+	],
 	14: [
 		# THE SAME CHAIR AGAIN, on a tileset that draws it 12 by 11 filling a whole
 		# walk cell rather than straddling four tiles, and lays it out in a
@@ -351,7 +400,8 @@ const OBJECTS: Dictionary = {
 			&"depth": 6,
 			&"height": 6,
 		},
-	],	24: [
+	],
+	24: [
 		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
 		# ladder going upstair, its placed on the ground". A portrait seen face-on
 		# with no rows above it at all, so it is the chair's own case with nothing

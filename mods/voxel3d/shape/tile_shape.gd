@@ -158,6 +158,13 @@ func objects() -> Array:
 	return _profile.OBJECTS.get(_tileset_number, [])
 
 
+## The arrangement entry that means a tile inside the object's rectangle is not
+## part of the object: not matched, not covered, and left as it was. See
+## `profile.gd:OUTSIDE`.
+func object_outside() -> int:
+	return _profile.OUTSIDE
+
+
 ## The STAIRCASES this tileset draws, found by the same arrangement of tile ids
 ## an object is. See `profile.gd:STAIRS`.
 func stairs() -> Array:

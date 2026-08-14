@@ -1173,11 +1173,20 @@ func _pattern_at(pattern: Array, across: Vector2i, tx: int, ty: int) -> bool:
 ##
 ## Two objects may cover the same tile and both are drawn, which is the desk and
 ## the chair below it.
+##
+## A RECTANGLE IS NOT A FOOTPRINT once an object is bigger than a stick of
+## furniture. The ship's box holds open sea at all four corners, and handing that
+## sea to the floor lays a still slab across the harbour, so those tiles are
+## declared OUTSIDE: matched against nothing, covered by nothing, left as they
+## were. They stay in the rectangle the MASK is cut over, which is what makes
+## them worth naming rather than cropping away: a border flood needs a border of
+## open water to read, and the ship reaches the edge of its own hull.
 func _measure_objects(shape: RefCounted) -> void:
 	_object_covered.resize(_size.x * _size.y)
 	_object_covered.fill(0)
 	_object_over.clear()
 	_objects.clear()
+	var outside: int = shape.object_outside()
 	var declared: Array = shape.objects()
 	for object: Dictionary in declared:
 		var pattern: Array = object[&"tiles"]
@@ -1199,6 +1208,8 @@ func _measure_objects(shape: RefCounted) -> void:
 						floors.append(_cell_floor((tx + column) >> 1, (ty + row) >> 1))
 				for row: int in across.y:
 					for column: int in across.x:
+						if int((pattern[row] as Array)[column]) == outside:
+							continue
 						var at: int = (ty + row) * _size.x + tx + column
 						_object_covered[at] = 1
 						_art[at] = ART_CUTOUT
