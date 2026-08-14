@@ -98,6 +98,31 @@ const CLIMB_RANGE: float = 45.0
 const SWING_STEP: float = 0.08
 const CLIMB_STEP: float = 0.08
 
+## THE SHOT DRIFTS, which is what gives a flat picture its parallax.
+##
+## The reference's own pair (`lib/BattleCam.lua`): a small orbit with a smaller
+## dolly under it, on a period that shares no factor with the orbit's, so the two
+## never come back into step and the motion never reads as a loop.
+##
+## IT IS NOT FREE HERE and the solved rig is why. A battler is pinned to its
+## patch of ground and drawn in hardware pixels wherever that patch projects to,
+## so moving the eye moves both of them on the screen, and the whole point of
+## SIDE, BACK, HEIGHT and LOOK is that they land in the hardware's own picture
+## slots. So this is deliberately half the reference's orbit, and how far it
+## actually carries them is MEASURED rather than argued: over a whole period of
+## both terms the enemy's ground point moves 1.96 x 0.44 hardware pixels and the
+## player's 2.90 x 0.67, against 48 px pictures. Three pixels of wander on a
+## composition solved to 0.013 is the whole of what this spends.
+##
+## About the FOCUS rather than about the arena's midpoint, and the dolly along
+## the same arm, so the pair stays nailed to the middle of the frame and only
+## the parallax behind them moves. That is the same rule the climb follows.
+const DRIFT_DEGREES: float = 1.0
+const DRIFT_PERIOD: float = 19.0
+## In world pixels, on a period of its own.
+const DRIFT_DOLLY: float = 1.6
+const DRIFT_DOLLY_PERIOD: float = 13.0
+
 var _source: RefCounted = null
 var _heights: RefCounted = null
 ## The arena's midpoint, halfway between the two battlers.
@@ -113,6 +138,9 @@ var _swing_goal: float = 0.0
 var _climb_goal: float = 0.0
 var _zoom_goal: float = 1.0
 var _t: float = 1.0
+## The drift's own clock, in seconds. It is the one thing here that never
+## finishes, so it is advanced whether or not a steer is easing.
+var _drift: float = 0.0
 ## Which way a wheel notch zooms, from the player's own setting.
 var _wheel_sign: int = 1
 
@@ -229,15 +257,32 @@ func target() -> Vector3:
 	return _mid + Vector3(LOOK_X, LOOK_Y, 0.0)
 
 
+## How far the drift has swung the eye and pushed it back, this instant. See the
+## constants: two periods that share no factor, so the pair never loops.
+func _drift_yaw() -> float:
+	return deg_to_rad(DRIFT_DEGREES) * sin(TAU * _drift / DRIFT_PERIOD)
+
+
+func _drift_dolly() -> float:
+	return DRIFT_DOLLY * sin(TAU * _drift / DRIFT_DOLLY_PERIOD)
+
+
 ## The eye. Zero swing, zero climb and one zoom is exactly the shot the rig was
-## solved for; the steer moves out from it and never past its stops.
+## solved for; the steer moves out from it and never past its stops, and the
+## drift breathes around wherever the steer has left it.
 func eye() -> Vector3:
-	var yaw: float = -_swing * deg_to_rad(_swing_range())
+	var yaw: float = -_swing * deg_to_rad(_swing_range()) + _drift_yaw()
 	var seat: Vector3 = _mid + Vector3(
 		SIDE * cos(yaw) - BACK * sin(yaw),
 		HEIGHT,
 		SIDE * sin(yaw) + BACK * cos(yaw)
 	)
+	# The dolly rides the arm from the focus, so it lengthens the shot rather
+	# than sliding it, and the climb below preserves whatever it came to.
+	var aim: Vector3 = target()
+	var reach_now: float = (seat - aim).length()
+	if reach_now > 0.001:
+		seat = aim + (seat - aim) * (1.0 + _drift_dolly() / reach_now)
 	if _climb <= 0.0:
 		return seat
 
@@ -325,7 +370,11 @@ func set_wheel_sign(sign_of_wheel: int) -> void:
 
 
 ## Real frame time, so a fast-forwarded battle never spins the camera.
+##
+## The answer is still whether a STEER is easing, which is what a caller asking
+## means. The drift is not a steer and never finishes.
 func advance(delta: float) -> bool:
+	_drift += delta
 	if _t >= 1.0:
 		return false
 	_t = minf(1.0, _t + delta / Steering.TWEEN_TIME)
