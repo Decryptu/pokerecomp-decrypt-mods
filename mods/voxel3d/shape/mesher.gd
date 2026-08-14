@@ -158,6 +158,10 @@ const PART_WALL: int = 1
 const PART_ROOF: int = 2
 var _part := PackedByteArray()
 var _drop := PackedByteArray()
+## How many pixels off each facade tile's left and right edges are ground rather
+## than wall. See `profile.gd:FACADE_MARGIN`.
+var _margin_left := PackedByteArray()
+var _margin_right := PackedByteArray()
 var _heights := PackedInt32Array()
 var _volume := PackedByteArray()
 ## Per tile: whether it draws the face of a terrain CLIFF, and whether that face
@@ -504,6 +508,8 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_klass.resize(count)
 	_part.resize(count)
 	_drop.resize(count)
+	_margin_left.resize(count)
+	_margin_right.resize(count)
 	_heights.resize(count)
 	_volume.resize(count)
 	_cliff.resize(count)
@@ -575,6 +581,13 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 				_:
 					_part[at] = PART_NONE
 			_drop[at] = shape.roof_drop(shape_class)
+			# How much of this tile is the ground beside the house rather than the
+			# house. Nearly always nothing, which is why it is stored per tile and
+			# read at emit rather than being another pass.
+			var margin: Vector2i = shape.facade_margin(tile) \
+				if _part[at] == PART_WALL else Vector2i.ZERO
+			_margin_left[at] = margin.x
+			_margin_right[at] = margin.y
 			var is_volume: bool = art == &"upright"
 			_volume[at] = 1 if is_volume else 0
 			_cliff[at] = 1 if is_volume and shape.is_cliff(tile) else 0
@@ -3069,6 +3082,13 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	# The one quad that is the water's own surface. The bank around it is not: the
 	# faces below are the shore, they wear the shore's art, and they are terrain.
 	_sink = SINK_WATER if _is_water(at) else SINK_TERRAIN
+	# A facade tile whose drawing is part ground: narrower box, floor beside it.
+	if _margin_left[at] > 0 or _margin_right[at] > 0:
+		_emit_margined(
+			tx, ty, here, cap, int(_margin_left[at]), int(_margin_right[at]), atlas
+		)
+		_sink = SINK_TERRAIN
+		return
 	var roof: bool = _part[at] == PART_ROOF
 	if roof:
 		_face_roof(tx, ty, atlas.uv(cap), SHADE_TOP_FLAT)
@@ -3491,6 +3511,125 @@ func _commonest_edge_floor() -> Vector2i:
 				best = int(counts[key])
 				_edge_floor = Vector2i(_tiles[index], _heights[index])
 	return _edge_floor
+
+
+## A FACADE TILE THAT DOES NOT DRAW ONLY FACADE, narrowed to the part that is.
+##
+## The wall's own box shrinks off the edges the drawing says are ground, and the
+## strip that leaves is floor, drawn at whatever the neighbour beside it stands
+## at and wearing that neighbour's art. `profile.gd:FACADE_MARGIN` says why.
+##
+## Everything else about the tile is unchanged: the box still folds the same
+## drawing, still skirts to the same neighbours and still caps at the same
+## height, so this is one narrower box and one quad of floor rather than a new
+## kind of thing.
+func _emit_margined(
+	tx: int, ty: int, here: int, cap: int, left: int, right: int,
+	atlas: RefCounted
+) -> void:
+	var x0: float = _world_x(tx) + float(left)
+	var x1: float = _world_x(tx) + TILE - float(right)
+	var z0: float = _world_z(ty)
+	var z1: float = z0 + TILE
+	var uv: Rect2 = atlas.uv(cap)
+	_quad(
+		Vector3(x0, float(here), z1), Vector3(x1, float(here), z1),
+		Vector3(x1, float(here), z0), Vector3(x0, float(here), z0),
+		Vector3.UP, uv, SHADE_TOP_VOLUME
+	)
+	# The floor the narrowing exposes, one strip per edge, at the height of
+	# whatever stands beside it so a house on a step does not float its own verge.
+	if left > 0:
+		_margin_floor(tx, ty, _world_x(tx), x0, _height_at(tx - 1, ty), atlas)
+	if right > 0:
+		_margin_floor(tx, ty, x1, _world_x(tx) + TILE, _height_at(tx + 1, ty), atlas)
+
+	_side_span(tx, ty, x0, x1, here, _height_at(tx, ty + 1),
+		Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
+	_side_span(tx, ty, x0, x1, here, _height_at(tx, ty - 1),
+		Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
+	# The narrowed sides face the strip they just exposed, so they run down to the
+	# ground beside rather than to the neighbour two tiles away.
+	var west: int = _height_at(tx - 1, ty) if left == 0 else mini(
+		_height_at(tx - 1, ty), _height_at(tx, ty + 1)
+	)
+	var east: int = _height_at(tx + 1, ty) if right == 0 else mini(
+		_height_at(tx + 1, ty), _height_at(tx, ty + 1)
+	)
+	_side_at(x1, z0, z1, here, east, Vector3(1.0, 0.0, 0.0), tx, ty, atlas)
+	_side_at(x0, z0, z1, here, west, Vector3(-1.0, 0.0, 0.0), tx, ty, atlas)
+
+
+## One strip of floor left by a narrowed facade, wearing the art of the tile it
+## runs out to.
+func _margin_floor(
+	tx: int, ty: int, x0: float, x1: float, height: int, atlas: RefCounted
+) -> void:
+	var z0: float = _world_z(ty)
+	var z1: float = z0 + TILE
+	var ground: Vector2i = _ground_art(tx, ty)
+	var uv: Rect2 = atlas.uv(ground.x)
+	var y: float = float(maxi(height, ground.y))
+	_quad(
+		Vector3(x0, y, z1), Vector3(x1, y, z1),
+		Vector3(x1, y, z0), Vector3(x0, y, z0),
+		Vector3.UP, uv, SHADE_TOP_FLAT
+	)
+
+
+## The south or north face of a narrowed box, band by band as `_side` does it but
+## over a chosen span of x rather than the whole tile.
+func _side_span(
+	tx: int, ty: int, x0: float, x1: float, here: int, neighbour: int,
+	normal: Vector3, shade: Color, atlas: RefCounted
+) -> void:
+	if neighbour >= here:
+		return
+	var z0: float = _world_z(ty)
+	var z1: float = z0 + TILE
+	@warning_ignore("integer_division")
+	for step: int in (here - neighbour) / BAND:
+		var low: float = float(neighbour + step * BAND)
+		var high: float = low + TILE
+		var uv: Rect2 = atlas.uv(_band_tile(tx, ty, maxi(floori(low / TILE), 0)))
+		if normal.z > 0.0:
+			_quad(
+				Vector3(x0, low, z1), Vector3(x1, low, z1),
+				Vector3(x1, high, z1), Vector3(x0, high, z1),
+				normal, uv, shade
+			)
+		else:
+			_quad(
+				Vector3(x1, low, z0), Vector3(x0, low, z0),
+				Vector3(x0, high, z0), Vector3(x1, high, z0),
+				normal, uv, shade
+			)
+
+
+## The east or west face of a narrowed box, standing at a chosen x.
+func _side_at(
+	x: float, z0: float, z1: float, here: int, neighbour: int,
+	normal: Vector3, tx: int, ty: int, atlas: RefCounted
+) -> void:
+	if neighbour >= here:
+		return
+	@warning_ignore("integer_division")
+	for step: int in (here - neighbour) / BAND:
+		var low: float = float(neighbour + step * BAND)
+		var high: float = low + TILE
+		var uv: Rect2 = atlas.uv(_band_tile(tx, ty, maxi(floori(low / TILE), 0)))
+		if normal.x > 0.0:
+			_quad(
+				Vector3(x, low, z1), Vector3(x, low, z0),
+				Vector3(x, high, z0), Vector3(x, high, z1),
+				normal, uv, SHADE_SIDE
+			)
+		else:
+			_quad(
+				Vector3(x, low, z0), Vector3(x, low, z1),
+				Vector3(x, high, z1), Vector3(x, high, z0),
+				normal, uv, SHADE_SIDE
+			)
 
 
 ## One face of a column, unless both sides of it are roof: see the call site.

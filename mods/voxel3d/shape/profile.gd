@@ -990,6 +990,43 @@ const ROOF_DROP: Dictionary = {
 	&"roof_corner": 2,
 }
 
+## HOW MUCH OF A FACADE TILE IS NOT THE FACADE, in pixels off its left and right
+## edges, per tileset and tile.
+##
+## A wall's end tile does not draw only wall. The reviewer read tileset 3's tile
+## by tile: "this is the right edge of a house wall, the white vertical line on
+## the far right is the floor, the grayish part is the house shadow, the black
+## line is the house wall edge, and the white section on the left is the house
+## wall itself". So five of its eight columns are the ground BESIDE the house and
+## the shadow the house throws on it, and folding the tile whole stood all five
+## up on the wall's face: every house in the game wore a pale grey frame down
+## both edges.
+##
+## The wall's box is narrowed by these instead, and the strip they leave is
+## floor. What the drawing says about the shadow is dropped rather than laid
+## down, for the reason a model drops its darkest shade: that shadow is what a
+## flat picture needs to sit an object on a floor, and this floor has a sun over
+## it throwing a real one.
+##
+## The BOTTOM rows of the same drawings are deliberately not here. Tile 26's last
+## two rows are shadow and floor too, but they land at the very foot of the wall
+## where it meets the ground, and two pixels of dark there read as the contact
+## shadow they are. Only the vertical strips read as a frame.
+const FACADE_MARGIN: Dictionary = {
+	3: {
+		# The right edge of a wall, and the bottom right corner under it.
+		31: Vector2i(0, 5),
+		60: Vector2i(0, 5),
+		# The left edge of a wall, and the bottom left corner under it, which the
+		# reviewer read the same way about: "the white vertical line on the far left
+		# is the floor, the grayish part is the house shadow, the black line is the
+		# house wall edge, and the white section on the right is the house wall
+		# itself".
+		15: Vector2i(5, 0),
+		29: Vector2i(5, 0),
+	},
+}
+
 ## How the mesher draws each class.
 ##
 ##   flat     one quad, no box. Ground, water, the void past a map edge.

@@ -151,6 +151,14 @@ func roof_drop(shape_class: StringName) -> int:
 	return int(_profile.ROOF_DROP.get(shape_class, 0))
 
 
+## How many pixels off a facade tile's left and right edges are the ground beside
+## the house rather than the house. Per TILE, not per class: it is a fact about
+## one drawing. See `profile.gd:FACADE_MARGIN`.
+func facade_margin(tile: int) -> Vector2i:
+	var table: Dictionary = _profile.FACADE_MARGIN.get(_tileset_number, {})
+	return table.get(tile, Vector2i.ZERO)
+
+
 ## The OBJECTS this tileset draws, which are declared per tileset and never per
 ## class: an object is identified by the arrangement of tile ids it is drawn out
 ## of, because no one of those tiles is the object. See `profile.gd:OBJECTS`.
