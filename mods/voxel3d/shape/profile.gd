@@ -1471,6 +1471,9 @@ const TILESETS: Dictionary = {
 	6: {
 		&"stool": [2, 3, 18, 19],
 	},
+	16: {
+		&"railing": [64, 65],
+	},
 }
 
 ## The tiles the PASS pinned and a person has taken back.
