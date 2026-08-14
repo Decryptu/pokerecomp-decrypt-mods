@@ -7,7 +7,10 @@ extends SceneTree
 ## corner and a book. What makes a drawing readable is what it sits next to. So
 ## for every tile still worth asking about, this finds a place the cartridge
 ## actually uses it, renders the map around it exactly as the 2D view draws it,
-## and rings the tile in red.
+## and rings the tile twice, in magenta and white. See RING_OUTER.
+##
+## For a drawing spanning several tiles rather than one, `map_art.gd` rings a
+## rectangle the same way and crops the map around it.
 ##
 ## Two modes, because two different readers ask for two different things.
 ##
