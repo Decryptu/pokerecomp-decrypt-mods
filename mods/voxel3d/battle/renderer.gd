@@ -21,6 +21,7 @@ extends Control
 
 const Options: GDScript = preload("../options.gd")
 const Steering: GDScript = preload("../steering.gd")
+const Frost: GDScript = preload("panel.gd")
 
 const CELL: float = 16.0
 
@@ -62,10 +63,16 @@ const PANEL_PAD: int = 2
 ## each block gets one, and deliberately a light one: the point of this view is
 ## seeing where you are standing, and an opaque slab in the corner of the frame
 ## is the white field back again under another name.
+##
+## What is BEHIND it is blurred rather than merely tinted, which is what stops a
+## dithered path competing with the writing without making the backing any more
+## solid. `panel.gd` is that pass and this colour is the whole of what it mixes
+## toward.
 const PANEL_TINT := Color(1.0, 1.0, 1.0, 0.52)
 
 var _hud: Gen2BattleHud = null
 var _panels_backing: Array[ColorRect] = []
+var _frost: RefCounted = null
 var _hud_layers: Array[TextureRect] = []
 var _battlers: Array[TextureRect] = []
 var _pic_textures: Dictionary = {}
@@ -79,10 +86,15 @@ func _init() -> void:
 	var modules: Dictionary = _load_modules()
 	_stage = (modules["diorama"] as GDScript).new()
 	add_child(_stage.container)
-	# The backing goes in first, so both panels sit under every drawn layer.
+	# The backing goes in first, so both panels sit under every drawn layer. That
+	# order is also what lets the frost read the world: a screen texture holds
+	# what has been drawn so far, which here is the composited stage and nothing
+	# of the HUD.
+	_frost = Frost.new()
 	for panel: Rect2i in [ENEMY_PANEL, PLAYER_PANEL]:
 		var backing := ColorRect.new()
 		backing.color = PANEL_TINT
+		backing.material = _frost.material
 		backing.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		backing.set_meta(&"tiles", panel)
 		add_child(backing)
@@ -609,6 +621,10 @@ func _show(index: int, indices: PackedByteArray, palette: PackedColorArray) -> v
 func _layout_hud() -> void:
 	for layer: TextureRect in _hud_layers:
 		_layout_layer(layer)
+	# The frost reaches the same number of HARDWARE pixels at every window size,
+	# so it does not sharpen as the window grows.
+	if _frost != null:
+		_frost.set_scale(_hud_scale())
 	for backing: ColorRect in _panels_backing:
 		var tiles: Rect2i = backing.get_meta(&"tiles")
 		var factor: int = _hud_scale()
