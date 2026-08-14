@@ -145,5 +145,9 @@ func _initialize() -> void:
 		var file: FileAccess = FileAccess.open(args[2], FileAccess.WRITE)
 		if file != null:
 			file.store_string(JSON.stringify(lines, "  "))
+			# CLOSED, or `quit()` takes the buffer with it: every per-map file this
+			# tool wrote came out cut off at 72 KB, which is most of the way through
+			# the game and looks like a complete run until it is parsed.
+			file.close()
 			print("wrote ", args[2])
 	quit()
