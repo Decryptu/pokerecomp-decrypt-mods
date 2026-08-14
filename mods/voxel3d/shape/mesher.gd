@@ -3082,8 +3082,34 @@ func _house_body(
 		"right_rise": float(foot + 1 - tops[right]),
 		"thick": 0,
 	}
+	# HOW THICK THE SLAB IS, read at the tallest course and then anywhere.
+	#
+	# A ROOF CUT OFF BY THE TOP OF THE DRAWING HAS NO EAVE AT ITS OWN PEAK, and
+	# read only there the whole building loses its slab. The Radio Tower is that:
+	# 20 tiles square, its wings' wall starting at row 32 with three rows of eave
+	# above them, and its glass column running to row 0 with nothing above it at
+	# all, so the tallest column measured no thickness and neither wing was roofed.
+	# The reviewer's answer in round twenty-two is a flat cap over the whole of it,
+	# each column at the top of its own wall, so the thickness is taken from the
+	# courses that DO draw one: the commonest eave over the building's columns,
+	# which is the same rule the atlas reads a tile's ground with, and a tie goes
+	# to the thicker since an eave is never thinner than it is drawn.
 	if eave_to[m0] >= 0:
 		plan["thick"] = eave_to[m0] - eave_from[m0] + 1
+	else:
+		var seen: Dictionary = {}
+		for x: int in range(left, right + 1):
+			if eave_to[x] < 0:
+				continue
+			var band: int = eave_to[x] - eave_from[x] + 1
+			seen[band] = int(seen.get(band, 0)) + 1
+		var best: int = 0
+		for band: int in seen:
+			if seen[band] > int(seen.get(best, 0)) or (
+				seen[band] == int(seen.get(best, 0)) and band > best
+			):
+				best = band
+		plan["thick"] = best
 	return plan
 
 
