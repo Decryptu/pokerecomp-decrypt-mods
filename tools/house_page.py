@@ -127,6 +127,14 @@ PAGE = """<!doctype html>
     of tiles, so painting this one paints all of them, however many towns it
     stands in. The count beside the name is how many times the game places it.
   </p>
+  <p class="hint">
+    <b>They are ordered by how much of the game they cover, so stop whenever you
+    like.</b> The first twenty carry more than half the placements in the whole
+    game; the last few are single blocks where several buildings touch and come
+    out as one enormous drawing. The counter at the bottom says how much of the
+    game you have reached. Anything left alone keeps the reading the mod already
+    has, so a half-finished painting is worth exactly the part you did.
+  </p>
 </main>
 <footer>
   <span class="chip" id="count"></span>
