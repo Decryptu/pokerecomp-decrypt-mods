@@ -25,6 +25,7 @@ extends RefCounted
 ## Side faces are never stretched. Every side is 8px bands with the art tiled per
 ## band, and a band below a neighbour's own height is not emitted at all.
 
+const Houses: GDScript = preload("houses.gd")
 const Levels: GDScript = preload("levels.gd")
 const Model: GDScript = preload("model.gd")
 
@@ -170,6 +171,19 @@ var _slope := PackedByteArray()
 ## wall has. Only a leaned tile is tilted and only two of them share an edge with
 ## no riser between: see `_face_roof`.
 var _pitched := PackedByteArray()
+## THE HOUSES A PERSON PAINTED. Per tile: which surface of a painted drawing it
+## depicts, and how many bands a painted roof tile stands below its own ridge.
+## See `_match_houses` and `shape/houses.gd`.
+const HOUSE_NONE: int = 0
+const HOUSE_GROUND: int = 1
+const HOUSE_WALL: int = 2
+const HOUSE_ROOF: int = 3
+var _house := PackedByteArray()
+var _house_fall := PackedByteArray()
+## One entry per painted placement on this map: the tile it starts at and how
+## many tiles across and down it runs. The roof pass needs the PLACEMENT and not
+## the tile, because a roof takes one reference height across the whole building.
+var _house_places: Array = []
 ## Per tile: whether it is the VOID past the edge of the world rather than ground.
 ## Both draw one flat quad at the same height and nothing else in the mesh has had
 ## to tell them apart. A great roof does: it falls away from the floor a person
@@ -626,6 +640,12 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			else:
 				_heights[at] = shape.height(shape_class)
 
+	# Before every measurement, because a painting corrects what a tile IS: the
+	# passes below then read a painted door as the wall it is drawn on, exactly as
+	# they read a pinned one.
+	var painted_map: Gen2WorldMap = source.map()
+	if painted_map != null:
+		_match_houses(shape, painted_map.tileset)
 	_measure_columns()
 	# Before the plateau pass, which is the automatic reading of the same thing:
 	# where a person has said what the levels are, the cliff pass has nothing left
@@ -686,6 +706,172 @@ func _apply_levels(source: RefCounted) -> void:
 				_heights[at] = height if _heights[at] >= 0 else _heights[at] + height
 			elif _heights[at] >= 0:
 				_heights[at] += height
+
+
+## THE HOUSES A PERSON PAINTED, found by their own arrangement of tile ids.
+##
+## A house packs three surfaces into one flat drawing: a wall seen face-on, a
+## roof seen from above, and on some tilesets the front PITCH of that roof drawn
+## face-on as well. No measurement separates them, so a person paints which is
+## which on `tools/house_page.py` and `shape/houses.gd` is what comes back. This
+## is the same authority `levels.gd` has over the cliff pass: where a painting
+## exists it wins, and where none does nothing changes.
+##
+## THE ARRANGEMENT IS THE KEY, matched by `_pattern_at` exactly as an object or a
+## staircase is, so one painting serves every placement of the drawing.
+##
+## A DOOR STANDS UP WITH THE WALL AROUND IT. Its cell is walkable, so `at()`
+## calls it ground and the column stood at nothing: the doorway came out as a
+## slot cut clean through the house. Painted, it is a wall wearing the door's own
+## drawing, and the player still walks through it, because a pin is
+## presentational and nothing here touches collision.
+func _match_houses(shape: RefCounted, tileset_number: int) -> void:
+	var count: int = _size.x * _size.y
+	_house.resize(count)
+	_house.fill(HOUSE_NONE)
+	_house_fall.resize(count)
+	_house_fall.fill(0)
+	_house_places.clear()
+	# BIGGEST FIRST, AND FIRST CLAIM WINS, which is the reference's own rule for
+	# the same table. One house's rectangle can hold a smaller one's, and a small
+	# drawing repainting the middle of a big one would leave a building painted
+	# two ways.
+	var painted: Array = Houses.of_tileset(tileset_number)
+	painted.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return (a["tiles"] as Array).size() * ((a["tiles"][0] as Array).size()) \
+			> (b["tiles"] as Array).size() * ((b["tiles"][0] as Array).size()))
+	for house: Dictionary in painted:
+		var pattern: Array = house["tiles"]
+		var paint: Array = house["paint"]
+		var fall: Array = house["fall"]
+		var across := Vector2i((pattern[0] as Array).size(), pattern.size())
+		if across.x > _size.x or across.y > _size.y:
+			continue
+		for ty: int in _size.y - across.y + 1:
+			for tx: int in _size.x - across.x + 1:
+				if not _pattern_at(pattern, across, tx, ty):
+					continue
+				if _house_claimed(tx, ty, across):
+					continue
+				_house_places.append([Vector2i(tx, ty), across])
+				for row: int in across.y:
+					var strokes: String = paint[row]
+					for column: int in across.x:
+						var at: int = (ty + row) * _size.x + tx + column
+						var stroke: String = strokes[column]
+						match stroke:
+							Houses.NONE:
+								# NOT THE HOUSE only takes a tile the pass had
+								# called one. The rectangle holds the pavement,
+								# the shadow and whatever tree stands beside the
+								# door, and flattening those would be a painting
+								# nobody made.
+								if _part[at] == PART_NONE:
+									continue
+								_house[at] = HOUSE_GROUND
+							Houses.WALL, Houses.PITCH, Houses.DOOR:
+								_house[at] = HOUSE_WALL
+							_:
+								_house[at] = HOUSE_ROOF
+								_house_fall[at] = int((fall[row] as Array)[column])
+						_house_tile(shape, at, stroke)
+
+
+## Whether another painting has already taken any of this rectangle.
+func _house_claimed(tx: int, ty: int, across: Vector2i) -> bool:
+	for row: int in across.y:
+		for column: int in across.x:
+			if _house[(ty + row) * _size.x + tx + column] != HOUSE_NONE:
+				return true
+	return false
+
+
+## One painted tile, given the class the painting says it is.
+##
+## The painting overrides which SHAPE CLASS the tile resolved to and nothing
+## else, so every pass below this reads it exactly as it reads a pinned tile.
+func _house_tile(shape: RefCounted, at: int, stroke: String) -> void:
+	var painted: StringName = &"roof"
+	if stroke == Houses.WALL or stroke == Houses.PITCH or stroke == Houses.DOOR:
+		painted = &"facade"
+	elif stroke == Houses.NONE:
+		painted = &"ground"
+	_art[at] = _art_mode(shape.art(painted))
+	_depths[at] = clampi(shape.depth(painted), 1, 16)
+	_heights[at] = shape.height(painted)
+	_volume[at] = 1 if _art[at] == ART_UPRIGHT else 0
+	match painted:
+		&"facade":
+			_part[at] = PART_WALL
+		&"roof":
+			_part[at] = PART_ROOF
+		_:
+			_part[at] = PART_NONE
+	# The fall is the painting's own and is applied to the whole building at once
+	# by `_paint_roofs`, so a painted roof carries no per-tile drop for
+	# `_roof_row` to read.
+	_drop[at] = 0
+	_slope[at] = 1 if stroke == Houses.PITCH else 0
+	# Whatever else the tile was resolved as, it is a building surface now: a
+	# drawing cannot be a wall and a turned model at the same time.
+	_round[at] = 0
+	_filled[at] = 0
+	_outlined[at] = 0
+	_modelled[at] = 0
+	_shrub[at] = 0
+	_rock[at] = 0
+	_tufted[at] = 0
+	_long_grass[at] = 0
+	_lying[at] = 0
+	_on_furniture[at] = 0
+	_span_x[at] = 1
+	_span_y[at] = 1
+	_cliff[at] = 0
+	_front[at] = 0
+	_lip[at] = 0
+	_void[at] = 0
+	if not _class_ids.has(painted):
+		_class_ids[painted] = _class_ids.size()
+	_klass[at] = int(_class_ids[painted])
+
+
+## A painted roof takes the fall the painting drew, from one reference height
+## across the whole building.
+##
+## `_roof_row` reads a drop two ways, absolutely where the run has a flat tile to
+## fall from and as a RATE where it has none, and which of the two it takes is
+## inferred from the void beyond the run. A painting states the fall outright and
+## states it in two dimensions, which no per-row reading can carry: a roof
+## falling south falls from row to row, and the row loop carries a height forward
+## rather than a slope. So the placement is levelled afterwards instead.
+##
+## The reference is the HIGHEST height the building pass gave the placement's own
+## roof tiles, which is the flat section of that roof wherever there is one and
+## the whole roof where it is level. A painting of all zeroes therefore lands
+## exactly where the pass already had it.
+func _paint_roofs() -> void:
+	for place: Array in _house_places:
+		var start: Vector2i = place[0]
+		var across: Vector2i = place[1]
+		var top: int = -0x7fffffff
+		for row: int in across.y:
+			for column: int in across.x:
+				var at: int = (start.y + row) * _size.x + start.x + column
+				if _house[at] == HOUSE_ROOF:
+					top = maxi(top, _heights[at])
+		if top == -0x7fffffff:
+			continue
+		for row: int in across.y:
+			for column: int in across.x:
+				var at: int = (start.y + row) * _size.x + start.x + column
+				if _house[at] != HOUSE_ROOF:
+					continue
+				var height: int = top - int(_house_fall[at]) * BAND
+				_heights[at] = height
+				# The exposed side of a roof step is one band tall, so the row it
+				# folds is the roof tile's own.
+				@warning_ignore("integer_division")
+				_bases[at] = start.y + row + maxi(height / BAND - 1, 0)
 
 
 ## A cutout stands on the ground rather than raising it, so it measures zero and
@@ -1587,6 +1773,9 @@ func _measure_buildings() -> void:
 		for reset: int in _size.x:
 			if _part[ty * _size.x + reset] == PART_NONE:
 				column[reset] = 0
+
+	# Last, because it levels a painted roof against the height this pass gave it.
+	_paint_roofs()
 
 
 ## How many bands of a facade run are the drawing, in tile rows.
