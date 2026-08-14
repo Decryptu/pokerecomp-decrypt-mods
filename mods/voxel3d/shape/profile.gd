@@ -1459,6 +1459,18 @@ const TILESETS: Dictionary = {
 	27: {
 		&"stool": [44, 45, 60, 61, 39, 40, 55, 56],
 	},
+	# A THIRD TILESET DRAWS THE SAME STOOL, four of them round a table, and it was
+	# left out because its two rows were pinned differently: the seat as `top` and
+	# the legs as `stand`, so the class it wanted could not be read off either row
+	# alone. The pass's words are the same drawing as the other two, "the round
+	# padded seat drawn from ABOVE as a light disc with a dark rim" over "the dark
+	# legs and the shadow under the seat, its own SILHOUETTE with floorboards
+	# showing through the gaps", which is exactly what `STRETCH` was measured for:
+	# half of a stool's drawing is the seat seen from above, which is depth on the
+	# page and no height at all.
+	6: {
+		&"stool": [2, 3, 18, 19],
+	},
 }
 
 ## The tiles the PASS pinned and a person has taken back.
