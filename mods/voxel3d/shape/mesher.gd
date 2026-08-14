@@ -2908,38 +2908,61 @@ func _house_is(stroke: String, word: String) -> bool:
 ## so that test is one comparison and the reach stays contiguous with the wall it
 ## hangs off.
 ##
-## AND IT STOPS AT ANOTHER ROOF, which nearness alone cannot do. A rectangle can
-## hold a roof whose own wall is outside it, cut off by the rectangle's edge:
-## Goldenrod's #99 holds the Pokemon Centre's roof and not its wall, so the
-## nearest wall to that roof is the house next door and it swallowed the whole
-## thing, blocking the painting that does hold the building. So the reach walks a
-## CHAIN: each column must draw something that overlaps the rows the last one
-## did, and a roof lying below the eave it is walking along breaks it.
+## AND IT STOPS WHERE THE ROOF FALLS A STOREY, which nearness alone cannot do. A
+## rectangle can hold a roof whose own wall is outside it, cut off by the
+## rectangle's edge: Goldenrod's #99 holds the Pokemon Centre's roof and not its
+## wall, so the nearest wall to that roof is the house next door, which swallowed
+## the whole thing and blocked the painting that does hold the building.
+##
+## So the reach walks a CHAIN, column by column, carrying the SECTION it is
+## walking along: the run of painted pixels that the last column's run overlaps.
+## A column drawing nothing there ends it, and so does a column whose section
+## FALLS more than a row below the last one's, because that is a different roof.
+##
+## A ROW IS THE MEASURED LIMIT AND NOT A CHOSEN ONE. Over the 1087 columns the
+## reach walks in the whole game, 1082 fall by one row or none: a roof's own
+## profile is a staircase, so its section steps a row at a time however steep it
+## is drawn. The only fall of more than a row anywhere is the column where the
+## Pokemon Centre's roof starts, and it is 16, a whole walk cell.
+##
+## THE FALL IS MEASURED FROM THE OUTERMOST WALL COLUMN'S OWN EAVE, which is not
+## the same course as the building's peak: on a hipped end the eave at the corner
+## is a storey below the ridge, and measuring the first step from the ridge reads
+## the overhang as a fall. The rows the run is SEARCHED for are the band as
+## before, so this test can only ever stop the reach earlier and never carry it
+## further, which is what keeps it to the one building it was written for.
+const HOUSE_ROOF_STEP: int = 1
+
+
 func _house_reach(
 	paint: Array, rows: int, cols: int, rival: PackedInt32Array,
-	left: int, right: int, band: Vector2i
+	tops: PackedInt32Array, left: int, right: int, band: Vector2i
 ) -> Vector2i:
 	var reach := Vector2i(left, right)
 	var run: Vector2i = band
+	var eave: int = tops[left] - 1
 	while reach.x > 0 and left - (reach.x - 1) < rival[reach.x - 1]:
 		var next: Vector2i = _house_run(paint, rows, reach.x - 1, run)
-		if next.x < 0:
+		if next.x < 0 or next.y > eave + HOUSE_ROOF_STEP:
 			break
 		reach.x -= 1
-		run = next
+		eave = next.y
+		run = Vector2i(next.x, run.y)
 	run = band
+	eave = tops[right] - 1
 	while reach.y < cols - 1 and (reach.y + 1) - right < rival[reach.y + 1]:
 		var next: Vector2i = _house_run(paint, rows, reach.y + 1, run)
-		if next.x < 0:
+		if next.x < 0 or next.y > eave + HOUSE_ROOF_STEP:
 			break
 		reach.y += 1
-		run = next
+		eave = next.y
+		run = Vector2i(next.x, run.y)
 	return reach
 
 
-## The run of drawn pixels in one column that overlaps a band of rows, never
-## reaching further DOWN the drawing than the band already does: a roof walks
-## sideways and along the eave, and must not fall into the storey below.
+## The whole run of painted pixels in one column that overlaps a band of rows: a
+## roof walks sideways along its own section, and how far that section reaches
+## DOWN is what says whether it is still the same roof.
 func _house_run(paint: Array, rows: int, x: int, band: Vector2i) -> Vector2i:
 	for y: int in range(band.x, band.y + 1):
 		if y < 0 or y >= rows or paint[y][x] == Houses.NONE:
@@ -2947,7 +2970,10 @@ func _house_run(paint: Array, rows: int, x: int, band: Vector2i) -> Vector2i:
 		var top: int = y
 		while top > 0 and paint[top - 1][x] != Houses.NONE:
 			top -= 1
-		return Vector2i(top, band.y)
+		var bottom: int = y
+		while bottom + 1 < rows and paint[bottom + 1][x] != Houses.NONE:
+			bottom += 1
+		return Vector2i(top, bottom)
 	return Vector2i(-1, -1)
 
 
@@ -3027,10 +3053,10 @@ func _house_body(
 		rival[x] = mini(rival[x], rival[x - 1] + 1)
 	for x: int in range(cols - 2, -1, -1):
 		rival[x] = mini(rival[x], rival[x + 1] + 1)
-	# The band the reach walks along: this building's own roof, from its top down
-	# to the course its wall starts at.
+	# The section the reach walks along: this building's own roof, from its top
+	# down to the course its wall starts at.
 	var cover: Vector2i = _house_reach(
-		paint, rows, cols, rival, left, right, Vector2i(top_row, peak - 1)
+		paint, rows, cols, rival, tops, left, right, Vector2i(top_row, peak - 1)
 	)
 	# SEEDED OUTSIDE THE BUILDING, not at its own edges: seeded at `left` and
 	# `right` the run can only ever come out the whole wall, every roof reads flat
