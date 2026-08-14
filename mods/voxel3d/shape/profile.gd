@@ -1062,6 +1062,35 @@ const TILESETS: Dictionary = {
 			12, 13, 14, 15, 28, 29, 30, 31, 44, 45, 46, 47, 60, 61, 62, 63,
 		],
 	},
+	# THE SCHOOL'S NORTH WALL, which the full pass read as three more flights of
+	# stairs and the reviewer read tile by tile. One run holds two real flights set
+	# into it, [163,164,179,180], which is declared in STAIRS and stays; what is on
+	# either side of them is not. 165 and 181 are the wall's END, "the very left
+	# edge is a small section of a vertical wall, the middle part is just the
+	# floor", so they lie flat. Twenty tiles on one map, all of them 21,15.
+	13: {
+		&"ground": [165, 181],
+	},
+}
+
+## The tiles the PASS pinned and a person has taken back.
+##
+## The table above corrects the pass by naming a better class, and there is one
+## correction it cannot make that way: a tile whose right answer is NO PIN AT
+## ALL. A plain standing wall is exactly that, deliberately, because the
+## automatic resolution stands a blocked tile up already and MEASURES its height
+## off the drawing where a pin would force one.
+##
+## Tileset 13's 162 is the reviewer's own reading: the pass called
+## [161,162,177,178] a flight of stairs and they call it "a vertical wall, and a
+## metal fence joining the wall", the fence drawn thin down the left edge because
+## it runs away from the eye. Standing as stairs it cut a stairwell into a wall.
+##
+## The fence itself is left painted on the wall rather than built as a `railing`:
+## it shares its tiles with the wall, so a railing pin, which turns a tile into
+## floor with a rail on it, would open a hole through the wall it is joined to.
+const UNPINNED: Dictionary = {
+	13: [162],
 }
 
 
@@ -1071,7 +1100,8 @@ const TILESETS: Dictionary = {
 ## is the point: the table above was authored from the reviewer's own
 ## measurements off the drawing, and the pass is a machine reading the same
 ## pictures, so where they disagree the person is right and the pass can be
-## regenerated under them.
+## regenerated under them. UNPINNED is the same authority saying the pass should
+## have named a tile nothing at all.
 static func pinned_class(tileset_number: int, tile: int) -> StringName:
 	var groups: Variant = TILESETS.get(tileset_number, null)
 	if groups is Dictionary:
@@ -1081,6 +1111,9 @@ static func pinned_class(tileset_number: int, tile: int) -> StringName:
 			# expression and this whole table has to be one.
 			if tiles is Array and (tiles as Array).has(tile):
 				return shape_class
+	var taken: Variant = UNPINNED.get(tileset_number, null)
+	if taken is Array and (taken as Array).has(tile):
+		return &""
 	return PASS.pinned_class(tileset_number, tile)
 
 
