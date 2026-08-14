@@ -1250,6 +1250,16 @@ const TILESETS: Dictionary = {
 	# a drawing up where no collision code says so.
 	1: {
 		&"tall_grass": [4],
+		# THE PINK BRICK WALL of the small house, which the pass read as paving and
+		# which is why every one of those houses was a roof block over a hole. The
+		# same slot draws both: 592 placements lie in walkable cells on 3 maps and
+		# are the brick causeway the pass described, 458 lie in blocked cells on 16
+		# and are the wall between the windows and the eave. Tileset 2 pins the same
+		# drawing `facade` and calls it "the pale blue brick wall of a shop".
+		# The COLLISION is what tells them apart and it already does: a building pin
+		# in a walkable cell resolves back to ground, which is the rule tileset 3's
+		# tile 35 was given for exactly this.
+		&"facade": [7],
 		# THE ROUTE NOTICE BOARD, 78 of them over 22 maps and the largest thing left
 		# in the full pass's `stand` fallback. `stand` is ROUND, so a board with a
 		# frame, four lines of writing and two legs was revolved into a drum. It is
