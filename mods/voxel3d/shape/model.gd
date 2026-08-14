@@ -111,6 +111,17 @@ class Measure extends RefCounted:
 	## ragged, it does not bend in the wind, and it is not the dark mass a hedge
 	## is, so the drawing's own exposure reads straight back off it.
 	var rock: bool = false
+	## HOW TALL THE THING STANDS AGAINST HOW TALL IT IS DRAWN, where a person has
+	## said and the drawing cannot. Zero takes the class's own default: 1.3 for a
+	## tree, which is the foreshortening, and 1.0 for anything sitting on the
+	## ground, which is the drawing read literally.
+	##
+	## A drawing being tall on screen is not a thing being tall in the world, and
+	## this file is the third place that has had to say so: the reviewer corrected
+	## the long flower bed, then the school chair, whose twelve drawn rows they
+	## measured at six. A round stool is the same case at model scale. What a
+	## face-on drawing states honestly is its WIDTH.
+	var stretch: float = 0.0
 	## Lightest first, and the drawing's darkest shade is NOT among them.
 	var tones: PackedColorArray = PackedColorArray()
 	var bark: PackedColorArray = PackedColorArray()
@@ -345,7 +356,9 @@ func tree(measured: Measure) -> ArrayMesh:
 
 	_voxel = ROCK_VOXEL if measured.rock else VOXEL
 	var rows: int = measured.profile.size()
-	var stretch: float = 1.0 if measured.shrub else CROWN_STRETCH
+	var stretch: float = measured.stretch
+	if stretch <= 0.0:
+		stretch = 1.0 if measured.shrub else CROWN_STRETCH
 	var crown_high: int = maxi(ceili(float(rows) * stretch / _voxel), 2)
 	var trunk_high: int = 0 if measured.shrub else maxi(ceili(maxf(
 		float(measured.trunk_height), float(measured.width()) * TRUNK_MIN

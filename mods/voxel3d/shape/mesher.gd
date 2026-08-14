@@ -119,6 +119,9 @@ var _outlined := PackedByteArray()
 var _modelled := PackedByteArray()
 var _shrub := PackedByteArray()
 var _rock := PackedByteArray()
+## Per tile: how tall a modelled class stands against how tall it is drawn, or
+## zero for the class's own default. See `profile.gd:STRETCH`.
+var _stretch := PackedFloat32Array()
 ## Per tile: whether a slab of its own drawing stands up out of the floor, and
 ## whether the collision calls it LONG grass rather than tall.
 var _tufted := PackedByteArray()
@@ -505,6 +508,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_modelled.resize(count)
 	_shrub.resize(count)
 	_rock.resize(count)
+	_stretch.resize(count)
 	_tufted.resize(count)
 	_long_grass.resize(count)
 	_span_x.resize(count)
@@ -557,6 +561,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_modelled[at] = 1 if shape.is_model(shape_class) else 0
 			_shrub[at] = 1 if shape.is_shrub(shape_class) else 0
 			_rock[at] = 1 if shape.is_rock(shape_class) else 0
+			_stretch[at] = shape.model_stretch(shape_class)
 			# WHICH CELLS ARE GRASS IS THE CARTRIDGE'S OWN ANSWER, and it is in
 			# the collision byte rather than in the drawing. `grass_kind` is the
 			# host's decode of SetTallGrassFlags, so this covers every map in the
@@ -2145,6 +2150,7 @@ func _model_bodies_of(
 			var measured: RefCounted = Model.measure(only, span, tiles, across, atlas)
 			measured.shrub = _shrub[at] == 1
 			measured.rock = _rock[at] == 1
+			measured.stretch = _stretch[at]
 			_model_meshes[key] = (Model.new() as RefCounted).tree(measured)
 			_model_spots[key] = {}
 			_built_model = true

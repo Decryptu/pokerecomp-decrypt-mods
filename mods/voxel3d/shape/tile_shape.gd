@@ -125,6 +125,12 @@ func is_rock(shape_class: StringName) -> bool:
 	return bool(_profile.ROCK.get(shape_class, false))
 
 
+## How tall a modelled class stands against how tall it is drawn, or zero for the
+## class's own default. See `profile.gd:STRETCH`.
+func model_stretch(shape_class: StringName) -> float:
+	return float(_profile.STRETCH.get(shape_class, 0.0))
+
+
 ## How big the drawing is, in walk cells. A hull is keyed to the size of the
 ## drawing and never to a tile id.
 func span_cells(shape_class: StringName) -> Vector2i:

@@ -66,6 +66,9 @@ const HEIGHTS: Dictionary = {
 	&"statue_pillar": 0,
 	&"stand": 0,
 	&"lie": 0,
+	# A STOOL is a turned model and counts its own height off its own drawing,
+	# exactly as a boulder does.
+	&"stool": 0,
 	&"canopy": 0,
 	&"tree": 0,
 	&"boulder": 0,
@@ -119,6 +122,9 @@ const DEPTHS: Dictionary = {
 	# A boulder is a turned model and carves nothing; this is only what one falls
 	# back to, and a rock is as deep as it is wide.
 	&"boulder": 16,
+	# A stool is round in plan and its drawing is one walk cell, so it is as deep
+	# as it is wide. Only the fallback: it is turned.
+	&"stool": 16,
 }
 
 ## The cutouts that are ROUND IN PLAN rather than flat slabs.
@@ -140,6 +146,7 @@ const ROUND: Dictionary = {
 	&"lie": true,
 	&"canopy": true,
 	&"boulder": true,
+	&"stool": true,
 }
 
 ## The cutouts whose mask is cut from the drawing's own OUTLINE rather than from
@@ -165,6 +172,9 @@ const OUTLINE: Dictionary = {
 	# cave floor in the floor's own golds, so the ground rule has nothing to cut
 	# on. Every one of them is drawn inside a dark ring.
 	&"boulder": 1,
+	# A stool stands on a carpet or on floorboards drawn in its own shades, and it
+	# is drawn inside a dark ring like everything else indoors.
+	&"stool": 1,
 }
 
 ## The classes that lie flat AND stand a thin slab of their own drawing up.
@@ -197,6 +207,7 @@ const MODEL: Dictionary = {
 	&"tree": true,
 	&"bush": true,
 	&"boulder": true,
+	&"stool": true,
 }
 
 ## The modelled classes that sit ON THE GROUND rather than standing on a trunk.
@@ -209,6 +220,7 @@ const MODEL: Dictionary = {
 const SHRUB: Dictionary = {
 	&"bush": true,
 	&"boulder": true,
+	&"stool": true,
 }
 
 ## The modelled classes that are STONE rather than growing.
@@ -217,8 +229,37 @@ const SHRUB: Dictionary = {
 ## so `SHRUB` covers its shape. What it is not is alive: it is barely ragged, it
 ## does not bend in the wind, and it is not the dark mass a hedge is. See
 ## `model.gd:Measure.rock`.
+## HOW TALL A MODELLED THING STANDS against how tall it is DRAWN.
+##
+## The drawing states a width honestly and a height not at all, and everything
+## turned so far has been able to take its own drawn height because it is drawn
+## standing: a bush, a rock, a tree once its foreshortening is undone. A round
+## STOOL is not. Its top half is the seat seen from ABOVE, which is depth on the
+## page and no height at all, so read literally a knee-high seat stands a full
+## walk cell and comes out a barrel.
+##
+## Nothing but a person can settle the number, which is what the reviewer already
+## did twice for carved things: the long flower bed is no taller than the short
+## one, and the school chair's twelve drawn rows are six. 0.6 of sixteen drawn
+## rows is ten world pixels, between that chair and the player's own height,
+## which is where the pass put it: "waist high", "a knee-high seat".
+##
+## Unlisted takes the class's own default, 1.3 for a tree and 1.0 for anything
+## sitting on the ground. See `model.gd:Measure.stretch`.
+const STRETCH: Dictionary = {
+	&"stool": 0.6,
+}
+
 const ROCK: Dictionary = {
 	&"boulder": true,
+	# A STOOL IS FURNITURE AND READS THE SAME WAY A STONE DOES, which is the whole
+	# reason it takes this and not the plant's reading. It is small, so one world
+	# pixel per voxel rather than the tree's two, or a 16px seat comes out six
+	# voxels across and is a pillow. It does not sway. And its colour is BY BAND:
+	# a stool is drawn pale on the seat where the light falls and dark down the
+	# pedestal, which is a horizontal rule and not an exposure one, and exposure
+	# would take the lightest tone for every face of a thing nothing stands over.
+	&"stool": true,
 }
 
 ## How many walk cells a cutout's DRAWING covers, where it is more than one.
@@ -292,6 +333,16 @@ const FILLED: Dictionary = {
 	# but shading came back with ONE tone for the sea rock. Filling each column
 	# between its topmost and bottommost drawn pixel puts the stone back.
 	&"boulder": true,
+	# A STOOL'S SEAT IS RINGED AND ITS LEGS ARE NOT. Printed as text, tileset 19's
+	# is a closed ring of the darkest shade round the cushion and then splayed legs
+	# with the floor showing between them and reaching the drawing's own bottom
+	# edge, so the flood walks straight up through the legs and leaves the seat
+	# standing on scraps. Filling each column puts a pedestal under it, which is
+	# also the only thing a revolve can make of splayed legs. Measured both ways
+	# and the two pictures are the same, because the seat is what the profile is
+	# read off and the legs reach as wide as it does; kept because it is the safer
+	# reading of an open ring and it costs nothing here.
+	&"stool": true,
 }
 
 ## THE OBJECTS, per tileset number. A thing that is not a tile and does not fit
@@ -1071,6 +1122,7 @@ const ART: Dictionary = {
 	&"stand": &"cutout",
 	&"lie": &"cutout",
 	&"boulder": &"cutout",
+	&"stool": &"cutout",
 	# railing: a LINE seen from above, built as a rail on posts. See
 	# `mesher.gd:_railing`, and the pipeline table for why it is a fourth thing a
 	# drawing can be rather than one of the three.
@@ -1297,6 +1349,28 @@ const TILESETS: Dictionary = {
 	# floor", so they lie flat. Twenty tiles on one map, all of them 21,15.
 	13: {
 		&"ground": [165, 181],
+	},
+	# THE ROUND STOOLS, and they were the largest thing left in the `stand`
+	# fallback that is one drawing rather than a tail.
+	#
+	# The pass read every one of them and its words are the specification: tileset
+	# 19's is "a round pink stool with a red rim and dark splayed legs, drawn as
+	# its own SILHOUETTE against the chequered floor; the stool is 2x2 tiles, waist
+	# high, and they stand in rows beside the blue tables". `stand` is ROUND but it
+	# is CARVED, so each cell was cut on its own and stood at the class's own eight
+	# pixels: a pink wafer on the floor where the cartridge draws a seat.
+	#
+	# A round seat on a pedestal is a portrait of a symmetric thing, which is the
+	# third row of the pipeline table, and it is turned like a boulder rather than
+	# like a plant: see ROCK.
+	19: {
+		&"stool": [7, 8, 23, 24],
+	},
+	# TWO STOOLS ON ONE TILESET, drawn out of different tiles and only the palette
+	# apart: "a round pink cushioned stool with a dark pedestal" and "a round tan
+	# stool with a dark pedestal", on the carpet and on the plank floor.
+	27: {
+		&"stool": [44, 45, 60, 61, 39, 40, 55, 56],
 	},
 }
 
