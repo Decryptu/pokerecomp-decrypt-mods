@@ -1080,6 +1080,10 @@ const TILESETS: Dictionary = {
 	},
 	4: {
 		&"tree": [30, 31, 19, 21, 62, 63],
+		# The same notice board tileset 1 draws, at the same four ids, on paving
+		# instead of on grass. One placement on one map, and it is here so the two
+		# tilesets cannot drift apart: the conifer went the same way.
+		&"sign_post": [78, 79, 94, 95],
 	},
 	# EVERY BOULDER IN THE GAME, and each of these is one walk cell drawn as a
 	# 2x2-tile stone: 268 of them standing in the sea off Olivine, 775 on the cave
