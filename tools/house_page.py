@@ -6,7 +6,7 @@ one flat picture: the wall, which you are looking AT, and the roof, which you
 are either looking DOWN onto or looking at from the FRONT. Nothing measurable
 tells them apart, so a person says which is which.
 
-    tools/house_page.py <houses dir>      # writes <houses dir>/houses.html
+    tools/house_page.py <houses dir> [saved houses.json]
 
 The directory is what `tools/house_export.gd` wrote: one JSON, one picture of the
 drawing and one picture of it RINGED where the cartridge places it, per drawing.
@@ -267,11 +267,16 @@ function state(i) {
   const h = HOUSES[i];
   if (!h._guess) h._guess = guessOf(h);
   if (!h._paint) {
+    // WHAT THIS BROWSER REMEMBERS WINS, then the file, then the guess. The file
+    // is a painting saved from here, possibly with `tools/house_learn.py` having
+    // carried it into the drawings nobody had reached yet; either way a hand
+    // that has touched a drawing since is the later word on it.
     let saved = null;
     try { saved = store[KEY + h.id] ? JSON.parse(store[KEY + h.id]) : null; } catch (e) {}
-    h._paint = (saved && saved.length === h._guess.length)
-      ? saved.map((r) => r.split(""))
-      : h._guess.map((r) => r.split(""));
+    const seed = (!saved && h.seed && h.seed.length === h._guess.length)
+      ? h.seed : null;
+    h._paint = (saved && saved.length === h._guess.length) ? saved.map((r) => r.split(""))
+      : (seed ? seed.map((r) => r.split("")) : h._guess.map((r) => r.split("")));
   }
   return h;
 }
@@ -362,15 +367,28 @@ function moved(h) {
   return false;
 }
 
+// Whether what is on screen is exactly what was carried in, which means nobody
+// has looked at it yet.
+function carried(h) {
+  if (!h.seed || !h.carried) return false;
+  for (let y = 0; y < h._paint.length; y++)
+    if (h._paint[y].join("") !== h.seed[y]) return false;
+  return true;
+}
+
 function tally() {
-  let touched = 0, covered = 0, total = 0;
+  let touched = 0, seeded = 0, covered = 0, total = 0;
   for (let i = 0; i < HOUSES.length; i++) {
     const h = state(i);
     total += h.placements;
-    if (moved(h)) { touched++; covered += h.placements; }
+    if (!moved(h)) continue;
+    covered += h.placements;
+    if (carried(h)) seeded++; else touched++;
   }
   $("count").textContent =
-    `${touched} of ${HOUSES.length} drawings corrected, covering ` +
+    `${touched} painted by hand` +
+    (seeded ? `, ${seeded} carried over (\u007e in the list)` : "") +
+    `, ${touched + seeded} of ${HOUSES.length} drawings done, covering ` +
     `${covered} of ${total} placements`;
   options();
 }
@@ -651,6 +669,19 @@ def main():
         print(__doc__)
         return 1
     directory = pathlib.Path(sys.argv[1])
+    # A saved painting to start from, which is how a session is resumed on
+    # another machine or after `tools/house_learn.py` has carried one painting
+    # into the drawings nobody had reached. What the browser remembers still
+    # wins over it, so a hand is never overruled by a file.
+    seeds = {}
+    if len(sys.argv) > 2:
+        saved = json.loads(pathlib.Path(sys.argv[2]).read_text())
+        seeds = {h["id"]: h["paint"] for h in saved["houses"]
+                 if h["paint"] != h["guess"]}
+        # Which of those a person painted and which `tools/house_learn.py`
+        # carried in from another house. Both are seeded; only the second wants
+        # looking at.
+        carried = {h["id"] for h in saved["houses"] if h.get("seeded")}
     houses = [json.loads(p.read_text())
               for p in sorted(directory.glob("house_*.json"))]
     if not houses:
@@ -668,11 +699,17 @@ def main():
     for house in houses:
         house["art"] = "data:image/png;base64," + base64.b64encode(
             (directory / house["art"]).read_bytes()).decode()
+        if house["id"] in seeds:
+            house["seed"] = seeds[house["id"]]
+            house["carried"] = house["id"] in carried
     out = directory / "houses.html"
     out.write_text(PAGE.replace("__HOUSES__", json.dumps(houses)))
     print("%d drawings, %d placements, %d pixels to paint over" % (
         len(houses), sum(h["placements"] for h in houses),
         sum(h["size"][0] * h["size"][1] * 64 for h in houses)))
+    if seeds:
+        print("%d seeded from %s, %d of them carried over rather than painted"
+              % (len(seeds), sys.argv[2], len(carried)))
     print(out)
     return 0
 
