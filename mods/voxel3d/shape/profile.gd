@@ -61,6 +61,9 @@ const HEIGHTS: Dictionary = {
 	&"flowers": 0,
 	&"planter": 0,
 	&"statue": 0,
+	# A STATUE ON A PILLAR carries no height of its own either: how tall it stands
+	# is counted off its own drawing, which is two cells of it.
+	&"statue_pillar": 0,
 	&"stand": 0,
 	&"lie": 0,
 	&"canopy": 0,
@@ -104,6 +107,11 @@ const DEPTHS: Dictionary = {
 	&"flowers": 12,
 	&"planter": 12,
 	&"statue": 10,
+	# A STATUE ON A PILLAR STANDS ON A WHOLE CELL, which is the reviewer's own
+	# measurement of it: "in a 3D world the statue would be 1 cell on the ground
+	# and 2 cell high". It is round, so each row's own drawn run is its diameter
+	# and this only says the cap is the cell rather than two thirds of it.
+	&"statue_pillar": 16,
 	# The two the full pass falls back to when its words name no known thing:
 	# something standing, and something low with an outline.
 	&"stand": 8,
@@ -127,6 +135,7 @@ const ROUND: Dictionary = {
 	&"flowers": true,
 	&"planter": true,
 	&"statue": true,
+	&"statue_pillar": true,
 	&"stand": true,
 	&"lie": true,
 	&"canopy": true,
@@ -231,6 +240,25 @@ const SPANS: Dictionary = {
 	# bottom half in exactly equal numbers, against 846 short ones drawn in a
 	# single cell. The short one is the same class collapsed by its placement.
 	&"tree": Vector2i(1, 2),
+	# A STATUE ON A PILLAR, and the reviewer's words are the whole specification:
+	# "the bottom cell is the pillar base, and the upper one is the statue laying
+	# above it. since pokemon 2D world is seen slightly from above, they are both
+	# taking 2 cells vertically and 1 horizontally. in a 3D world the statue would
+	# be 1 cell on the ground and 2 cell high".
+	#
+	# So the extra cell is HEIGHT and not depth, which is the potted plant's case
+	# and not the long flower bed's, and it is why this is not in LYING. Without
+	# it each cell was cut and revolved on its own and every one of these stood as
+	# two drums stacked, a lump above a pillar with a seam between them.
+	#
+	# ITS OWN CLASS RATHER THAN `statue`, and that is the whole reason there are
+	# two. The full pass named seven tilesets `statue`, all seven drawn one cell
+	# over one cell, and moving the class moved all of them: tileset 26's came out
+	# a chewed banded column, plainly worse than the flat pieces it replaced, so
+	# whatever that drawing is it is not this. A span is a fact about a DRAWING and
+	# a class is how the profile addresses one, so the drawings a person has
+	# actually read get their own.
+	&"statue_pillar": Vector2i(1, 2),
 }
 
 ## The cutouts whose extra cells are DEPTH rather than height.
@@ -962,6 +990,7 @@ const ART: Dictionary = {
 	&"flowers": &"cutout",
 	&"planter": &"cutout",
 	&"statue": &"cutout",
+	&"statue_pillar": &"cutout",
 	&"stand": &"cutout",
 	&"lie": &"cutout",
 	&"boulder": &"cutout",
@@ -1122,6 +1151,27 @@ const TILESETS: Dictionary = {
 		&"canopy": [
 			12, 13, 14, 15, 28, 29, 30, 31, 44, 45, 46, 47, 60, 61, 62, 63,
 		],
+	},
+	# THE SAME STATUE ON THE SAME PILLAR, which the full pass had as `statue` and
+	# which came out a heap of loose pieces. It is not one of the two the reviewer
+	# read, and it is here because it is the same arrangement, [66,67/82,83] over
+	# [68,69/84,85], and because the picture of it is plainly better.
+	14: {
+		&"statue_pillar": [66, 67, 82, 83, 68, 69, 84, 85],
+	},
+	# THE POKE BALL ON ITS PILLAR, the pair that flanks a doorway at the League and
+	# the Centers, about eighteen of them. Top cell the ball, bottom cell the base.
+	15: {
+		&"statue_pillar": [32, 33, 48, 49, 34, 35, 50, 51],
+	},
+	# THE RHYHORN ON ITS PILLAR, and the statues that share its base, standing
+	# round the walls of a wooden hall. The commonest drawing in the game that had
+	# no word for it: 485 tiles resolved to the full pass's catch-all for something
+	# standing, and this is most of them. The base [54,55] is drawn under more than
+	# one statue, which is why the tiles above it are pinned with it: half a drawing
+	# pinned and half not resolves no span at all.
+	23: {
+		&"statue_pillar": [34, 35, 50, 51, 18, 19, 54, 55, 74, 75, 90, 91, 76, 92],
 	},
 	# THE SCHOOL'S NORTH WALL, which the full pass read as three more flights of
 	# stairs and the reviewer read tile by tile. One run holds two real flights set
