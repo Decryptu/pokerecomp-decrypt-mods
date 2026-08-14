@@ -259,6 +259,24 @@ such a run is the ridge is the one thing no drawing says, and what answers it is
 what lies beyond, since a roof falls away from the floor a person stands on and
 toward the void past the edge of the world.
 
+SOME HOUSES DRAW NO ROOF FROM ABOVE AT ALL. Every wooden house in Johto, and
+every small brick one, draws the front PITCH of its roof face-on instead: four
+rows of plank or of speckled tile over two rows of wall. Folded up square that is
+a barn, a tall box with roof texture down its upper half and a flat lid, which is
+what every house on the largest outdoor tileset in the game used to be. So the
+profile names those tiles, and the bands they draw LEAN BACK over the building's
+own footprint, a tile of depth per band of height. The total height does not
+move: the topmost band stands where it did and each band below it steps down and
+forward until the wall, so the pitch is redistributed inside the footprint the
+fold already gave the house, and the tilt above turns the steps into one plane.
+
+Two readings refuse it, and both are drawings rather than caution. A roof deck
+standing on the run means the face-on band is that deck's fascia and belongs on
+the wall where it is drawn. And a column drawing roof MORE THAN ONCE is a stack
+of storeys rather than a house with a pitch on top: Ecruteak's dance hall is
+seven galleries each with its own plank band, and read as one run its roof would
+reach the ground.
+
 ## Past the edge of the map
 
 Past its edge, the cartridge repeats the map's own BORDER BLOCK, and so does
