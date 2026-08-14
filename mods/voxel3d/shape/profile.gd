@@ -508,7 +508,52 @@ const OBJECTS: Dictionary = {
 			&"height": 16,
 		},
 	],
+	11: [
+		# THE THIRD CHAIR, and the numbers are the reviewer's own from round eleven
+		# rather than a new question: a chair drawn 12 px square over four tiles,
+		# face-on, with a backrest and no top band at all. Tileset 13 draws the same
+		# thing at the same size and they measured it 6 deep and 6 high, over its
+		# twelve drawn rows, because a drawing being tall on screen is not a thing
+		# being tall in the world.
+		#
+		# The pass named all four tiles `sure`: "the top-left quarter of a small
+		# wooden chair drawn as its own outline", "the left of the seat, the
+		# cross-rails and the left legs". Printed as text the drawing sits at x2..13
+		# and y2..13 with two clear rows of floor above and below it, so the mask
+		# cuts cleanly on the outline and needs no filling.
+		{
+			&"name": &"chair",
+			&"tiles": [[14, 15], [30, 31]],
+			&"window": Rect2i(2, 2, 12, 12),
+			&"top": 0,
+			&"depth": 6,
+			&"height": 6,
+		},
+	],
 	26: [
+		# THE STONE VESSEL, and it needs no person at all: it draws a TOP BAND, so
+		# the band's own row count IS the depth and the rows below it are the face.
+		# The pass read all four tiles `sure` and split them for us: 80 and 81 are
+		# "the ridged lid seen from slightly ABOVE with the ridges reading as the
+		# top surface", 82 and 83 "its boxy base, whose dark rectangular panel is
+		# drawn FACE-ON". Eight rows each, so eight deep and eight high, over a
+		# whole cell of width. Squat, which is the pass's own word for it.
+		#
+		# FILLED, and printing the mask is what said so. This drawing fills its cell
+		# edge to edge in the same golds the brick floor is dithered from, so the
+		# border the flood comes in from IS the vessel: it walks in through the
+		# ridges and eats the body, which is the boulder's case and the ship's.
+		# Filling each column between its topmost and bottommost drawn pixel puts
+		# the box back, and the box is what the thing is.
+		{
+			&"name": &"vessel",
+			&"tiles": [[80, 81], [82, 83]],
+			&"window": Rect2i(0, 0, 16, 16),
+			&"top": 8,
+			&"depth": 8,
+			&"height": 8,
+			&"filled": true,
+		},
 		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
 		# ladder going upstair, its placed on the ground". A portrait seen face-on
 		# with no rows above it at all, so it is the chair's own case with nothing
