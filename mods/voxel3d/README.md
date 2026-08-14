@@ -136,11 +136,24 @@ sight lines, because walkable is not the same question as visible: a fence or a
 building corner hides a battler completely while the cells it stands on are
 perfectly walkable.
 
+The eye breathes rather than sitting still, because a flat picture has no
+parallax until something moves and a fight is the one place here where nothing
+does: a one degree orbit with a smaller dolly under it, on a period of its own so
+the two never come back into step. It rides the arm from what the lens is aimed
+at, so the pair stays nailed to the middle of the frame and only what is behind
+them moves. Small on purpose: the shot is a solve, so drifting it carries both
+battlers off their marks, and this carries them about three hardware pixels.
+
 Two layers, because a battle is two things at once. The map is geometry at window
 resolution; the panels, the bars and the text box stay hardware pixels, drawn at
 whole-number scale over the top so a Game Boy pixel is still a square. Each panel
 gets a light translucent backing, because the cartridge draws black glyphs
-straight onto the white field and over a route they would be black on grass.
+straight onto the white field and over a route they would be black on grass. What
+is behind that backing is BLURRED as well as tinted, which is a different job: a
+translucent rectangle over a dithered path shows every texel of the path through
+the writing, so the two compete. Blurring separates them without making the
+backing any more solid, and the world behind it is still visible, still the right
+colour and still moving.
 
 A battler is cut out of that field by region rather than by colour. The field is
 colour index 0, and so is every white inside the drawing: an eye highlight, a
@@ -283,6 +296,48 @@ own two rows at its own depth.
 How big a drawing can be comes from the class; whether a given placement is that
 big comes from the map, because the short bed and the long one are drawn out of
 the same top and bottom tiles.
+
+## A thing that is not a tile at all
+
+Everything above resolves a tile and stands it up where that tile sits, and for a
+wall, a roof or a canopy that is right, because the cartridge draws those tile by
+tile. Some things are not drawn that way. A chair is drawn as four corners across
+four tiles and no one of them is a chair: one tile is the desk's bottom-left leg,
+the chair's top-left corner and the floor between the two at once, so every
+possible answer for that tile is wrong.
+
+So an OBJECT is identified by the ARRANGEMENT OF TILE IDS it is drawn out of,
+which finds it wherever the map places it and whatever block boundary it
+straddles. Every tile the arrangement covers goes back to being floor, and one
+thing of the whole object's size is stood up at the drawing's own position. Two
+objects may cover the same tile and both are drawn, which a desk and the chair
+tucked under it do.
+
+A 2.5D drawing is a TOP AND A FRONT STACKED, and that is the whole reading: the
+first rows are the surface seen from above and are laid across the object's depth,
+the rest are the face and hang down its height. Where a drawing has a top band at
+all, those two row counts ARE the depth and the height. Where it has none, which
+is a chair drawn face on, the depth is not in the picture and has to be given.
+
+How TALL a thing is, though, is not the drawing's to say. A chair's twelve drawn
+rows stood up as twelve pixels is a cabinet beside a desk half its height. What a
+face-on drawing states honestly is its width.
+
+The largest of them is the ship at the port, fifteen tiles by six, and it added
+the one rule the smaller ones did not need: a bounding box is not a footprint. The
+box around something that is not rectangular holds tiles that are not the object,
+and here they are open sea, so they are declared as outside it and keep being sea.
+They stay part of the rectangle the mask is cut over, and that is the point of
+naming them rather than cropping the box down: a mask is cut by flooding in from
+the border, and the border of the hull's own rectangle is half hull. Ringed in one
+tile of open water the flood stops at the paint, and what is left is the ship.
+
+A staircase is found the same way and is its own shape. Generation II draws a
+flight as a perspective view over four tiles, and stepping onto one leaves the
+floor entirely rather than climbing anything, so a down flight is a HOLE: put the
+cell's floor a walk cell below the ground and everything around it skirts down to
+it, which is the same code that draws a cliff. A ladder in a shaft is that with
+the steps taken out.
 
 ## Cutting a drawing that is painted in the ground's own colours
 
@@ -456,14 +511,20 @@ steering.gd          what a key or a wheel notch means, in either view
 world/renderer.gd    the overworld Node the host builds
 world/diorama.gd     the 3D stage both views share: viewport, daylight, cards
 world/sky.gd         the banded, dithered sky and the shader that paints it
+world/water.gd       the water surface: the sky in it by Fresnel, and its swell
+world/wind.gd        what makes grass and foliage bend, and part around a walker
+world/frame.gd       the pass over the finished picture, and the hour's tint in it
 world/camera_rig.gd  pitch, distance, lens and the ease between settings
 battle/renderer.gd   the battle Node: the arena, the battlers and the panels
 battle/arena.gd      where the fight is staged and where it is shot from
+battle/panel.gd      the frost behind a panel, over whatever the world drew there
 shape/atlas.gd       the tileset as a texture, palettes and tile animation
 shape/map_source.gd  the map, live from the world or read from its records
 shape/tile_shape.gd  tile -> shape class
-shape/profile.gd     hand-authored pins and the class table
+shape/profile.gd     hand-authored pins, the objects, the staircases, the classes
 shape/profile_pass.gd  the generated second table, one pin per tile of the game
+shape/levels.gd      the ground levels a person painted, where one has
+shape/model.gd       a sprite TURNED into a model: trees, bushes, boulders
 shape/mesher.gd      map -> one static mesh
 ```
 
