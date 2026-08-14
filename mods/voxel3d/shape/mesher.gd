@@ -164,6 +164,12 @@ var _drop := PackedByteArray()
 ## Per tile: whether a PART_WALL tile draws the front SLOPE of a roof rather than
 ## a wall, which is what leans it back over the footprint. See `_facade_pitch`.
 var _slope := PackedByteArray()
+## Per tile: whether the measurement actually LEANED it, which is a narrower
+## question than whether its drawing is a slope. A pitch is refused wherever the
+## column turns out to be a stack of storeys, and those tiles keep every face a
+## wall has. Only a leaned tile is tilted and only two of them share an edge with
+## no riser between: see `_face_roof`.
+var _pitched := PackedByteArray()
 ## Per tile: whether it is the VOID past the edge of the world rather than ground.
 ## Both draw one flat quad at the same height and nothing else in the mesh has had
 ## to tell them apart. A great roof does: it falls away from the floor a person
@@ -522,6 +528,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_part.resize(count)
 	_drop.resize(count)
 	_slope.resize(count)
+	_pitched.resize(count)
 	_void.resize(count)
 	_margin_left.resize(count)
 	_margin_right.resize(count)
@@ -1503,6 +1510,9 @@ func _measure_buildings() -> void:
 	column.resize(_size.x)
 	var placed := PackedByteArray()
 	placed.resize(_size.x * _size.y)
+	# Written only where a pitch leans, and a mesher resolves map after map, so a
+	# grid the same size as the last one would carry its roofs across.
+	_pitched.fill(0)
 
 	for ty: int in range(_size.y - 1, -1, -1):
 		var wall: int = 0
@@ -1555,6 +1565,7 @@ func _measure_buildings() -> void:
 					var index: int = (ty - step) * _size.x + tx
 					var climbed: int = clampi(step - flat + 1, 0, pitch)
 					_heights[index] = top - (pitch - climbed) * BAND
+					_pitched[index] = 1 if climbed > 0 else 0
 					@warning_ignore("integer_division")
 					_bases[index] = ty + under / BAND
 					_volume[index] = 1
@@ -3313,8 +3324,8 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		)
 		_sink = SINK_TERRAIN
 		return
-	var roof: bool = _part[at] == PART_ROOF
-	if roof:
+	var tilted: bool = _tilted(at)
+	if tilted:
 		_face_roof(tx, ty, atlas.uv(cap), SHADE_TOP_FLAT)
 	else:
 		_face_top(
@@ -3323,15 +3334,16 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		)
 	_sink = SINK_TERRAIN
 
-	# NO RISER BETWEEN TWO ROOF TILES. The tilt already carries one into the next
+	# NO RISER BETWEEN TWO TILTED TILES. The tilt already carries one into the next
 	# along a shared edge both of them computed the same way, so a face here would
 	# be a wall standing out of the slope. Everything else keeps its skirt: where a
-	# roof meets anything that is not a roof, its outermost corners are its own
-	# height and the face below still reaches them.
-	_roof_side(tx, ty, roof, here, Vector2i(0, 1), Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
-	_roof_side(tx, ty, roof, here, Vector2i(0, -1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
-	_roof_side(tx, ty, roof, here, Vector2i(1, 0), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
-	_roof_side(tx, ty, roof, here, Vector2i(-1, 0), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
+	# roof meets anything that is not one, its outermost corners are its own
+	# height and the face below still reaches them, which is what puts the eave
+	# band on the wall under a leaning pitch.
+	_roof_side(tx, ty, tilted, here, Vector2i(0, 1), Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
+	_roof_side(tx, ty, tilted, here, Vector2i(0, -1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
+	_roof_side(tx, ty, tilted, here, Vector2i(1, 0), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
+	_roof_side(tx, ty, tilted, here, Vector2i(-1, 0), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 	if _tufted[at] == 1:
 		_tufts(tx, ty, float(here), atlas, _long_grass[at] == 1)
 	# The flight standing in the cell whose floor this is. Asked for from every one
@@ -3856,14 +3868,23 @@ func _side_at(
 			)
 
 
-## One face of a column, unless both sides of it are roof: see the call site.
+## Whether a tile's top is a TILTED quad rather than a flat one: a roof seen from
+## above, or a facade band the pitch actually leaned. A slope-pinned tile whose
+## column was read as a stack of storeys is neither, and has to keep every face a
+## wall has: the dance hall stands its end board 128 px beside a 16 px gallery,
+## and suppressing that face would open the tower down one side.
+func _tilted(at: int) -> bool:
+	return _part[at] == PART_ROOF or _pitched[at] == 1
+
+
+## One face of a column, unless both sides of it are tilted: see the call site.
 func _roof_side(
-	tx: int, ty: int, roof: bool, here: int, step: Vector2i,
+	tx: int, ty: int, tilted: bool, here: int, step: Vector2i,
 	normal: Vector3, shade: Color, atlas: RefCounted
 ) -> void:
 	var at := Vector2i(tx + step.x, ty + step.y)
-	if roof and at.x >= 0 and at.y >= 0 and at.x < _size.x and at.y < _size.y \
-			and _part[at.y * _size.x + at.x] == PART_ROOF:
+	if tilted and at.x >= 0 and at.y >= 0 and at.x < _size.x and at.y < _size.y \
+			and _tilted(at.y * _size.x + at.x):
 		return
 	_side(tx, ty, here, _height_at(at.x, at.y), normal, shade, atlas)
 
@@ -3896,7 +3917,7 @@ func _roof_corner(tx: int, ty: int, dx: int, dy: int) -> float:
 		if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
 			continue
 		var index: int = at.y * _size.x + at.x
-		if _part[index] != PART_ROOF:
+		if not _tilted(index):
 			continue
 		total += float(_heights[index])
 		found += 1
