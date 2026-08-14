@@ -16,10 +16,11 @@ extends SceneTree
 ## table for no reason. That is also what makes an empty table exactly today's
 ## game, triangle for triangle.
 ##
-## THE ARROWS BECOME BANDS HERE and nobody is ever asked for a number. A tile
-## painted with an arrow stands one band below the tile it points away from, so
-## its fall is how far it is from the top of its own slope; a slope with no flat
-## tile at the top of it is levelled so its ridge stands at zero.
+## THE PAINTING SAYS WHICH SURFACE EACH PIXEL IS AND NOTHING ELSE. How far a roof
+## has fallen is not asked for, because it does not have to be: with the wall and
+## the roof separated per pixel, the top of each column's wall IS that column's
+## roof height, so a hipped end and a gable both fall out of the painting with no
+## number in them anywhere.
 ##
 ##   Godot --path <pokerecomp> -s tools/house_pins.gd -- <cache> <houses.json> \
 ##       [--write]
@@ -30,19 +31,16 @@ const MOD := "user://mods/voxel3d"
 ## checkout, so the generated file lands in the repository.
 const OUT := "%s/shape/houses.gd" % MOD
 
+## THE PIXEL, not the tile, is the unit. A hipped roof comes down as a DIAGONAL
+## across its tiles, so a tile there is part roof and part wall and no answer at
+## tile resolution is right.
+const TILE: int = 8
 const NONE := "."
 const WALL := "W"
-const PITCH := "P"
 const ROOF := "R"
-const DOOR := "D"
-## Each falling arrow, and the step from a tile toward the top of its own slope,
-## which is the direction the arrow points AWAY from.
-const RISE: Dictionary = {
-	"<": Vector2i(1, 0),
-	">": Vector2i(-1, 0),
-	"^": Vector2i(0, 1),
-	"v": Vector2i(0, -1),
-}
+## The roof drawn FACE-ON rather than from above, so it leans back over the house
+## instead of standing up like a wall.
+const FRONT := "F"
 
 
 func _initialize() -> void:
@@ -61,9 +59,10 @@ func _initialize() -> void:
 		print("not a houses.json: ", args[1])
 		quit(1)
 		return
-	if String((painted as Dictionary).get("unit", "")) != "tile8":
+	if String((painted as Dictionary).get("unit", "")) != "pixel":
 		print("unexpected unit ", (painted as Dictionary).get("unit"),
-			": this reads tile8 only")
+			": this reads pixel only. A tile8 painting is from the older page and"
+			+ " cannot say what a half-roof tile is, which is why the page moved")
 		quit(1)
 		return
 
@@ -78,11 +77,11 @@ func _initialize() -> void:
 		var guess: Array = record.get("guess", [])
 		var tiles: Array = record["tiles"]
 		var name: String = "#%d ts%d" % [int(record["id"]), int(record["tileset"])]
-		if paint.size() != tiles.size() \
-				or (paint[0] as Array).size() != (tiles[0] as Array).size():
-			complaints.append("%s: painted %dx%d over a %dx%d drawing" % [
-				name, (paint[0] as Array).size(), paint.size(),
-				(tiles[0] as Array).size(), tiles.size()
+		var across: int = (tiles[0] as Array).size() * TILE
+		var down: int = (tiles as Array).size() * TILE
+		if paint.size() != down or String(paint[0]).length() != across:
+			complaints.append("%s: painted %dx%d px over a %dx%d px drawing" % [
+				name, String(paint[0]).length(), paint.size(), across, down
 			])
 			continue
 		if guess.size() > 0 and _same(paint, guess):
@@ -103,7 +102,18 @@ func _initialize() -> void:
 				% [name, int(record["placements"]), found])
 		corrected += 1
 		placements += found
-		entries.append(_entry(record, _falls(paint)))
+		# HOW MANY TILES THE PAINTING CUTS, which is the part of it the mesher
+		# cannot build yet: a tile painted two ways at once wants the wall's top
+		# read per pixel COLUMN, and until that emitter exists those tiles keep
+		# the answer the passes gave them. Said out loud rather than left silent,
+		# because it is the difference between what was painted and what stands.
+		var cut: int = _cut(paint)
+		if cut > 0:
+			notes.append("%s: %d of its %d tiles are painted two ways and wait on the"
+				% [name, cut, (record["tiles"] as Array).size()
+					* ((record["tiles"][0] as Array).size())]
+				+ " per-column emitter")
+		entries.append(_entry(record))
 
 	var out: String = _script(entries, corrected, placements, unchanged)
 	if args.size() > 2 and args[2] == "--write":
@@ -128,82 +138,34 @@ func _initialize() -> void:
 
 
 func _same(paint: Array, guess: Array) -> bool:
+	if paint.size() != guess.size():
+		return false
 	for row: int in paint.size():
-		for column: int in (paint[row] as Array).size():
-			if (paint[row] as Array)[column] != (guess[row] as Array)[column]:
-				return false
+		if String(paint[row]) != String(guess[row]):
+			return false
 	return true
 
 
-## HOW MANY BANDS BELOW ITS OWN RIDGE each painted roof tile stands.
-##
-## An arrow says which way the water runs off, so the top of the slope is the way
-## the arrow points AWAY from: walk that way while the tiles carry the same
-## arrow, and how far you get is how far this tile has fallen. A tile beside a
-## flat one has fallen one band, which is the gable this mod already measures;
-## the far corner of a two-tile gable end has fallen two, which is what the
-## reviewer measured tileset 3's own roof at.
-##
-## THEN THE SLOPE IS LEVELLED. A roof with a flat section already has a zero in
-## it to fall from. A roof that is slope the whole way across, which is what a
-## great roof is, has none, so every tile of it would stand below a ridge that is
-## not drawn anywhere. Subtracting the lowest fall in each connected roof puts
-## the ridge back at zero and leaves every difference exactly as painted.
-func _falls(paint: Array) -> Array:
-	var height: int = paint.size()
-	var width: int = (paint[0] as Array).size()
-	var fall: Array = []
-	for row: int in height:
-		var line: Array = []
-		for column: int in width:
-			var stroke: String = (paint[row] as Array)[column]
-			if not RISE.has(stroke):
-				line.append(0)
-				continue
-			var step: Vector2i = RISE[stroke]
-			var at := Vector2i(column, row) + step
-			var far: int = 1
-			while at.x >= 0 and at.y >= 0 and at.x < width and at.y < height \
-					and (paint[at.y] as Array)[at.x] == stroke:
-				far += 1
-				at += step
-			line.append(far)
-		fall.append(line)
-
-	var seen: Dictionary = {}
-	for row: int in height:
-		for column: int in width:
-			if seen.has(row * width + column) or not _is_roof(paint, row, column):
-				continue
-			var region: Array[Vector2i] = []
-			var stack: Array[Vector2i] = [Vector2i(column, row)]
-			seen[row * width + column] = true
-			var lowest: int = 0x7fffffff
-			while not stack.is_empty():
-				var at: Vector2i = stack.pop_back()
-				region.append(at)
-				lowest = mini(lowest, int((fall[at.y] as Array)[at.x]))
-				for step: Vector2i in [
-					Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
-				]:
-					var next: Vector2i = at + step
-					if next.x < 0 or next.y < 0 or next.x >= width or next.y >= height:
-						continue
-					if seen.has(next.y * width + next.x) \
-							or not _is_roof(paint, next.y, next.x):
-						continue
-					seen[next.y * width + next.x] = true
-					stack.append(next)
-			if lowest <= 0:
-				continue
-			for at: Vector2i in region:
-				(fall[at.y] as Array)[at.x] = int((fall[at.y] as Array)[at.x]) - lowest
-	return fall
-
-
-func _is_roof(paint: Array, row: int, column: int) -> bool:
-	var stroke: String = (paint[row] as Array)[column]
-	return stroke == ROOF or RISE.has(stroke)
+## How many tiles of a painting are cut rather than filled: the diagonals.
+func _cut(paint: Array) -> int:
+	var down: int = paint.size() / TILE
+	var across: int = String(paint[0]).length() / TILE
+	var cut: int = 0
+	for row: int in down:
+		for column: int in across:
+			var first: String = ""
+			var mixed: bool = false
+			for y: int in TILE:
+				var line: String = paint[row * TILE + y]
+				for x: int in TILE:
+					var stroke: String = line[column * TILE + x]
+					if first == "":
+						first = stroke
+					elif stroke != first:
+						mixed = true
+			if mixed:
+				cut += 1
+	return cut
 
 
 ## How many times the game places this arrangement, which is what says whether a
@@ -242,7 +204,7 @@ func _count(data: GameData, tileset_number: int, tiles: Array) -> int:
 	return found
 
 
-func _entry(record: Dictionary, fall: Array) -> String:
+func _entry(record: Dictionary) -> String:
 	var lines: Array[String] = []
 	lines.append("\t{")
 	lines.append("\t\t# %s, placed %d times on %d maps, first at %s" % [
@@ -257,16 +219,10 @@ func _entry(record: Dictionary, fall: Array) -> String:
 			ids.append("%d" % int(id))
 		lines.append("\t\t\t[%s]," % ", ".join(ids))
 	lines.append("\t\t],")
+	lines.append("\t\t# one row per PIXEL row, %d of them" % (record["paint"] as Array).size())
 	lines.append("\t\t\"paint\": [")
-	for row: Array in record["paint"] as Array:
-		lines.append("\t\t\t\"%s\"," % "".join(row))
-	lines.append("\t\t],")
-	lines.append("\t\t\"fall\": [")
-	for row: Array in fall:
-		var bands: Array[String] = []
-		for band: int in row:
-			bands.append("%d" % band)
-		lines.append("\t\t\t[%s]," % ", ".join(bands))
+	for row: String in record["paint"] as Array:
+		lines.append("\t\t\t\"%s\"," % row)
 	lines.append("\t\t],")
 	lines.append("\t},")
 	return "\n".join(lines)
@@ -283,10 +239,15 @@ func _script(entries: Array[String], corrected: int, placements: int, unchanged:
 ## GENERATED by `tools/house_pins.gd` from a `houses.json` that
 ## `tools/house_page.py` saved. Do not edit here; paint and regenerate.
 ##
-## A house is the one drawing in Generation II that packs three different
-## surfaces into one flat picture: the wall seen face-on, the roof seen from
-## above, and on some tilesets the front PITCH of that roof drawn face-on as
-## well. Nothing measurable tells them apart, so a person says which is which.
+## A house packs different surfaces into one flat picture: the wall, which you
+## are looking AT, and the roof, which you are either looking DOWN onto or seeing
+## from the FRONT. Nothing measurable tells them apart, so a person says which is
+## which.
+##
+## THE UNIT IS THE PIXEL AND IT HAS TO BE. A hipped roof comes down as a diagonal
+## across its tiles, so a tile there is part roof and part wall: read at tile
+## resolution, "roof" lifts the top of the wall onto the roof and "wall" cuts the
+## corner off the roof. Painted per pixel there is no such choice to get wrong.
 ##
 ## THE ARRANGEMENT IS THE KEY, NEVER A TILE ID. One id is the awning course of
 ## one house and the eave of another, so a pin cannot reach one drawing without
@@ -300,26 +261,21 @@ func _script(entries: Array[String], corrected: int, placements: int, unchanged:
 ## keeps the answer the passes gave it. %d drawings corrected, covering %d
 ## placements; %d were already right.
 
-## What one painted character means.
+## What one painted character means. There is no character for a DOOR: a door is
+## a wall the player walks through, and walking through is collision, which
+## nothing here touches. There is none for a SLOPE either: with wall and roof
+## separated per pixel, the top of a column's wall is that column's roof height.
 const NONE := "."
 const WALL := "W"
-const PITCH := "P"
 const ROOF := "R"
-const DOOR := "D"
-const FALL_WEST := "<"
-const FALL_EAST := ">"
-const FALL_NORTH := "^"
-const FALL_SOUTH := "v"
+const FRONT := "F"
 
 ## One entry per corrected drawing:
 ##
 ##   tileset  the tileset its tile ids belong to
 ##   tiles    the rectangle of tile ids that identifies it, north row first
-##   paint    one string per tile row, a character per tile
-##   fall     per tile, how many 8px bands a roof tile stands below the ridge of
-##            its own roof. Counted from the painted arrows at generation time,
-##            so nobody is ever asked for a number: an arrow and the tiles it
-##            covers are the whole of a slope.
+##   paint    one string per PIXEL row, a character per pixel, so eight rows and
+##            eight characters per tile
 const HOUSES: Array = [%s]
 
 
