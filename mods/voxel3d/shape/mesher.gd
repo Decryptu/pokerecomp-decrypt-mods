@@ -158,6 +158,12 @@ const PART_WALL: int = 1
 const PART_ROOF: int = 2
 var _part := PackedByteArray()
 var _drop := PackedByteArray()
+## Per tile: whether it is the VOID past the edge of the world rather than ground.
+## Both draw one flat quad at the same height and nothing else in the mesh has had
+## to tell them apart. A great roof does: it falls away from the floor a person
+## stands on and it falls TOWARD the void, and the two ends of its run are
+## otherwise identical. See `_roof_fall`.
+var _void := PackedByteArray()
 ## How many pixels off each facade tile's left and right edges are ground rather
 ## than wall. See `profile.gd:FACADE_MARGIN`.
 var _margin_left := PackedByteArray()
@@ -508,6 +514,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_klass.resize(count)
 	_part.resize(count)
 	_drop.resize(count)
+	_void.resize(count)
 	_margin_left.resize(count)
 	_margin_right.resize(count)
 	_heights.resize(count)
@@ -581,6 +588,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 				_:
 					_part[at] = PART_NONE
 			_drop[at] = shape.roof_drop(shape_class)
+			_void[at] = 1 if shape_class == &"void" else 0
 			# How much of this tile is the ground beside the house rather than the
 			# house. Nearly always nothing, which is why it is stored per tile and
 			# read at emit rather than being another pass.
@@ -607,6 +615,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_apply_levels(source)
 	_measure_plateaus()
 	_measure_buildings()
+	# After the buildings, which is the one pass that can put a floor below the
+	# ground plane and so the only one the void has anything to follow.
+	_settle_void()
 	# Before the furniture, which asks what the height of the thing under it came
 	# to and would read an unsettled -1 as standing on the floor.
 	_settle_unmeasured()
@@ -1017,6 +1028,64 @@ func _regions(cells: Vector2i) -> PackedInt32Array:
 					stack.append(to)
 			next += 1
 	return region
+
+
+## THE VOID HAS NO HEIGHT OF ITS OWN, and until a roof fell below the ground
+## plane nothing in the game could tell.
+##
+## Past the edge of the world the cartridge draws a flat colour and this view
+## lays it down as one quad at 0, which is right everywhere it borders ordinary
+## ground and wrong the moment it borders anything lower: the great roof of a
+## building falls a walk cell a tile from its ridge to its eaves, and a void
+## standing at 0 round it walls the whole roof into a grey pit, which is what the
+## first picture of it showed.
+##
+## So a connected field of void takes the LOWEST floor it touches anywhere. Lowest
+## and not nearest, so the whole field lies flat and no seam runs through it; and
+## a FLOOR rather than any neighbour, so a cave's void, which touches nothing but
+## the faces of walls, is left exactly where it was. It can only ever come down,
+## which is what makes it safe: measured over every map, one map moves.
+func _settle_void() -> void:
+	var seen := PackedByteArray()
+	seen.resize(_size.x * _size.y)
+	var region := PackedInt32Array()
+	for start: int in _size.x * _size.y:
+		if _void[start] == 0 or seen[start] == 1:
+			continue
+		region.clear()
+		region.append(start)
+		seen[start] = 1
+		var floor_height: int = 0
+		var head: int = 0
+		while head < region.size():
+			var at: int = region[head]
+			head += 1
+			var tx: int = at % _size.x
+			var ty: int = at / _size.x
+			for step: Vector2i in [
+				Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
+			]:
+				var to := Vector2i(tx + step.x, ty + step.y)
+				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+					continue
+				var index: int = to.y * _size.x + to.x
+				if _void[index] == 1:
+					if seen[index] == 0:
+						seen[index] = 1
+						region.append(index)
+					continue
+				# A wall's face says nothing about where the ground behind it is,
+				# and an unmeasured tile says nothing at all yet. A NEGATIVE height
+				# is not unmeasured: -1 is the sentinel and every real height is a
+				# whole number of bands, so testing for "below zero" here skipped
+				# the one floor this pass exists to follow.
+				if _volume[index] == 1 or _heights[index] == -1:
+					continue
+				floor_height = mini(floor_height, _heights[index])
+		if floor_height == 0:
+			continue
+		for at: int in region:
+			_heights[at] = floor_height
 
 
 ## Anything the measuring passes never reached, given a height at last.
@@ -1492,6 +1561,63 @@ func _facade_period(tx: int, bottom: int, run: int) -> int:
 	return run
 
 
+## HOW FAR EACH TILE OF A ROOF RUN HAS FALLEN, in bands.
+##
+## `ROOF_DROP` is a fall FROM THE FLAT SECTION of the same roof, which is what the
+## reviewer measured tileset 3's gable in: one band down beside the flat, two at
+## the corner of the house. Read that way it is exact, and it is the answer
+## wherever a run has a flat section in it to fall from.
+##
+## A GREAT ROOF HAS NONE. Its whole width is the pitch, twelve tiles of it, every
+## tile drawn the same, falling the entire way from the ridge to the eaves. There
+## is no flat tile in the run to measure an absolute fall against, so the drop is
+## read the other way, as a RATE: each tile falls its own drop further than the
+## tile before it, and the eave ends a walk cell and a half below the ridge.
+##
+## WHICH END IS THE RIDGE is the only thing here a drawing cannot say. Both ends
+## are the same picture and what tells them apart is what lies beyond: a roof
+## falls away from the floor a person stands on and it falls toward the VOID past
+## the edge of the world. A run with void at both ends, or floor at both, has no
+## reference at all and every tile keeps its own drop.
+const ROOF_RIDGE_NONE: int = 0
+const ROOF_RIDGE_FLAT: int = 1
+const ROOF_RIDGE_LEFT: int = 2
+const ROOF_RIDGE_RIGHT: int = 3
+
+
+## Where one roof run's fall is measured from.
+func _roof_ridge(ty: int, from: int, to: int) -> int:
+	var row: int = ty * _size.x
+	for tx: int in range(from, to + 1):
+		if _drop[row + tx] == 0:
+			return ROOF_RIDGE_FLAT
+	var left_void: bool = from == 0 or _void[row + from - 1] == 1
+	var right_void: bool = to == _size.x - 1 or _void[row + to + 1] == 1
+	if left_void == right_void:
+		return ROOF_RIDGE_NONE
+	return ROOF_RIDGE_RIGHT if left_void else ROOF_RIDGE_LEFT
+
+
+func _roof_fall(ty: int, from: int, to: int, ridge: int) -> PackedInt32Array:
+	var fall := PackedInt32Array()
+	fall.resize(to - from + 1)
+	var row: int = ty * _size.x
+	if ridge == ROOF_RIDGE_FLAT or ridge == ROOF_RIDGE_NONE:
+		for tx: int in range(from, to + 1):
+			fall[tx - from] = int(_drop[row + tx])
+		return fall
+	var carried: int = 0
+	if ridge == ROOF_RIDGE_LEFT:
+		for tx: int in range(from, to + 1):
+			carried += int(_drop[row + tx])
+			fall[tx - from] = carried
+	else:
+		for tx: int in range(to, from - 1, -1):
+			carried += int(_drop[row + tx])
+			fall[tx - from] = carried
+	return fall
+
+
 ## One unbroken stretch of roof across one map row.
 func _roof_row(ty: int, from: int, to: int, column: PackedInt32Array) -> void:
 	var flat: int = -1
@@ -1502,9 +1628,21 @@ func _roof_row(ty: int, from: int, to: int, column: PackedInt32Array) -> void:
 		if _drop[at] == 0:
 			flat = maxi(flat, column[tx])
 	var agreed: int = flat if flat >= 0 else anywhere
+	var ridge: int = _roof_ridge(ty, from, to)
+	var fall: PackedInt32Array = _roof_fall(ty, from, to, ridge)
+	# A ROOF NEVER FALLS BELOW WHAT ITS OWN COLUMN STANDS ON, or a gable meeting a
+	# low wing drives its corner into the ground. A HANGING run is the exception
+	# and the only one: it is the top of a building whose walls are off the map, so
+	# a column carrying nothing carries nothing to be driven into, and clamping it
+	# to the ground plane is what laid the whole of the great roof out flat.
+	# Anything else keeps the clamp, or a lone roof tile the pass named in a room
+	# sinks through the floor, which eleven Pokemon Centers did.
+	var hanging: bool = ridge == ROOF_RIDGE_LEFT or ridge == ROOF_RIDGE_RIGHT
 	for tx: int in range(from, to + 1):
 		var at: int = ty * _size.x + tx
-		var height: int = maxi(agreed - int(_drop[at]) * BAND, column[tx])
+		var height: int = agreed - fall[tx - from] * BAND
+		if column[tx] > 0 or not hanging:
+			height = maxi(height, column[tx])
 		_heights[at] = height
 		_volume[at] = 0
 		# The exposed side of a roof step is one band tall, so the row it folds
@@ -3688,13 +3826,19 @@ func _face_roof(tx: int, ty: int, uv: Rect2, shade: Color) -> void:
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
 	var z1: float = z0 + TILE
-	_quad(
-		Vector3(x0, _roof_corner(tx, ty, -1, 1), z1),
-		Vector3(x1, _roof_corner(tx, ty, 1, 1), z1),
-		Vector3(x1, _roof_corner(tx, ty, 1, -1), z0),
-		Vector3(x0, _roof_corner(tx, ty, -1, -1), z0),
-		Vector3.UP, uv, shade
-	)
+	var a := Vector3(x0, _roof_corner(tx, ty, -1, 1), z1)
+	var b := Vector3(x1, _roof_corner(tx, ty, 1, 1), z1)
+	var c := Vector3(x1, _roof_corner(tx, ty, 1, -1), z0)
+	var d := Vector3(x0, _roof_corner(tx, ty, -1, -1), z0)
+	# THE NORMAL IS THE TILT'S, not UP. A gable's one band over one tile is a
+	# slope of five degrees and nobody could see the difference; a great roof
+	# falling twelve tiles from its ridge is a real 45 degree plane, and lighting
+	# it as though it were the floor makes its two pitches the same brightness at
+	# every hour of the day, which is the one thing a roof must not be.
+	var normal: Vector3 = (c - a).cross(d - b).normalized()
+	if normal.y < 0.0:
+		normal = -normal
+	_quad(a, b, c, d, normal, uv, shade)
 
 
 func _face_top(tx: int, ty: int, y: float, uv: Rect2, shade: Color) -> void:
