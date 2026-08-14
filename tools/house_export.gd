@@ -145,13 +145,6 @@ func _walk(
 ) -> void:
 	var shape: RefCounted = shape_script.new(profile, map.tileset)
 	var source: RefCounted = source_script.new(null, map, tileset)
-	# The tileset's own pixels and this map's own palette, which is what says
-	# which shade bounds a drawing. See `_outline`.
-	var indices: PackedByteArray = data.world_tileset_indices(tileset.number)
-	var palettes: Array = Gen2WorldPalette.tile_palettes(
-		data, map, tileset, Gen2WorldPalette.TIME_DAY
-	)
-	var stride: int = tileset.tile_count * TILE
 	var w: int = map.width_blocks * BLOCK_TILES
 	var h: int = map.height_blocks * BLOCK_TILES
 	# THE DOORS ARE NAMED BY THE CARTRIDGE. A door is a warp, and a warp is a
@@ -212,8 +205,7 @@ func _walk(
 			var key: String = "ts%d %s" % [map.tileset, str(rows)]
 			if not drawings.has(key):
 				drawings[key] = {
-					"outline": _outline(indices, palettes, stride, rows),
-					"tileset": map.tileset,
+						"tileset": map.tileset,
 					"tiles": rows,
 					"size": [box.size.x, box.size.y],
 					"cells": [box.size.x / 2.0, box.size.y / 2.0],
@@ -280,73 +272,6 @@ func _fill_falls(paint: Array) -> void:
 			if row[column] != "":
 				continue
 			row[column] = PAINT_FALL_WEST if column * 2 < width else PAINT_FALL_EAST
-
-
-## WHICH PIXELS OF THE DRAWING ARE ITS OUTLINE, one character per pixel.
-##
-## The page's wand floods a shape by running through every pixel that is NOT
-## outline, which is the same `OUTLINE` rule the mesher cuts a silhouette with, so
-## a roof and its dither and its diagonal end come out in one click where a
-## same-colour flood would take every other pixel of a dither.
-##
-## IT IS EXPORTED RATHER THAN MEASURED IN THE PAGE, and that is the fix for a real
-## bug. Reading a drawing back pixel by pixel off a canvas is same-origin work,
-## and a page opened as a LOCAL FILE cannot do it to a local image: the canvas is
-## tainted, the read throws, and the picture never appears. Carried as data there
-## is nothing to taint. It is also the more correct answer: a shade's rank is a
-## fact about ONE TILE, since an index is one of four palette entries in no fixed
-## order, and `atlas.gd:shade_order` is the mod's own reading of it.
-func _outline(
-	indices: PackedByteArray, palettes: Array, stride: int, rows: Array
-) -> Array:
-	var mask: Array = []
-	for row: Array in rows:
-		var lines: Array[String] = []
-		for _y: int in TILE:
-			lines.append("")
-		for tile: int in row:
-			var dark: int = _darkest(indices, palettes, stride, tile)
-			for y: int in TILE:
-				var line: String = ""
-				for x: int in TILE:
-					var at: int = y * stride + tile * TILE + x
-					var index: int = int(indices[at]) if at < indices.size() else 0
-					line += "1" if index == dark else "0"
-				lines[y] += line
-		for line: String in lines:
-			mask.append(line)
-	return mask
-
-
-## The palette index this tile's darkest shade is drawn in, ranked by real
-## LUMINANCE exactly as `atlas.gd:shade_order` ranks it. An index is one of four
-## palette entries in no fixed brightness order, so reading the highest index as
-## the darkest is wrong and this mod already wrote that down once.
-##
-## Only an index the tile actually PAINTS can be its outline: a tile drawn in two
-## shades bounded by one it never draws is a shape the flood runs straight out of.
-func _darkest(
-	indices: PackedByteArray, palettes: Array, stride: int, tile: int
-) -> int:
-	var palette: PackedColorArray = palettes[tile] if tile < palettes.size() \
-		else PackedColorArray()
-	var drawn: Array[bool] = [false, false, false, false]
-	for y: int in TILE:
-		for x: int in TILE:
-			var at: int = y * stride + tile * TILE + x
-			if at < indices.size():
-				drawn[int(indices[at]) & 3] = true
-	var dark: int = -1
-	var lowest: float = 2.0
-	for index: int in 4:
-		if not drawn[index] or index >= palette.size():
-			continue
-		var color: Color = palette[index]
-		var luminance: float = color.r * 0.299 + color.g * 0.587 + color.b * 0.114
-		if luminance < lowest:
-			lowest = luminance
-			dark = index
-	return dark
 
 
 func _ringed(image: Image, ring: Rect2i) -> Image:

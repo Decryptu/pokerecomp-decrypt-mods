@@ -17,11 +17,13 @@ its tiles, so a tile there is part roof and part wall, and no answer at tile
 resolution is right: "roof" lifts the wall's top onto the roof and "wall" cuts
 the corner off the roof. The reviewer said so and they were right.
 
-SO THE WAND DOES THE WORK, NOT THE HAND. Painting 3000 pixels a house is not a
-job worth giving anybody. One click floods the drawing's own shape: it runs
-through every pixel that is not part of the outline, which is how this mod
-already cuts a drawing out of its background, and then swallows the outline
-around it. A roof and its dither and its diagonal end come out in one click.
+IT IS A BRUSH AND NOTHING CLEVERER. A wand was built first, flooding the
+drawing's own shape through everything that was not its outline, and it was
+refused: a Game Boy drawing is not sealed the way a wand needs, so it took a
+whole house as often as it took a roof, and a tool that has to be undone half
+the time is slower than one that never surprises you. So: hold and drag, a brush
+whose size is SHOWN at the cursor, a rectangle, and a fill that spreads only
+through what is already painted the same word. Nothing guesses.
 
 FOUR WORDS AND NO MORE, and each is a fact about the drawing rather than a term
 of art:
@@ -72,6 +74,10 @@ PAGE = """<!doctype html>
           display: inline-block; max-width: 96vw; }
   canvas, img.ctx { display: block; image-rendering: pixelated; }
   canvas { cursor: crosshair; }
+  .stack { position: relative; line-height: 0; }
+  /* The brush preview rides over the picture on its own layer, so moving the
+     mouse never repaints the drawing underneath it. */
+  #over { position: absolute; left: 0; top: 0; pointer-events: none; }
   .paints { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   .pt { height: 32px; border-radius: 6px; border: 2px solid #3a3a44;
         display: flex; align-items: center; padding: 0 8px; font-weight: 700;
@@ -103,7 +109,9 @@ PAGE = """<!doctype html>
 <main>
   <div class="row">
     <div>
-      <div class="wrap"><canvas id="art"></canvas></div>
+      <div class="wrap"><div class="stack">
+        <canvas id="art"></canvas><canvas id="over"></canvas>
+      </div></div>
       <div class="cap" id="cap"></div>
     </div>
     <div>
@@ -115,15 +123,15 @@ PAGE = """<!doctype html>
     <span id="tools"></span>
   </p>
   <p class="hint">
-    <b>Use the wand.</b> One click floods the shape you clicked in, following the
-    drawing's own outline, so a whole roof with its dither and its diagonal ends
-    comes out in one go. If it takes too much or too little, undo with
-    <kbd>Ctrl</kbd>+<kbd>Z</kbd> and use the brush. <kbd>1</kbd>-<kbd>4</kbd>
-    pick a word, <kbd>W</kbd> wand, <kbd>B</kbd> brush, <kbd>R</kbd> rectangle,
-    <kbd>[</kbd> <kbd>]</kbd> zoom, <kbd>,</kbd> <kbd>.</kbd> brush size,
+    <b>Hold and drag to paint.</b> The square at the cursor is the brush and is
+    exactly what it will cover. <kbd>1</kbd>-<kbd>4</kbd> pick a word,
+    <kbd>B</kbd> brush, <kbd>R</kbd> rectangle, <kbd>F</kbd> fill,
+    <kbd>,</kbd> <kbd>.</kbd> brush size, <kbd>[</kbd> <kbd>]</kbd> zoom,
+    <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes a whole stroke,
     <kbd>X</kbd> hides the paint so the drawing can be seen bare,
     <kbd>G</kbd> hides the grid, <kbd>&#8592;</kbd> <kbd>&#8594;</kbd> the house
-    before and after.
+    before and after. <b>fill</b> spreads through everything already painted the
+    same word as the pixel you click, so it is never a surprise.
   </p>
   <p class="hint">
     <b>wall</b> is anything you are looking AT face-on. It stands straight up.
@@ -182,7 +190,7 @@ const TINT = 0.11;
 // The hatch tile, in SCREEN pixels, so the lines stay the same weight whatever
 // the zoom is. Hatching in drawing pixels turns into a solid block at 14x.
 const HATCH = 11;
-let at = 0, kind = "W", scale = 8, tool = "wand", brush = 2;
+let at = 0, kind = "W", scale = 8, tool = "brush", brush = 4;
 let bare = false, grid = true;
 const undo = [];
 
@@ -230,14 +238,11 @@ try {
   }
 } catch (e) {}
 
-// WHICH PIXELS ARE THE DRAWING'S OUTLINE, which is all the wand needs to know.
-// It is EXPORTED as data rather than read back off the canvas, and that is the
-// fix for a real bug rather than a preference: reading pixels off a canvas is
-// same-origin work, and a page opened as a LOCAL FILE cannot do it to a local
-// image. The first version read the canvas, so it worked perfectly served over
-// http and drew a blank rectangle the way a person actually opens it. Nothing
-// here reads a pixel now, so there is no origin left to be wrong about.
-let W = 0, H = 0, outline = null;
+let W = 0, H = 0;
+// Where the cursor is, so the brush can be SEEN before it is used. Drawn on an
+// overlay rather than into the picture, or every mouse move would repaint the
+// drawing under it.
+let hover = null;
 
 // The pre-fill, expanded from the tile reading the mod already has. A tile word
 // covers all 64 of its pixels, which is exactly today's answer and therefore
@@ -285,6 +290,8 @@ function draw() {
   const c = $("art"), g = c.getContext("2d");
   const w = h.size[0] * TILE, t = h.size[1] * TILE;
   c.width = w * scale; c.height = t * scale;
+  const o = $("over");
+  o.width = c.width; o.height = c.height;
   g.imageSmoothingEnabled = false;
   if (img.complete && img.naturalWidth) g.drawImage(img, 0, 0, c.width, c.height);
   if (!bare) {
@@ -377,15 +384,35 @@ function options() {
   }).join("");
 }
 
+function sized(step) {
+  brush = Math.max(1, Math.min(32, brush + step));
+  marks(); cursor();
+}
+
+function zoomed(step) {
+  scale = Math.max(2, Math.min(20, scale + step));
+  marks(); draw(); cursor();
+}
+
 function marks() {
   for (const el of document.querySelectorAll(".pt"))
     el.classList.toggle("on", el.dataset.k === kind);
   $("tools").innerHTML =
-    ["wand", "brush", "rect"].map((k) =>
+    ["brush", "rect", "fill"].map((k) =>
       `<button class="tool${tool === k ? " on" : ""}" data-t="${k}">${k}</button>`
-    ).join(" ") + ` &nbsp; brush ${brush*2+1}px`;
+    ).join(" ") +
+    ` &nbsp; <button class="size" data-d="-1">&#8722;</button>` +
+    ` <b>brush ${brush}px</b> ` +
+    `<button class="size" data-d="1">+</button>` +
+    ` &nbsp; <button class="zoom" data-d="-1">&#8722;</button>` +
+    ` <b>zoom ${scale}x</b> ` +
+    `<button class="zoom" data-d="1">+</button>`;
   for (const el of document.querySelectorAll(".tool"))
-    el.onclick = () => { tool = el.dataset.t; marks(); };
+    el.onclick = () => { tool = el.dataset.t; marks(); cursor(); };
+  for (const el of document.querySelectorAll(".size"))
+    el.onclick = () => { sized(+el.dataset.d); };
+  for (const el of document.querySelectorAll(".zoom"))
+    el.onclick = () => { zoomed(+el.dataset.d); };
 }
 
 let stroke = null;
@@ -418,60 +445,83 @@ function box(a, b) {
   if (n) { persist(state(at)); draw(); }
 }
 
-// THE WAND IS THE TOOL. It floods the drawing's own shape rather than a region
-// of one colour, because a Game Boy roof is a DITHER of two shades and a
-// same-colour flood would take every other pixel of it. What bounds a shape here
-// is the darkest shade, which is the outline the artist drew round it, and that
-// is the same rule this mod cuts every silhouette with. The outline itself is
-// then swallowed, or a painted roof would come back with a black fringe that
-// belongs to nothing.
-function wand(sx, sy) {
+// The square of drawing pixels a brush of the current size covers at p.
+function span(p) {
+  const half = (brush - 1) >> 1;
+  return [[p[0] - half, p[1] - half],
+          [p[0] - half + brush - 1, p[1] - half + brush - 1]];
+}
+
+// A DRAG PAINTS A LINE, not a row of dots. A mouse move skips pixels whenever
+// the hand is quick or the zoom is high, and a brush that only marks where the
+// events landed leaves gaps through the middle of a stroke.
+function stroke_to(a, b) {
+  const steps = Math.max(Math.abs(b[0]-a[0]), Math.abs(b[1]-a[1]));
+  for (let i = 0; i <= steps; i++) {
+    const t = steps === 0 ? 0 : i / steps;
+    const s = span([Math.round(a[0] + (b[0]-a[0]) * t),
+                    Math.round(a[1] + (b[1]-a[1]) * t)]);
+    box(s[0], s[1]);
+  }
+}
+
+// Everything joined to the pixel clicked that carries the SAME WORD it does.
+// Not the drawing's shape and not a colour: what it spreads through is the
+// painting, so it can never surprise you with a region you cannot see.
+function fill(sx, sy) {
   const h = state(at);
   if (sx < 0 || sy < 0 || sx >= W || sy >= H) return;
-  const inside = (x, y) => outline[y][x] === "0";
-  const start = inside(sx, sy);
-  const hit = new Uint8Array(W * H);
-  const stack = [sy * W + sx];
-  hit[sy * W + sx] = 1;
-  // Clicking ON the outline can only mean the outline, so that floods the ink.
-  const ok = (x, y) => inside(x, y) === start;
+  const from = h._paint[sy][sx];
+  if (from === kind) return;
+  const seen = new Uint8Array(W * H);
+  const stack = [[sx, sy]];
+  seen[sy * W + sx] = 1;
   while (stack.length) {
-    const i = stack.pop();
-    const x = i % W, y = (i / W) | 0;
+    const [x, y] = stack.pop();
+    put(x, y);
     for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
       const nx = x + dx, ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-      const j = ny * W + nx;
-      if (hit[j] || !ok(nx, ny)) continue;
-      hit[j] = 1;
-      stack.push(j);
+      if (seen[ny * W + nx] || h._paint[ny][nx] !== from) continue;
+      seen[ny * W + nx] = 1;
+      stack.push([nx, ny]);
     }
   }
-  if (start) {
-    // Swallow the outline around it, so the shape arrives with its own edge.
-    const edge = [];
-    for (let i = 0; i < W * H; i++) {
-      if (hit[i]) continue;
-      const x = i % W, y = (i / W) | 0;
-      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-        const nx = x + dx, ny = y + dy;
-        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-        if (hit[ny * W + nx] === 1) { edge.push(i); break; }
-      }
-    }
-    for (const i of edge) hit[i] = 2;
+  persist(h); draw();
+}
+
+// THE BRUSH IS SHOWN AT THE CURSOR, which is the difference between choosing a
+// size and guessing one. Drawn on its own layer over the picture, in the colour
+// of the word about to be painted.
+function cursor() {
+  const c = $("over"), g = c.getContext("2d");
+  g.clearRect(0, 0, c.width, c.height);
+  if (!hover) return;
+  const p = BY_KEY[kind];
+  if (tool === "brush") {
+    const s = span(hover);
+    g.fillStyle = p.color; g.globalAlpha = 0.30;
+    g.fillRect(s[0][0]*scale, s[0][1]*scale, brush*scale, brush*scale);
+    g.globalAlpha = 1;
+    g.strokeStyle = "#fff"; g.lineWidth = 2;
+    g.strokeRect(s[0][0]*scale, s[0][1]*scale, brush*scale, brush*scale);
+    g.strokeStyle = p.color; g.lineWidth = 1;
+    g.strokeRect(s[0][0]*scale+1, s[0][1]*scale+1, brush*scale-2, brush*scale-2);
+  } else {
+    g.strokeStyle = "#fff"; g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(hover[0]*scale + scale/2, 0);
+    g.lineTo(hover[0]*scale + scale/2, c.height);
+    g.moveTo(0, hover[1]*scale + scale/2);
+    g.lineTo(c.width, hover[1]*scale + scale/2);
+    g.stroke();
   }
-  let n = 0;
-  for (let i = 0; i < W * H; i++)
-    if (hit[i] && put(i % W, (i / W) | 0)) n++;
-  if (n) { persist(h); draw(); }
 }
 
 function load() {
   const h = state(at);
   scale = Math.max(2, Math.min(14, Math.floor(900 / (h.size[0] * TILE))));
   W = h.size[0] * TILE; H = h.size[1] * TILE;
-  outline = h.outline;
   img.onload = draw;
   img.src = h.art;
   const ctx = $("ctx");
@@ -520,14 +570,14 @@ function build() {
       if (step) { step(); draw(); }
       return;
     }
-    for (const p of PAINTS) if (e.key === p.key) { kind = p.k; marks(); }
-    if (e.key === "w" || e.key === "W") { tool = "wand"; marks(); }
-    if (e.key === "b" || e.key === "B") { tool = "brush"; marks(); }
-    if (e.key === "r" || e.key === "R") { tool = "rect"; marks(); }
-    if (e.key === "[") { scale = Math.max(2, scale - 1); draw(); }
-    if (e.key === "]") { scale = Math.min(20, scale + 1); draw(); }
-    if (e.key === ",") { brush = Math.max(0, brush - 1); marks(); }
-    if (e.key === ".") { brush = Math.min(12, brush + 1); marks(); }
+    for (const p of PAINTS) if (e.key === p.key) { kind = p.k; marks(); cursor(); }
+    if (e.key === "b" || e.key === "B") { tool = "brush"; marks(); cursor(); }
+    if (e.key === "r" || e.key === "R") { tool = "rect"; marks(); cursor(); }
+    if (e.key === "f" || e.key === "F") { tool = "fill"; marks(); cursor(); }
+    if (e.key === "[") zoomed(-1);
+    if (e.key === "]") zoomed(1);
+    if (e.key === ",") sized(-1);
+    if (e.key === ".") sized(1);
     if (e.key === "x" || e.key === "X") { bare = !bare; draw(); }
     if (e.key === "g" || e.key === "G") { grid = !grid; draw(); }
     if (e.key === "ArrowLeft") go(-1);
@@ -540,26 +590,34 @@ function build() {
     return [Math.floor((e.clientX - r.left) / scale),
             Math.floor((e.clientY - r.top) / scale)];
   };
-  const dab = (p) => box([p[0]-brush, p[1]-brush], [p[0]+brush, p[1]+brush]);
+  let last = null;
   c.onmousedown = (e) => {
     from = pixelOf(e);
+    last = from;
     open_stroke();
-    if (tool === "wand") wand(from[0], from[1]);
-    if (tool === "brush") dab(from);
+    if (tool === "brush") stroke_to(from, from);
+    if (tool === "fill") fill(from[0], from[1]);
     e.preventDefault();
   };
   c.onmousemove = (e) => {
-    if (!from || tool !== "brush") return;
-    dab(pixelOf(e));
+    const p = pixelOf(e);
+    hover = p;
+    if (from && tool === "brush") { stroke_to(last, p); last = p; }
+    cursor();
   };
+  // A drag that ends off the canvas still has to land, or a stroke run off the
+  // edge of a drawing is silently lost.
   const finish = (e) => {
     if (!from) return;
     if (tool === "rect") box(from, pixelOf(e));
-    from = null;
+    from = null; last = null;
     close_stroke();
   };
   c.onmouseup = finish;
-  c.onmouseleave = finish;
+  c.onmouseleave = (e) => { finish(e); hover = null; cursor(); };
+  window.addEventListener("mouseup", () => {
+    if (from) { from = null; last = null; close_stroke(); }
+  });
   load(); tally();
 }
 
@@ -604,13 +662,9 @@ def main():
     if missing:
         print("missing pictures beside the page: %s" % ", ".join(missing[:6]))
         return 1
-    # THE PAGE CARRIES ITS OWN PICTURES. The wand reads the drawing back pixel by
-    # pixel off a canvas, which is same-origin work, and a page opened as a LOCAL
-    # FILE cannot do that to a local image: the canvas is tainted and the read
-    # throws. Loading them beside the page worked perfectly over http and drew a
-    # blank rectangle the way a person actually opens it. A data URI has no origin
-    # to be wrong about. Only the drawing needs it; the context picture is only
-    # ever displayed, never read.
+    # THE PAGE CARRIES ITS OWN PICTURES, so it is one file with nothing beside it
+    # to find and nothing to go missing if it is moved or sent on. The context
+    # picture stays a path: there are 112 of them and they are the big half.
     for house in houses:
         house["art"] = "data:image/png;base64," + base64.b64encode(
             (directory / house["art"]).read_bytes()).decode()
