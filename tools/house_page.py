@@ -74,9 +74,10 @@ PAGE = """<!doctype html>
   canvas { cursor: crosshair; }
   .paints { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   .pt { height: 32px; border-radius: 6px; border: 2px solid #3a3a44;
-        display: flex; align-items: center; padding: 0 10px; font-weight: 600;
-        cursor: pointer; color: #000; font-size: 13px; }
-  .pt.on { border-color: #fff; box-shadow: 0 0 0 2px #6ea8fe; }
+        display: flex; align-items: center; padding: 0 8px; font-weight: 700;
+        cursor: pointer; font-size: 13px; }
+  .pt .lbl { background: #1b1b22e6; padding: 1px 6px; border-radius: 4px; }
+  .pt.on { box-shadow: 0 0 0 3px #fff; }
   .hint { color: #8d8da0; font-size: 13px; margin: 8px 0 0; max-width: 96ch; }
   .hint b { color: #c9c9d8; }
   kbd { background: #23232b; border: 1px solid #3a3a44; border-radius: 4px;
@@ -162,21 +163,62 @@ const TILE = 8;
 // version of this page had nine, including "pitch" and four falling arrows, and
 // the reviewer could not use any of them: a slope is measured already, and a
 // door is a wall.
+// EACH WORD HAS ITS OWN HATCH, not just its own colour. A flat wash light enough
+// to see the drawing through is too light to tell two words apart, and one heavy
+// enough to tell them apart hides the drawing: the reviewer hit both ends of that
+// and was right. A pattern is legible at any opacity, because what names it is
+// the direction of the lines rather than the strength of the tint.
 const PAINTS = [
-  { k: "W", label: "wall",               color: "#5b8dd6", key: "1" },
-  { k: "R", label: "roof",               color: "#d8934a", key: "2" },
-  { k: "F", label: "roof, from the front", color: "#a878d8", key: "3" },
-  { k: ".", label: "not the house",      color: "#6b7280", key: "4" },
+  { k: "W", label: "wall",                 color: "#4d94ff", key: "1", hatch: "up" },
+  { k: "R", label: "roof",                 color: "#ff8c1a", key: "2", hatch: "down" },
+  { k: "F", label: "roof, from the front", color: "#c862ff", key: "3", hatch: "cross" },
+  { k: ".", label: "not the house",        color: "#9aa0ad", key: "4", hatch: "dot" },
 ];
 const BY_KEY = {};
 for (const p of PAINTS) BY_KEY[p.k] = p;
-// LIGHT ON PURPOSE. The drawing is the thing being judged, so the paint has to
-// be readable THROUGH: a wash heavy enough to name a region is heavy enough to
-// hide what makes it one.
-const TINT = 0.42;
+// The wash under the hatch, kept faint: the hatch is what names the region and
+// the wash only makes it a field rather than a set of lines.
+const TINT = 0.11;
+// The hatch tile, in SCREEN pixels, so the lines stay the same weight whatever
+// the zoom is. Hatching in drawing pixels turns into a solid block at 14x.
+const HATCH = 11;
 let at = 0, kind = "W", scale = 8, tool = "wand", brush = 2;
 let bare = false, grid = true;
 const undo = [];
+
+// One repeating hatch per word, built once and anchored to the canvas rather
+// than to each rectangle, so a region comes out as continuous ruling instead of
+// a grid of little patches.
+const HATCHES = {};
+function buildHatches() {
+  for (const p of PAINTS) {
+    const c = document.createElement("canvas");
+    c.width = c.height = HATCH;
+    const g = c.getContext("2d");
+    g.strokeStyle = p.color; g.fillStyle = p.color;
+    g.lineWidth = 2.0; g.lineCap = "square";
+    const s = HATCH;
+    if (p.hatch === "dot") {
+      g.globalAlpha = 0.85;
+      g.beginPath(); g.arc(s/2, s/2, 1.4, 0, 6.284); g.fill();
+    }
+    if (p.hatch === "up" || p.hatch === "cross") {
+      g.beginPath();
+      g.moveTo(-1, 1); g.lineTo(1, -1);
+      g.moveTo(-1, s+1); g.lineTo(s+1, -1);
+      g.moveTo(s-1, s+1); g.lineTo(s+1, s-1);
+      g.stroke();
+    }
+    if (p.hatch === "down" || p.hatch === "cross") {
+      g.beginPath();
+      g.moveTo(-1, s-1); g.lineTo(1, s+1);
+      g.moveTo(-1, -1); g.lineTo(s+1, s+1);
+      g.moveTo(s-1, -1); g.lineTo(s+1, 1);
+      g.stroke();
+    }
+    HATCHES[p.k] = c;
+  }
+}
 
 const $ = (id) => document.getElementById(id);
 const KEY = "voxel3dhousepx:";
@@ -246,17 +288,44 @@ function draw() {
   g.imageSmoothingEnabled = false;
   if (img.complete && img.naturalWidth) g.drawImage(img, 0, 0, c.width, c.height);
   if (!bare) {
-    for (let y = 0; y < t; y++) {
-      const row = h._paint[y];
-      for (let x = 0; x < w; x++) {
-        const p = BY_KEY[row[x]];
-        if (!p || row[x] === ".") continue;
-        g.globalAlpha = TINT;
-        g.fillStyle = p.color;
-        g.fillRect(x * scale, y * scale, scale, scale);
+    // Runs first, so a region is a few wide fills rather than three thousand
+    // little ones, and so the hatch inside it is unbroken.
+    for (const p of PAINTS) {
+      const wash = g.createPattern(HATCHES[p.k], "repeat");
+      for (let y = 0; y < t; y++) {
+        const row = h._paint[y];
+        let x = 0;
+        while (x < w) {
+          if (row[x] !== p.k) { x++; continue; }
+          let end = x;
+          while (end + 1 < w && row[end + 1] === p.k) end++;
+          const rx = x * scale, rw = (end - x + 1) * scale;
+          if (p.k !== ".") {
+            g.globalAlpha = TINT; g.fillStyle = p.color;
+            g.fillRect(rx, y * scale, rw, scale);
+          }
+          g.globalAlpha = 1; g.fillStyle = wash;
+          g.fillRect(rx, y * scale, rw, scale);
+          x = end + 1;
+        }
       }
     }
-    g.globalAlpha = 1;
+    // THE EDGE BETWEEN TWO WORDS is what a person is actually looking for, so it
+    // is drawn as a line rather than left to the eye to find between two hatches.
+    g.globalAlpha = 1; g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = 1.5;
+    g.beginPath();
+    for (let y = 0; y < t; y++) {
+      for (let x = 0; x < w; x++) {
+        const k = h._paint[y][x];
+        if (x + 1 < w && h._paint[y][x+1] !== k) {
+          g.moveTo((x+1)*scale, y*scale); g.lineTo((x+1)*scale, (y+1)*scale);
+        }
+        if (y + 1 < t && h._paint[y+1][x] !== k) {
+          g.moveTo(x*scale, (y+1)*scale); g.lineTo((x+1)*scale, (y+1)*scale);
+        }
+      }
+    }
+    g.stroke();
   }
   if (!grid) return;
   // The TILE is what the mesher folds a band at a time, and the walk CELL is
@@ -421,9 +490,15 @@ function go(step) {
 }
 
 function build() {
-  $("palette").innerHTML = PAINTS.map((p) =>
-    `<span class="pt" data-k="${p.k}" style="background:${p.color}">${p.label}</span>`
-  ).join("");
+  buildHatches();
+  // THE BUTTON WEARS ITS OWN HATCH, or the legend and the picture are two things
+  // to hold in your head instead of one.
+  $("palette").innerHTML = PAINTS.map((p) => {
+    const bar = HATCHES[p.k].toDataURL();
+    return `<span class="pt" data-k="${p.k}" style="color:${p.color};` +
+      `border-color:${p.color};background:#1b1b22 url(${bar}) repeat">` +
+      `<span class="lbl">${p.label}</span></span>`;
+  }).join("");
   $("palette").onclick = (e) => {
     const el = e.target.closest(".pt");
     if (el) { kind = el.dataset.k; marks(); }
