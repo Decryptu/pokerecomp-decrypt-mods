@@ -185,6 +185,13 @@ func time_of_day() -> int:
 	return _time_of_day
 
 
+## The move animation's whole-screen flash, off the view's own background palette
+## maps. See `frame.gd`; only the battle ever asks for one.
+func set_flash(maps: Variant) -> void:
+	_frame.set_flash(maps)
+
+
+
 ## How far the eye is allowed to see, in world pixels, following whatever the
 ## mesh was actually built out to. Zero is the whole map.
 ##

@@ -15,7 +15,7 @@ extends SceneTree
 ##   Godot --path <pokerecomp> -s tools/battle_shot.gd -- <cache> <group> \
 ##       <number> <cell x> <cell y> <out.png> [facing 0-3] [time 0-3] \
 ##       [player species] [enemy species] [hold frames] [hp 0-1] \
-##       [anim index] [anim frame] [enemy turn 0-1]
+##       [anim index] [anim frame] [enemy turn 0-1] [background half 0-1]
 ##
 ## A MOVE ANIMATION IS RUN HEADLESS rather than mocked up, which is what makes
 ## open work 7 checkable at all. `Gen2BattleAnimPlayer` is the cartridge's own
@@ -55,7 +55,8 @@ func _initialize() -> void:
 	if args.size() < 6:
 		print("usage: <cache> <group> <number> <cell x> <cell y> <out.png>"
 			+ " [facing 0-3] [time 0-3] [player species] [enemy species]"
-			+ " [hold frames] [hp 0-1]")
+			+ " [hold frames] [hp 0-1] [anim index] [anim frame]"
+			+ " [enemy turn 0-1] [background half 0-1]")
 		quit(1)
 		return
 	var data: GameData = GameData.open_directory(args[0])
@@ -123,7 +124,8 @@ func _initialize() -> void:
 		_load_anim(
 			data, anim_index,
 			int(args[13]) if args.size() > 13 else 0,
-			bool(int(args[14])) if args.size() > 14 else false
+			bool(int(args[14])) if args.size() > 14 else false,
+			bool(int(args[15])) if args.size() > 15 else true
 		)
 
 
@@ -134,7 +136,13 @@ func _initialize() -> void:
 ## FRAME 0 finds the busiest frame itself, by running the script once and
 ## keeping where the sprite count peaked, then running a fresh player back to
 ## that point. A player cannot be rewound, which is why it is built twice.
-func _load_anim(data: GameData, index: int, frame: int, enemy_turn: bool) -> void:
+## [param background] is the animation's BACKGROUND half, the whole-screen flash
+## the seven palette maps carry. It is on by default and switching it off is what
+## makes a before and after of the same frame exact, since a flash lasts a frame
+## or two and no neighbouring frame is the same picture.
+func _load_anim(
+	data: GameData, index: int, frame: int, enemy_turn: bool, background: bool = true
+) -> void:
 	var anim_data: Gen2BattleAnimData = Gen2BattleAnimData.from_game_data(data)
 	if anim_data == null:
 		print("no battle anim data in this cache")
@@ -169,11 +177,22 @@ func _load_anim(data: GameData, index: int, frame: int, enemy_turn: bool) -> voi
 			break
 	_view["anim_sprites"] = player.sprites()
 	_view["anim_tiles"] = player.tiles()
+	# The BACKGROUND half of the same frame. Seven palettes carrying one byte is
+	# the whole-screen flash, and about a sixth of every move's frames have one:
+	# without this the view says the screen is never flashing and the pass over
+	# the picture cannot be photographed at all.
+	var maps: PackedByteArray = player.background().bg_palette_maps
+	if background:
+		_view["bg_palette_maps"] = maps
+		_view["ob_palette_maps"] = player.background().ob_palette_maps
 	# `BattleAnimClearHud` takes the panels and both bars off for the length of a
 	# move, so a shot of one that leaves them up is not a picture of the game.
 	_view["hud_visible"] = false
+	var written: String = ""
+	for slot: int in maps.size():
+		written += "%02x " % maps[slot]
 	print("anim ", index, " frame ", frame, ": ",
-		(player.sprites() as Array).size(), " sprites")
+		(player.sprites() as Array).size(), " sprites, bg pals ", written)
 
 
 func _process(_delta: float) -> bool:

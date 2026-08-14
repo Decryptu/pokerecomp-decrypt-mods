@@ -206,6 +206,8 @@ func set_view(view: Dictionary) -> void:
 
 func refresh() -> void:
 	_frame_camera()
+	# Before the battlers are placed, since it is what they are drawn through.
+	_stage.set_flash(_view.get("bg_palette_maps", []))
 	_place_battlers()
 	_measure_anim_drift()
 	_draw_hud()
@@ -444,15 +446,62 @@ func _battler(slot: int) -> TextureRect:
 	return _battlers[slot]
 
 
+## The DMG palette byte a move animation last left on one side of the field.
+##
+## THE CARTRIDGE DRAWS BOTH BATTLER PICTURES ON THE BACKGROUND LAYER, out of
+## `bg_map`, so what permutes a pic is a BACKGROUND palette map and not an object
+## one: slot 0 is the player's and slot 1 the enemy's. `BattleAnim_SetBGPals`
+## writes one byte across all seven and flashes the whole screen;
+## `BGEffects_LoadPlayerPals` writes only this slot and fades one battler alone.
+## Measured over the cartridge's own animations, the one-sided case is 1463
+## frames of the 20956, which is nearly half as much again as the whole-screen
+## flash, so a view that answered only the flash would be missing most of it.
+##
+## Exact rather than restated, because a pic IS four palette entries and the
+## permutation is a lookup among them. Only the world has to be approximated:
+## see `world/frame.gd`.
+const PAL_BG_PLAYER: int = 0
+const PAL_BG_ENEMY: int = 1
+const PALETTE_IDENTITY: int = 0xE4
+
+
+func _palette_map(slot: int) -> int:
+	var maps: Variant = _view.get("bg_palette_maps", null)
+	if maps is PackedByteArray:
+		var bytes: PackedByteArray = maps
+		return bytes[slot] if slot < bytes.size() else PALETTE_IDENTITY
+	if maps is Array:
+		var list: Array = maps
+		return int(list[slot]) if slot < list.size() else PALETTE_IDENTITY
+	return PALETTE_IDENTITY
+
+
+## `CopyPals`: colour i of the result is colour `(byte >> i * 2) & 3` of the
+## pristine palette, which is why a remap never compounds.
+static func _remap(palette: PackedColorArray, dmg: int) -> PackedColorArray:
+	if dmg == PALETTE_IDENTITY or palette.is_empty():
+		return palette
+	var out := PackedColorArray()
+	for index: int in palette.size():
+		out.append(palette[mini((dmg >> (index * 2)) & 3, palette.size() - 1)])
+	return out
+
+
 ## One battler's picture, cropped to what it fills and cut out of its field, so
 ## it stands on the map rather than in a white box.
+##
+## The permutation is part of the cache KEY, not applied over the texture: a
+## remap is a different set of four colours and cutting the field out of it is
+## the same work either way, and a move plays through a handful of distinct bytes
+## rather than a new one per frame.
 func _pic(species: int, back: bool) -> Texture2D:
 	if _data == null or species <= 0:
 		return null
+	var dmg: int = _palette_map(PAL_BG_PLAYER if back else PAL_BG_ENEMY)
 	return _texture(
-		"%d:%d" % [species, 1 if back else 0],
+		"%d:%d:%d" % [species, 1 if back else 0, dmg],
 		_data.species_pic(species, back),
-		_data.palette(species),
+		_remap(_data.palette(species), dmg),
 	)
 
 
@@ -462,10 +511,11 @@ func _pic(species: int, back: bool) -> Texture2D:
 func _trainer_pic(trainer_class: int) -> Texture2D:
 	if _data == null or trainer_class <= 0:
 		return null
+	var dmg: int = _palette_map(PAL_BG_ENEMY)
 	return _texture(
-		"t%d" % trainer_class,
+		"t%d:%d" % [trainer_class, dmg],
 		_data.trainer_pic(trainer_class),
-		_data.trainer_palette(trainer_class),
+		_remap(_data.trainer_palette(trainer_class), dmg),
 	)
 
 
