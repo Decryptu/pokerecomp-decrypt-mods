@@ -101,6 +101,11 @@ var _tuft_colors := PackedColorArray()
 var _tuft_uv2s := PackedVector2Array()
 ## Which sink the next `_push` goes to, and what to write into UV2 there. Set
 ## around the faces that belong to one, and cleared straight after.
+## A QUARTER TURN APPLIED TO EVERYTHING `_quad` LAYS DOWN, and the only thing in
+## this file that draws a thing somewhere other than where its own drawing puts
+## it. See `_turned`.
+var _turn: bool = false
+var _turn_pivot := Vector3.ZERO
 var _sink: int = SINK_TERRAIN
 var _sink_uv2 := Vector2.ZERO
 
@@ -3426,14 +3431,35 @@ func _object_texel(
 ## back and the two sides wear one interior texel each rather than the drawing,
 ## since the drawing says nothing about them.
 func _emit_object(index: int, atlas: RefCounted) -> void:
+	var object: Dictionary = _objects[index][0]
+	if not bool(object.get(&"turn", false)):
+		_emit_object_body(index, atlas)
+		return
+	# The pivot is the middle of the object's own BOX and is set where that box is
+	# worked out, a few lines into the body: nothing is drawn before then.
+	_turn = true
+	_emit_object_body(index, atlas)
+	_turn = false
+
+
+func _emit_object_body(index: int, atlas: RefCounted) -> void:
 	var entry: Array = _objects[index]
 	var object: Dictionary = entry[0]
 	var start: Vector2i = entry[1]
 	var across: Vector2i = entry[2]
 	var tiles: Array = []
+	# PAINTED WITH TILES OTHER THAN ITS OWN, which is what `art` is and the shop
+	# counter is the whole of why it exists: the cartridge draws the counter where
+	# it can be seen and draws the shelves that stand in front of the rest of it,
+	# so six tiles of a counter that IS there carry no counter in them anywhere.
+	# The arrangement still finds the place; the drawing to build it from is named.
+	var painted: Array = object.get(&"art", [])
 	for row: int in across.y:
 		for column: int in across.x:
-			tiles.append(_tile_at(start.x + column, start.y + row))
+			tiles.append(
+				int((painted[row] as Array)[column]) if not painted.is_empty()
+				else _tile_at(start.x + column, start.y + row)
+			)
 	var span: Vector2i = across * int(TILE)
 	var mask: PackedByteArray = _structure_mask(
 		tiles, across, atlas, bool(object.get(&"filled", false)),
@@ -3496,6 +3522,8 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 	var left: float = _world_x(start.x) + float(window.position.x)
 	var right: float = left + float(window.size.x)
 	var high: float = base + tall
+	if _turn:
+		_turn_pivot = Vector3((left + right) * 0.5, 0.0, (front + back) * 0.5)
 
 	# THE DRAWING IS CUT INTO RECTANGLES, not into a quad per row-run, and it is
 	# the same greedy cut `_cutout` makes for the same reason: a rectangle of
@@ -7184,10 +7212,35 @@ func _side(
 ## faces wind CLOCKWISE seen from the front. Getting it backwards leaves every
 ## solid in the map inside out: the near faces cull away and the view is of the
 ## far side of things, which reads as a world of floating slabs.
+## One point of a turned object, rotated a quarter about its own footprint.
+##
+## AN OBJECT IS DRAWN FACING THE EYE and nearly every one of them stands that
+## way, because a 2.5D drawing is a portrait taken from where the camera is. A
+## shelf against a side wall is not: the cartridge draws its END, and stood up
+## face-on it is a shelf turned inside the wall it stands against. The turn is a
+## quarter about the middle of the drawing's own footprint, so it needs a
+## footprint as wide as it is deep and every object claiming it has one.
+##
+## Faces keep the shade the emitter gave them. A room has no sun in it, so the
+## front face's shade is the front face's shade whichever way it ends up looking.
+func _turned(point: Vector3) -> Vector3:
+	return Vector3(
+		_turn_pivot.x - (point.z - _turn_pivot.z),
+		point.y,
+		_turn_pivot.z + (point.x - _turn_pivot.x)
+	)
+
+
 func _quad(
 	a: Vector3, b: Vector3, c: Vector3, d: Vector3,
 	normal: Vector3, uv: Rect2, shade: Color
 ) -> void:
+	if _turn:
+		a = _turned(a)
+		b = _turned(b)
+		c = _turned(c)
+		d = _turned(d)
+		normal = Vector3(-normal.z, normal.y, normal.x)
 	var u0: float = uv.position.x
 	var v0: float = uv.position.y
 	var u1: float = u0 + uv.size.x
