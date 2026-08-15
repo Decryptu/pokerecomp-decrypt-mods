@@ -773,6 +773,8 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# given, and after the heights, because every tile it covers goes back to
 	# standing at the floor of its own cell.
 	_measure_objects(shape)
+	# After them, because what it repairs is what they take away.
+	_measure_room_behind()
 	# With the objects, and for the same reason: a boxed house covers its tiles
 	# and hands them back to the floor of their own cell.
 	_measure_house_boxes(source)
@@ -2852,8 +2854,12 @@ func _band_tile(tx: int, ty: int, band: int) -> int:
 	# THE SHELL IS PLASTER ALL THE WAY UP and is one cell thick, so the rows north
 	# of a south wall's base are the room's own floor. It is the one structure here
 	# whose drawing is not on the map, so it answers for itself.
-	if not _room.is_empty() and _room[ty * _size.x + tx] == ROOM_SHELL:
-		return _tiles[ty * _size.x + tx]
+	if not _room.is_empty():
+		var mark: int = _room[ty * _size.x + tx]
+		if mark == ROOM_SHELL:
+			return _tiles[ty * _size.x + tx]
+		if mark == ROOM_BEHIND:
+			return _room_wall_tile(tx, ty)
 	var row: int = _bases[ty * _size.x + tx] - band
 	if row < 0:
 		row = 0
@@ -3762,7 +3768,7 @@ func _room_faces(tx: int, ty: int, normal: Vector3) -> bool:
 	var here: int = _room[ty * _size.x + tx]
 	if here == 0:
 		return true
-	if here == ROOM_DRAWN:
+	if here == ROOM_DRAWN or here == ROOM_BEHIND:
 		return normal.z > 0.0
 	if normal.x > 0.0:
 		return tx < _margin.x
@@ -6485,6 +6491,10 @@ const ROOM_CELLS: int = 2
 ## for the wall the cartridge draws that `_measure_room` raised to meet it.
 const ROOM_SHELL: int = 1
 const ROOM_DRAWN: int = 2
+## And the map tile an object took the wall off, given plaster back. Its own tile
+## id is left alone: the object samples the map at emit, so writing plaster into
+## `_tiles` puts plaster on the bookcase's top row and its first shelf instead.
+const ROOM_BEHIND: int = 3
 var _room := PackedByteArray()
 ## The arrangement this map's shell is drawn with, empty where it has none.
 var _room_wall: Array = []
@@ -6513,6 +6523,38 @@ func _ring_depth(source: RefCounted, shape: RefCounted) -> int:
 			if not shape.is_model(shape_class):
 				return RING_TILES
 	return RING_TILES_MODELLED
+
+
+## THE WALL BEHIND THE FURNITURE THAT STANDS AGAINST IT.
+##
+## An object hands every tile it covers back to the floor. That is right for a
+## bench in the middle of a room and it opens a hole where a bookcase stands
+## against the room's north wall: the cartridge draws the bookcase OVER the wall's
+## own tiles, so with the bookcase lifted out of them there is nothing behind it
+## but lino, and the shell is a walk cell further north again.
+##
+## So the room's first walk cell keeps a wall wherever an object took one, at the
+## shell's height and in the shell's plaster. ONLY where an object covers: a tile
+## the cartridge itself left as floor along that row is a doorway or a gap, and
+## filling those in would wall a room up.
+func _measure_room_behind() -> void:
+	if _room_wall.is_empty() or _object_covered.is_empty():
+		return
+	var tall: int = ROOM_CELLS * CELL_TILES * BAND
+	var base: int = _margin.y + CELL_TILES - 1
+	for ty: int in range(_margin.y, _margin.y + CELL_TILES):
+		for tx: int in range(_margin.x, _size.x - _margin.x):
+			var at: int = ty * _size.x + tx
+			if _object_covered[at] == 0 or _heights[at] >= tall:
+				continue
+			# Its own tile id stays: see ROOM_BEHIND. `_band_tile` is what hands it
+			# plaster, and it answers for the cap as well as for the side bands.
+			_room[at] = ROOM_BEHIND
+			_heights[at] = tall
+			_bases[at] = base
+			_art[at] = ART_UPRIGHT
+			_volume[at] = 1
+			_object_covered[at] = 0
 
 
 ## Which tile of the blank wall stands at one SHELL position.
