@@ -12,6 +12,7 @@ const Sky3D: GDScript = preload("sky.gd")
 const Water3D: GDScript = preload("water.gd")
 const Wind3D: GDScript = preload("wind.gd")
 const Frame3D: GDScript = preload("frame.gd")
+const Motes3D: GDScript = preload("motes.gd")
 
 const CELL: float = 16.0
 
@@ -100,6 +101,8 @@ var _frame: RefCounted = null
 ## (`shape/model.gd`), and they bend, so they wear `_wind`'s own material.
 var _models: Array[MultiMeshInstance3D] = []
 var _time_of_day: int = Gen2WorldPalette.TIME_MORNING
+var _motes: RefCounted = null
+var _motes_node: MultiMeshInstance3D = null
 
 
 func _init() -> void:
@@ -167,6 +170,16 @@ func _init() -> void:
 	actors = Node3D.new()
 	viewport.add_child(actors)
 
+	# The drifting leaves and the fireflies. Last in, and one node: see
+	# `motes.gd` for why this is the only invented thing in the frame.
+	_motes = Motes3D.new()
+	_motes_node = MultiMeshInstance3D.new()
+	_motes_node.multimesh = _motes.mesh
+	_motes_node.material_override = _motes.material
+	# A pixel of atmosphere casts nothing and receives nothing.
+	_motes_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	viewport.add_child(_motes_node)
+
 	set_time_of_day(_time_of_day)
 
 
@@ -185,6 +198,8 @@ func set_time_of_day(time_of_day: int) -> void:
 		DAY_LIGHT[_time_of_day] * DAY_ENERGY[_time_of_day]
 	)
 	_environment.ambient_light_color = DAY_AMBIENT[_time_of_day]
+	_motes.set_time_of_day(_time_of_day)
+	_motes_node.visible = _motes.drifting()
 	# And the hour over the whole PICTURE, which is the half of it a light cannot
 	# reach: see `frame.gd`.
 	_frame.set_time_of_day(_time_of_day)
@@ -338,6 +353,8 @@ func set_background(color: Color, outside: bool = true) -> void:
 	# A room has no sky to take its colour from, and so takes no hour either.
 	_frame.set_outside(outside)
 	_water_shader.set_sky(_sky.horizon, _sky.zenith)
+	_motes.set_outside(outside)
+	_motes_node.visible = _motes.drifting()
 
 
 func _on_viewport_resized() -> void:
@@ -352,6 +369,9 @@ func _on_viewport_resized() -> void:
 ## almost straight down reaches; north stands in for it there, so a near-overhead
 ## shot rolls to a stop rather than spinning.
 func aim_camera(eye: Vector3, target: Vector3) -> void:
+	# The motes' box rides the aim, so what drifts is always what is being looked
+	# at and the count costs the same on a room and on a route.
+	_motes_node.position = target
 	var direction: Vector3 = target - eye
 	if direction.length_squared() < 0.001:
 		return

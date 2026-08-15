@@ -188,6 +188,16 @@ luminance alone so a picture's colour survives everything but the ends. The two
 battlers take the permutation exactly instead, because a pic really is four
 palette entries and the map is a lookup among them.
 
+A move has a third half, and it is the one a flat screen does that a diorama
+cannot copy: eight of the game's animations scroll the background a different
+distance on every scanline, which is a wobble. There are no scanlines here, and
+warping the world row by row would move the cartridge's own texel off the pixel
+it was drawn on, which is the one thing this view never does. So the whole list
+of offsets is read as the single displacement it averages out to, and the camera
+is shaken by it. The picture jumps, which is what the wobble MEANT, and both
+battlers jump with it, because the shake is applied to the seat and the aim
+together and the rig's whole point is that the pair stays where it put them.
+
 ## How a flat drawing becomes a solid
 
 A Game Boy overworld drawing is a fake-3D projection: it packs several facings
@@ -353,6 +363,25 @@ way up the sky lands off the top of the frame at every hour: what is asked is ho
 nearly a piece of water is tilted to bounce the sun into the eye, which is a fact
 about the swell, so the glitter rides the waves and goes out at night with the
 light.
+
+## The one thing here the cartridge does not draw
+
+Everything else in this view is the cartridge's own drawing restated. Every
+shape, every colour and every height is read out of what the host decoded from
+the cartridge, and where a judgement was needed a person made it about a picture
+that was already there.
+
+Two things are not. A flower is drawn looked down on, so the cartridge draws the
+bloom and no stem at all, and a bloom carved where it is drawn hangs in the air:
+the stem under it is drawn by hand rather than guessed at as a thickness, because
+a stem is thin and it bends and no number says either.
+
+And leaves drift across the daylight while fireflies come out at night. Forty
+motes ride a box around wherever the camera is aimed, each on three drift cycles
+that share no factor, and the fireflies pulse. Nothing is simulated and nothing
+is stored between frames. It is the one piece of atmosphere in the frame that is
+invented, it is one file and four lines, and it comes out again as easily as it
+went in.
 
 ## A drawing bigger than one cell
 
@@ -661,6 +690,7 @@ world/diorama.gd     the 3D stage both views share: viewport, daylight, cards
 world/sky.gd         the banded, dithered sky and the shader that paints it
 world/water.gd       the water surface: the sky by Fresnel, the swell, the sun
 world/wind.gd        what makes grass and foliage bend, and part around a walker
+world/motes.gd       the drifting leaves and the fireflies
 world/frame.gd       the pass over the finished picture, and the hour's tint in it
 world/camera_rig.gd  pitch, distance, lens and the ease between settings
 battle/renderer.gd   the battle Node: the arena, the battlers and the panels
@@ -674,6 +704,7 @@ shape/profile.gd     hand-authored pins, the objects, the staircases, the classe
 shape/profile_pass.gd  the generated second table, one pin per tile of the game
 shape/levels.gd      the ground levels a person painted, where one has
 shape/model.gd       a sprite TURNED into a model: trees, bushes, boulders
+shape/stems.gd       the flower's stem, drawn by hand because nothing draws one
 shape/mesher.gd      map -> one static mesh
 ```
 

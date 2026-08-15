@@ -65,6 +65,7 @@ const HEIGHTS: Dictionary = {
 	# all three tilesets that draw it.
 	&"flower": 0,
 	&"planter": 0,
+	&"palm": 0,
 	&"statue": 0,
 	# A STATUE ON A PILLAR carries no height of its own either: how tall it stands
 	# is counted off its own drawing, which is two cells of it.
@@ -120,6 +121,7 @@ const DEPTHS: Dictionary = {
 	# whatever side it is looked at.
 	&"flower": 12,
 	&"planter": 12,
+	&"palm": 12,
 	&"statue": 10,
 	# A STATUE ON A PILLAR STANDS ON A WHOLE CELL, which is the reviewer's own
 	# measurement of it: "in a 3D world the statue would be 1 cell on the ground
@@ -170,6 +172,7 @@ const ROUND: Dictionary = {
 	&"flowers": true,
 	&"flower": true,
 	&"planter": true,
+	&"palm": true,
 	&"statue": true,
 	&"statue_pillar": true,
 	&"stand": true,
@@ -391,6 +394,7 @@ const COLUMN: Dictionary = {
 ## are drawn out of the same top and bottom tiles.
 const SPANS: Dictionary = {
 	&"planter": Vector2i(1, 2),
+	&"palm": Vector2i(1, 2),
 	&"flowers": Vector2i(1, 2),
 	&"canopy": Vector2i(2, 2),
 	# The conifer: one cell across and TWO down, which is what the routes mostly
@@ -476,6 +480,21 @@ const FILLED: Dictionary = {
 	# rule eats the grass, so only the bloom's own rows have anything to fill
 	# between.
 	&"flower": true,
+	# THE DEPARTMENT STORE'S PALM is the flower's case at four times the size, and
+	# it is why it has a class of its own rather than sharing the potted plant's.
+	# Its crown is a dither of three greens against the shop floor's own blue with
+	# no silhouette round it, so the ground rule walks between its own pixels and
+	# each survivor is hulled as a body of its own: the taller of the two palms,
+	# whose drawing is three rows of crown with no stalk between them, came back as
+	# a spray of loose leaves with the shop showing through it.
+	# Filling each column between its topmost and bottommost drawn pixel makes it
+	# one clump, exactly as it does for the flower.
+	# NOT PUT ON `planter` ITSELF, which was built and photographed first: the
+	# potted plant of tilesets 5, 11 and 28 is drawn inside its own outline and
+	# wants none of it, and filling it squares off a crown whose shape the reviewer
+	# chose in round twenty-four and closes the gap between the leaves and the urn.
+	# Two drawings, two classes.
+	&"palm": true,
 }
 
 ## THE OBJECTS, per tileset number. A thing that is not a tile and does not fit
@@ -961,6 +980,9 @@ const OBJECTS: Dictionary = {
 			&"window": Rect2i(0, 0, 64, 128),
 			&"filled": true,
 			&"top": 0,
+			# Its cap is the top tier's own roof, repeated back over the depth: see
+			# `mesher.gd:_object_cap`.
+			&"cap": 8,
 			&"depth": 64,
 			&"height": 128,
 		},
@@ -1659,6 +1681,7 @@ const ART: Dictionary = {
 	&"flowers": &"cutout",
 	&"flower": &"cutout",
 	&"planter": &"cutout",
+	&"palm": &"cutout",
 	&"statue": &"cutout",
 	&"statue_pillar": &"cutout",
 	&"stand": &"cutout",
@@ -2098,21 +2121,20 @@ const TILESETS: Dictionary = {
 	12: {
 		&"planter": [74, 75, 8, 9, 137, 138, 167, 168],
 	},
-	# TILESET 21 DRAWS THE SAME PLANT AT TWO HEIGHTS, which is what its blocks say
-	# and what a tile list hides. Read on map 11,21, its only one: a tall pot at
-	# tile rows 28-31, one cell wide and two tall, and a short one at rows 30-31
-	# out of the same crown and pot with the stalk left out. That is exactly what
-	# `SPANS` means by the largest the drawing gets, so both fall out of one pin
-	# and the placement chooses between them.
+	# TILESET 21 DRAWS ONE PALM AT TWO HEIGHTS, which is what its blocks say and
+	# what a tile list hides. Read on map 11,21, its only one: tall ones at tile
+	# rows 28-31, a cell wide and two tall, and short ones at rows 30-31 out of the
+	# same crown and pot with the middle left out. That is exactly what `SPANS`
+	# means by the largest the drawing gets, so both fall out of one pin and the
+	# placement chooses between them.
 	#
-	# One of the tall ones repeats the stalk row where its neighbour does not,
-	# [206,207] against a second [190,191], which is a fact about the two tiles and
-	# not about the plant: a stalk drawn twice is still a stalk. An earlier reading
-	# took the repeat for the flower bed's case, a drawing that tiles into a
-	# continuous row, and left the group in the `stand` tail standing eight pixels
-	# tall.
+	# The two tall ones differ by one row, [206,207] against a second [190,191],
+	# which is a stalk against a third row of crown. An earlier reading took that
+	# for the flower bed's case, a drawing that tiles into a continuous row, and
+	# left the whole group in the `stand` tail standing eight pixels tall.
+	# It is a `palm` and not a `planter` because of the same one row: see `FILLED`.
 	21: {
-		&"planter": [174, 175, 190, 191, 206, 207, 222, 223],
+		&"palm": [174, 175, 190, 191, 206, 207, 222, 223],
 	},
 }
 

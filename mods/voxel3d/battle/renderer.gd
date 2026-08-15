@@ -34,6 +34,9 @@ const CELL: float = 16.0
 ## The panels above it are this renderer's own and are tinted separately; see
 ## PANEL_TINT.
 const FIELD_OPACITY: float = 0.75
+## How tall the background map a scanline offset is measured into is, in
+## hardware pixels. `Gen2Raster.scroll_rows` takes the same number.
+const RASTER_WRAP: int = 256
 
 var _data: GameData = null
 var _view: Dictionary = {}
@@ -359,8 +362,31 @@ func _window(cell: Vector2i) -> Rect2i:
 
 
 func _frame_camera() -> void:
+	_arena.set_shake(_raster_shake())
 	_stage.camera.fov = _arena.fov(_frame_stretch())
 	_stage.aim_camera(_arena.eye(), _arena.target())
+
+
+## A MOVE ANIMATION'S SCANLINE WOBBLE, READ AS ONE DISPLACEMENT.
+##
+## `raster_scy` is the background's own vertical scroll, one value per scanline,
+## and it is a thing only a battle animation ever asks for. A flat screen answers
+## it row by row; a diorama has no rows, so what is taken from it is the amount
+## the picture has moved, which the arena shakes the whole shot by.
+##
+## An offset is a distance to look DOWN into a background map 256 pixels tall, so
+## the top half of that range is a shift up and the rest wraps round as a shift
+## down. The MEAN over the rows the window covers is the displacement: a wobble
+## opened over six scanlines moves the picture by what it actually moves rather
+## than by how much of the screen it touches.
+func _raster_shake() -> float:
+	var rows: PackedInt32Array = PackedInt32Array(_view.get("raster_scy", []))
+	if rows.is_empty():
+		return 0.0
+	var total: int = 0
+	for row: int in rows:
+		total += row if row < RASTER_WRAP / 2 else row - RASTER_WRAP
+	return -float(total) / float(rows.size())
 
 
 ## How much taller the stage is than the hardware screen drawn over it.
