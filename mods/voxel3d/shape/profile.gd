@@ -2095,13 +2095,24 @@ const TILESETS: Dictionary = {
 	# "the dark green foliage of a potted plant, its own silhouette drawn from the
 	# front" over "the red planter box at its foot", two tiles by four.
 	#
-	# TILESET 21'S IS NOT THIS DRAWING and its blocks are what say so, which is the
-	# rule about looking at the block rather than the tile list. It is drawn at
-	# three heights out of the same crown, trunk and pot, and one of them REPEATS
-	# the trunk row: that is the flower bed's case, a thing that tiles into a
-	# continuous row, and pinning it here stood one plant of a pair as a sprawl.
 	12: {
 		&"planter": [74, 75, 8, 9, 137, 138, 167, 168],
+	},
+	# TILESET 21 DRAWS THE SAME PLANT AT TWO HEIGHTS, which is what its blocks say
+	# and what a tile list hides. Read on map 11,21, its only one: a tall pot at
+	# tile rows 28-31, one cell wide and two tall, and a short one at rows 30-31
+	# out of the same crown and pot with the stalk left out. That is exactly what
+	# `SPANS` means by the largest the drawing gets, so both fall out of one pin
+	# and the placement chooses between them.
+	#
+	# One of the tall ones repeats the stalk row where its neighbour does not,
+	# [206,207] against a second [190,191], which is a fact about the two tiles and
+	# not about the plant: a stalk drawn twice is still a stalk. An earlier reading
+	# took the repeat for the flower bed's case, a drawing that tiles into a
+	# continuous row, and left the group in the `stand` tail standing eight pixels
+	# tall.
+	21: {
+		&"planter": [174, 175, 190, 191, 206, 207, 222, 223],
 	},
 }
 

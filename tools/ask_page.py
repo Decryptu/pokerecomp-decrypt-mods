@@ -226,7 +226,10 @@ function tally() {
   let q = 0;
   for (const x of QUESTIONS)
     if (answers[key("Q", x.id)] || answers[key("Qtext", x.id)]) q++;
-  const text = `${n} of ${TILES.length} tiles · ${q} of ${QUESTIONS.length} questions`;
+  // A round of judgement calls alone carries no tiles, and "0 of 0 tiles"
+  // beside the real count reads as something left undone.
+  const text = (TILES.length ? `${n} of ${TILES.length} tiles · ` : "")
+    + `${q} of ${QUESTIONS.length} questions`;
   for (const id of ["count", "count2"]) {
     const el = $(id);
     if (el) el.innerHTML = `<span class="${n + q ? "done" : ""}">${text}</span>`;
