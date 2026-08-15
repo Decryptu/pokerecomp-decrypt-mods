@@ -279,6 +279,14 @@ const SHRUB: Dictionary = {
 ## drawn 32 px in round twenty-four.
 const STRETCH: Dictionary = {
 	&"stool": 0.6,
+	# A BOLLARD IS DRAWN TALLER THAN IT STANDS, for the reason this table exists:
+	# seven of its fourteen drawn rows are the LID seen from above, which is depth
+	# on the page and no height at all, so read literally it comes out a drum
+	# nearly as tall as the player. The reviewer measured it at 9 or 10 world
+	# pixels in round twenty-nine and 0.71 of fourteen rows is ten. FIFTH time a
+	# drawing being tall on screen has had to be separated from a thing being tall
+	# in the world.
+	&"post": 0.71,
 }
 
 const ROCK: Dictionary = {

@@ -93,27 +93,13 @@ const TONE_SHARE: int = 8
 ##
 ## Pictures for all four are in the survey directory under `round26/styles`.
 
-## AND HOW A COLUMN IS BUILT is the same question one level down, open in round
-## twenty-eight and switched the same way. NOW is what is committed; the three
-## beside it are the propositions. Whichever is taken becomes the code and the
-## switch goes with it.
-##
-##   NOW      a straight barrel, the side painted from the drawing's bands by
-##            height and the top face from its cap.
-##   BEVEL    the same, with the top and bottom rings drawn in one voxel: cast
-##            concrete has an edge and a barrel of voxels has none.
-##   CAPPED   BEVEL, and the drawn CAP ROWS taken out of the side. A bollard's
-##            upper rows are its lid seen from ABOVE, so painting them up the
-##            side squashes the body's own shading into the lower half. This is
-##            the reference mod's own reading of a can: strip the cut face, keep
-##            the body band, project the lid across the top.
-##   WRAPPED  CAPPED, and the side's colour taken from the drawn COLUMN rather
-##            than mixed by row: a pixel drawn three across from the middle is
-##            what the barrel looks like three across from its middle, which is
-##            the reference's texel rule and is what carries the artist's lit
-##            side and shaded side round the post.
-enum { NOW, BEVEL, CAPPED, WRAPPED }
-static var column_style: int = NOW
+## AND HOW A COLUMN IS BUILT was the same question one level down, asked in round
+## twenty-eight with three propositions against what was committed. The reviewer
+## took the last of them and it is what `_radius`, `_band_at` and `_tone` do now:
+## the ends bevelled, the lid's rows out of the side, and the side painted by the
+## drawn COLUMN. What they refused, so nobody rebuilds it: a straight barrel
+## painted by band alone, which reads as a plain drum; the bevel on its own; and
+## the bevel with the lid taken out but the side still mixed by row.
 
 
 var _vertices := PackedVector3Array()
@@ -627,7 +613,7 @@ func _radius(measured: Measure, up: int, crown_high: int) -> float:
 		# CAST CONCRETE HAS AN EDGE and a barrel of voxels has none. One voxel
 		# drawn in at the top ring and at the foot is the whole of it: two, or a
 		# taper over more rows, and the post is a plinth rather than a bollard.
-		if column_style != NOW and (up == 0 or up == crown_high - 1):
+		if up == 0 or up == crown_high - 1:
 			return maxf(straight - 1.0, 1.0)
 		return straight
 	var rows: int = measured.profile.size()
@@ -661,7 +647,7 @@ func _band_at(measured: Measure, up: int, crown_high: int) -> Color:
 	# A COLUMN'S SIDE IS WHAT IS UNDER THE LID. Painting the lid's rows up the
 	# side as well squashes the body's own shading into the lower half of the
 	# post, which is what makes it read as banded rather than as concrete.
-	if measured.column and column_style >= CAPPED and not measured.side_bands.is_empty():
+	if measured.column and not measured.side_bands.is_empty():
 		bands = measured.side_bands
 	if bands.is_empty():
 		return Color(0.5, 0.5, 0.5)
@@ -761,8 +747,7 @@ func _tone(
 		# height the cap happens to be drawn at. See `_cap`.
 		if measured.column and side.y > 0:
 			return measured.cap
-		if measured.column and column_style == WRAPPED and side.y == 0 \
-				and not _wrap.is_empty():
+		if measured.column and side.y == 0 and not _wrap.is_empty():
 			# WHERE ACROSS THE DRAWING THIS FACE STANDS. The barrel is as wide as
 			# the row is drawn, so the two are the same measure and the artist's
 			# own lit and shaded flanks land on the flanks.
