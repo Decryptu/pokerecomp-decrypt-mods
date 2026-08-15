@@ -262,6 +262,11 @@ const SHRUB: Dictionary = {
 ##
 ## Unlisted takes the class's own default, 1.3 for a tree and 1.0 for anything
 ## sitting on the ground. See `model.gd:Measure.stretch`.
+##
+## IT IS READ ON THE CARVED PATH TOO, through `mesher.gd:_carve_y`, so the table
+## means the same thing whichever way a drawing is built. Nothing carved claims
+## it: the potted plant was the candidate and the reviewer measured it at its own
+## drawn 32 px in round twenty-four.
 const STRETCH: Dictionary = {
 	&"stool": 0.6,
 }
@@ -636,6 +641,62 @@ const OBJECTS: Dictionary = {
 			&"top": 0,
 			&"depth": 3,
 			&"height": 16,
+		},
+	],
+	23: [
+		# THE RIDGE ALONG THE GREAT ROOF, and the declaration IS the reviewer's own
+		# rule for telling it from the wooden bridge drawn out of the same tile:
+		# "the one on the roof has a mirrored tile on its right, while the wooden
+		# floor never has this mirrored tile next to it". An object is found by its
+		# ARRANGEMENT, so [80, 81] is that sentence written down, and it matches on
+		# the roof and nowhere else in the game.
+		#
+		# Unpinned and left to the collision the crest came out 48 px of wall down
+		# the middle of the roof, because the run of it is four tiles deep and the
+		# column measurement reads that as three walk cells. It is not a wall: it is
+		# "an upper small thing on the roof", so it stands one band, and its eight
+		# rows are all seen from ABOVE, which makes the band's own row count the
+		# depth exactly as it does for every other object drawn with a top.
+		{
+			&"name": &"ridge",
+			&"tiles": [[80, 81]],
+			&"window": Rect2i(0, 0, 16, 8),
+			&"top": 8,
+			&"depth": 8,
+			&"height": 8,
+		},
+	],
+	25: [
+		# THE NATIONAL PARK'S TIERED FOUNTAIN, and it is the first object that is
+		# TURNED rather than stood up. A round stone basin in three tiers with a
+		# spout on top, drawn as its own silhouette on the paving, four placements
+		# on three maps.
+		#
+		# NO PIN CAN REACH IT AND THAT IS THE POINT. The drawing is 18 px wide
+		# across THREE tiles and centred on the seam between two of them, so it
+		# fits neither a cell nor a `SPANS` box, whose start is grid-aligned at
+		# `tx - posmod(tx, across.x)`. An arrangement of tile ids is not tied to
+		# the grid at all and finds it wherever the map puts it. The tiles either
+		# side of the drawing are paving and are part of the rectangle the mask is
+		# cut over, which is what the WINDOW is for: it keeps them out of the
+		# profile the turn is read from without shrinking the box the flood needs.
+		#
+		# TWO SHADES OF OUTLINE, the park's cabinet having established the reading
+		# on the same paving: cut on one shade the basin comes back as its own tier
+		# lines and 92 loose pixels, which turns into a stack of rings with holes
+		# between them. On two it is the solid 230-pixel silhouette a revolve wants.
+		#
+		# HOW TALL IT STANDS is the one authored number, as it is for every turned
+		# thing whose drawing is partly seen from above: three quarters of the
+		# sixteen rows it is drawn. `depth` says nothing about a turned body, which
+		# is as deep as it is wide, so it is not declared.
+		{
+			&"name": &"fountain",
+			&"tiles": [[76, 77, 78], [92, 93, 94]],
+			&"window": Rect2i(3, 0, 18, 16),
+			&"height": 12,
+			&"model": true,
+			&"outline": 2,
 		},
 	],
 	29: [
@@ -1569,6 +1630,21 @@ const TILESETS: Dictionary = {
 	16: {
 		&"railing": [64, 65],
 	},
+	# THE POTTED PLANT, which is the drawing tileset 5 already calls `planter`: a
+	# leafy crown over a stalk over a pot, two tiles across and four down, one walk
+	# cell wide and two tall, standing on its own on a chequered floor. The full
+	# pass split every one of them between two classes, so no row of one named the
+	# drawing and the whole group sat in the `stand` tail as a squat pot with a
+	# tuft of leaves beside it, cut cell by cell.
+	#
+	# IT STANDS ITS OWN 32 PX, which is the reviewer's own answer in round
+	# twenty-four, shown the same plant built at four heights in the room it
+	# stands in. An earlier session read the full height as a green column as tall
+	# as the bookcase beside it and shelved the whole build for it; the reader who
+	# owns that judgement was asked and disagreed.
+	11: {
+		&"planter": [44, 45, 60, 61, 46, 47, 62, 63],
+	},
 }
 
 ## The tiles the PASS pinned and a person has taken back.
@@ -1600,6 +1676,22 @@ const UNPINNED: Dictionary = {
 	# found by its whole ARRANGEMENT and overrides whatever its tiles resolved to,
 	# so the gate keeps its shape while these tiles stop being a class of their own.
 	17: [55, 56],
+	# ONE DRAWING THAT IS TWO THINGS, and the largest group left in the `stand`
+	# tail: 116 tiles that the pass revolved into a row of chests marching up a
+	# roof. The reviewer read both places in round twenty-four and they are not
+	# the same thing at all: on the tower's great roof it is "an upper small thing
+	# on the roof", and in the wooden hall it is "just a bridge made of wood where
+	# you can walk onto".
+	#
+	# THEIR RULE FOR TELLING THEM APART IS THE MIRRORED NEIGHBOUR: the roof pairs
+	# 80 with 81, which is 80 drawn the other way round, and the bridge never has
+	# one beside it. The COLLISION says the same thing and says it per cell, which
+	# is cheaper and is what an unpinned tile already reads: the hall's 48 tiles
+	# are walkable and the roof's 68 are blocked. So both answers fall out of
+	# taking the pin away. The bridge lies flat and is walked on; the crest stands
+	# and has its height measured off its own column, which is what a blocked tile
+	# with no pin does everywhere else in the game.
+	23: [80, 81],
 }
 
 
