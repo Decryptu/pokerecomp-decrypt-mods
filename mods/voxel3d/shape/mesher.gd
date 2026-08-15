@@ -2749,22 +2749,27 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 	var right: float = left + float(window.size.x)
 	var high: float = base + tall
 
+	# THE DRAWING IS CUT INTO RECTANGLES, not into a quad per row-run, and it is
+	# the same greedy cut `_cutout` makes for the same reason: a rectangle of
+	# pixels maps onto a rectangle of texels exactly, so the picture is identical
+	# and the ship stops costing nine hundred quads. A rectangle may not cross a
+	# TILE, because a texel can only be sampled out of the tile it was drawn in,
+	# and it may not cross the top band's last row, because that is where the
+	# drawing stops lying down and starts standing up.
+	var taken := PackedByteArray()
+	taken.resize(window.size.x * window.size.y)
 	for row: int in window.size.y:
 		var py: int = window.position.y + row
 		var above: bool = row < top_rows
-		# Where this row of the drawing goes: back to front across the cap, or top
-		# to bottom down the face.
-		var far: float = 0.0
-		var near: float = 0.0
-		if above:
-			far = back + deep * float(row) / float(top_rows)
-			near = back + deep * float(row + 1) / float(top_rows)
-		else:
-			far = high - tall * float(row - top_rows) / float(face_rows)
-			near = high - tall * float(row - top_rows + 1) / float(face_rows)
+		var down_stop: int = mini(
+			((py / int(TILE)) + 1) * int(TILE) - window.position.y,
+			top_rows if above else window.size.y
+		)
 		var px: int = window.position.x
 		while px < window.position.x + window.size.x:
-			if not _drawn(mask, span, px, py):
+			var column: int = px - window.position.x
+			if taken[row * window.size.x + column] == 1 \
+					or not _drawn(mask, span, px, py):
 				px += 1
 				continue
 			var stop: int = mini(
@@ -2772,12 +2777,37 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 				window.position.x + window.size.x
 			)
 			var run: int = px
-			while run < stop and _drawn(mask, span, run, py):
+			while run < stop and taken[row * window.size.x + run - window.position.x] == 0 \
+					and _drawn(mask, span, run, py):
 				run += 1
+			var deep_rows: int = 1
+			while row + deep_rows < down_stop:
+				var whole: bool = true
+				for step: int in run - px:
+					if taken[(row + deep_rows) * window.size.x + column + step] == 1 \
+							or not _drawn(mask, span, px + step, py + deep_rows):
+						whole = false
+						break
+				if not whole:
+					break
+				deep_rows += 1
+			for down: int in deep_rows:
+				for step: int in run - px:
+					taken[(row + down) * window.size.x + column + step] = 1
+			# Where these rows of the drawing go: back to front across the cap, or
+			# top to bottom down the face.
+			var far: float = 0.0
+			var near: float = 0.0
+			if above:
+				far = back + deep * float(row) / float(top_rows)
+				near = back + deep * float(row + deep_rows) / float(top_rows)
+			else:
+				far = high - tall * float(row - top_rows) / float(face_rows)
+				near = high - tall * float(row - top_rows + deep_rows) / float(face_rows)
 			@warning_ignore("integer_division")
 			var tile: int = int(tiles[(py / int(TILE)) * across.x + px / int(TILE)])
 			var uv: Rect2 = atlas.uv_box(
-				tile, Rect2i(px % int(TILE), py % int(TILE), run - px, 1)
+				tile, Rect2i(px % int(TILE), py % int(TILE), run - px, deep_rows)
 			)
 			var x0: float = _world_x(start.x) + float(px)
 			var x1: float = _world_x(start.x) + float(run)

@@ -742,7 +742,60 @@ const OBJECTS: Dictionary = {
 			&"height": 16,
 		},
 	],
-
+	18: [
+		# A PARKED BICYCLE, and it is the flattest thing in the game: "side view
+		# drawn FACE-ON as its own silhouette, about 3 tiles wide and 2 tall", four
+		# of them along the bike shop wall. Revolved by the fallback each of its
+		# seven tiles became a drum, so a bicycle read as a row of bollards.
+		#
+		# It is the ladder's case: a portrait with no top band, so its height is what
+		# it takes to be one and its depth is what two wheels are. The fourth tile of
+		# the top row is the reviewer's own "just floor with a small bicycle wheel
+		# visible because of perspective", so the box covers it and the object says
+		# nothing about it.
+		{
+			&"name": &"bicycle",
+			&"tiles": [[12, 13, 14, -1], [28, 29, 30, 31]],
+			&"window": Rect2i(0, 0, 32, 16),
+			&"top": 0,
+			&"depth": 3,
+			&"height": 16,
+		},
+	],
+	22: [
+		# A LOW PADDED SEAT, 2x2 tiles, standing in rows on the carpet of the big
+		# room, and the drawing states both its numbers itself: "its top surface
+		# drawn from ABOVE and its sides folded in", ten rows of top over six of
+		# face, which is the split every object with a top band is read by.
+		{
+			&"name": &"seat",
+			&"tiles": [[14, 15], [30, 31]],
+			&"window": Rect2i(0, 0, 16, 16),
+			&"top": 10,
+			&"depth": 10,
+			&"height": 6,
+		},
+	],
+	6: [
+		# A TELEVISION STANDING FREE IN THE ROOM, "2 tiles wide and 2 tall, waist
+		# high", drawn FACE-ON as a casing with a blue screen in it. Revolved it was
+		# a drum with the screen smeared round it.
+		#
+		# It FILLS its cell edge to edge in the casing's own dark shade, so there is
+		# no ground inside the drawing for the flood to cut against and the mask is
+		# taken whole. What a face-on drawing states honestly is its width, so the
+		# two numbers a person owns are here: waist high is 12, and a Game Boy era
+		# television is nearly as deep as it is wide.
+		{
+			&"name": &"television",
+			&"tiles": [[6, 7], [22, 23]],
+			&"window": Rect2i(0, 0, 16, 16),
+			&"filled": true,
+			&"top": 0,
+			&"depth": 12,
+			&"height": 12,
+		},
+	],
 }
 
 ## THE STAIRCASES, per tileset number, found the same way an object is.
@@ -1549,6 +1602,14 @@ const TILESETS: Dictionary = {
 	# standing, and this is most of them. The base [54,55] is drawn under more than
 	# one statue, which is why the tiles above it are pinned with it: half a drawing
 	# pinned and half not resolves no span at all.
+	#
+	# THE HEALING MACHINE IS NOT ONE OF THESE, and that is a measured refusal
+	# rather than an oversight. A dome on a box is a statue on a pillar in
+	# everything the geometry says, so it was pinned here, built and photographed:
+	# turned, the box comes back narrower than its own drawing and the dome shrinks
+	# onto it over a dark gap, where the fallback stands a legible red dome on a
+	# grey cabinet. What it is drawn as is a BOX with a round lid, and nothing here
+	# turns half a drawing.
 	23: {
 		&"statue_pillar": [34, 35, 50, 51, 18, 19, 54, 55, 74, 75, 90, 91, 76, 92],
 	},
@@ -1615,12 +1676,25 @@ const TILESETS: Dictionary = {
 	# A round seat on a pedestal is a portrait of a symmetric thing, which is the
 	# third row of the pipeline table, and it is turned like a boulder rather than
 	# like a plant: see ROCK.
+	#
+	# ITS BALL ORNAMENT takes `boulder` in the same room and for the same reason a
+	# rock does rather than a plant: "a large red and white ball-shaped ornament,
+	# drawn as its own SILHOUETTE with a heavy dark outline, 2x2 tiles, about waist
+	# high, standing free in the middle of the room floor". One world pixel per
+	# voxel, no sway, colour BY BAND, which is how a sphere is drawn.
 	19: {
 		&"stool": [7, 8, 23, 24],
+		&"boulder": [72, 73, 88, 89],
 	},
 	# TWO STOOLS ON ONE TILESET, drawn out of different tiles and only the palette
 	# apart: "a round pink cushioned stool with a dark pedestal" and "a round tan
 	# stool with a dark pedestal", on the carpet and on the plank floor.
+	#
+	# ITS ROUND TABLE IS NOT ONE, though it is the same drawing a size up: pinned
+	# `stool` and photographed, the turn eats the dark splayed legs and returns a
+	# pale mushroom, where the carved fallback keeps a cream top over a dark base.
+	# A stool's legs are a pedestal and a table's are four thin ones with carpet
+	# between them, which is what a revolve cannot hold.
 	27: {
 		&"stool": [44, 45, 60, 61, 39, 40, 55, 56],
 	},
@@ -1670,6 +1744,18 @@ const TILESETS: Dictionary = {
 			30, 31, 46, 47, 62, 63,
 			69, 70, 85, 86, 7, 8, 23, 24, 9, 25, 48, 49,
 		],
+	},
+	# ONE MORE OF THE SAME PLANT, found the same way and taking the same class:
+	# "the dark green foliage of a potted plant, its own silhouette drawn from the
+	# front" over "the red planter box at its foot", two tiles by four.
+	#
+	# TILESET 21'S IS NOT THIS DRAWING and its blocks are what say so, which is the
+	# rule about looking at the block rather than the tile list. It is drawn at
+	# three heights out of the same crown, trunk and pot, and one of them REPEATS
+	# the trunk row: that is the flower bed's case, a thing that tiles into a
+	# continuous row, and pinning it here stood one plant of a pair as a sprawl.
+	12: {
+		&"planter": [74, 75, 8, 9, 137, 138, 167, 168],
 	},
 }
 
