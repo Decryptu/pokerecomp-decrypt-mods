@@ -2677,6 +2677,12 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 		int(object.get(&"outline", 1))
 	)
 	var window: Rect2i = object[&"window"]
+	# AN OBJECT MAY BE TURNED RATHER THAN STOOD UP, which is the one thing this
+	# path could not do and the reason two round drawings sat unbuilt. See
+	# `_object_model`.
+	if bool(object.get(&"model", false)):
+		_object_model(object, start, across, tiles, mask, span, window, atlas)
+		return
 	var top_rows: int = clampi(int(object.get(&"top", 0)), 0, window.size.y)
 	var face_rows: int = window.size.y - top_rows
 	var deep: float = float(object[&"depth"])
@@ -2769,6 +2775,85 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 			),
 			SHADE_TOP_FLAT
 		)
+
+
+## ONE OBJECT, TURNED RATHER THAN STOOD UP.
+##
+## The declaration is the same one everything else in `OBJECTS` uses and what it
+## gains is a shape: a drawing that is ROUND is a body of revolution and a slab
+## of it is a card, which is the whole of what `shape/model.gd` exists for. Two
+## drawings in the game are both, and both sat unbuilt for it. The National
+## Park's tiered fountain is 18 px across THREE tiles and centred on the seam
+## between two of them, so `SPANS`, whose box starts at `tx - posmod(tx,
+## across.x)`, cannot reach it at any size; the arrangement of tile ids reaches
+## it wherever the map puts it.
+##
+## WHAT THE OBJECT SUPPLIES THAT A PINNED CLASS CANNOT is the WINDOW. A mask is
+## cut over the arrangement's whole rectangle, and here that rectangle holds the
+## paving either side of the drawing; everything outside the window is dropped
+## before the body flood, so a neighbour cannot widen the profile the turn is
+## read from.
+##
+## HOW TALL IT STANDS IS THE DECLARATION'S, not the drawing's, and it goes in as
+## the model's own `stretch`: a turned thing is as deep as it is wide, so `depth`
+## says nothing here, and `height` against the drawn rows is exactly the ratio
+## `profile.gd:STRETCH` states for a pinned class.
+##
+## Placed where the drawing is and NOT where a lattice is: no quarter turn, no
+## nudge and no wind phase. Those exist to break the rows out of a forest of
+## stamps of one tree, and an object is one thing at one place that a person
+## named.
+func _object_model(
+	object: Dictionary, start: Vector2i, across: Vector2i, tiles: Array,
+	mask: PackedByteArray, span: Vector2i, window: Rect2i, atlas: RefCounted
+) -> void:
+	var body := PackedInt32Array()
+	body.resize(mask.size())
+	var inside := PackedByteArray()
+	inside.resize(mask.size())
+	for py: int in span.y:
+		for px: int in span.x:
+			inside[py * span.x + px] = mask[py * span.x + px] \
+				if window.has_point(Vector2i(px, py)) else 0
+	body = _bodies(inside, span)
+	var counts: Dictionary = {}
+	var bounds: Dictionary = {}
+	for pixel: int in body.size():
+		var group: int = body[pixel]
+		if group < 0:
+			continue
+		@warning_ignore("integer_division")
+		var py: int = pixel / span.x
+		var px: int = pixel % span.x
+		counts[group] = int(counts.get(group, 0)) + 1
+		var box: Rect2i = bounds.get(group, Rect2i(px, py, 1, 1))
+		bounds[group] = box.expand(Vector2i(px, py)).expand(Vector2i(px + 1, py + 1))
+	var ground: float = float(_ground_art(start.x, start.y + across.y - 1).y)
+	for group: int in counts:
+		if int(counts[group]) < MODEL_BODY_MIN:
+			continue
+		var key: String = "%s:%s#%d" % [str(object[&"name"]), str(tiles), group]
+		if not _model_meshes.has(key):
+			var only := PackedByteArray()
+			only.resize(mask.size())
+			for pixel: int in body.size():
+				only[pixel] = 1 if body[pixel] == group else 0
+			var measured: RefCounted = Model.measure(only, span, tiles, across, atlas)
+			measured.shrub = bool(object.get(&"shrub", true))
+			measured.rock = bool(object.get(&"rock", true))
+			var drawn_rows: int = int((bounds[group] as Rect2i).size.y)
+			if drawn_rows > 0:
+				measured.stretch = float(object[&"height"]) / float(drawn_rows)
+			_model_meshes[key] = (Model.new() as RefCounted).tree(measured)
+			_model_spots[key] = {}
+			_built_model = true
+		var middle: Vector2 = Vector2((bounds[group] as Rect2i).get_center())
+		(_model_spots[key] as Dictionary)[str(start)] = [
+			Transform3D(Basis(), Vector3(
+				_world_x(start.x) + middle.x, ground, _world_z(start.y) + middle.y
+			)),
+			0.0,
+		]
 
 
 ## How much wall a body needs before it is a building rather than a speck.
@@ -3963,6 +4048,12 @@ func _cutout(
 			+ CELL_TILES * TILE * 0.5
 		top = float(span.y - origin.y)
 
+	# The ground and the stretch every height in this carve is measured through.
+	# See `_carve_y`. Unlisted classes take 1.0 and stand exactly as they are
+	# drawn, which is every carved drawing in the game but the potted plants.
+	_carve_base = base
+	_carve_lift = _stretch[at] if _stretch[at] > 0.0 else 1.0
+
 	var taken := PackedByteArray()
 	taken.resize(edge * edge)
 	for row: int in edge:
@@ -3993,9 +4084,35 @@ func _cutout(
 					taken[(row + down) * edge + column + across_step] = 1
 			var half: float = float(level) * 0.5
 			_cutout_box(
-				tx, tile, atlas, mask, origin, span, top + base,
+				tx, tile, atlas, mask, origin, span, top,
 				Rect2i(column, row, wide, tall), mid - half, mid + half
 			)
+
+
+## WHERE A CARVED ROW STANDS, given how many rows of the drawing are under it.
+##
+## The ground it sits on and how far the drawing is STRETCHED getting there, both
+## set by `_cutout` for the length of one carve. Every height in a carved cutout
+## goes through here, which is what makes a class able to say it is shorter than
+## it is drawn.
+##
+## HOW TALL A THING IS DRAWN IS NOT HOW TALL IT IS, and this file has now had to
+## say that four times: the long flower bed, the school chair, the round stool
+## and the potted plant. The first three were answered by giving the drawing to a
+## path that could scale it, an object or a model. A CARVED cutout could not be
+## scaled at all, so a potted plant carved over its own two cells stood the full
+## 32 px of its drawing and read as a black column as tall as the bookcase beside
+## it, which is what killed that build. `profile.gd:STRETCH` is the same table the
+## models read and it means the same thing on both paths now.
+func _carve_y(rows: float) -> float:
+	return _carve_base + rows * _carve_lift
+
+
+## The ground the carve in hand stands on, and its stretch. Members rather than
+## arguments because they are constant over one drawing and the three functions
+## that need them are the hottest in the mesher.
+var _carve_base: float = 0.0
+var _carve_lift: float = 1.0
 
 
 ## One rectangle of a cutout, as a box wearing its own texels.
@@ -4034,8 +4151,8 @@ func _cutout_box(
 ) -> void:
 	var x0: float = _world_x(tx) + float(box.position.x)
 	var x1: float = x0 + float(box.size.x)
-	var high: float = top - float(box.position.y)
-	var low: float = high - float(box.size.y)
+	var high: float = _carve_y(top - float(box.position.y))
+	var low: float = _carve_y(top - float(box.position.y) - float(box.size.y))
 	var uv: Rect2 = atlas.uv_box(tile, box)
 
 	_quad(
@@ -4084,8 +4201,9 @@ func _cutout_edge(
 	if horizontal:
 		var x0: float = _world_x(tx) + float(box.position.x + from)
 		var x1: float = _world_x(tx) + float(box.position.x + to)
-		var y: float = top - float(box.position.y) \
-			- (0.0 if near else float(box.size.y))
+		var y: float = _carve_y(
+			top - float(box.position.y) - (0.0 if near else float(box.size.y))
+		)
 		# Rows INSIDE the body. The drawing's own outline is what an upward face
 		# would otherwise wear, and a bush whose every top face is its black
 		# outline reads as a lump of coal.
@@ -4122,8 +4240,8 @@ func _cutout_edge(
 		return
 
 	var x: float = _world_x(tx) + float(box.position.x + (0 if near else box.size.x))
-	var high: float = top - float(box.position.y + from)
-	var low: float = top - float(box.position.y + to)
+	var high: float = _carve_y(top - float(box.position.y + from))
+	var low: float = _carve_y(top - float(box.position.y + to))
 	# The same de-outlining the horizontal faces get, and for the same reason: a
 	# silhouette's edge COLUMN is outline all the way down, so a flank sampling it
 	# comes out solid black. Walk inward until the pixel is interior, testing the
@@ -4499,44 +4617,86 @@ func _tufts(
 	# view's overdraw implies they are separate.
 	var phase: float = _hash_spot(Vector2i(tx, ty))
 	_sink = SINK_TUFT
+	_sink_uv2 = Vector2(0.0, phase)
+	_tuft_foot = base
+	_tuft_span = float(edge) * stretch
+	# THE BLADES ARE CUT INTO RECTANGLES, not into one box per row of pixels, and
+	# it is the same greedy cut `_cutout` makes for exactly the same reason: a
+	# blade is a VERTICAL thing, so the pixels above and below each other are the
+	# same run over and over and were being stood up as eight stacked boxes with
+	# six faces each. The picture is identical texel for texel, because a
+	# rectangle of pixels maps onto a rectangle of texels exactly.
+	var blade := PackedByteArray()
+	blade.resize(edge * edge)
 	for py: int in edge:
-		var run: int = -1
-		for px: int in edge + 1:
-			var blade: bool = px < edge and atlas.pixel(tile, px, py) != ground
-			if blade and run < 0:
-				run = px
-			elif not blade and run >= 0:
-				_tuft_run(
-					tx, tile, atlas, run, px, py, base, back, front, ground,
-					stretch, phase
-				)
-				run = -1
+		for px: int in edge:
+			blade[py * edge + px] = 1 if atlas.pixel(tile, px, py) != ground else 0
+	var taken := PackedByteArray()
+	taken.resize(edge * edge)
+	for py: int in edge:
+		for px: int in edge:
+			if taken[py * edge + px] == 1 or blade[py * edge + px] == 0:
+				continue
+			# DOWN THE COLUMN FIRST AND THEN ACROSS, which is the opposite of the
+			# order a cutout is cut in and is what the drawing asks for: a blade is
+			# a vertical thing. Taking the row's run first and extending it down
+			# only while every column of it continues fragments a dithered tuft
+			# into more boxes than it started with, measured at 85534 triangles
+			# WORSE over the game.
+			var tall: int = 1
+			while py + tall < edge and taken[(py + tall) * edge + px] == 0 \
+					and blade[(py + tall) * edge + px] == 1:
+				tall += 1
+			var wide: int = 1
+			while px + wide < edge:
+				var whole: bool = true
+				for step: int in tall:
+					if taken[(py + step) * edge + px + wide] == 1 \
+							or blade[(py + step) * edge + px + wide] == 0:
+						whole = false
+						break
+				if not whole:
+					break
+				wide += 1
+			for down: int in tall:
+				for step: int in wide:
+					taken[(py + down) * edge + px + step] = 1
+			_tuft_box(
+				tx, tile, atlas, px, px + wide, py, py + tall, base, back, front,
+				blade, stretch
+			)
 	_sink = SINK_TERRAIN
 
 
-## One run of blade along one row of the drawing, stood up as a box. The row is
-## read the way every upright face in this mod is: the drawing's top row is the
-## top of the thing.
-func _tuft_run(
-	tx: int, tile: int, atlas: RefCounted, from: int, to: int, py: int,
-	base: float, back: float, front: float, ground: int, stretch: float,
-	phase: float
+## The clump in hand: where its foot is and how tall it stands, so a vertex can
+## be asked how far up it is. See `_push`.
+var _tuft_foot: float = 0.0
+var _tuft_span: float = 8.0
+
+
+## One RECTANGLE of blade, stood up as a box.
+##
+## The drawing's top row is the top of the thing, which is how every upright face
+## in this mod is read. Front and back are the drawing; the lid and the two ends
+## are cut into the RUNS that are actually exposed, which is the rule `_cutout`
+## follows and which the row-at-a-time version could not: it sampled ONE pixel
+## above the run to decide the whole lid, and stood both ends of every row
+## whether or not the blade carried on beside it.
+func _tuft_box(
+	tx: int, tile: int, atlas: RefCounted, from: int, to: int,
+	from_row: int, to_row: int, base: float, back: float, front: float,
+	blade: PackedByteArray, stretch: float
 ) -> void:
+	var edge: int = int(TILE)
 	var x0: float = _world_x(tx) + float(from)
 	var x1: float = _world_x(tx) + float(to)
 	# The whole clump is stretched, not each row, so the drawing keeps its own
 	# proportions and only stands taller: a row scaled on its own leaves gaps.
-	var low: float = base + float(int(TILE) - 1 - py) * stretch
-	var high: float = low + stretch
-	# HOW FAR UP THE CLUMP THIS ROW STANDS, which is what the sway is scaled by.
-	# One value for the whole box rather than one per corner: a row is a pixel
-	# tall against a clump of eight, so the difference across it is nothing, and
-	# a clump built of boxes that each lean by their own amount is exactly the
-	# staircase a voxel drawing of a bending thing should be.
-	_sink_uv2 = Vector2(
-		float(int(TILE) - 1 - py) / float(int(TILE) - 1), phase
+	var low: float = base + float(edge - to_row) * stretch
+	var high: float = base + float(edge - from_row) * stretch
+	var uv: Rect2 = atlas.uv_box(
+		tile, Rect2i(from, from_row, to - from, to_row - from_row)
 	)
-	var uv: Rect2 = atlas.uv_box(tile, Rect2i(from, py, to - from, 1))
 	_quad(
 		Vector3(x0, low, front), Vector3(x1, low, front),
 		Vector3(x1, high, front), Vector3(x0, high, front),
@@ -4547,24 +4707,56 @@ func _tuft_run(
 		Vector3(x0, high, back), Vector3(x1, high, back),
 		Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
 	)
-	# A lid only where nothing stands on this run, and ends only where the blade
-	# stops: a face inside the clump is never seen and is not worth emitting.
-	if py == 0 or atlas.pixel(tile, from, py - 1) == ground:
-		_quad(
-			Vector3(x0, high, front), Vector3(x1, high, front),
-			Vector3(x1, high, back), Vector3(x0, high, back),
-			Vector3.UP, uv, SHADE_TOP_FLAT
+	# The lid, over the columns with nothing standing on them.
+	var run: int = -1
+	for step: int in to - from + 1:
+		var open: bool = step < to - from and (
+			from_row == 0 or blade[(from_row - 1) * edge + from + step] == 0
 		)
-	_quad(
-		Vector3(x0, low, back), Vector3(x0, low, front),
-		Vector3(x0, high, front), Vector3(x0, high, back),
-		Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
-	)
-	_quad(
-		Vector3(x1, low, front), Vector3(x1, low, back),
-		Vector3(x1, high, back), Vector3(x1, high, front),
-		Vector3(1.0, 0.0, 0.0), uv, SHADE_SIDE
-	)
+		if open and run < 0:
+			run = step
+		elif not open and run >= 0:
+			var lid: Rect2 = atlas.uv_box(
+				tile, Rect2i(from + run, from_row, step - run, 1)
+			)
+			_quad(
+				Vector3(_world_x(tx) + float(from + run), high, front),
+				Vector3(_world_x(tx) + float(from + step), high, front),
+				Vector3(_world_x(tx) + float(from + step), high, back),
+				Vector3(_world_x(tx) + float(from + run), high, back),
+				Vector3.UP, lid, SHADE_TOP_FLAT
+			)
+			run = -1
+	# The two ends, over the rows where the blade does not carry on beside them.
+	for near: bool in [true, false]:
+		var column: int = from - 1 if near else to
+		run = -1
+		for step: int in to_row - from_row + 1:
+			var row: int = from_row + step
+			var open: bool = step < to_row - from_row and (
+				column < 0 or column >= edge or blade[row * edge + column] == 0
+			)
+			if open and run < 0:
+				run = step
+			elif not open and run >= 0:
+				var y0: float = base + float(edge - from_row - step) * stretch
+				var y1: float = base + float(edge - from_row - run) * stretch
+				var side: Rect2 = atlas.uv_box(
+					tile, Rect2i(from if near else to - 1, from_row + run, 1, step - run)
+				)
+				if near:
+					_quad(
+						Vector3(x0, y0, back), Vector3(x0, y0, front),
+						Vector3(x0, y1, front), Vector3(x0, y1, back),
+						Vector3(-1.0, 0.0, 0.0), side, SHADE_SIDE
+					)
+				else:
+					_quad(
+						Vector3(x1, y0, front), Vector3(x1, y0, back),
+						Vector3(x1, y1, back), Vector3(x1, y1, front),
+						Vector3(1.0, 0.0, 0.0), side, SHADE_SIDE
+					)
+				run = -1
 
 
 ## The index a tile spends most of itself on, which for tall grass is the ground
@@ -5155,7 +5347,15 @@ func _push(vertex: Vector3, normal: Vector3, uv: Vector2, shade: Color) -> void:
 		_tuft_normals.push_back(normal)
 		_tuft_uvs.push_back(uv)
 		_tuft_colors.push_back(shade)
-		_tuft_uv2s.push_back(_sink_uv2)
+		# HOW FAR UP ITS OWN CLUMP THIS VERTEX STANDS, read off the vertex rather
+		# than handed down per quad. The sway is squared through this, so a box
+		# spanning several rows of the drawing has to lean by MORE at its top than
+		# at its foot; one value for the whole box pins the two together and a
+		# merged blade slides sideways in one piece. Per vertex it is also smoother
+		# than the row-at-a-time value it replaces.
+		_tuft_uv2s.push_back(Vector2(
+			clampf((vertex.y - _tuft_foot) / _tuft_span, 0.0, 1.0), _sink_uv2.y
+		))
 		return
 	_water_vertices.push_back(vertex)
 	_water_normals.push_back(normal)

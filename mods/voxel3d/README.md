@@ -384,8 +384,15 @@ How TALL a thing is, though, is not the drawing's to say. A chair's twelve drawn
 rows stood up as twelve pixels is a cabinet beside a desk half its height. What a
 face-on drawing states honestly is its width.
 
-Six things are declared this way: a desk, three chairs, a ship and a stone
-vessel. The ship is what made the machinery general, because a rectangle is not a
+An object may also be TURNED rather than stood up, because a drawing that is
+round wants the model below rather than a slab: the park's tiered stone fountain
+is 18 px wide across three tiles and centred on the seam between two of them, so
+nothing keyed to the cell grid reaches it at all. Its window is what keeps the
+paving either side of it out of the profile the turn is read from, and how tall
+it stands is the declaration's, since a turned body is as deep as it is wide.
+
+Nine things are declared this way: a desk, three chairs, a ship, a stone vessel,
+a ticket gate, a fountain and the ridge along a great roof. The ship is what made the machinery general, because a rectangle is not a
 footprint: a hull's bounding box is a quarter open sea, and a tile the box holds
 and the object is not has to be named as such, matched against nothing and
 covered by nothing. It still counts as part of the rectangle the mask is cut
@@ -441,6 +448,13 @@ the same drawing stands out of it, one slab per tile at that tile's own depth, s
 the player walks between the two rows of a cell exactly as the 2D view meant.
 Only the blades stand: whatever index the tile spends most of itself on is the
 ground they are drawn on.
+
+The blades are cut into the largest rectangles that fit inside the drawing rather
+than into one box per row of pixels, which is the same cut a carved drawing gets
+and keeps the picture texel for texel. Down the column first and then across,
+because a blade is a vertical thing, and the sway is read off each vertex: the
+bend goes by the square of how far up its own clump a point stands, so a box
+several rows tall has to lean more at its top than at its foot.
 
 ## Some things are MODELLED, not carved
 
