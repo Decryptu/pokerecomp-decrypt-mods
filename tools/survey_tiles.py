@@ -4,8 +4,8 @@
 The block page (`survey_label.py`) asks what a drawing is. This one asks about
 the leftovers: the individual tiles that are still being stood up as walls
 because nothing has claimed them. A tile on its own is unreadable, so each one
-is shown where the cartridge actually uses it, ringed in red, with most of a
-Game Boy screen around it.
+is shown where the cartridge actually uses it, ringed in magenta and white, with
+most of a Game Boy screen around it.
 
 Ends with the open questions that are not about any one tile, each with the
 mod's own picture of the place it is about. That is where the best of every
@@ -123,11 +123,11 @@ PAGE = """<!doctype html>
     <div class="bar"><div id="progress"></div></div>
     <p><span class="chip" id="where"></span> <span class="chip" id="uses"></span></p>
     <input id="answer" autocomplete="off" spellcheck="false"
-           placeholder="what is the thing in the red box?">
+           placeholder="what is the thing in the ringed box?">
     <div class="quick" id="quick"></div>
     <p class="hint">
       <kbd>Enter</kbd> files it and moves on, empty <kbd>Enter</kbd> skips,
-      <kbd>Shift</kbd>+<kbd>Enter</kbd> goes back. Only the red box matters;
+      <kbd>Shift</kbd>+<kbd>Enter</kbd> goes back. Only the ringed box matters;
       ignore the rest of the picture.
     </p>
     <p class="hint">

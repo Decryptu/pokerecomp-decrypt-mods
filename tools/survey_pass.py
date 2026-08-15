@@ -4,7 +4,7 @@
 The human survey is expensive and the human is the only authority on what a
 drawing IS, so it is spent on the tiles nobody can resolve. Everything else is
 a picture-reading job, and the picture is the same one that made the human
-rounds answerable: the tile ringed in red where the cartridge actually uses it.
+rounds answerable: the tile ringed where the cartridge actually uses it.
 
 So this writes, per tileset, a brief listing every tile the tileset places with
 its picture, how often it is found in a walkable cell and in a blocked one, and
@@ -59,8 +59,8 @@ CLASSES = """
 BRIEF = """# Tileset {number}: name every tile
 
 {count} tiles. For each one there is a picture, `{sample}`, showing most of a
-Game Boy screen of a REAL map with that tile ringed in red where the cartridge
-places it. Only the ringed tile is being asked about; the rest of the picture is
+Game Boy screen of a REAL map with that tile RINGED TWICE, in magenta outside and
+white inside, where the cartridge places it. Only the ringed tile is being asked about; the rest of the picture is
 there because an 8x8 tile on its own is unreadable, which was proved three times
 over on tiles that turned out to be a table corner and a book.
 
@@ -103,8 +103,8 @@ machine, and when it was re-run under this rule the two passes agreed on 39% of
 their words. If a crop does not settle a tile, that tile is `unsure`; naming the
 map it is on is not evidence and is not wanted.
 
-Any answer can be checked by cropping what the red ring encloses and blowing it
-up, and one that cannot be seen in the ring is not an answer.
+Any answer can be checked by cropping what the ring encloses and blowing it up,
+and one that cannot be seen in the ring is not an answer.
 
 {classes}
 
@@ -112,7 +112,8 @@ up, and one that cannot be seen in the ring is not an answer.
 
 1. Look at the whole picture first and work out what the PLACE is: a town, a
    shop, a cave, a route.
-2. Find the red ring. What is the ring drawn around, as part of that place?
+2. Find the magenta and white ring. What is it drawn around, as part of that
+   place?
 3. Ask which surface it depicts. Generation II draws roofs and floors from
    ABOVE and walls FACE-ON in the same picture, so the question is never "what
    colour is it" but "if this were real, which way is this surface facing".
