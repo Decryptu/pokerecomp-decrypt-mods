@@ -23,10 +23,15 @@ const STAT_KEYS: Array[String] = [
 	"hp", "attack", "defense", "speed", "sp_attack", "sp_defense",
 ]
 
-## One past the last cartridge number of any kind, which is where mod content
-## starts. Scanned rather than counted because [GameData] counts species and
-## trainer classes and does not count moves.
-const MAX_NUMBER: int = Gen2ContentOverlay.FIRST_MOD_NUMBER - 1
+## The wild tables, in the order [method Gen2ContentOverlay.encounter_number]
+## numbers them. Each is patched per map.
+const ENCOUNTER_METHODS: Array[StringName] = [
+	&"grass", &"surf", &"swarm_grass", &"swarm_water",
+]
+
+## How many fishing groups are looked for. The cartridge has a dozen and the
+## reader answers empty past the last, so this is a bound rather than a count.
+const FISHING_GROUPS: int = 64
 
 ## What a starter is holding at level five. Every learnset entry this early, and
 ## the first entry of every species whatever its level, is drawn from moves that
@@ -43,15 +48,20 @@ const EARLY_ACCURACY_MIN: int = 204
 ## the other way a run stops being finishable.
 const TRAINER_WINDOW: int = 12
 
-## The patches one seed and one set of toggles produce, as kind to number to the
-## fields [method Gen2ModHost.patch_content] takes. [param world] is one
-## [method gather], which the caller holds so that rebuilding after a setting
-## changed does not read the whole cartridge again.
+## The patches one seed and one set of toggles produce, as kind to a list of
+## `{ number, fields }` in ascending number order, an encounter carrying the
+## method and the map its own helper takes as well. A list rather than a
+## Dictionary because the ORDER is part of the answer: two machines have to
+## apply the same plan, and Dictionary keys come back in whatever order they
+## went in.
+##
+## [param world] is one [method gather], which the caller holds so that
+## rebuilding after a setting changed does not read the whole cartridge again.
 static func build(world: Dictionary, settings: Dictionary) -> Dictionary:
 	var seed_value: int = int(settings.get("seed", 0))
 	var species: Dictionary = {}
 	var moves: Dictionary = {}
-	var trainers: Dictionary = {}
+	var trainers: Array = []
 	# Evolutions first: they decide nothing else here, but reading them in one
 	# place keeps the species fields assembled in one order.
 	if bool(settings.get("evolutions", false)):
@@ -66,10 +76,17 @@ static func build(world: Dictionary, settings: Dictionary) -> Dictionary:
 		_randomize_moves(world, seed_value, moves)
 	if bool(settings.get("trainers", false)):
 		_randomize_trainers(world, seed_value, trainers)
+	var encounters: Array = []
+	var fishing: Array = []
+	if bool(settings.get("encounters", false)):
+		_randomize_encounters(world, seed_value, encounters)
+		_randomize_fishing(world, seed_value, fishing)
 	return {
-		Gen2ContentOverlay.KIND_SPECIES: species,
-		Gen2ContentOverlay.KIND_MOVE: moves,
+		Gen2ContentOverlay.KIND_SPECIES: _listed(species),
+		Gen2ContentOverlay.KIND_MOVE: _listed(moves),
 		Gen2ContentOverlay.KIND_TRAINER: trainers,
+		Gen2ContentOverlay.KIND_ENCOUNTER: encounters,
+		Gen2ContentOverlay.KIND_FISHING: fishing,
 	}
 
 
@@ -95,7 +112,13 @@ static func original_fields(world: Dictionary, kind: StringName, number: int) ->
 			"accuracy": int(row.get("accuracy", 255)),
 			"type": int(row.get("type", 0)),
 		}
-	return {"trainers": (row.get("trainers", []) as Array).duplicate(true)}
+	if kind == Gen2ContentOverlay.KIND_TRAINER:
+		return {"trainers": (row.get("trainers", []) as Array).duplicate(true)}
+	# An encounter row and a fishing group are both reached by their slots
+	# alone, which is the one field this mod writes to either.
+	if kind == Gen2ContentOverlay.KIND_ENCOUNTER:
+		return {"slots": (row.get("slots", []) as Array).duplicate(true)}
+	return {"rods": (row.get("rods", []) as Array).duplicate(true)}
 
 
 ## Everything the plan reads, gathered once: the rows, the totals, the type
@@ -110,22 +133,9 @@ static func gather(data: GameData) -> Dictionary:
 	var species: Dictionary = {}
 	var moves: Dictionary = {}
 	var trainers: Dictionary = {}
-	var species_numbers: Array[int] = []
-	var move_numbers: Array[int] = []
-	var trainer_numbers: Array[int] = []
-	for number: int in range(1, MAX_NUMBER + 1):
-		var row: Dictionary = data.species(number)
-		if not row.is_empty():
-			species[number] = row
-			species_numbers.append(number)
-		row = data.move(number)
-		if not row.is_empty():
-			moves[number] = row
-			move_numbers.append(number)
-		row = data.trainer(number)
-		if not row.is_empty():
-			trainers[number] = row
-			trainer_numbers.append(number)
+	var species_numbers: Array[int] = _rows(data.species, data.species_count(), species)
+	var move_numbers: Array[int] = _rows(data.move, data.move_count(), moves)
+	var trainer_numbers: Array[int] = _rows(data.trainer, data.trainer_count(), trainers)
 
 	var totals: Dictionary = {}
 	var type_pool: Array[int] = []
@@ -157,6 +167,8 @@ static func gather(data: GameData) -> Dictionary:
 		"by_total": by_total,
 		"rank": rank,
 		"families": _families(species, species_numbers),
+		Gen2ContentOverlay.KIND_ENCOUNTER: _encounters(data),
+		Gen2ContentOverlay.KIND_FISHING: _fishing(data),
 	}
 
 
@@ -167,6 +179,54 @@ static func _total(row: Dictionary) -> int:
 	for key: String in STAT_KEYS:
 		sum += int(stats.get(key, 0))
 	return sum
+
+
+## One kind's rows, numbered from one the way the cartridge numbers them, kept
+## by number and listed in the order they are walked in.
+static func _rows(reader: Callable, count: int, into: Dictionary) -> Array[int]:
+	var numbers: Array[int] = []
+	for number: int in range(1, count + 1):
+		var row: Dictionary = reader.call(number)
+		if row.is_empty():
+			continue
+		into[number] = row
+		numbers.append(number)
+	return numbers
+
+
+## Every map's wild table, keyed by the coordinate the host packs a method, a
+## group and a map number into, with the three kept beside the row because
+## [method Gen2ModHost.patch_encounter] takes them apart again.
+##
+## Walked over the maps the cartridge carries rather than over the tables' own
+## keys: a map is the thing a patch addresses, and `world_maps()` is the list of
+## them.
+static func _encounters(data: GameData) -> Dictionary:
+	var out: Dictionary = {}
+	for map: Gen2WorldMap in data.world_maps():
+		for method: StringName in ENCOUNTER_METHODS:
+			var row: Dictionary = data.world_encounter(method, map.group, map.number)
+			if row.is_empty() or (row.get("slots", []) as Array).is_empty():
+				continue
+			var at: int = Gen2ContentOverlay.encounter_number(method, map.group, map.number)
+			if at < 0 or out.has(at):
+				continue
+			row = row.duplicate(true)
+			row["method"] = method
+			row["group"] = map.group
+			row["number"] = map.number
+			out[at] = row
+	return out
+
+
+## Every fishing group, by the number a map header names it with.
+static func _fishing(data: GameData) -> Dictionary:
+	var out: Dictionary = {}
+	for group: int in range(1, FISHING_GROUPS + 1):
+		var row: Dictionary = data.world_fishing_group(group)
+		if not row.is_empty():
+			out[group] = row
+	return out
 
 
 ## Which species share an evolution line, as number to the line's own lowest
@@ -348,11 +408,9 @@ static func _randomize_evolutions(world: Dictionary, seed_value: int, out: Dicti
 ## The whole `trainers` array is rewritten because an Array field replaces
 ## rather than merging, so it is built out of the cartridge's own rows with the
 ## species substituted in place, and every key those rows carry rides along.
-static func _randomize_trainers(world: Dictionary, seed_value: int, out: Dictionary) -> void:
+static func _randomize_trainers(world: Dictionary, seed_value: int, out: Array) -> void:
 	var classes: Dictionary = world[Gen2ContentOverlay.KIND_TRAINER]
-	var by_total: Array[int] = world["by_total"]
-	var rank: Dictionary = world["rank"]
-	if by_total.is_empty():
+	if (world["by_total"] as Array).is_empty():
 		return
 	for number: int in (world["trainer_numbers"] as Array[int]):
 		var roster: Array = (classes[number].get("trainers", []) as Array).duplicate(true)
@@ -361,13 +419,85 @@ static func _randomize_trainers(world: Dictionary, seed_value: int, out: Diction
 		var rng := Rng.new()
 		rng.begin(seed_value, "trainer", number)
 		for trainer: Dictionary in roster:
-			for mon: Dictionary in (trainer.get("party", []) as Array):
-				var original: int = int(mon.get("species", 0))
-				var centre: int = int(rank.get(original, by_total.size() / 2))
-				var low: int = maxi(centre - TRAINER_WINDOW, 0)
-				var high: int = mini(centre + TRAINER_WINDOW, by_total.size() - 1)
-				mon["species"] = by_total[low + rng.below(high - low + 1)]
-		out[number] = {"trainers": roster}
+			_substitute(trainer.get("party", []), world, rng)
+		out.append({"number": number, "fields": {"trainers": roster}})
+
+
+## Wild encounters: every slot of every map's table replaced, keeping the level
+## the cartridge put there and the rates it appears at. A route stays as easy or
+## as dangerous as it was, and what walks out of the grass is different.
+##
+## The tables are read-only through `GameData` and patched through the host's
+## own `patch_encounter`, so the coordinate is carried rather than recomputed.
+static func _randomize_encounters(world: Dictionary, seed_value: int, out: Array) -> void:
+	var tables: Dictionary = world[Gen2ContentOverlay.KIND_ENCOUNTER]
+	if (world["by_total"] as Array).is_empty():
+		return
+	for at: int in _sorted(tables):
+		var row: Dictionary = tables[at]
+		var slots: Array = (row.get("slots", []) as Array).duplicate(true)
+		var rng := Rng.new()
+		rng.begin(seed_value, "encounter", at)
+		_substitute(slots, world, rng)
+		out.append({
+			"at": at, "method": StringName(row["method"]), "group": int(row["group"]),
+			"number": int(row["number"]), "fields": {"slots": slots},
+		})
+
+
+## The same for the three rods of every fishing group. An entry that names no
+## species defers to the day and night table, which is not patchable, so it is
+## left exactly as it is rather than half rewritten.
+static func _randomize_fishing(world: Dictionary, seed_value: int, out: Array) -> void:
+	var groups: Dictionary = world[Gen2ContentOverlay.KIND_FISHING]
+	if (world["by_total"] as Array).is_empty():
+		return
+	for group: int in _sorted(groups):
+		var rods: Array = ((groups[group] as Dictionary).get("rods", []) as Array).duplicate(true)
+		var rng := Rng.new()
+		rng.begin(seed_value, "fishing", group)
+		_substitute(rods, world, rng)
+		out.append({"number": group, "fields": {"rods": rods}})
+
+
+## Replaces the species of every entry inside [param value], however deeply it
+## is nested and whatever else the entry carries.
+##
+## One walk covers all three shapes, which is why it is written this way rather
+## than three times: a grass table is a list per time of day, a water table is
+## one flat list, a rod is a list of thresholds, and a trainer's party is a list
+## of Pokemon. What they have in common is the only thing being changed.
+static func _substitute(value: Variant, world: Dictionary, rng: RefCounted) -> void:
+	if value is Array:
+		for entry: Variant in value as Array:
+			_substitute(entry, world, rng)
+		return
+	if not value is Dictionary or not (value as Dictionary).has("species"):
+		return
+	var entry: Dictionary = value
+	entry["species"] = _near(world, int(entry["species"]), rng)
+
+
+## A species of about the strength of [param original]: the band of the base
+## stat total order around it, which is what keeps an early route early and a
+## gym leader beatable. See [constant TRAINER_WINDOW].
+static func _near(world: Dictionary, original: int, rng: RefCounted) -> int:
+	var by_total: Array[int] = world["by_total"]
+	var rank: Dictionary = world["rank"]
+	var centre: int = int(rank.get(original, by_total.size() / 2))
+	var low: int = maxi(centre - TRAINER_WINDOW, 0)
+	var high: int = mini(centre + TRAINER_WINDOW, by_total.size() - 1)
+	return by_total[low + rng.below(high - low + 1)]
+
+
+## The keys of [param rows] as ascending numbers, which is the order everything
+## here is walked in.
+static func _sorted(rows: Dictionary) -> Array[int]:
+	var numbers: Array[int] = []
+	for number: int in rows:
+		numbers.append(number)
+	numbers.sort()
+	return numbers
 
 
 ## The move numbers a learnset or a rebalance draws from, read off the
@@ -391,6 +521,14 @@ static func _move_pools(world: Dictionary) -> Dictionary:
 				and accuracy >= EARLY_ACCURACY_MIN:
 			early.append(number)
 	return {"any": any, "damaging": damaging, "early": early}
+
+
+## The rows assembled by number, listed in ascending number order.
+static func _listed(rows: Dictionary) -> Array:
+	var out: Array = []
+	for number: int in _sorted(rows):
+		out.append({"number": number, "fields": rows[number]})
+	return out
 
 
 ## The fields being assembled for one number, created on first use so a species

@@ -1,22 +1,23 @@
 # Randomizer
 
 A run generated from a seed. The same seed on the same cartridge is the same
-game, on anyone's machine, every time: base stats, types, movesets, evolutions,
-move power and accuracy, and every trainer's team are drawn from the seed and
-from nothing else.
+game, on anyone's machine, every time: what walks out of the grass, base stats,
+types, movesets, evolutions, move power and accuracy, and every trainer's team
+are drawn from the seed and from nothing else.
 
 Nothing is invented and nothing is shipped. Every value written here came out of
 the cartridge the player imported, rearranged.
 
 ## The seed
 
-Four digits, dialled on four rows in the same MODS menu as everything else, so
-a run is shared by saying a number: `0000` to `9999`. Leading zeros count, and
-`0042` is not `4200`.
+Four digits, one field in the same MODS menu as everything else, typed in the
+launcher and stepped in the game, so a run is shared by saying a number: `0000`
+to `9999`. Leading zeros count, and `0042` is not `4200`. Four digits rather
+than more because a code is worth having when it can be said out loud.
 
-It is four rows because a setting is a ladder of values or a press, and neither
-is a text field. That is an engine request rather than a limit worth working
-around, and a longer seed will be one row when it lands.
+A host built before number settings existed gets the same seed as four
+one-digit ladders instead. Nothing else changes, and a code dialled on one is
+the code dialled on the other.
 
 WHAT A SEED GUARANTEES, and the part that took the care: the same seed and the
 same cartridge produce the same game. It does not depend on the order a
@@ -35,13 +36,14 @@ each of them reproducible.
 
 ## Settings
 
-Ten rows, in the start menu's MODS entry and on this mod's card in the launcher.
+Eight rows, in the start menu's MODS entry and on this mod's card in the launcher.
 Both surfaces are built by the host out of one registration in `options.gd`, so
 this mod writes no settings screen.
 
 | Setting | Rungs | Does |
 | --- | --- | --- |
-| SEED 1 to 4 | 0 to 9 | The four digits of the run's code |
+| SEED | 0 to 9999 | The run's code |
+| WILD | OFF, ON | Redraw what appears in the grass, the water and on a rod |
 | STATS | OFF, ON | Shuffle each species' six base stats |
 | TYPES | OFF, ON | Redraw each evolution line's types |
 | MOVESETS | OFF, ON | Redraw every level-up move, keeping every level |
@@ -60,7 +62,7 @@ a slot was loaded would not be that run any more.
 
 ## Sane by default
 
-A randomizer nobody can finish is a bug, so each of the six is bounded by
+A randomizer nobody can finish is a bug, so each of the seven is bounded by
 something the cartridge already said.
 
 BASE STATS are PERMUTED, not redrawn. A species keeps its total exactly, so
@@ -100,14 +102,21 @@ record carries. Each Pokemon is replaced by one from the band around it in the
 base stat total order, so a gym leader gets a different team and not the top of
 the table.
 
+WILD ENCOUNTERS keep every slot in its place, at the level and the rate the
+cartridge gave it, and change only which Pokemon stands in it, drawn from the
+same band. A route stays as easy or as dangerous as it was, and the first grass
+in the game cannot hand out something that ends the run there. Grass, surfing,
+both swarm tables and all three rods go the same way.
+
 ## What this deliberately does not touch
 
-WILD ENCOUNTERS. Which Pokemon appear in the grass is the single most wanted
-thing a randomizer does, and it is not here: the encounter tables are read
-through `GameData.world_encounter` and no content kind patches them, so a mod
-cannot change them. Scraping or mirroring those tables to get around that is
-exactly the kind of private copy of host data this repository does not write, so
-the fix is a host one and has been asked for.
+THE WILD TABLES THE HOST DOES NOT PATCH YET, and they are named rather than
+faked: the headbutt and rock-smash trees, the Bug Contest's own list, the three
+roaming Pokemon, and the day-and-night substitutions a rod entry defers to
+instead of naming a species. Each is read straight off the cartridge, so each is
+left exactly as it was rather than half rewritten. Mirroring them inside the mod
+to get around that is the private copy of host data this repository does not
+write.
 
 TM AND HM COMPATIBILITY, and what each TM teaches, so the moves a run needs to
 cross the map are the ones the cartridge always had. ITEMS, MARTS and what is
@@ -120,7 +129,7 @@ no art yet, and a Pokemon nothing can draw is not a Pokemon.
 `tools/randomizer_probe.gd` builds the plan against a real cartridge cache and
 prints what it changed, with no game running. It digests one seed built twice
 and a second seed built once, and then asks every promise above of every row
-rather than of a sample:
+rather than of a sample, down to a wild slot keeping its level and its place:
 
 ```bash
 Godot --headless --path <pokerecomp> -s tools/randomizer_probe.gd -- \

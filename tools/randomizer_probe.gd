@@ -70,6 +70,7 @@ func _initialize() -> void:
 
 	_counts(first)
 	_samples(world, first, data)
+	_wild_sample(world, first, data)
 	var failures: int = _rules(world, first)
 	quit(1 if failures > 0 else 0)
 
@@ -81,19 +82,24 @@ func _with_seed(settings: Dictionary, seed_value: int) -> Dictionary:
 
 
 func _counts(patches: Dictionary) -> void:
-	for kind: StringName in [
-		Gen2ContentOverlay.KIND_SPECIES,
-		Gen2ContentOverlay.KIND_MOVE,
-		Gen2ContentOverlay.KIND_TRAINER,
-	]:
-		print("patched    %-8s %d rows" % [kind, (patches[kind] as Dictionary).size()])
+	for kind: StringName in patches.keys():
+		print("patched    %-10s %d rows" % [kind, (patches[kind] as Array).size()])
+
+
+## The plan's list for one kind, by number, for a check that wants to ask about
+## one row rather than walk them all.
+func _by_number(entries: Array) -> Dictionary:
+	var out: Dictionary = {}
+	for entry: Dictionary in entries:
+		out[int(entry["number"])] = entry["fields"]
+	return out
 
 
 ## A few rows written out, because a count says a plan ran and a row says what
 ## it did.
 func _samples(world: Dictionary, patches: Dictionary, data: GameData) -> void:
 	var species: Dictionary = world[Gen2ContentOverlay.KIND_SPECIES]
-	var patched: Dictionary = patches[Gen2ContentOverlay.KIND_SPECIES]
+	var patched: Dictionary = _by_number(patches[Gen2ContentOverlay.KIND_SPECIES])
 	for number: int in [1, 4, 7, 25]:
 		if not patched.has(number):
 			continue
@@ -109,6 +115,33 @@ func _samples(world: Dictionary, patches: Dictionary, data: GameData) -> void:
 			print("             opens with %s at level %d" % [
 				data.move(int(opening["move"])).get("name", "?"), int(opening["level"]),
 			])
+
+
+## One route's grass, written out both ways. A count says the tables were
+## walked; a route says what the player will meet on it.
+func _wild_sample(world: Dictionary, patches: Dictionary, data: GameData) -> void:
+	var tables: Dictionary = world[Gen2ContentOverlay.KIND_ENCOUNTER]
+	for entry: Dictionary in (patches[Gen2ContentOverlay.KIND_ENCOUNTER] as Array):
+		if StringName(entry["method"]) != &"grass":
+			continue
+		var was: Dictionary = tables[int(entry["at"])]
+		print("map %d,%d grass  %s" % [
+			int(entry["group"]), int(entry["number"]),
+			_names(data, ((was["slots"] as Array)[0] as Array)),
+		])
+		print("            ->  %s" % _names(
+			data, (((entry["fields"] as Dictionary)["slots"] as Array)[0] as Array)
+		))
+		return
+
+
+func _names(data: GameData, slots: Array) -> String:
+	var out: PackedStringArray = PackedStringArray()
+	for slot: Dictionary in slots:
+		out.append("%s %d" % [
+			data.species(int(slot["species"])).get("name", "?"), int(slot["level"]),
+		])
+	return ", ".join(out)
 
 
 ## The cartridge's own rows come back out of JSON as floats, which is a fact
@@ -132,7 +165,7 @@ func _rules(world: Dictionary, patches: Dictionary) -> int:
 	var species: Dictionary = world[Gen2ContentOverlay.KIND_SPECIES]
 	var moves: Dictionary = world[Gen2ContentOverlay.KIND_MOVE]
 	var totals: Dictionary = world["totals"]
-	var patched: Dictionary = patches[Gen2ContentOverlay.KIND_SPECIES]
+	var patched: Dictionary = _by_number(patches[Gen2ContentOverlay.KIND_SPECIES])
 	var numbers: Array[int] = []
 	for number: int in patched:
 		numbers.append(number)
@@ -157,16 +190,59 @@ func _rules(world: Dictionary, patches: Dictionary) -> int:
 				climbs = false
 
 	var lines: bool = _lines_climb(species, patched)
+	var levels: bool = _wild_keeps_levels(world, patches)
 	var failures: int = 0
 	for check: Array in [
 		["a species keeps its base stat total", kept_total],
 		["nothing opens without a way to attack", armed],
 		["an evolution is never a downgrade", climbs],
 		["an evolution line's stats still climb", lines],
+		["a wild slot keeps its level and its place", levels],
 	]:
 		if not _report(String(check[0]), bool(check[1])):
 			failures += 1
 	return failures
+
+
+## What the wild tables promise: every slot is still there, in the same place,
+## at the level the cartridge put it. Only the species moves, and the same walk
+## covers a grass table's three times of day, a water table's flat list and a
+## rod's thresholds.
+func _wild_keeps_levels(world: Dictionary, patches: Dictionary) -> bool:
+	for entry: Dictionary in (patches[Gen2ContentOverlay.KIND_ENCOUNTER] as Array):
+		var was: Dictionary = (world[Gen2ContentOverlay.KIND_ENCOUNTER] as Dictionary)[
+			int(entry["at"])
+		]
+		if not _same_shape(was.get("slots", []), (entry["fields"] as Dictionary)["slots"]):
+			return false
+	for entry: Dictionary in (patches[Gen2ContentOverlay.KIND_FISHING] as Array):
+		var was: Dictionary = (world[Gen2ContentOverlay.KIND_FISHING] as Dictionary)[
+			int(entry["number"])
+		]
+		if not _same_shape(was.get("rods", []), (entry["fields"] as Dictionary)["rods"]):
+			return false
+	return true
+
+
+## The same nesting, the same entries and every key but the species equal.
+func _same_shape(was: Variant, now: Variant) -> bool:
+	if was is Array:
+		if not now is Array or (was as Array).size() != (now as Array).size():
+			return false
+		for index: int in (was as Array).size():
+			if not _same_shape((was as Array)[index], (now as Array)[index]):
+				return false
+		return true
+	if was is Dictionary:
+		if not now is Dictionary:
+			return false
+		for key: Variant in was as Dictionary:
+			if String(key) == "species":
+				continue
+			if not _same_shape((was as Dictionary)[key], (now as Dictionary).get(key, null)):
+				return false
+		return true
+	return int(was) == int(now) if was is float or was is int else was == now
 
 
 ## What a shared permutation BUYS, asked of the cartridge's own evolution

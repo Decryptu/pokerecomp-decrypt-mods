@@ -12,12 +12,20 @@ extends RefCounted
 
 const MOD_ID: StringName = &"randomizer"
 
-## The seed, as four digits. A setting is a LADDER of values or a press, and
-## neither is a text field, so the shareable code is a four-digit number the
-## player dials in: 10000 seeds, said out loud in one breath, and every one of
-## them reachable from a pad or a thumb without a keyboard. One row instead of
-## four is an engine request rather than a workaround; see HANDOFF.md.
-const SEED_KEYS: Array[StringName] = [&"seed_1", &"seed_2", &"seed_3", &"seed_4"]
+## The seed, as one number the player types or steps. Four digits rather than
+## more: a code is worth having when it can be said out loud, and ten thousand
+## runs is a great many to share.
+const SEED: StringName = &"seed"
+const SEED_MAXIMUM: int = 9999
+
+## The same seed as four one-digit ladders, for a host built before
+## `OPTION_NUMBER` existed. A ladder is the one option kind every host has had,
+## so this is what the mod falls back to rather than reading a seed of zero
+## forever and saying nothing. Written as a string rather than as
+## `Gen2ModHost.OPTION_NUMBER` for the same reason: a constant the older host
+## does not carry would stop this file parsing there at all.
+const NUMBER_KIND: StringName = &"number"
+const SEED_DIGIT_KEYS: Array[StringName] = [&"seed_1", &"seed_2", &"seed_3", &"seed_4"]
 const DIGITS: Array = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 const STATS: StringName = &"stats"
@@ -26,23 +34,31 @@ const LEARNSETS: StringName = &"learnsets"
 const EVOLUTIONS: StringName = &"evolutions"
 const MOVES: StringName = &"moves"
 const TRAINERS: StringName = &"trainers"
+const ENCOUNTERS: StringName = &"encounters"
 
 ## Each thing the mod can randomize is its own rung, so a player can shuffle
 ## movesets and leave base stats where the cartridge put them.
-const TOGGLES: Array[StringName] = [STATS, TYPES, LEARNSETS, EVOLUTIONS, MOVES, TRAINERS]
+const TOGGLES: Array[StringName] = [
+	STATS, TYPES, LEARNSETS, EVOLUTIONS, MOVES, TRAINERS, ENCOUNTERS,
+]
 const TOGGLE_LABELS: Dictionary = {
-	STATS: "STATS", TYPES: "TYPES", LEARNSETS: "MOVESETS",
-	EVOLUTIONS: "EVOLVES", MOVES: "MOVES", TRAINERS: "TRAINERS",
+	STATS: "STATS", TYPES: "TYPES", LEARNSETS: "MOVESETS", EVOLUTIONS: "EVOLVES",
+	MOVES: "MOVES", TRAINERS: "TRAINERS", ENCOUNTERS: "WILD",
 }
 const OFF_ON: Array = [0, 1]
 
 
 static func register(host: Gen2ModHost, id: StringName) -> void:
-	for index: int in SEED_KEYS.size():
-		host.register_option(id, {
-			"key": SEED_KEYS[index], "label": "SEED %d" % (index + 1),
-			"values": DIGITS, "default": 0,
-		})
+	var seed_row: Dictionary = host.register_option(id, {
+		"key": SEED, "label": "SEED", "kind": NUMBER_KIND,
+		"minimum": 0, "maximum": SEED_MAXIMUM, "default": 0,
+	})
+	if not bool(seed_row.get("ok", false)):
+		for index: int in SEED_DIGIT_KEYS.size():
+			host.register_option(id, {
+				"key": SEED_DIGIT_KEYS[index], "label": "SEED %d" % (index + 1),
+				"values": DIGITS, "default": 0,
+			})
 	for key: StringName in TOGGLES:
 		host.register_option(id, {
 			"key": key, "label": String(TOGGLE_LABELS[key]),
@@ -60,32 +76,33 @@ static func settings(host: Gen2ModHost) -> Dictionary:
 		chosen[key] = true
 	if host == null:
 		return chosen
-	var digits: Array[int] = []
-	for key: StringName in SEED_KEYS:
-		var value: Variant = host.option(MOD_ID, key)
-		digits.append(0 if value == null else int(value))
-	chosen["seed"] = seed_from_digits(digits)
+	chosen["seed"] = _seed(host)
 	for key: StringName in TOGGLES:
 		var value: Variant = host.option(MOD_ID, key)
 		chosen[key] = true if value == null else int(value) != 0
 	return chosen
 
 
-## The four digits read as the number they spell, which is what a player shares.
-static func seed_from_digits(digits: Array[int]) -> int:
-	var value: int = 0
-	for digit: int in digits:
-		value = value * 10 + clampi(digit, 0, 9)
-	return value
+## The one number, or the four digits read as the number they spell. Which of
+## the two registered is the host's answer and not a thing to remember here.
+static func _seed(host: Gen2ModHost) -> int:
+	var value: Variant = host.option(MOD_ID, SEED)
+	if value != null:
+		return clampi(int(value), 0, SEED_MAXIMUM)
+	var spelled: int = 0
+	for key: StringName in SEED_DIGIT_KEYS:
+		var digit: Variant = host.option(MOD_ID, key)
+		spelled = spelled * 10 + (0 if digit == null else clampi(int(digit), 0, 9))
+	return spelled
 
 
-## The seed as the player sees it on the four rows, leading zeros kept: 42 is
-## dialled 0-0-4-2 and is not the same code as 4200.
+## The seed as the player shares it, leading zeros kept: 42 is the code 0042 and
+## is not 4200.
 static func seed_text(seed_value: int) -> String:
-	return "%04d" % (seed_value % 10000)
+	return "%04d" % (seed_value % (SEED_MAXIMUM + 1))
 
 
 ## Whether [param key] is one this mod registered, for a change handler that is
 ## handed every mod's settings.
 static func owns(key: StringName) -> bool:
-	return SEED_KEYS.has(key) or TOGGLES.has(key)
+	return key == SEED or SEED_DIGIT_KEYS.has(key) or TOGGLES.has(key)
