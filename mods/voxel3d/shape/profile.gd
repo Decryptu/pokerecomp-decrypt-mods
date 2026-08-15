@@ -739,6 +739,56 @@ const OBJECTS: Dictionary = {
 			&"depth": 6,
 			&"height": 6,
 		},
+		# THE LABORATORY'S TWO BENCHES, and they are one thing declared twice
+		# because the cartridge draws them at two widths. Both are the same
+		# section: two tile rows of the top seen from above, then one of the apron
+		# seen face-on with a leg at each end of it.
+		#
+		# ONE TILE HIGH AND NOT TWO, which is the reviewer's own correction and
+		# worth more than it looks. The apron is 8 rows of drawing, so 8 world
+		# pixels; what the resolver made of these tiles before was `surface` at
+		# that class's own 16, and a bench standing a whole walk cell is a counter.
+		# The DEPTH is the top band's own 16 rows, which is the rule everywhere a
+		# drawing has a top band at all.
+		#
+		# WRAPPED, because a bench stands in the middle of a room and is seen from
+		# behind and from both ends. See `mesher.gd:_object_wrap`.
+		{
+			&"name": &"bench",
+			&"tiles": [[10, 11, 12, 13], [26, 27, 28, 29], [37, 38, 38, 39]],
+			&"window": Rect2i(0, 0, 32, 24),
+			&"top": 16,
+			&"depth": 16,
+			&"height": 8,
+			&"wrap": true,
+		},
+		# THE BIN, an open cylinder and the only hollow thing in this file. Its
+		# drawing is 11 px across and 14 tall inside its two cells: seven rows of
+		# the mouth seen from above, then seven of the body, which narrows to seven
+		# pixels at the foot. See `mesher.gd:_object_bin`.
+		{
+			&"name": &"bin",
+			&"tiles": [[14, 15], [30, 31]],
+			&"window": Rect2i(2, 1, 11, 14),
+			&"top": 7,
+			&"depth": 11,
+			&"height": 14,
+			&"bin": true,
+		},
+		# The long one the starters stand on, 48 wide and drawn with its own top.
+		{
+			&"name": &"bench_long",
+			&"tiles": [
+				[5, 6, 6, 6, 6, 7],
+				[21, 22, 22, 22, 22, 23],
+				[37, 38, 38, 38, 38, 39],
+			],
+			&"window": Rect2i(0, 0, 48, 24),
+			&"top": 16,
+			&"depth": 16,
+			&"height": 8,
+			&"wrap": true,
+		},
 	],
 	17: [
 		# THE MAGNET TRAIN TICKET GATE, two of them side by side at the head of the
@@ -1573,6 +1623,35 @@ const FENCES: Dictionary = {
 	# exists for: an arched top over a solid rail, drawn as a 16 px pair with the
 	# arch's apex on the tile seam. 35 and 36 are the arch, 51 and 52 the rail.
 	25: [[35, 36], [51, 52]],
+}
+
+
+## THE ROOM SHELL, per tileset: the arrangement of tile ids a blank interior wall
+## is drawn with, top row first, repeated over the shell.
+##
+## A Game Boy camera never stands outside a room, so the cartridge draws the one
+## wall the player looks AT and nothing else: two tile rows along the north edge,
+## and the other three sides are not drawn at all. In three dimensions the camera
+## does stand outside, and what it found was a floor with furniture on it and no
+## room around it.
+##
+## So a room is given the shell it always had. `mesher.gd:_measure_room` rings the
+## map with this drawing, one walk cell deep, standing two cells, and raises the
+## wall the cartridge DOES draw to meet it. The upper course is this same drawing
+## rather than a stretch of the window or the poster below it, which is the
+## reviewer's own instruction against the lab's own tiles: reuse the blank wall to
+## fill the wall a level higher.
+##
+## Per tileset, because a tile id means nothing without one. A tileset with no
+## entry gets no shell and its interiors are drawn exactly as they were.
+## THE BLANK COURSE AND NOT THE WHOLE WALL. Tileset 10 draws its wall as plaster
+## over a blue skirting, and the skirting is the foot of the one wall the
+## cartridge places. Repeated up a shell two cells tall it is a stripe every other
+## band, and repeated across the shell's top it is a striped ledge, so what is
+## reused is the plaster alone.
+const ROOM_WALL: Dictionary = {
+	# The Kanto laboratory and the houses that share its tileset.
+	10: [[1, 1]],
 }
 
 

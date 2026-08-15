@@ -585,7 +585,12 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# modelled and stamped by exactly the code that does it inside the map, and
 	# the seam between the two is skirted by the code that skirts every other
 	# height change. A room ends at its walls and gets none.
-	var ring: int = _ring_depth(source, shape) if _outside else 0
+	# A ROOM ENDS AT ITS WALLS AND NOW GETS SOME. The outdoor ring carries the
+	# border block out; the indoor one is plaster this file stands there, so the
+	# two are the same margin and nothing downstream tells them apart.
+	_room_wall = [] if _outside else shape.room_wall()
+	var ring: int = _ring_depth(source, shape) if _outside \
+		else (ROOM_RING if not _room_wall.is_empty() else 0)
 	_margin = Vector2i(ring, ring)
 	_map_size = source.size_cells() * RomLayout.MAP_BLOCK_CELL_WIDTH
 	_size = _map_size + _margin * 2
@@ -630,12 +635,20 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_ledge.fill(LEDGE_NONE)
 	_shelf.resize(count)
 	_shelf.fill(0)
+	_room.resize(count)
+	_room.fill(0)
 
 	for ty: int in _size.y:
 		var cell_y: int = (ty - _margin.y) >> 1
 		for tx: int in _size.x:
 			var at: int = ty * _size.x + tx
-			var tile: int = source.tile_at(tx - _margin.x, ty - _margin.y)
+			var shell: bool = not _room_wall.is_empty() and (
+				tx < _margin.x or ty < _margin.y
+				or tx >= _size.x - _margin.x or ty >= _size.y - _margin.y
+			)
+			_room[at] = ROOM_SHELL if shell else 0
+			var tile: int = _room_wall_tile(tx, ty) if shell \
+				else source.tile_at(tx - _margin.x, ty - _margin.y)
 			_tiles[at] = tile
 			_bases[at] = ty
 			_cliff[at] = 0
@@ -647,7 +660,10 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 				_art[at] = ART_FLAT
 				_part[at] = PART_NONE
 				continue
-			var permission: int = source.permission_at(
+			# The shell is not on the map, so there is no collision cell to ask.
+			# Neither permission is what makes `tile_shape.at` answer `wall`, which
+			# is the whole of what plaster is.
+			var permission: int = -1 if shell else source.permission_at(
 				Vector2i((tx - _margin.x) >> 1, cell_y)
 			)
 			var shape_class: StringName = shape.at(tile, permission)
@@ -748,6 +764,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# Before the furniture, which asks what the height of the thing under it came
 	# to and would read an unsettled -1 as standing on the floor.
 	_settle_unmeasured()
+	# After every pass that moves a height, since the shell's is not measured off
+	# anything: it is two cells because a room is two cells high.
+	_measure_room()
 	_measure_furniture()
 	_measure_cutouts()
 	# After the cutouts, because an object overrides whatever class its tiles were
@@ -2830,6 +2849,11 @@ func _height_at(tx: int, ty: int) -> int:
 ## column of one structure wear the same drawing, so the row exposed at its back
 ## shows the structure and not the ground behind it.
 func _band_tile(tx: int, ty: int, band: int) -> int:
+	# THE SHELL IS PLASTER ALL THE WAY UP and is one cell thick, so the rows north
+	# of a south wall's base are the room's own floor. It is the one structure here
+	# whose drawing is not on the map, so it answers for itself.
+	if not _room.is_empty() and _room[ty * _size.x + tx] == ROOM_SHELL:
+		return _tiles[ty * _size.x + tx]
 	var row: int = _bases[ty * _size.x + tx] - band
 	if row < 0:
 		row = 0
@@ -3416,6 +3440,9 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 	if bool(object.get(&"model", false)):
 		_object_model(object, start, across, tiles, mask, span, window, atlas)
 		return
+	if bool(object.get(&"bin", false)):
+		_object_bin(object, start, across, tiles, mask, span, window, atlas)
+		return
 	var top_rows: int = clampi(int(object.get(&"top", 0)), 0, window.size.y)
 	var face_rows: int = window.size.y - top_rows
 	var deep: float = float(object[&"depth"])
@@ -3508,6 +3535,12 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 				)
 			px = run
 
+	if bool(object.get(&"wrap", false)):
+		_object_wrap(
+			atlas, tiles, across, mask, span, window, top_rows,
+			left, right, front, back, base, high
+		)
+		return
 	var side: Rect2 = _object_texel(
 		atlas, tiles, across, mask, span, window,
 		window.position.y + top_rows, window.position.y + window.size.y
@@ -3545,6 +3578,393 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 				),
 				SHADE_TOP_FLAT
 			)
+
+
+## THE OPEN BIN, TURNED RATHER THAN STOOD UP, AND THE ONE HOLLOW THING HERE.
+##
+## The reviewer's description is the specification: an empty cylinder with no lid,
+## thinner at the foot than at the mouth, a light body with a horizontal band
+## round it, and a darker inside.
+##
+## NOTHING OF THAT IS AUTHORED BUT THE HOLLOW. The taper is the drawing's own
+## drawn width at each row, so the can narrows exactly as much as the cartridge
+## narrows it; the band is whichever of the drawing's shades covers most of the
+## row it sits on, wrapped the whole way round, which is what a band on a turned
+## thing is; and the inside is the shade the cartridge paints the open mouth with,
+## which is the one part of a bin a 2.5D drawing does show. What no drawing seen
+## from in front can state is that the mouth is open at all and that the wall is
+## thin, and those two are the whole of what this adds.
+##
+## The face rows are the body and span the height; the `top` rows are the mouth
+## seen from above and take none of it, since a hole is not tall.
+const BIN_SEGMENTS: int = 16
+const BIN_WALL: float = 1.5
+## The least the foot may be against the mouth. See where it is spent.
+const BIN_FOOT: float = 0.72
+## How far above its own foot the inside bottoms out. A bin is not open to the
+## floor and a thin disc of shadow at the bottom is what says it has one.
+const BIN_FLOOR: float = 2.0
+
+
+func _object_bin(
+	object: Dictionary, start: Vector2i, across: Vector2i, tiles: Array,
+	mask: PackedByteArray, span: Vector2i, window: Rect2i, atlas: RefCounted
+) -> void:
+	var top_rows: int = clampi(int(object.get(&"top", 0)), 0, window.size.y)
+	var face_rows: int = window.size.y - top_rows
+	if face_rows <= 0:
+		return
+	var base: float = float(_ground_art(start.x, start.y + across.y - 1).y)
+	var high: float = base + float(object[&"height"])
+	# Round in plan, so it is as deep as it is wide and its near edge is where the
+	# drawing's own foot meets the floor.
+	var wide: float = float(window.size.x)
+	var front: float = _world_z(start.y) + float(window.position.y + window.size.y)
+	var centre := Vector2(
+		_world_x(start.x) + float(window.position.x) + wide * 0.5, front - wide * 0.5
+	)
+	# THE TAPER IS A CONE AND NOT THE ROW WIDTHS. Read row by row the drawing gives
+	# a barrel: its outline swells where a dither happens to reach a column and its
+	# last row is the shadow under the foot, so the can came out bulging in the
+	# middle and pinched to a black point on the floor. The two ends of it are what
+	# the drawing states honestly, and a straight line between them is the shape
+	# the reviewer described.
+	var lip: float = 0.0
+	for row: int in top_rows:
+		lip = maxf(lip, _bin_half(mask, span, window, window.position.y + row))
+	var foot: float = lip
+	for row: int in face_rows:
+		lip = maxf(lip, _bin_half(mask, span, window, window.position.y + top_rows + row))
+	# AND THE FOOT IS NOT THE LAST ROW AT ITS WORD. The bottom row of a cutout is
+	# where the flood has eaten furthest in, so read literally the can tapers to a
+	# point and stands on the floor as a funnel. It is the shallower of what the
+	# drawing says and what a bin is.
+	foot = maxf(
+		_bin_half(mask, span, window, window.position.y + window.size.y - 1),
+		lip * BIN_FOOT
+	)
+	# The body's own shade, one band of whatever else the cartridge paints on it,
+	# and the shade it paints the open mouth. Three texels for the whole thing,
+	# which is what "light, one line round it, darker inside" comes to.
+	var body: Rect2 = _bin_texel(
+		atlas, tiles, across, mask, span, window,
+		window.position.y + top_rows, window.position.y + window.size.y, -1
+	)
+	var body_index: int = _bin_index(
+		atlas, tiles, across, mask, span, window,
+		window.position.y + top_rows, window.position.y + window.size.y, -1
+	)
+	var band: Rect2 = _bin_texel(
+		atlas, tiles, across, mask, span, window,
+		window.position.y + top_rows, window.position.y + window.size.y, body_index
+	)
+	var band_row: int = _bin_band_row(
+		atlas, tiles, across, mask, span, window, top_rows, face_rows, body_index
+	)
+	var mouth: Rect2 = _bin_texel(
+		atlas, tiles, across, mask, span, window,
+		window.position.y, window.position.y + top_rows, -1
+	)
+	var step: float = TAU / float(BIN_SEGMENTS)
+	var inner_floor: float = base + BIN_FLOOR
+	for row: int in face_rows:
+		var y_high: float = high - (high - base) * float(row) / float(face_rows)
+		var y_low: float = high - (high - base) * float(row + 1) / float(face_rows)
+		var r_high: float = lerpf(foot, lip, float(face_rows - row) / float(face_rows))
+		var r_low: float = lerpf(foot, lip, float(face_rows - row - 1) / float(face_rows))
+		var skin: Rect2 = band if row == band_row else body
+		for segment: int in BIN_SEGMENTS:
+			var d0: Vector2 = _bin_ray(float(segment) * step)
+			var d1: Vector2 = _bin_ray(float(segment + 1) * step)
+			var out: Vector3 = Vector3(d0.x + d1.x, 0.0, d0.y + d1.y).normalized()
+			_quad(
+				_bin_point(centre, d0, r_low, y_low),
+				_bin_point(centre, d1, r_low, y_low),
+				_bin_point(centre, d1, r_high, y_high),
+				_bin_point(centre, d0, r_high, y_high),
+				out, skin, SHADE_SIDE
+			)
+			# And the same wall seen from inside, down as far as the bin's own
+			# bottom. Wound the other way, so it stands when the outside is culled.
+			if y_low >= inner_floor:
+				_quad(
+					_bin_point(centre, d1, r_low - BIN_WALL, y_low),
+					_bin_point(centre, d0, r_low - BIN_WALL, y_low),
+					_bin_point(centre, d0, r_high - BIN_WALL, y_high),
+					_bin_point(centre, d1, r_high - BIN_WALL, y_high),
+					-out, mouth, SHADE_NORTH
+				)
+	# The rim, as an annulus, and the bottom the inside stands on.
+	for segment: int in BIN_SEGMENTS:
+		var d0: Vector2 = _bin_ray(float(segment) * step)
+		var d1: Vector2 = _bin_ray(float(segment + 1) * step)
+		_quad(
+			_bin_point(centre, d0, lip - BIN_WALL, high),
+			_bin_point(centre, d1, lip - BIN_WALL, high),
+			_bin_point(centre, d1, lip, high),
+			_bin_point(centre, d0, lip, high),
+			Vector3.UP, band, SHADE_TOP_FLAT
+		)
+		_tri(
+			_bin_point(centre, d0, foot - BIN_WALL, inner_floor),
+			_bin_point(centre, d1, foot - BIN_WALL, inner_floor),
+			Vector3(centre.x, inner_floor, centre.y),
+			Vector3.UP,
+			mouth.position, mouth.end, mouth.position + mouth.size * 0.5,
+			SHADE_TOP_FLAT
+		)
+
+
+## A ROOM WALL IS SEEN FROM INSIDE THE ROOM AND FROM NOWHERE ELSE.
+##
+## The camera turns, so which wall stands between the eye and the room changes as
+## it turns, and a room drawn as a closed box is a room with the lid on from three
+## bearings out of four. What is wanted is the near wall out of the way, and back
+## face culling already does that for nothing: give a room's walls only the faces
+## that look INTO the room and the near one disappears of its own accord at every
+## angle, with no shader, no fade, and nothing to keep in step with the rig.
+##
+## The two kinds of wall are the shell this file stands round the map and the one
+## the cartridge draws along the room's north edge, which `_measure_room` marks as
+## it raises. Both answer the same way; only the strip they belong to differs.
+func _room_faces(tx: int, ty: int, normal: Vector3) -> bool:
+	if _room.is_empty():
+		return true
+	var here: int = _room[ty * _size.x + tx]
+	if here == 0:
+		return true
+	if here == ROOM_DRAWN:
+		return normal.z > 0.0
+	if normal.x > 0.0:
+		return tx < _margin.x
+	if normal.x < 0.0:
+		return tx >= _size.x - _margin.x
+	if normal.z > 0.0:
+		return ty < _margin.y
+	return ty >= _size.y - _margin.y
+
+
+func _bin_ray(angle: float) -> Vector2:
+	return Vector2(sin(angle), cos(angle))
+
+
+func _bin_point(centre: Vector2, ray: Vector2, radius: float, y: float) -> Vector3:
+	var reach: float = maxf(radius, 0.0)
+	return Vector3(centre.x + ray.x * reach, y, centre.y + ray.y * reach)
+
+
+## Half the drawing's own drawn run on one row, which is the bin's radius there.
+func _bin_half(
+	mask: PackedByteArray, span: Vector2i, window: Rect2i, py: int
+) -> float:
+	var first: int = -1
+	var last: int = -1
+	for px: int in range(window.position.x, window.position.x + window.size.x):
+		if not _drawn(mask, span, px, py):
+			continue
+		if first < 0:
+			first = px
+		last = px
+	if first < 0:
+		return 0.0
+	return float(last + 1 - first) * 0.5
+
+
+## One texel standing for a band of the drawing: the shade covering most of what
+## is drawn between the two rows, taken at a pixel that carries it.
+##
+## Sampling the middle column instead reads whatever dither happens to fall there,
+## and the middle of this drawing is its dark cross: a light bin came out charcoal
+## from top to bottom.
+## [param besides] is a shade to pass over, which is how the band is found: the
+## commonest shade of the body is the body, and the commonest of what is left is
+## the line drawn round it.
+func _bin_texel(
+	atlas: RefCounted, tiles: Array, across: Vector2i, mask: PackedByteArray,
+	span: Vector2i, window: Rect2i, from_row: int, to_row: int, besides: int
+) -> Rect2:
+	var counts: Dictionary = {}
+	var spot: Dictionary = {}
+	_bin_tally(
+		atlas, tiles, across, mask, span, window, from_row, to_row, counts, spot
+	)
+	var best: int = _bin_best(counts, besides)
+	if best < 0:
+		return atlas.uv(int(tiles[0]))
+	var at: Array = spot[best]
+	return atlas.uv_box(int(at[0]), Rect2i(int(at[1]), int(at[2]), 1, 1))
+
+
+## The same reading, as the palette index rather than as a texel.
+func _bin_index(
+	atlas: RefCounted, tiles: Array, across: Vector2i, mask: PackedByteArray,
+	span: Vector2i, window: Rect2i, from_row: int, to_row: int, besides: int
+) -> int:
+	var counts: Dictionary = {}
+	var spot: Dictionary = {}
+	_bin_tally(
+		atlas, tiles, across, mask, span, window, from_row, to_row, counts, spot
+	)
+	return _bin_best(counts, besides)
+
+
+## Which body row the band is DRAWN on: the one the band's own shade covers most
+## of. One row of the drawing is one row of the model, so the line comes out where
+## the cartridge put it.
+func _bin_band_row(
+	atlas: RefCounted, tiles: Array, across: Vector2i, mask: PackedByteArray,
+	span: Vector2i, window: Rect2i, top_rows: int, face_rows: int, body: int
+) -> int:
+	var best: int = -1
+	var most: int = 0
+	# FROM THE SECOND ROW DOWN. The body's top row is the wall of the can seen
+	# immediately under its own rim and is drawn in the rim's own shade, so it wins
+	# this every time and the line comes out under the lip, where it is the lip.
+	for row: int in range(1, face_rows):
+		var py: int = window.position.y + top_rows + row
+		var counts: Dictionary = {}
+		var spot: Dictionary = {}
+		_bin_tally(
+			atlas, tiles, across, mask, span, window, py, py + 1, counts, spot
+		)
+		var here: int = 0
+		for index: int in counts:
+			if index != body:
+				here += int(counts[index])
+		if here > most:
+			most = here
+			best = row
+	return best
+
+
+func _bin_tally(
+	atlas: RefCounted, tiles: Array, across: Vector2i, mask: PackedByteArray,
+	span: Vector2i, window: Rect2i, from_row: int, to_row: int,
+	counts: Dictionary, spot: Dictionary
+) -> void:
+	for py: int in range(from_row, to_row):
+		for px: int in range(window.position.x, window.position.x + window.size.x):
+			if not _drawn(mask, span, px, py):
+				continue
+			@warning_ignore("integer_division")
+			var tile: int = int(tiles[(py / int(TILE)) * across.x + px / int(TILE)])
+			var index: int = atlas.pixel(tile, px % int(TILE), py % int(TILE))
+			if index < 0:
+				continue
+			counts[index] = int(counts.get(index, 0)) + 1
+			if not spot.has(index):
+				spot[index] = [tile, px % int(TILE), py % int(TILE)]
+
+
+func _bin_best(counts: Dictionary, besides: int) -> int:
+	var best: int = -1
+	for index: int in counts:
+		if index == besides:
+			continue
+		if best < 0 or int(counts[index]) > int(counts[best]):
+			best = index
+	return best
+
+
+## The runs of one row of an object's FACE that the drawing actually draws, cut at
+## every tile edge because a texel can only be sampled out of the tile it was
+## drawn in. Each entry is the run's first pixel, its stop, and its tile id.
+func _face_runs(
+	tiles: Array, across: Vector2i, mask: PackedByteArray, span: Vector2i,
+	window: Rect2i, py: int
+) -> Array:
+	var runs: Array = []
+	var px: int = window.position.x
+	while px < window.position.x + window.size.x:
+		if not _drawn(mask, span, px, py):
+			px += 1
+			continue
+		var stop: int = mini(
+			(px / int(TILE) + 1) * int(TILE), window.position.x + window.size.x
+		)
+		var run: int = px
+		while run < stop and _drawn(mask, span, run, py):
+			run += 1
+		@warning_ignore("integer_division")
+		runs.append([px, run, int(tiles[(py / int(TILE)) * across.x + px / int(TILE)])])
+		px = run
+	return runs
+
+
+## THE FACE, CARRIED ROUND THE OTHER THREE SIDES.
+##
+## A 2.5D drawing states one face, and what this file does with the other three by
+## default is give them a single interior texel. That is right for a chair pushed
+## under a desk and wrong for the desk: a desk stands in the middle of a room and
+## is seen from behind and from both ends, and the reviewer's own reading of the
+## drawing is that its front IS its four sides, legs included.
+##
+## So the back wears the same drawing at the same width, and each END wears the
+## strip of the drawing the object is DEEP, taken from that end: the leg drawn at
+## the left of the apron is the leg that turns the left corner. Nothing is
+## invented and nothing is stretched.
+func _object_wrap(
+	atlas: RefCounted, tiles: Array, across: Vector2i, mask: PackedByteArray,
+	span: Vector2i, window: Rect2i, top_rows: int,
+	left: float, right: float, front: float, back: float,
+	base: float, high: float
+) -> void:
+	var face_rows: int = window.size.y - top_rows
+	if face_rows <= 0:
+		return
+	var tall: float = high - base
+	var window_left: int = window.position.x
+	var window_right: int = window.position.x + window.size.x
+	var deep: int = int(roundf(front - back))
+	for row: int in face_rows:
+		var py: int = window.position.y + top_rows + row
+		var high_y: float = high - tall * float(row) / float(face_rows)
+		var low_y: float = high - tall * float(row + 1) / float(face_rows)
+		for entry: Array in _face_runs(tiles, across, mask, span, window, py):
+			var px: int = int(entry[0])
+			var run: int = int(entry[1])
+			var tile: int = int(entry[2])
+			var uv: Rect2 = atlas.uv_box(
+				tile, Rect2i(px % int(TILE), py % int(TILE), run - px, 1)
+			)
+			var x0: float = left + float(px - window_left)
+			var x1: float = left + float(run - window_left)
+			_quad(
+				Vector3(x1, low_y, back), Vector3(x0, low_y, back),
+				Vector3(x0, high_y, back), Vector3(x1, high_y, back),
+				Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
+			)
+			# The west end takes the drawing's first `deep` pixels, laid from the
+			# front corner backwards, and the east end its last, the same way. A run
+			# outside that strip is not on this end at all.
+			var west_from: int = maxi(px, window_left)
+			var west_to: int = mini(run, window_left + deep)
+			if west_to > west_from:
+				var wz0: float = front - float(west_from - window_left)
+				var wz1: float = front - float(west_to - window_left)
+				_quad(
+					Vector3(left, low_y, wz1), Vector3(left, low_y, wz0),
+					Vector3(left, high_y, wz0), Vector3(left, high_y, wz1),
+					Vector3(-1.0, 0.0, 0.0),
+					atlas.uv_box(tile, Rect2i(
+						west_from % int(TILE), py % int(TILE), west_to - west_from, 1
+					)),
+					SHADE_SIDE
+				)
+			var east_from: int = maxi(px, window_right - deep)
+			var east_to: int = mini(run, window_right)
+			if east_to > east_from:
+				var ez0: float = front - float(window_right - east_to)
+				var ez1: float = front - float(window_right - east_from)
+				_quad(
+					Vector3(right, low_y, ez1), Vector3(right, low_y, ez0),
+					Vector3(right, high_y, ez0), Vector3(right, high_y, ez1),
+					Vector3(1.0, 0.0, 0.0),
+					atlas.uv_box(tile, Rect2i(
+						east_from % int(TILE), py % int(TILE), east_to - east_from, 1
+					)),
+					SHADE_SIDE
+				)
 
 
 ## THE ROOF OF A THING THE CARTRIDGE NEVER DRAWS FROM ABOVE.
@@ -6009,6 +6429,22 @@ const BORDER_TILES: int = 32
 var _border: Dictionary = {}
 var _outside: bool = false
 
+## THE ROOM SHELL, which is the indoor answer to the same question the ring is
+## the outdoor one to: what is past the edge of the map. See
+## `profile.gd:ROOM_WALL` for what it is and `_measure_room` for how it is built.
+##
+## One walk cell thick, which is what the cartridge draws its own wall as, and two
+## cells tall.
+const ROOM_RING: int = 2
+const ROOM_CELLS: int = 2
+## Per tile: 0 for map, ROOM_SHELL for plaster this file stands there, ROOM_DRAWN
+## for the wall the cartridge draws that `_measure_room` raised to meet it.
+const ROOM_SHELL: int = 1
+const ROOM_DRAWN: int = 2
+var _room := PackedByteArray()
+## The arrangement this map's shell is drawn with, empty where it has none.
+var _room_wall: Array = []
+
 
 ## How deep this map's ring goes, read off the block that fills it.
 ##
@@ -6033,6 +6469,67 @@ func _ring_depth(source: RefCounted, shape: RefCounted) -> int:
 			if not shape.is_model(shape_class):
 				return RING_TILES
 	return RING_TILES_MODELLED
+
+
+## Which tile of the blank wall stands at one SHELL position.
+##
+## Anchored to the map's own tile grid rather than to the shell's corner, so the
+## plaster the shell is drawn with lines up with the plaster inside the room and a
+## two-tile drawing does not change phase at the seam.
+func _room_wall_tile(tx: int, ty: int) -> int:
+	if _room_wall.is_empty():
+		return -1
+	var row: Array = _room_wall[posmod(ty - _margin.y, _room_wall.size())]
+	if row.is_empty():
+		return -1
+	return int(row[posmod(tx - _margin.x, row.size())])
+
+
+## THE ROOM SHELL, STOOD UP.
+##
+## Two things, and they are one wall: the ring of plaster this file puts round the
+## map, and the wall the cartridge draws along the room's north edge, raised from
+## the one cell it is drawn as to the two the shell stands. Raised, the drawn wall
+## reads its upper bands off the ring behind it, which is `_band_tile` doing what
+## it already does and is why the upper course comes out plaster rather than a
+## stretched window.
+##
+## THE BASE IS THE WHOLE OF THE CARE HERE. A band's art is the row that far north
+## of the base, so a base chosen carelessly paints the room's floor up the inside
+## of its own south wall. Down the two side strips the tile's own row will do,
+## since every row of those columns is shell; along the south strip it has to be
+## the strip's own bottom row.
+##
+## AND A RUN ALREADY TWO CELLS TALL IS LEFT ALONE. The bookcases stand against the
+## same north wall and resolve to the same class; raised with it they would be
+## three cells of bookcase through the ceiling.
+func _measure_room() -> void:
+	if _room_wall.is_empty():
+		return
+	var tall: int = ROOM_CELLS * CELL_TILES * BAND
+	var floor_row: int = _size.y - 1
+	for ty: int in _size.y:
+		for tx: int in _size.x:
+			var at: int = ty * _size.x + tx
+			if _room[at] != ROOM_SHELL:
+				continue
+			_heights[at] = tall
+			_bases[at] = floor_row if ty >= _size.y - _margin.y else ty
+	for tx: int in range(_margin.x, _size.x - _margin.x):
+		var run: int = 0
+		while _margin.y + run < _size.y - _margin.y \
+				and _volume[(_margin.y + run) * _size.x + tx] == 1:
+			run += 1
+		if run == 0:
+			continue
+		var base: int = _margin.y + run - 1
+		if _heights[base * _size.x + tx] >= tall:
+			continue
+		for step: int in run:
+			var at: int = (_margin.y + step) * _size.x + tx
+			_heights[at] = tall
+			_bases[at] = base
+			_room[at] = ROOM_DRAWN
 
 
 ## The floor carried out past the ring, as one flat quad per tile.
@@ -6412,6 +6909,15 @@ func _side(
 ) -> void:
 	if neighbour >= here:
 		return
+	if not _room_faces(tx, ty, normal):
+		return
+	# A ROOM WALL IS ONLY EVER SEEN FROM INSIDE, so the shading that tells a box's
+	# four sides apart has nothing to tell apart here: what it does instead is
+	# darken three walls of every room to the north face's own 0.64 and leave the
+	# fourth bright, which reads as three walls in shadow in a room with no sun in
+	# it. All four take the front face's value.
+	if not _room.is_empty() and _room[ty * _size.x + tx] != 0:
+		shade = SHADE_SOUTH
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
