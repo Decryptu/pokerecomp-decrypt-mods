@@ -1284,6 +1284,207 @@ const OBJECTS: Dictionary = {
 			&"height": 12,
 		},
 	],
+	# THE POKEMON CENTRE, read out tile by tile by the reviewer. Every Centre in
+	# the game is the same room: two of them compared tile for tile are identical
+	# over all 320 of them, so one declaration serves all 33 maps of this tileset.
+	7: [
+		# THE COUNTER, ten tiles of it across the room. One tile row of top seen
+		# from above and one of the front seen face-on, and the reviewer's own
+		# height for it is that one tile: a counter you are served over, not a wall.
+		{
+			&"name": &"counter",
+			&"tiles": [
+				[52, 52, 52, 52, 12, 12, 52, 52, 52, 12],
+				[36, 36, 36, 36, 36, 36, 36, 36, 36, 36],
+			],
+			&"window": Rect2i(0, 0, 80, 16),
+			&"solid": true,
+			&"top": 8,
+			&"depth": 8,
+			&"height": 8,
+		},
+		# THE END OF THE COUNTER, where it turns and runs away from the eye with the
+		# till on it. One tile row of top and one of front, the same slab at the
+		# same height as the long one.
+		{
+			&"name": &"counter_till",
+			&"tiles": [[3, 37], [19, 53], [70, 71]],
+			&"window": Rect2i(0, 0, 16, 24),
+			&"solid": true,
+			&"top": 16,
+			&"depth": 16,
+			&"height": 8,
+		},
+		# AND THE STRIP OF IT THAT REACHES THE WALL, which is ALL top: seen from
+		# above along its whole length, since the room's own north wall is what
+		# stands at the far end of it. A drawing with no face band anywhere in it
+		# takes the counter's own top for its two sides, which is what it wears.
+		{
+			&"name": &"counter_wall",
+			&"tiles": [[15], [15], [37]],
+			&"window": Rect2i(0, 0, 8, 24),
+			&"solid": true,
+			&"top": 24,
+			&"depth": 24,
+			&"height": 8,
+		},
+		# THE MACHINES' DESK. The reviewer read the whole bank at 0,0 to 5,3 as a
+		# dark table one tile high with the Centre's machines standing on it, so the
+		# desk is its own bottom two tile rows: the row above seen from above, which
+		# is what carries the printer flat, and the row below face-on.
+		{
+			&"name": &"machine_desk",
+			&"tiles": [[60, 61, 61, 63, 10, 11], [76, 77, 78, 79, 26, 27]],
+			&"window": Rect2i(0, 0, 48, 16),
+			&"solid": true,
+			&"top": 8,
+			&"depth": 8,
+			&"height": 8,
+		},
+		# THE HEALING MACHINE, standing ON that desk rather than on the floor, which
+		# is what `rise` is for and what the laboratory's terminal spends it on. Two
+		# tile rows of drawing, so 16 px, over the desk's 8: three tiles in all,
+		# which is the height the reviewer gave the machine beside it.
+		{
+			&"name": &"healing_machine",
+			&"tiles": [[28, 29, 30, 31], [44, 45, 46, 47]],
+			&"window": Rect2i(0, 0, 32, 16),
+			&"solid": true,
+			&"top": 0,
+			&"depth": 12,
+			&"height": 16,
+			&"rise": 8,
+			&"cap": 4,
+		},
+		# THE SCREEN ON THE SAME DESK, the same reading at two tiles wide.
+		{
+			&"name": &"desk_screen",
+			&"tiles": [[4, 5], [20, 21]],
+			&"window": Rect2i(0, 0, 16, 16),
+			&"solid": true,
+			&"top": 0,
+			&"depth": 8,
+			&"height": 16,
+			&"rise": 8,
+			&"cap": 4,
+		},
+		# THE PC IN THE CORNER, three tiles of drawing with no top band in it at
+		# all: a cabinet with a screen and a keyboard on its front, stood at the
+		# height the reviewer counted. Wrapped, since the room's own north wall is
+		# behind it and its ends are what the room sees.
+		{
+			&"name": &"pc",
+			&"tiles": [[32, 33], [48, 49], [64, 65]],
+			&"window": Rect2i(0, 0, 16, 24),
+			&"solid": true,
+			&"top": 0,
+			&"depth": 16,
+			&"height": 24,
+			&"wrap": true,
+			&"cap": 4,
+		},
+		# THE WAITING CHAIRS, four of them, one walk cell each. HALF A TILE HIGH,
+		# which is the reviewer's own measurement and the only number here a drawing
+		# cannot state: what the drawing does say is where the seat stops and the
+		# front of it starts, twelve rows down, so the seat is 12 px deep and the
+		# four rows under it are the whole of its height.
+		{
+			&"name": &"chair",
+			&"tiles": [[72, 73], [88, 89]],
+			&"window": Rect2i(0, 0, 16, 16),
+			&"top": 12,
+			&"depth": 12,
+			&"height": 4,
+			&"wrap": true,
+		},
+	],
+	# THE SHOP. The dept store shares this tileset and draws none of these
+	# arrangements, so nothing below reaches it.
+	12: [
+		# THE SHELVES, and they are the lab bookcase again: a top row seen from
+		# above over three tile rows of front, standing three tiles and not four.
+		# Stood at four they wore their own lid as the top of their face, which is
+		# what the reviewer saw. A plain BOX, since a shelf carries its goods on the
+		# front and the back and nothing on its ends.
+		{
+			&"name": &"shelf_glass",
+			&"tiles": [[12, 13], [86, 87], [88, 89], [90, 91]],
+			&"window": Rect2i(0, 0, 16, 32),
+			&"top": 8,
+			&"depth": 16,
+			&"height": 24,
+			&"box": true,
+			&"foot": true,
+		},
+		{
+			&"name": &"shelf_low",
+			&"tiles": [[12, 13], [80, 81], [80, 81], [94, 95]],
+			&"window": Rect2i(0, 0, 16, 32),
+			&"top": 8,
+			&"depth": 16,
+			&"height": 24,
+			&"box": true,
+			&"foot": true,
+		},
+		# The wide one, four tiles of it, with the poster on its end.
+		{
+			&"name": &"shelf_wide",
+			&"tiles": [
+				[64, 65, 66, 43], [80, 81, 82, 69], [67, 68, 92, 93], [83, 84, 31, 85],
+			],
+			&"window": Rect2i(0, 0, 32, 32),
+			&"top": 8,
+			&"depth": 16,
+			&"height": 24,
+			&"box": true,
+			&"foot": true,
+		},
+		# THE SHELF AGAINST THE SIDE WALL, TURNED. Same section as the others and
+		# the same three tiles, but the cartridge draws its END rather than its
+		# front, so it is the one object in this file that does not face the eye.
+		# See `mesher.gd:_turned`.
+		{
+			&"name": &"shelf_side",
+			&"tiles": [[38, 39], [54, 55], [40, 41], [56, 57]],
+			&"window": Rect2i(0, 0, 16, 32),
+			&"top": 8,
+			&"depth": 16,
+			&"height": 24,
+			&"box": true,
+			&"foot": true,
+			&"turn": true,
+		},
+		# THE SHOP COUNTER RUNNING AWAY FROM THE EYE, the Centre's corner again:
+		# seven tile rows of top, the till among them lying flat on it, and the
+		# front at the near end. One tile high, as the Centre's is.
+		{
+			&"name": &"counter_back",
+			&"tiles": [
+				[42, 43], [62, 63], [62, 63], [32, 33], [48, 49], [62, 63], [62, 63],
+				[30, 47], [26, 25],
+			],
+			&"window": Rect2i(0, 0, 16, 72),
+			&"solid": true,
+			&"top": 64,
+			&"depth": 64,
+			&"height": 8,
+		},
+		# THE REST OF THAT COUNTER, WHICH IS DRAWN NOWHERE. It runs on behind the
+		# shelves standing in front of it, so its four remaining tiles carry shelf
+		# and no counter anywhere in them: the shelves find the place and `art`
+		# names the counter's own two tiles to build it out of. See
+		# `mesher.gd:_emit_object`.
+		{
+			&"name": &"counter_hidden",
+			&"tiles": [[12, 13, 12, 13], [80, 81, 80, 81]],
+			&"art": [[30, 47, 30, 47], [26, 25, 26, 25]],
+			&"window": Rect2i(0, 0, 32, 16),
+			&"solid": true,
+			&"top": 8,
+			&"depth": 8,
+			&"height": 8,
+		},
+	],
 }
 
 ## THE STAIRCASES, per tileset number, found the same way an object is.
@@ -1335,6 +1536,14 @@ const STAIRS: Dictionary = {
 		{
 			&"tiles": [[66, 67], [82, 83]],
 			&"down": true,
+			&"step": Vector2i(-1, 0),
+			&"steps": 4,
+		},
+		# The Centre's own flight, in the corner of every one of them: the same
+		# drawing the other way up, walked right to left to go UP.
+		{
+			&"tiles": [[68, 69], [84, 85]],
+			&"down": false,
 			&"step": Vector2i(-1, 0),
 			&"steps": 4,
 		},
@@ -1815,6 +2024,14 @@ const ROOM_WALL: Dictionary = {
 	# repeats up a wall on its own: 17 is eight rows of panelling whose top half
 	# and bottom half are the same drawing.
 	6: [[17]],
+	# THE POKEMON CENTRE. 2 is the dark panelling its north wall is drawn out of,
+	# every tile of it from the healing machine round to the stairwell, and it
+	# repeats on its own the way the house's does.
+	7: [[2]],
+	# THE SHOP. 17 is the grey panelling, and the shop draws barely any of it:
+	# every wall it has is shelves, and the two tiles between the counter and the
+	# door are the whole of the plaster the cartridge shows.
+	12: [[17]],
 }
 
 
