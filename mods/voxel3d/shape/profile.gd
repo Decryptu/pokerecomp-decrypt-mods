@@ -897,6 +897,45 @@ const OBJECTS: Dictionary = {
 			&"depth": 64,
 			&"height": 128,
 		},
+		# SPROUT TOWER IS THE SAME PAGODA WITH THREE TIERS INSTEAD OF SEVEN, and it
+		# is the same drawing tile for tile: its tiers, its doorway and the rock ring
+		# at its foot are the rows the Bell Tower is built out of, under a wide roof
+		# of its own. Only the tier COUNT differs, so the arrangement the Bell Tower
+		# is found by cannot reach it and it was left to the passes below.
+		#
+		# What they made of it is worse than the Bell Tower's leaning slab, and it is
+		# the painting rather than the passes: a column of a painting is a section
+		# through a building, and a tower's storeys are stacked in PERSPECTIVE rather
+		# than side by side, so the wall flood cuts them apart at each eave and each
+		# comes back as a separate building standing on the ground. Three storeys
+		# three deep, with the eaves left standing between them as two thin spires.
+		#
+		# So it is the Bell Tower's reading at its own size: the whole drawn
+		# rectangle, the BOX its bottom eight rows, and the drawing hung down the
+		# height one drawn pixel per world pixel. `depth` 64 is the reviewer's own
+		# 8x8 footprint for this drawing, which is the same base at the same width.
+		{
+			&"name": &"sprout_tower",
+			&"tiles": [
+				[49, 83, 83, 83, 83, 83, 83, 52],
+				[65, 83, 83, 83, 83, 83, 83, 68],
+				[65, 83, 83, 83, 83, 83, 83, 68],
+				[81, 82, 82, 82, 82, 82, 82, 84],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[59, 26, 39, 40, 149, 150, 28, 61],
+				[59, 151, 41, 42, 152, 152, 153, 61],
+				[59, 6, 6, 6, 6, 6, 6, 61],
+				[75, 76, 154, 154, 76, 76, 76, 77],
+			],
+			&"window": Rect2i(0, 0, 64, 80),
+			&"filled": true,
+			&"top": 0,
+			&"depth": 64,
+			&"height": 80,
+		},
 	],
 	6: [
 		# A TELEVISION STANDING FREE IN THE ROOM, "2 tiles wide and 2 tall, waist
@@ -1393,6 +1432,9 @@ const FENCES: Dictionary = {
 	# The white fence round Ecruteak's yards: 90 is the post top and the upper
 	# rail, 89 the shafts, the foot and the shadow under it.
 	1: [90, 89],
+	# Goldenrod's street railing, the same drawing at the same two ids on the city
+	# tileset: 178 tiles of it on three maps.
+	2: [90, 89],
 }
 
 
@@ -1674,6 +1716,14 @@ const TILESETS: Dictionary = {
 		&"tall_grass": [4],
 		&"tree": [30, 31, 19, 21, 62, 63],
 		&"boulder": [88],
+		# THE SAME METAL RAILING TILESET 1 DRAWS, at the same three ids, dividing
+		# pavement from grass instead of enclosing a yard. The full pass read both
+		# tilesets and gave the same three roles: 90 the round post tops and the top
+		# rail, 89 the post stubs and the kerb under them, 74 the run seen end-on
+		# going away. So nothing is authored here that tileset 1 has not already
+		# said, and the pin is what keeps the two from drifting apart, as the
+		# conifer and the notice board are kept.
+		&"fence": [74, 89, 90],
 	},
 	4: {
 		&"tree": [30, 31, 19, 21, 62, 63],
@@ -2004,8 +2054,6 @@ static func pinned_class(tileset_number: int, tile: int) -> StringName:
 	return PASS.pinned_class(tileset_number, tile)
 
 
-## Whether a tile draws the face of a terrain cliff, which is what says the
-## ground behind it stands on top of it.
 ## The two tiles a fence is modelled from, or an empty array where a tileset
 ## draws none. Ordered top row first.
 static func fence_face(tileset_number: int) -> Array:
@@ -2013,6 +2061,8 @@ static func fence_face(tileset_number: int) -> Array:
 	return tiles as Array if tiles is Array else []
 
 
+## Whether a tile draws the face of a terrain cliff, which is what says the
+## ground behind it stands on top of it.
 static func is_cliff(tileset_number: int, tile: int) -> bool:
 	var tiles: Variant = CLIFFS.get(tileset_number, null)
 	return tiles is Array and (tiles as Array).has(tile)
