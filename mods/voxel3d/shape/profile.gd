@@ -55,6 +55,7 @@ const HEIGHTS: Dictionary = {
 	# class constant would have found either.
 	&"post": 0,
 	&"sign_post": 0,
+	&"notice_case": 0,
 	&"bush": 0,
 	&"sapling": 0,
 	&"tombstone": 0,
@@ -100,6 +101,9 @@ const HEIGHTS: Dictionary = {
 const DEPTHS: Dictionary = {
 	&"post": 8,
 	&"sign_post": 3,
+	# A glazed notice case is a board in a frame on two posts, so it is the wooden
+	# route sign's shape at the park's own scale and takes the sign's depth.
+	&"notice_case": 3,
 	# Half a cell, and the reviewer's own pick between three renders of a real
 	# hedge: a bush as deep as it is wide leaves a gap between rank and rank, and
 	# a hedge several cells deep reads as corduroy. Shallower closes the gap
@@ -161,9 +165,14 @@ const ROUND: Dictionary = {
 ##
 ## The value is HOW MANY of the darkest shades form that boundary, because that
 ## is a fact about the drawing and not about the rule. A tree draws a ring and
-## one shade is the ring. A dense thicket draws no ring at all and wants two, the
-## reference's second reading of the same rule; nothing claims that yet, and open
-## work 3 says why.
+## one shade is the ring. A drawing that only rings its top and opens at the foot
+## wants two, the reference's second reading of the same rule: see
+## `notice_case` below, which is the first thing to claim it.
+##
+## A CARVED CLASS TAKES THIS RULE EXACTLY AS A MODELLED ONE DOES. Every class
+## here was a model until the National Park's notice cabinet, and the note that
+## said a carved class cut on its outline draws nothing was measured and is
+## wrong: `mesher.gd:_cutout` carves an outline-cut mask like any other.
 const OUTLINE: Dictionary = {
 	&"canopy": 1,
 	&"tree": 1,
@@ -175,6 +184,13 @@ const OUTLINE: Dictionary = {
 	# A stool stands on a carpet or on floorboards drawn in its own shades, and it
 	# is drawn inside a dark ring like everything else indoors.
 	&"stool": 1,
+	# THE NATIONAL PARK'S NOTICE CABINET, and it wants TWO. Its frame is the
+	# darkest shade and closes round the top and the sides, but its lower panel is
+	# drawn in the middle shade and meets the ground in it, so one shade lets the
+	# flood up through the foot and out again: 148 pixels come back with a two-row
+	# slot cut clean through the case. The second shade closes that foot, and the
+	# whole cabinet stands at 222.
+	&"notice_case": 2,
 }
 
 ## The classes that lie flat AND stand a thin slab of their own drawing up.
@@ -1243,6 +1259,7 @@ const ART: Dictionary = {
 	# what a thing with a shape rather than a face wants.
 	&"post": &"cutout",
 	&"sign_post": &"cutout",
+	&"notice_case": &"cutout",
 	&"bush": &"cutout",
 	&"sapling": &"cutout",
 	&"tombstone": &"cutout",
@@ -1441,6 +1458,17 @@ const TILESETS: Dictionary = {
 		# voxel, no sway, and coloured BY BAND, which is what a thing drawn pale on
 		# top and dark down its side wants.
 		&"boulder": [90, 91, 19, 130],
+		# THE NOTICE CABINET BESIDE IT, and it was drawn nowhere for the same
+		# reason: a glazed case in a dark frame standing on two posts, one walk
+		# cell over four tiles, six placements on two maps. The pass split it
+		# between `stand` and `post`, and both cut their mask on the colours of the
+		# ground, which here is dithered in the case's own greys.
+		#
+		# It is FLAT and FACE-ON where the bin is round, so it is carved rather
+		# than turned: a board in a frame on posts, which is the wooden route
+		# sign's shape, cut on its own outline and standing the fourteen rows it is
+		# drawn.
+		&"notice_case": [69, 70, 85, 86],
 	},
 	# THE SAME STATUE ON THE SAME PILLAR, which the full pass had as `statue` and
 	# which came out a heap of loose pieces. It is not one of the two the reviewer
