@@ -1836,6 +1836,13 @@ func _settle_lips() -> void:
 			var under: int = _heights[(ty + 1) * _size.x + tx]
 			if _art[(ty + 1) * _size.x + tx] == ART_FLAT and under > 0:
 				_heights[at] = under
+				# A LIP STANDING ON A SHELF IS THAT SHELF'S RIM, which is what lets
+				# it ramp with the other three sides. It is the one side of a rock
+				# a face cannot be drawn on, so the cliff pass never reaches it and
+				# nothing else marks it: without this a patch slopes on the sides
+				# the cartridge draws face-on and steps on the side it draws from
+				# above.
+				_shelf[at] = 1
 
 
 ## Water lying ON a plateau goes up with it.

@@ -1480,6 +1480,14 @@ const FRONTS: Dictionary = {
 ## where the platform meets the pale ground beyond".
 const LIPS: Dictionary = {
 	3: [1],
+	# THE NORTH RIM OF THE ROUTE SHELF, and it is the fourth side of every rock
+	# patch in the game. The pass reads it as what a lip is: "the top lip of the
+	# raised brown rock shelf, drawn from ABOVE, looking down onto the rim". Its
+	# class is `ledge`, which stands it a flat 8 px band whatever the rock behind
+	# it does, so left out of this table it was the one side of a patch that took
+	# neither the shelf's own height nor the ring's slope. Blackthorn's 22 patches
+	# came out ramped on three sides and stepped along the north.
+	1: [44],
 }
 
 ## THE TILES THAT DRAW A FENCE FACE-ON, as ROWS of tile ids, top row first and
