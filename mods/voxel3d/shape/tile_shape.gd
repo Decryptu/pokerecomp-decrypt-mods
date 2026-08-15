@@ -22,6 +22,8 @@ extends RefCounted
 ##
 ## Purely presentational. A shape decides how a tile draws and nothing else.
 
+const Stems: GDScript = preload("stems.gd")
+
 var _profile: GDScript = null
 var _tileset_number: int = 0
 ## tile id -> class, for the tiles already asked for. A map asks for the same
@@ -160,11 +162,13 @@ func is_filled(shape_class: StringName) -> bool:
 	return bool(_profile.FILLED.get(shape_class, false))
 
 
-## The post under the drawing, as its thickness and how far it lifts the drawing
-## off the ground, both in world pixels. Zero for everything drawn standing on
-## its own foot, which is all but the flower. See `profile.gd:STEMS`.
-func stem_of(shape_class: StringName) -> Vector2i:
-	return _profile.STEMS.get(shape_class, Vector2i.ZERO) as Vector2i
+## The rows a class's stem is DRAWN on, top first, or an empty array where it
+## stands on its own foot, which is all but the flower. The row count is also how
+## far the drawing above it is lifted. See `profile.gd:STEMS` and `shape/stems.gd`.
+func stem_rows(shape_class: StringName) -> Array:
+	if not bool(_profile.STEMS.get(shape_class, false)):
+		return []
+	return Stems.of_class(shape_class)
 
 
 ## Which surface of a building a class depicts, empty for everything that is not

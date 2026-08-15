@@ -145,26 +145,22 @@ const DEPTHS: Dictionary = {
 ## and every face still wears the FRONT drawing's texel at its own column: the
 ## reviewer's call, and the right one, because the drawing's outline is dark and
 ## a naive revolve would paint the whole object its own outline colour.
-## HOW THICK A STEM STANDS UNDER A CUTOUT, in world pixels, for the one kind of
-## drawing that needs one.
+## WHICH CLASSES ARE HELD UP ON A STEM. The shape itself is DRAWN rather than
+## declared, and `shape/stems.gd` is where it lands: this only says which classes
+## go and look for one.
 ##
 ## Everything else carved here is drawn standing on the ground, so its own bottom
 ## row IS its foot. A flower is drawn LOOKED DOWN ON: the cartridge draws the
 ## bloom and nothing else, because from directly above a stem is hidden under the
 ## petals it holds up. Carved literally the bloom therefore hangs in the air with
-## the grass showing under it, which is the reviewer's own "flying flowers".
+## the grass showing under it, and stood on the floor the head sits in the grass.
 ##
 ## SO ONE IS BUILT, and it is the only thing in this file put into the world that
-## the cartridge does not draw. It is kept to the least that answers the fault: a
-## single square post, on the bloom's own centre, from the ground to the lowest
-## pixel the bloom is drawn at. ITS COLOUR IS NOT INVENTED and that is what keeps
-## the rule: it wears the GREENEST TEXEL OF THE GRASS the flower stands on, the
-## reviewer's own instruction, so every pixel of it is still one the cartridge
-## painted on that map at that hour.
-## HOW THICK the post is and HOW FAR it lifts the drawing off the ground, both in
-## world pixels.
+## the cartridge does not draw. That is why it is DRAWN BY A PERSON on
+## `tools/stem_page.py` rather than authored as a thickness here: a stem is thin,
+## it bends, and no number says either.
 const STEMS: Dictionary = {
-	&"flower": Vector2i(3, 5),
+	&"flower": true,
 }
 
 const ROUND: Dictionary = {

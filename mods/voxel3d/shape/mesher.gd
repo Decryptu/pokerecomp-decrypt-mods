@@ -121,11 +121,14 @@ var _depths := PackedByteArray()
 ## solid body the border flood cannot be trusted with.
 var _round := PackedByteArray()
 var _filled := PackedByteArray()
-## Per tile: how thick a stem stands under its drawing and how far it lifts the
-## drawing off the ground, both 0 for the drawings that are drawn standing on
-## their own foot, which is all but the flower. See `profile.gd:STEMS`.
+## Per tile: which drawn stem stands under it, as one more than its index in
+## `_stem_shapes`, and 0 for the drawings that stand on their own foot, which is
+## all but the flower. `_stem_rise` is how far that stem lifts the drawing, which
+## is the shape's own row count. See `profile.gd:STEMS` and `shape/stems.gd`.
 var _stem := PackedByteArray()
 var _stem_rise := PackedByteArray()
+## The distinct stems this map draws, each the painted rows top first.
+var _stem_shapes: Array = []
 ## Per tile: how many of its darkest shades bound the drawing, 0 for a mask cut
 ## from the ground's colours instead.
 var _outlined := PackedByteArray()
@@ -635,9 +638,16 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_depths[at] = clampi(shape.depth(shape_class), 1, 16)
 			_round[at] = 1 if shape.is_round(shape_class) else 0
 			_filled[at] = 1 if shape.is_filled(shape_class) else 0
-			var stem: Vector2i = shape.stem_of(shape_class)
-			_stem[at] = clampi(stem.x, 0, 8)
-			_stem_rise[at] = clampi(stem.y, 0, 16)
+			var stem: Array = shape.stem_rows(shape_class)
+			_stem[at] = 0
+			_stem_rise[at] = 0
+			if not stem.is_empty():
+				var found: int = _stem_shapes.find(stem)
+				if found < 0:
+					found = _stem_shapes.size()
+					_stem_shapes.append(stem)
+				_stem[at] = found + 1
+				_stem_rise[at] = clampi(stem.size(), 0, 32)
 			_outlined[at] = shape.outline_shades(shape_class)
 			_modelled[at] = 1 if shape.is_model(shape_class) else 0
 			_shrub[at] = 1 if shape.is_shrub(shape_class) else 0
@@ -4800,32 +4810,44 @@ func _cutout(
 				levels, level
 			)
 
-	if _stem[at] > 0 and _stem_rise[at] > 0:
+	if _stem[at] > 0:
 		_stem_post(tx, mask, span, origin, mid, base, ground_tile,
-			int(_stem[at]), float(_stem_rise[at]), atlas)
+			_stem_shapes[int(_stem[at]) - 1] as Array, atlas)
 
 
 ## THE STEM UNDER A FLOWER, and it is the one piece of geometry in this mod that
 ## the cartridge does not draw. See `profile.gd:STEMS` for why it is owed one.
 ##
-## A post from the ground up to the foot the drawing has been lifted to, standing
-## under the middle of the drawing's own BOTTOM ROW rather than under the middle
-## of the tile, so a clump sitting off to one side of its tile is held up under
-## itself instead of beside itself.
+## THE SHAPE IS DRAWN AND NOT COMPUTED. `shape/stems.gd` carries the rows a
+## person painted on `tools/stem_page.py`, one world pixel a character, and this
+## stands one box per painted pixel. A stem is a single pixel thick and it bends,
+## and neither is a number a rule could have produced.
 ##
-## IT WEARS THE GRASS. `_ground_art` has already found the flat tile the flower
-## stands beside, which is the grass it grows out of, and the greenest texel of
-## that tile is what every face of the post is painted with. So the colour moves
-## with the map and with the hour exactly as the ground does, and no value in
-## this file says what green is.
+## IT TOUCHES BOTH ENDS. The shape's row count is what `_cutout` lifted the
+## drawing by, so the top row of the stem meets the bloom's own bottom row and
+## the bottom row meets the ground: nothing floats at either end, whatever is
+## drawn between them.
+##
+## AND IT IS CENTRED UNDER THE BLOOM. What the page cannot know is where in its
+## own tile a given clump is drawn, so the stem's own middle is put under the
+## middle of the drawing's BOTTOM ROW, which is where the two actually meet. A
+## clump sitting off to one side of its tile is therefore held up under itself
+## rather than beside itself, and the page's own column means nothing.
+##
+## IT WEARS THE GRASS, DARK AT THE FOOT AND LIGHT AT THE HEAD. `_ground_art` has
+## already found the flat tile the flower grows out of, and `_greens` ranks that
+## tile's own greens by how light they are: the stem walks up the ramp, so it is
+## in shadow where it meets the ground and catches the light where it meets the
+## bloom, which is how the cartridge shades everything else in this file. Every
+## texel of it is one the cartridge painted on that map at that hour, and no
+## value here says what green is.
 ##
 ## NOTHING IS DRAWN WHERE NOTHING IS OWED: a mask with no pixel in it at all is a
 ## tile the flood ate, and a post standing on its own in the grass is worse than
 ## the gap it was meant to close.
 func _stem_post(
 	tx: int, mask: PackedByteArray, span: Vector2i, origin: Vector2i,
-	mid: float, base: float, ground_tile: int, thick: int, rise: float,
-	atlas: RefCounted
+	mid: float, base: float, ground_tile: int, rows: Array, atlas: RefCounted
 ) -> void:
 	var edge: int = int(TILE)
 	var lowest: int = -1
@@ -4843,29 +4865,104 @@ func _stem_post(
 			break
 	if lowest < 0:
 		return
-	var foot: float = base + rise
-	var middle: float = _world_x(tx) + (float(from) + float(to) + 1.0) * 0.5
-	var half: float = float(thick) * 0.5
-	var green: Rect2 = atlas.uv_box(
-		ground_tile, Rect2i(_greenest(ground_tile, atlas), Vector2i.ONE)
-	)
-	# The cap is drawn: a bloom narrower than its own stem shows the top of it,
-	# and it is one quad on a drawing that has a few dozen.
-	_fence_box(
-		AABB(
-			Vector3(middle - half, base, mid - half),
-			Vector3(float(thick), foot - base, float(thick))
-		),
-		green, green, true, true, true, true
-	)
+
+	# Where the drawn shape's own pixels sit, so its middle can be put under the
+	# bloom's. Taken over the whole shape rather than over one row, or a stem that
+	# leans would hang its foot out from under the flower.
+	var left: int = -1
+	var right: int = -1
+	for row: int in rows.size():
+		var line: String = rows[row]
+		for column: int in line.length():
+			if line[column] != "#":
+				continue
+			if left < 0 or column < left:
+				left = column
+			if column > right:
+				right = column
+	if left < 0:
+		return
+
+	var greens: Array = _greens(ground_tile, atlas)
+	var shift: float = _world_x(tx) + (float(from) + float(to) + 1.0) * 0.5 \
+		- (float(left) + float(right) + 1.0) * 0.5
+	var tall: int = rows.size()
+	# ROWS THAT AGREE ARE ONE BOX. A drawn stem is mostly a straight column, so
+	# emitting a box per painted pixel spent ten of them on what two describe.
+	# Merged only where the run AND the shade band both carry on, so the picture
+	# is the same texel for texel and the ramp keeps its steps.
+	var row: int = 0
+	while row < tall:
+		var line: String = String(rows[row])
+		var shade: int = _stem_shade(row, tall, greens.size())
+		var deep: int = 1
+		while row + deep < tall and String(rows[row + deep]) == line \
+				and _stem_shade(row + deep, tall, greens.size()) == shade:
+			deep += 1
+		var uv: Rect2 = atlas.uv_box(ground_tile, Rect2i(greens[shade], Vector2i.ONE))
+		var column: int = 0
+		while column < line.length():
+			if line[column] != "#":
+				column += 1
+				continue
+			var run: int = column
+			while run < line.length() and line[run] == "#":
+				run += 1
+			_fence_box(
+				AABB(
+					Vector3(
+						shift + float(column),
+						base + float(tall - row - deep),
+						mid - 0.5
+					),
+					Vector3(float(run - column), float(deep), 1.0)
+				),
+				uv, uv, true, true, true, true
+			)
+			column = run
+		row += deep
 
 
-## The greenest texel of a tile, as the pixel it is drawn at.
+## Which of the grass's greens a row of the stem is painted in: dark at the foot
+## and light at the head, which is how the cartridge shades everything else here.
+func _stem_shade(row: int, tall: int, greens: int) -> int:
+	var up: float = float(tall - 1 - row) / float(maxi(tall - 1, 1))
+	return clampi(int(up * float(greens)), 0, greens - 1)
+
+
+## THE GREENS A TILE IS DRAWN IN, as the pixel each is drawn at, darkest first.
 ##
-## Greenest rather than darkest or commonest: what is wanted is the colour of the
-## grass, and a grass tile is drawn in two greens over a shadow. Ranked on how
-## far green stands over the other two channels, so a tile with no green in it at
-## all still answers with its least unsuitable pixel rather than with nothing.
+## What is wanted is the colours of the grass, so the tile's distinct indices are
+## ranked by how far green stands over the other two channels and everything that
+## is not green at all is dropped. Sorted by luminance, so walking the array is
+## walking from shadow to light.
+##
+## A tile with no green in it answers with its least unsuitable pixel rather than
+## with nothing: a flower on a paving stone still needs a stem.
+func _greens(tile: int, atlas: RefCounted) -> Array:
+	var seen: Dictionary = {}
+	var found: Array = []
+	for py: int in int(TILE):
+		for px: int in int(TILE):
+			var index: int = atlas.pixel(tile, px, py)
+			if seen.has(index):
+				continue
+			seen[index] = true
+			var color: Color = atlas.color_of(tile, index)
+			if color.g - maxf(color.r, color.b) <= 0.0:
+				continue
+			found.append([color.get_luminance(), Vector2i(px, py)])
+	if found.is_empty():
+		return [_greenest(tile, atlas)]
+	found.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
+	var out: Array = []
+	for entry: Array in found:
+		out.append(entry[1])
+	return out
+
+
+## The greenest texel of a tile, as the pixel it is drawn at. The fallback for a
+## tile `_greens` finds no green in at all.
 func _greenest(tile: int, atlas: RefCounted) -> Vector2i:
 	var best := Vector2i.ZERO
 	var score: float = -2.0
