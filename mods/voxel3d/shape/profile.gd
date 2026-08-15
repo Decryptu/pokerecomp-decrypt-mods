@@ -873,6 +873,31 @@ const OBJECTS: Dictionary = {
 			&"depth": 3,
 			&"height": 16,
 		},
+		# THE LEAGUE'S CARVED GOLD PILLAR, two of them either side of the door, and
+		# it is the last of the `stand` tail that a picture showed wrong. A round
+		# column two tiles wide and FOUR tall, its capital carved and its foot in a
+		# dark base ring on the cream courtyard.
+		#
+		# A CELL CUT IT IN HALF AND THE FALLBACK REVOLVED EACH HALF, so what stood
+		# was two drums of different widths, one on the other, a walk cell of pillar
+		# where four tiles are drawn. `SPANS` cannot reach it: the shaft is drawn
+		# out of one pair of ids repeated down two cells, so the box a placement
+		# tests is the shaft alone and the capital above it belongs to the rows
+		# `stand` had already cut away. An arrangement of ids has no such trouble,
+		# and the repeat is what identifies this drawing rather than what defeats
+		# it.
+		#
+		# It is TURNED, being a column, and it stands the 32 rows it is drawn: a
+		# pillar is a vertical thing seen face-on, so the drawing states its height
+		# as honestly as its width, which is the Bell Tower's own reading at a
+		# smaller size.
+		{
+			&"name": &"pillar",
+			&"tiles": [[193, 194], [195, 196], [197, 198], [197, 198]],
+			&"window": Rect2i(0, 0, 16, 32),
+			&"height": 32,
+			&"model": true,
+		},
 	],
 	22: [
 		# A LOW PADDED SEAT, 2x2 tiles, standing in rows on the carpet of the big
