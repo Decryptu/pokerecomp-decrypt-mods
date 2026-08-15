@@ -110,7 +110,12 @@ var _colors := PackedColorArray()
 ## texture, its colour being baked into the vertices, so UV is free for it.
 var _sways := PackedVector2Array()
 ## The weight the next face is written with, set per voxel row.
-var _sway: float = 0.0
+## The sway weight is read off the VERTEX rather than off the voxel row, so these
+## are the two numbers a vertex height is measured against: where the crown's
+## foot is and how tall it is, both in world pixels. See `_sway_at`.
+var _sway_foot: float = 0.0
+var _sway_span: float = 1.0
+var _sway_still: bool = false
 ## And the drawing's own colour at that row, which is what a ROCK is painted in.
 var _band := Color(0.5, 0.5, 0.5)
 ## And its colours ACROSS that row, left to right, which is what a WRAPPED column
@@ -550,6 +555,15 @@ func tree(measured: Measure) -> ArrayMesh:
 	var reach: int = ceili(widest + (0.0 if measured.shrub else ROOT_REACH)) + 1
 	var wide: int = reach * 2 + 1
 	var tall: int = trunk_high + crown_high + 1
+	# ZERO THROUGH THE TRUNK, because a trunk that sways is a tree falling over,
+	# and rising through the crown from its foot. A shrub has no trunk and so
+	# bends from its own base, which is what a springy mass does; its bottom
+	# vertices still measure zero, so it stays on the ground. A ROCK is zero
+	# everywhere, which is how a model made of the same material and stamped by
+	# the same code stands still in the wind that moves the wood.
+	_sway_still = measured.rock
+	_sway_foot = float(trunk_high) * _voxel
+	_sway_span = float(maxi(crown_high - 1, 1)) * _voxel
 
 	var solid := PackedByteArray()
 	solid.resize(wide * wide * tall)
@@ -589,15 +603,6 @@ func tree(measured: Measure) -> ArrayMesh:
 				solid[(vy * wide + vz) * wide + vx] = fill
 
 	for vy: int in tall:
-		# ZERO THROUGH THE TRUNK, because a trunk that sways is a tree falling
-		# over, and rising through the crown from its foot. A shrub has no trunk
-		# and so bends from its own base, which is what a springy mass does; its
-		# bottom row still measures zero, so it stays on the ground. A ROCK is zero
-		# everywhere, which is how a model made of the same material and stamped by
-		# the same code stands still in the wind that moves the wood.
-		_sway = 0.0 if measured.rock else clampf(
-			float(vy - trunk_high) / float(maxi(crown_high - 1, 1)), 0.0, 1.0
-		)
 		_band = _band_at(measured, vy - trunk_high, crown_high)
 		_wrap = _wrap_at(measured, vy - trunk_high, crown_high)
 		for vz: int in wide:
@@ -859,6 +864,24 @@ func _ladder(palette: PackedColorArray, colour: Color) -> int:
 	return 0
 
 
+## HOW HARD A POINT BENDS, READ OFF THE VERTEX AND NEVER OFF THE VOXEL.
+##
+## One weight for a whole voxel row is what put the holes in the crown. The top
+## vertices of a row sit exactly where the bottom vertices of the row above sit,
+## so handing the two rows different weights SHEARS them apart in the wind: the
+## crown opens along every horizontal seam and the ground, the wall and the sky
+## come through a solid body. Reading the weight off the vertex's own height
+## gives coincident vertices equal weights, so the whole crown deforms as one
+## skin and no gap can open however hard it blows.
+##
+## It is the rule `mesher.gd` already learned for the tall grass, where one value
+## per box slid a merged blade sideways in one piece, and it is the same fix.
+func _sway_at(height: float) -> float:
+	if _sway_still:
+		return 0.0
+	return clampf((height - _sway_foot) / _sway_span, 0.0, 1.0)
+
+
 ## One voxel face, wound clockwise from outside the way the rest of this mod
 ## winds everything.
 func _quad(origin: Vector3, side: Vector3i, color: Color) -> void:
@@ -876,4 +899,4 @@ func _quad(origin: Vector3, side: Vector3i, color: Color) -> void:
 		_vertices.push_back(vertex)
 		_normals.push_back(normal)
 		_colors.push_back(color)
-		_sways.push_back(Vector2(_sway, 0.0))
+		_sways.push_back(Vector2(_sway_at(vertex.y), 0.0))
