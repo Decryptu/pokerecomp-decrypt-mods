@@ -133,6 +133,11 @@ var _long_grass := PackedByteArray()
 ## is, which is what the mask is cut over, and which class it is.
 var _span_x := PackedByteArray()
 var _span_y := PackedByteArray()
+## Per tile: how many TILE rows of that box the drawing actually uses, where it
+## is fewer than the box holds, or zero for the whole box. A cell is two tiles
+## and a drawing is a whole number of TILES, so a plant three tiles tall fills
+## one cell and half of the next. See `_measure_cutouts`.
+var _span_cut := PackedByteArray()
 var _lying := PackedByteArray()
 ## Per tile: whether the drawing stands on FURNITURE rather than on the ground.
 var _on_furniture := PackedByteArray()
@@ -543,6 +548,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_long_grass.resize(count)
 	_span_x.resize(count)
 	_span_y.resize(count)
+	_span_cut.resize(count)
 	_lying.resize(count)
 	_on_furniture.resize(count)
 	_klass.resize(count)
@@ -614,6 +620,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			var span: Vector2i = shape.span_cells(shape_class)
 			_span_x[at] = maxi(span.x, 1)
 			_span_y[at] = maxi(span.y, 1)
+			_span_cut[at] = 0
 			if not _class_ids.has(shape_class):
 				_class_ids[shape_class] = _class_ids.size()
 			_klass[at] = int(_class_ids[shape_class])
@@ -1013,6 +1020,7 @@ func _house_tile(shape: RefCounted, at: int, stroke: String) -> void:
 	_on_furniture[at] = 0
 	_span_x[at] = 1
 	_span_y[at] = 1
+	_span_cut[at] = 0
 	_cliff[at] = 0
 	_front[at] = 0
 	_lip[at] = 0
@@ -1507,6 +1515,20 @@ func _measure_furniture() -> void:
 				placed[index] = 1
 
 
+## THE BOX one drawing is cut over, in tiles: where it starts on the block grid
+## and how much of it the drawing uses.
+##
+## The start is always the grid box, whatever `_measure_cutouts` cut the height
+## back to, or a drawing three tiles tall would be read modulo three and every
+## box below the first would start in the middle of the one above it.
+func _span_box(at: int, tx: int, ty: int) -> Rect2i:
+	var across := Vector2i(int(_span_x[at]), int(_span_y[at])) * CELL_TILES
+	var start := Vector2i(tx - posmod(tx, across.x), ty - posmod(ty, across.y))
+	if _span_cut[at] > 0:
+		across.y = int(_span_cut[at])
+	return Rect2i(start, across)
+
+
 ## How big each cutout's drawing actually is where it is PLACED.
 ##
 ## A class declares the largest its drawing gets, and the placement is what says
@@ -1526,6 +1548,18 @@ func _measure_furniture() -> void:
 ## the long flower bed is the same bed carrying on away from the eye and draws
 ## the identical cell twice on purpose. `LYING` is that distinction and it is
 ## already made.
+##
+## AND A DRAWING IS A WHOLE NUMBER OF TILES, not of cells, which is what the box
+## cannot say on its own. A cell is two tiles, so a potted plant three tiles tall
+## fills one cell and the top half of the next, and its box's bottom row is the
+## floor it stands on. Requiring the whole box collapsed that to one cell each
+## way and stood the leaves on the ground BESIDE the pot, which is the fault the
+## box exists to fix. So the box is cut back to the last tile row that carries
+## the class, and the rows above it must all carry it: `_span_cut` is how many
+## rows are left, and `_cutout` reads it as the drawing's own height.
+##
+## Only where the extra cells are height. A LYING drawing's rows are depth and
+## half a cell of depth is not something the cartridge draws.
 func _measure_cutouts() -> void:
 	for ty: int in _size.y:
 		for tx: int in _size.x:
@@ -1534,21 +1568,36 @@ func _measure_cutouts() -> void:
 				continue
 			var across := Vector2i(int(_span_x[at]), int(_span_y[at])) * CELL_TILES
 			var start := Vector2i(tx - posmod(tx, across.x), ty - posmod(ty, across.y))
+			var rows: int = across.y
+			if _lying[at] == 0:
+				while rows > CELL_TILES \
+						and not _row_carries(start, rows - 1, across.x, _klass[at]):
+					rows -= 1
 			var whole: bool = true
-			for row: int in across.y:
-				for column: int in across.x:
-					var here := Vector2i(start.x + column, start.y + row)
-					if here.x >= _size.x or here.y >= _size.y \
-							or _klass[here.y * _size.x + here.x] != _klass[at]:
-						whole = false
-						break
-				if not whole:
+			for row: int in rows:
+				if not _row_carries(start, row, across.x, _klass[at]):
+					whole = false
 					break
 			if whole and _lying[at] == 0:
 				whole = not _repeats(start, Vector2i(int(_span_x[at]), int(_span_y[at])))
 			if not whole:
 				_span_x[at] = 1
 				_span_y[at] = 1
+			else:
+				_span_cut[at] = rows if rows < across.y else 0
+
+
+## Whether every tile of one ROW of the box at [param start] carries
+## [param klass].
+func _row_carries(start: Vector2i, row: int, wide: int, klass: int) -> bool:
+	var ty: int = start.y + row
+	if ty >= _size.y:
+		return false
+	for column: int in wide:
+		var tx: int = start.x + column
+		if tx >= _size.x or _klass[ty * _size.x + tx] != klass:
+			return false
+	return true
 
 
 ## Whether any cell of the box at [param start] draws exactly what another cell
@@ -2485,8 +2534,9 @@ var _built_model: bool = false
 
 func _place_model(tx: int, ty: int, atlas: RefCounted) -> void:
 	var at: int = ty * _size.x + tx
-	var across := Vector2i(int(_span_x[at]), int(_span_y[at])) * CELL_TILES
-	var start := Vector2i(tx - posmod(tx, across.x), ty - posmod(ty, across.y))
+	var box: Rect2i = _span_box(at, tx, ty)
+	var across: Vector2i = box.size
+	var start: Vector2i = box.position
 	var tiles: Array = []
 	for row: int in across.y:
 		for column: int in across.x:
@@ -3994,10 +4044,11 @@ func _cutout(
 	base: float, atlas: RefCounted
 ) -> void:
 	var at: int = ty * _size.x + tx
-	var across := Vector2i(int(_span_x[at]), int(_span_y[at])) * CELL_TILES
 	# The structure's own grid, which is the block grid: a drawing one cell wide
 	# and two tall fills half a block across and the whole of it down.
-	var start := Vector2i(tx - posmod(tx, across.x), ty - posmod(ty, across.y))
+	var box: Rect2i = _span_box(at, tx, ty)
+	var across: Vector2i = box.size
+	var start: Vector2i = box.position
 	var tiles: Array = []
 	for row: int in across.y:
 		for column: int in across.x:

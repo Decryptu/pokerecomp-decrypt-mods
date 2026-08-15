@@ -358,6 +358,12 @@ How big a drawing can be comes from the class; whether a given placement is that
 big comes from the map, because the short bed and the long one are drawn out of
 the same top and bottom tiles.
 
+And a drawing is a whole number of TILES, where a cell is two of them. A potted
+plant three tiles tall fills one cell and the top half of the next, so the bottom
+row of its box is the floor it stands on: the box is cut back to the rows the
+drawing uses rather than given up on, which is what stands a plant on its own pot
+instead of beside it.
+
 ## A thing that is not a tile at all
 
 Everything above resolves a tile and stands it up where that tile sits, and for a

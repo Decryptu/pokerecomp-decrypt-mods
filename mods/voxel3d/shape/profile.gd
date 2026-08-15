@@ -1590,8 +1590,17 @@ const TILESETS: Dictionary = {
 	# either side of them is not. 165 and 181 are the wall's END, "the very left
 	# edge is a small section of a vertical wall, the middle part is just the
 	# floor", so they lie flat. Twenty tiles on one map, all of them 21,15.
+	# ITS POTTED PLANT is the same drawing tileset 5 and tileset 11 draw and takes
+	# the same class, at ONE CELL: "the leafy top of a potted plant, its own
+	# silhouette cut out against the wall behind; it sits on the pot below (tiles
+	# 94/95) which stands on the pink floor". A `planter` counts its own height
+	# off its own drawing, so the size is the placement's business and not the
+	# pin's. Cut cell by cell it was one cell anyway, so what moves is the class:
+	# `stand` revolved it into a striped green drum eight pixels tall on the floor
+	# beside a cabinet three times its height.
 	13: {
 		&"ground": [165, 181],
+		&"planter": [46, 47, 94, 95],
 	},
 	# THE ROUND STOOLS, and they were the largest thing left in the `stand`
 	# fallback that is one drawing rather than a tail.
@@ -1644,6 +1653,23 @@ const TILESETS: Dictionary = {
 	# owns that judgement was asked and disagreed.
 	11: {
 		&"planter": [44, 45, 60, 61, 46, 47, 62, 63],
+	},
+	# THE PORT'S TWO PLANTS, and they are the first drawing in the game to want
+	# HALF A CELL of height. The brown pot is "two tiles wide and three tall, two
+	# rows of leaves over one row of pot", so its box's bottom row is the floor it
+	# stands on: see `mesher.gd:_measure_cutouts`, which cuts the box back to the
+	# rows the drawing uses rather than collapsing it.
+	#
+	# The grey urn is the tileset 11 plant's own size, two tiles by four, and it
+	# is drawn under TWO different crowns, "a tangle of golden-brown branches" and
+	# "a dark mass of red blossoms". Both are the same plant and both take the
+	# class: the urn's own tiles are shared between them, so neither could be
+	# pinned without the other.
+	28: {
+		&"planter": [
+			30, 31, 46, 47, 62, 63,
+			69, 70, 85, 86, 7, 8, 23, 24, 9, 25, 48, 49,
+		],
 	},
 }
 
