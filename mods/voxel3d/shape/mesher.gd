@@ -5160,6 +5160,18 @@ func _tile_at(tx: int, ty: int) -> int:
 ## its own cell stands at the top. The League's platform is the case: the
 ## banister end at its south-east corner sat beside the east flight, took that
 ## flight's zero, and opened a hole in the platform floor.
+##
+## AND A RAMP IS FLAT ART AND IS NOT A FLOOR EITHER, which is the same sentence
+## `_commonest_edge_floor` already carries and the same reason: a rock rim
+## resolves FLAT so its drawing can lie on the slope, and its height is the
+## height of the shelf ABOVE it rather than of any ground a thing stands on. The
+## notice board at the foot of Violet City's rock is what found it. Its drawing is
+## two tile rows, and a cutout takes its ground per TILE: the bottom row looked
+## south at the pavement and took 0, the top row looked north at the rim, took
+## 16, and the board hung a whole walk cell over its own posts. Measured rather
+## than argued, with `_ground_art` printed over the rock: every tile of the rim is
+## flat, and the only two tiles in the rectangle that read 16 with 0 under them
+## are the sign's.
 func _ground_art(tx: int, ty: int) -> Vector2i:
 	for step: Vector2i in [
 		Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0),
@@ -5169,7 +5181,7 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 		if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
 			continue
 		var index: int = at.y * _size.x + at.x
-		if _stair_at[index] >= 0:
+		if _stair_at[index] >= 0 or _ramp[index] == 1:
 			continue
 		if _art[index] == ART_FLAT and _heights[index] >= 0:
 			return Vector2i(maxi(_tiles[index], 0), _heights[index])

@@ -60,6 +60,10 @@ const HEIGHTS: Dictionary = {
 	&"sapling": 0,
 	&"tombstone": 0,
 	&"flowers": 0,
+	# THE MEADOW FLOWER counts its height off its own drawing like every other
+	# cutout, which is one tile: ankle height, and the full pass's own reading of
+	# all three tilesets that draw it.
+	&"flower": 0,
 	&"planter": 0,
 	&"statue": 0,
 	# A STATUE ON A PILLAR carries no height of its own either: how tall it stands
@@ -112,6 +116,9 @@ const DEPTHS: Dictionary = {
 	&"sapling": 14,
 	&"tombstone": 5,
 	&"flowers": 12,
+	# A BILLBOARD, WHICH IS WHAT A DITHER WANTS. Two world pixels, standing on the
+	# cell's own centre line: see the class below.
+	&"flower": 2,
 	&"planter": 12,
 	&"statue": 10,
 	# A STATUE ON A PILLAR STANDS ON A WHOLE CELL, which is the reviewer's own
@@ -194,6 +201,9 @@ const OUTLINE: Dictionary = {
 	# A stool stands on a carpet or on floorboards drawn in its own shades, and it
 	# is drawn inside a dark ring like everything else indoors.
 	&"stool": 1,
+	# The red of the bloom is the only tone the grass under it does not also
+	# draw, so it is what says where the clump is. See `FILLED`.
+	&"flower": 1,
 	# THE WOODEN ROUTE SIGN, and it wants TWO for the same reason the cabinet
 	# below does, that cabinet being this drawing at the park's own scale. Its
 	# board is painted the FLOOR'S own index inside a frame the floor's own
@@ -434,6 +444,15 @@ const FILLED: Dictionary = {
 	# read off and the legs reach as wide as it does; kept because it is the safer
 	# reading of an open ring and it costs nothing here.
 	&"stool": true,
+	# A DITHER HAS NO RING AT ALL, which is the meadow flower's whole difference
+	# from everything else on this list. Printed as text it is a checkerboard of
+	# red, pink and pale green over the whole 8x8 with no silhouette anywhere in
+	# it, so neither cutting rule can find a body: the ground rule ranks two of
+	# the three as ground and keeps a speckle, and the outline rule keeps the red
+	# and encloses nothing. Filling each column between its topmost and
+	# bottommost red pixel is what makes it a clump rather than a spray, and it
+	# still wears every texel the cartridge drew.
+	&"flower": true,
 }
 
 ## THE OBJECTS, per tileset number. A thing that is not a tile and does not fit
@@ -1570,6 +1589,7 @@ const ART: Dictionary = {
 	&"sapling": &"cutout",
 	&"tombstone": &"cutout",
 	&"flowers": &"cutout",
+	&"flower": &"cutout",
 	&"planter": &"cutout",
 	&"statue": &"cutout",
 	&"statue_pillar": &"cutout",
@@ -1602,6 +1622,8 @@ const TILESETS: Dictionary = {
 		# The concrete bollard along a path, 15 px of art over a 1 px shadow, and
 		# the wooden pole, 13 px over a shadow with two rows of floor above it.
 		&"post": [42, 43, 58, 59, 14, 85],
+		# The meadow flower, the same id and the same drawing as tileset 1's.
+		&"flower": [3],
 		# The wooden route sign: 14 px with a row of floor top and bottom.
 		&"sign_post": [70, 71, 86, 87],
 		# THE METAL RAILING round Goldenrod's lawns, 2200 tiles and the largest
@@ -1673,6 +1695,12 @@ const TILESETS: Dictionary = {
 		# turned to whichever way the run goes. 74 is also the lower half of a
 		# CORNER, where the cartridge draws it under a 90.
 		&"fence": [74, 89, 90],
+		# THE MEADOW FLOWER, and this pin is on all three tilesets that draw it,
+		# 1, 3 and 25, at the same id. `flowers` is the brick flower BED, a real
+		# solid a cell wide that the same word had been carrying, and the two want
+		# opposite geometry: the bed is a box and this is a clump of blooms in the
+		# grass. See the class in `FILLED`.
+		&"flower": [3],
 		&"tall_grass": [4],
 		# THE PINK BRICK WALL of the small house, which the pass read as paving and
 		# which is why every one of those houses was a roof block over a hole. The
@@ -1781,6 +1809,8 @@ const TILESETS: Dictionary = {
 		&"canopy": [
 			12, 13, 14, 15, 28, 29, 30, 31, 44, 45, 46, 47, 60, 61, 62, 63,
 		],
+		# The meadow flower, the same id and the same drawing as tileset 1's.
+		&"flower": [3],
 		# THE NATIONAL PARK'S BIN, and it was drawn NOWHERE AT ALL. A round grey
 		# vessel with a dark hollow in its top, one walk cell over four tiles,
 		# standing on the paving beside the benches; five placements on three maps.
