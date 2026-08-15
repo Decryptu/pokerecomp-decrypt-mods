@@ -4796,7 +4796,8 @@ func _cutout(
 			var half: float = float(level) * 0.5
 			_cutout_box(
 				tx, tile, atlas, mask, origin, span, top,
-				Rect2i(column, row, wide, tall), mid - half, mid + half
+				Rect2i(column, row, wide, tall), mid - half, mid + half,
+				levels, level
 			)
 
 	if _stem[at] > 0 and _stem_rise[at] > 0:
@@ -4934,9 +4935,28 @@ func _interior(mask: PackedByteArray, span: Vector2i, px: int, py: int) -> bool:
 	)
 
 
+## A NEIGHBOUR THAT IS DRAWN IS NOT A NEIGHBOUR THAT CLOSES THE HOLE, and that is
+## what made a round carve see-through.
+##
+## A box is emitted per run of pixels standing at ONE depth, and the edge faces
+## round it were drawn only where the pixel beyond was not drawn at all. In a
+## flat slab every pixel stands at the same depth, so that test is right and this
+## never showed. A ROUND plan gives every row its own chord, so the drawn pixel
+## above a wide row is a NARROW row standing several pixels shallower: the step
+## between the two had no face on it, and the view went in through the gap,
+## through the hollow the two boxes leave between them and out of the back of the
+## drawing. The bloom of a flower changes radius on nearly every row and was
+## therefore more hole than flower, but every round cutout in the game had it.
+##
+## So a neighbour closes the edge only where it stands AS DEEP or deeper. The
+## face is then laid across this box's whole depth rather than across the
+## difference, since the part of it that overlaps the neighbour is buried inside
+## the neighbour's own solid and cannot be seen: a few triangles rather than a
+## second set of bounds to get wrong.
 func _cutout_box(
 	tx: int, tile: int, atlas: RefCounted, mask: PackedByteArray,
-	origin: Vector2i, span: Vector2i, top: float, box: Rect2i, back: float, front: float
+	origin: Vector2i, span: Vector2i, top: float, box: Rect2i, back: float, front: float,
+	levels: PackedByteArray, level: int
 ) -> void:
 	var x0: float = _world_x(tx) + float(box.position.x)
 	var x1: float = x0 + float(box.size.x)
@@ -4971,7 +4991,8 @@ func _cutout_box(
 						at.x + (0 if horizontal else (-1 if near else 1)),
 						at.y + ((-1 if near else 1) if horizontal else 0)
 					)
-					open = not _drawn(mask, span, beyond.x, beyond.y)
+					open = not _drawn(mask, span, beyond.x, beyond.y) \
+						or int(levels[beyond.y * span.x + beyond.x]) < level
 				if open and run < 0:
 					run = step
 				elif not open and run >= 0:
