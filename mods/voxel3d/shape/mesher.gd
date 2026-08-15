@@ -2561,14 +2561,26 @@ func _place_model(tx: int, ty: int, atlas: RefCounted) -> void:
 		# pixels on a 16px cell, enough to break the line and too little to leave
 		# the cell. Both come off the body's own anchor, so nothing walks when the
 		# window rebuilds and two stones in one cell do not turn together.
+		#
+		# AND THE NUDGE STOPS AT THE EDGE OF THE DRAWING'S OWN KIND. A wobble that
+		# is nothing inside a wood is a bush standing on the pavement at the edge of
+		# one, which is what the border ring does wherever a connection carries a
+		# road out of the map: the last row of the hedge nudged onto it. So an axis
+		# takes the wobble only where the drawing CARRIES ON both ways along it,
+		# which is every stamp in a forest and no stamp on its edge. A single row
+		# back on its lattice reads as nothing, because that row IS the edge.
+		var wander := Vector2(
+			MODEL_NUDGE if _same_class_across(at, box, Vector2i.RIGHT) else 0.0,
+			MODEL_NUDGE if _same_class_across(at, box, Vector2i.DOWN) else 0.0
+		)
 		var anchor := Vector2i(
 			start.x * int(TILE) + int(middle.x), start.y * int(TILE) + int(middle.y)
 		)
 		var spot := Vector3(
-			_world_x(start.x) + middle.x + (_hash_spot(anchor) - 0.5) * MODEL_NUDGE,
+			_world_x(start.x) + middle.x + (_hash_spot(anchor) - 0.5) * wander.x,
 			ground,
 			_world_z(start.y) + middle.y
-				+ (_hash_spot(anchor + Vector2i(37, 0)) - 0.5) * MODEL_NUDGE
+				+ (_hash_spot(anchor + Vector2i(37, 0)) - 0.5) * wander.y
 		)
 		var turn: float = floorf(_hash_spot(anchor + Vector2i(0, 91)) * 4.0) * PI * 0.5
 		# The stamp carries its own WIND PHASE with it, off the same anchor, so a
@@ -2578,6 +2590,34 @@ func _place_model(tx: int, ty: int, atlas: RefCounted) -> void:
 			Transform3D(Basis(Vector3(0.0, 1.0, 0.0), turn), spot),
 			_hash_spot(anchor + Vector2i(0, 53)),
 		]
+
+
+## Whether the drawing CARRIES ON both ways along [param step], which is the test
+## for "more of this" a nudge is allowed inside.
+##
+## The tile sampled each side is the one beside the box's own first row or first
+## column, which is enough: a run of one drawing is a run of whole boxes, so
+## either the neighbouring box is that drawing or it is not.
+##
+## The CLASS rather than the tile id, because a hedge alternates its two rows and
+## a wood its two cells, so a tile match calls a forest's own interior an edge.
+## Past the mesh entirely counts as different: the window's own rim is an edge
+## like any other.
+func _same_class_across(at: int, box: Rect2i, step: Vector2i) -> bool:
+	var mine: int = _klass[at]
+	for side: Vector2i in [
+		box.position - step,
+		box.position + Vector2i(box.size.x - 1, box.size.y - 1) + step,
+	]:
+		var beside := Vector2i(
+			side.x if step.x != 0 else box.position.x,
+			side.y if step.y != 0 else box.position.y,
+		)
+		if beside.x < 0 or beside.y < 0 or beside.x >= _size.x or beside.y >= _size.y:
+			return false
+		if _klass[beside.y * _size.x + beside.x] != mine:
+			return false
+	return true
 
 
 ## ONE MODEL PER BODY OF THE DRAWING, not one per drawing.

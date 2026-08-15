@@ -17,6 +17,9 @@ var _tileset: Gen2WorldTileset = null
 ## ring: reading past a map's edge can reach the neighbouring map, which means
 ## reaching another map's records.
 var _data: GameData = null
+## `_carried`'s answer per block position, which is a fact about the records and
+## about nothing that changes while a map is loaded.
+var _carried_blocks: Dictionary = {}
 
 
 ## Pass a world to read it live, or a map and tileset to read the records. A
@@ -89,16 +92,70 @@ func tile_at(tile_x: int, tile_y: int) -> int:
 ## and its north/south/west/east order at an overlapping corner are the host's,
 ## and a second copy of them here would be a second thing to keep right.
 func _block_at(block_x: int, block_y: int) -> int:
-	if _world != null:
-		return _world.drawn_block_at(block_x, block_y)
-	if _data != null:
-		return Gen2WorldAPI.drawn_block_for(_data, _map, block_x, block_y)
+	var drawn: int = _drawn_block(block_x, block_y)
+	if drawn >= 0:
+		# Asked once per TILE and answered once per BLOCK: the ring alone is sixteen
+		# lookups a block before `_carried` walks anything, and the walk is up to
+		# four more. `changeblock` is the only thing that moves an answer and it
+		# never reaches outside the map, which is the only place this is consulted.
+		var key: int = block_y * 4096 + block_x
+		if _carried_blocks.has(key):
+			return _carried_blocks[key]
+		var out: int = _carried(drawn, block_x, block_y)
+		_carried_blocks[key] = out
+		return out
 	# No records but this map's own, which a probe or a tool may be holding.
 	if block_x >= 0 and block_y >= 0 \
 			and block_x < _map.width_blocks and block_y < _map.height_blocks:
 		var block: int = _map.block_at(block_x, block_y)
 		return _map.border_block if block == 0 else block
 	return _map.border_block
+
+
+## The host's own answer, or -1 where this source is holding no records.
+func _drawn_block(block_x: int, block_y: int) -> int:
+	if _world != null:
+		return _world.drawn_block_at(block_x, block_y)
+	if _data != null:
+		return Gen2WorldAPI.drawn_block_for(_data, _map, block_x, block_y)
+	return -1
+
+
+## A CONNECTION IS NARROWER THAN THIS RING, and the last block it hands over is
+## carried the rest of the way out.
+##
+## The cartridge pads a connection by three blocks, which is what a Game Boy
+## screen can ever show past a seam. This ring is four deep wherever the border
+## block is a stamped model, so its outermost ring came back as the map's own
+## border block: on a city with a road running out of it, the road stopped dead
+## one block short of the edge and a wall of hedge stood across it.
+##
+## So a block OUTSIDE the map that came back the border block takes the nearest
+## block between it and the map, if that one is outside the map too and is not
+## the border block. Only the connection can put a non-border block out there, so
+## nothing on a map without one moves by a tile, and the map's own art is never
+## reached: the walk stops at the seam.
+func _carried(drawn: int, block_x: int, block_y: int) -> int:
+	if drawn != _map.border_block or _inside(block_x, block_y):
+		return drawn
+	var step := Vector2i(
+		signi(mini(block_x, 0) if block_x < 0 else maxi(block_x - _map.width_blocks + 1, 0)),
+		signi(mini(block_y, 0) if block_y < 0 else maxi(block_y - _map.height_blocks + 1, 0)),
+	)
+	var at := Vector2i(block_x, block_y)
+	while step != Vector2i.ZERO:
+		at -= step
+		if _inside(at.x, at.y):
+			return drawn
+		var nearer: int = _drawn_block(at.x, at.y)
+		if nearer != _map.border_block:
+			return nearer
+	return drawn
+
+
+func _inside(block_x: int, block_y: int) -> bool:
+	return block_x >= 0 and block_y >= 0 \
+		and block_x < _map.width_blocks and block_y < _map.height_blocks
 
 
 ## Whether the map is out of doors, which is the host's own question to answer:

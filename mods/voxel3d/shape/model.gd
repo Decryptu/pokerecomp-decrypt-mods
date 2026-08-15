@@ -110,7 +110,12 @@ var _colors := PackedColorArray()
 ## texture, its colour being baked into the vertices, so UV is free for it.
 var _sways := PackedVector2Array()
 ## The weight the next face is written with, set per voxel row.
-var _sway: float = 0.0
+## The sway weight is read off the VERTEX rather than off the voxel row, so these
+## are the two numbers a vertex height is measured against: where the crown's
+## foot is and how tall it is, both in world pixels. See `_sway_at`.
+var _sway_foot: float = 0.0
+var _sway_span: float = 1.0
+var _sway_still: bool = false
 ## And the drawing's own colour at that row, which is what a ROCK is painted in.
 var _band := Color(0.5, 0.5, 0.5)
 ## And its colours ACROSS that row, left to right, which is what a WRAPPED column
@@ -280,14 +285,33 @@ static func measure(
 	# is drawn with the crown's own greens in it wherever the canopy hangs over
 	# the trunk, and taking the lightest of those paints a green trunk: dropping
 	# every tone the crown already claimed is what leaves the wood behind.
+	# AND BARK IS NEVER LIGHTER THAN THE LEAVES OVER IT, which is the other half of
+	# the same rule and is what the cut tree needed. Its stem is drawn as two dark
+	# lines with the GRASS between them, and the flood encloses that grass, so the
+	# band under its crown holds a tone the crown never claimed and the leftover
+	# came back at 0.89 luminance against the crown's 0.66: a pale green stalk
+	# under a near-black canopy. A trunk stands in its own shade, so a leftover
+	# brighter than the brightest leaf is the ground showing through the drawing
+	# rather than wood, and what is left when both filters empty the band is the
+	# darkest shade the drawing has, which is what those two lines are painted in.
+	var lightest: float = 0.0
+	for leaf: Color in out.tones:
+		lightest = maxf(lightest, leaf.get_luminance())
 	var wood := PackedColorArray()
 	for colour: Color in out.bark:
 		var claimed: bool = false
 		for leaf: Color in out.tones:
 			if leaf.is_equal_approx(colour):
 				claimed = true
-		if not claimed:
+		if not claimed and colour.get_luminance() <= lightest:
 			wood.append(colour)
+	# ONLY WHERE THE BAND HAD SOMETHING TO SAY. A band that ranks NO tone at all,
+	# which is most conifers, already has an answer below: the authored brown, and
+	# it is the right one for a trunk the drawing does not paint. Reaching for the
+	# darkest shade there paints every tree in the game on a near-black stem, which
+	# is what this line did before it was measured.
+	if wood.is_empty() and not out.bark.is_empty() and not out.shades.is_empty():
+		wood.append(out.shades[out.shades.size() - 1])
 	if not wood.is_empty():
 		out.bark = wood
 	if out.tones.is_empty():
@@ -531,6 +555,15 @@ func tree(measured: Measure) -> ArrayMesh:
 	var reach: int = ceili(widest + (0.0 if measured.shrub else ROOT_REACH)) + 1
 	var wide: int = reach * 2 + 1
 	var tall: int = trunk_high + crown_high + 1
+	# ZERO THROUGH THE TRUNK, because a trunk that sways is a tree falling over,
+	# and rising through the crown from its foot. A shrub has no trunk and so
+	# bends from its own base, which is what a springy mass does; its bottom
+	# vertices still measure zero, so it stays on the ground. A ROCK is zero
+	# everywhere, which is how a model made of the same material and stamped by
+	# the same code stands still in the wind that moves the wood.
+	_sway_still = measured.rock
+	_sway_foot = float(trunk_high) * _voxel
+	_sway_span = float(maxi(crown_high - 1, 1)) * _voxel
 
 	var solid := PackedByteArray()
 	solid.resize(wide * wide * tall)
@@ -565,21 +598,11 @@ func tree(measured: Measure) -> ArrayMesh:
 						# as lathe work, and a bollard IS lathe work.
 						var ragged: float = 0.0 if measured.column \
 							else (ROCK_NOISE if measured.rock else LEAF_NOISE)
-						var wobble: float = 1.0 + (_hash(vx, vy, vz) - 0.5) * 2.0 * ragged
-						if plan <= radius * wobble:
+						if plan <= radius * _wobble(x, z, plan, vy, ragged):
 							fill = LEAF
 				solid[(vy * wide + vz) * wide + vx] = fill
 
 	for vy: int in tall:
-		# ZERO THROUGH THE TRUNK, because a trunk that sways is a tree falling
-		# over, and rising through the crown from its foot. A shrub has no trunk
-		# and so bends from its own base, which is what a springy mass does; its
-		# bottom row still measures zero, so it stays on the ground. A ROCK is zero
-		# everywhere, which is how a model made of the same material and stamped by
-		# the same code stands still in the wind that moves the wood.
-		_sway = 0.0 if measured.rock else clampf(
-			float(vy - trunk_high) / float(maxi(crown_high - 1, 1)), 0.0, 1.0
-		)
 		_band = _band_at(measured, vy - trunk_high, crown_high)
 		_wrap = _wrap_at(measured, vy - trunk_high, crown_high)
 		for vz: int in wide:
@@ -598,6 +621,37 @@ func tree(measured: Measure) -> ArrayMesh:
 	if not _vertices.is_empty():
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+
+## How much of its row's radius the crown reaches along one RAY, in 0 to 1.
+##
+## THE JITTER IS A ROUGH SURFACE AND NOT A SIEVE, and what makes the difference
+## is what the hash is keyed on. Keyed on the VOXEL, which is what this was, the
+## wobble is a different number for every voxel along the same ray out from the
+## axis: the shell it draws is a speckle a couple of voxels thick with as many
+## gaps as leaves in it, and the ground, the wall and the sky behind a bush are
+## all visible straight through the middle of it. Keyed on the RAY there is one
+## radius per direction per row, so everything inside it is solid and the
+## silhouette is exactly as ragged as it was.
+##
+## AND IT ONLY EVER CUTS IN. A Generation II sprite states its WIDTH honestly,
+## which is the one thing this whole file is built on, so a crown wobbling OUT is
+## wider than the thing the cartridge drew: the bush came out 18 px across on a
+## 16 px cell and stood on the road where a map's border ring meets a
+## connection's paving.
+##
+## RAY_STEPS is how coarse the directions are, and it is what decides how big a
+## clump of leaves is. Finer than this and the crown reads as sandpaper.
+const RAY_STEPS: float = 8.0
+
+
+func _wobble(x: float, z: float, plan: float, vy: int, ragged: float) -> float:
+	if ragged <= 0.0:
+		return 1.0
+	var ray: float = maxf(plan, 1.0)
+	return 1.0 - _hash(
+		int(roundf(x / ray * RAY_STEPS)), vy, int(roundf(z / ray * RAY_STEPS))
+	) * ragged
 
 
 ## The crown's radius at a voxel row, in voxels, read off the drawing's own
@@ -810,6 +864,24 @@ func _ladder(palette: PackedColorArray, colour: Color) -> int:
 	return 0
 
 
+## HOW HARD A POINT BENDS, READ OFF THE VERTEX AND NEVER OFF THE VOXEL.
+##
+## One weight for a whole voxel row is what put the holes in the crown. The top
+## vertices of a row sit exactly where the bottom vertices of the row above sit,
+## so handing the two rows different weights SHEARS them apart in the wind: the
+## crown opens along every horizontal seam and the ground, the wall and the sky
+## come through a solid body. Reading the weight off the vertex's own height
+## gives coincident vertices equal weights, so the whole crown deforms as one
+## skin and no gap can open however hard it blows.
+##
+## It is the rule `mesher.gd` already learned for the tall grass, where one value
+## per box slid a merged blade sideways in one piece, and it is the same fix.
+func _sway_at(height: float) -> float:
+	if _sway_still:
+		return 0.0
+	return clampf((height - _sway_foot) / _sway_span, 0.0, 1.0)
+
+
 ## One voxel face, wound clockwise from outside the way the rest of this mod
 ## winds everything.
 func _quad(origin: Vector3, side: Vector3i, color: Color) -> void:
@@ -827,4 +899,4 @@ func _quad(origin: Vector3, side: Vector3i, color: Color) -> void:
 		_vertices.push_back(vertex)
 		_normals.push_back(normal)
 		_colors.push_back(color)
-		_sways.push_back(Vector2(_sway, 0.0))
+		_sways.push_back(Vector2(_sway_at(vertex.y), 0.0))
