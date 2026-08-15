@@ -217,6 +217,14 @@ var _front := PackedByteArray()
 ## Per tile: whether it draws the plateau's far EDGE, which ends one and then
 ## stands at the height of what lies south of it.
 var _lip := PackedByteArray()
+## Per tile: whether it is rock a plateau is made of, face or floor. It is the
+## set the RAMP is cut out of and nothing else reads it.
+var _shelf := PackedByteArray()
+## Per tile: whether its top face SLOPES, and the height of each of its four
+## corners in world pixels, north-west, north-east, south-west, south-east.
+## Written only for a rim, and read only by `_emit`.
+var _ramp := PackedByteArray()
+var _corners := PackedInt32Array()
 ## The southernmost map row of the structure each tile belongs to. The fold reads
 ## north from there rather than from the tile itself, so every column of one
 ## structure shows the same drawing standing up and a face exposed at its back
@@ -572,6 +580,8 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# cleared rather than filled in by the pass below.
 	_ledge.resize(count)
 	_ledge.fill(LEDGE_NONE)
+	_shelf.resize(count)
+	_shelf.fill(0)
 
 	for ty: int in _size.y:
 		var cell_y: int = (ty - _margin.y) >> 1
@@ -693,6 +703,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# Last, because it overrides whatever the passes above made of a ledge tile
 	# and reads the ground they settled either side of it.
 	_measure_ledges(source)
+	# After every one of them, since each can still move a height and a ramp is
+	# cut from the heights as they finally stand.
+	_measure_ramps()
 
 
 ## The floors a PERSON painted, where they painted any.
@@ -1143,6 +1156,116 @@ func _measure_columns() -> void:
 						_bases[at] = base
 
 
+## A ROCK RIM IS A 45 DEGREE SLOPE, not a step.
+##
+## The reviewer's own reading of the four-tile patches: "the outer ring would be
+## all the small rock walls at 45 degree going from the floor to the upper rock
+## floor". One tile of run per band, so an 8 px shelf ramps over one tile and a
+## 16 px one over two, and the drawing says which tiles those are: the ring the
+## cartridge draws round every patch IS the ramp.
+##
+## HOW FAR IN A TILE LIES is the whole measurement, and it is one flood: the low
+## ground is 0, a tile touching it is 1, and a tile's corner stands at its own
+## distance in bands, capped at the shelf's height. A 2 tile ring comes out 0 to
+## 8 on its outer row and 8 to 16 on its inner one with nothing authored, and the
+## flat top is every tile far enough in for the cap to bite.
+##
+## THE CORNER IS THE UNIT AND NOT THE TILE, which is what makes it watertight and
+## what turns a corner of the ring into a real diagonal: two tiles sharing an
+## edge read the same distance at the two corners of it, so the two slopes meet
+## exactly and no skirt is needed between them. A rim tile only skirts where it
+## meets something that is not shelf.
+##
+## LAST OF THE PASSES, because every one of them can still move a height: an
+## object covering a rock hands it back to the floor, and a ramp measured before
+## that would slope into a tile that is no longer there.
+func _measure_ramps() -> void:
+	var count: int = _size.x * _size.y
+	_ramp.resize(count)
+	_ramp.fill(0)
+	_corners.resize(count * 4)
+	for at: int in count:
+		for corner: int in 4:
+			_corners[at * 4 + corner] = _heights[at]
+	var distance := PackedInt32Array()
+	distance.resize(count)
+	distance.fill(-1)
+	var stack := PackedInt32Array()
+	for at: int in count:
+		if _shelf[at] == 0 or _heights[at] <= 0:
+			continue
+		var tx: int = at % _size.x
+		@warning_ignore("integer_division")
+		var ty: int = at / _size.x
+		for step: Vector2i in [
+			Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
+		]:
+			var to := Vector2i(tx + step.x, ty + step.y)
+			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+				continue
+			var index: int = to.y * _size.x + to.x
+			if _shelf[index] == 1 or _heights[index] >= _heights[at]:
+				continue
+			distance[at] = 1
+			stack.append(at)
+			break
+	var head: int = 0
+	while head < stack.size():
+		var at: int = stack[head]
+		head += 1
+		var tx: int = at % _size.x
+		@warning_ignore("integer_division")
+		var ty: int = at / _size.x
+		for step: Vector2i in [
+			Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
+		]:
+			var to := Vector2i(tx + step.x, ty + step.y)
+			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+				continue
+			var index: int = to.y * _size.x + to.x
+			if distance[index] >= 0 or _shelf[index] == 0 or _heights[index] <= 0:
+				continue
+			distance[index] = distance[at] + 1
+			stack.append(index)
+
+	for at: int in count:
+		if distance[at] < 0:
+			continue
+		var tx: int = at % _size.x
+		@warning_ignore("integer_division")
+		var ty: int = at / _size.x
+		var sloped: bool = false
+		for corner: int in 4:
+			var step := Vector2i(-1 if corner % 2 == 0 else 1, -1 if corner < 2 else 1)
+			# The four tiles that meet at this corner, the nearest of them to the
+			# low ground being what the corner stands at.
+			var near: int = distance[at]
+			for reach: Vector2i in [
+				Vector2i(step.x, 0), Vector2i(0, step.y), step
+			]:
+				var to := Vector2i(tx + reach.x, ty + reach.y)
+				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+					near = 0
+					continue
+				var index: int = to.y * _size.x + to.x
+				# Anything that is not shelf and stands no higher is the ground the
+				# rim comes down to; anything standing on the shelf is not.
+				if _shelf[index] == 0:
+					if _heights[index] < _heights[at]:
+						near = 0
+					continue
+				near = mini(near, maxi(distance[index], 0))
+			var high: int = mini(near * BAND, _heights[at])
+			_corners[at * 4 + corner] = high
+			sloped = sloped or high < _heights[at]
+		if sloped:
+			_ramp[at] = 1
+			# A ramp is a floor with a slope on it, not a box: whatever the tile was
+			# resolved as, its drawing is now the surface the player walks up.
+			_art[at] = ART_FLAT
+			_volume[at] = 0
+
+
 ## A CLIFF IS AS TALL AS ITS FACE IS DRAWN, in 8px bands.
 ##
 ## Every other height here is measured per COLUMN OF WALK CELLS, so the smallest
@@ -1197,6 +1320,7 @@ func _measure_cliffs() -> void:
 		for at: int in members:
 			_heights[at] = bands * BAND
 			_bases[at] = _cliff_base(at)
+			_shelf[at] = 1
 
 
 ## How many bands of face one structure draws: every column's own run of FRONT
@@ -1316,6 +1440,7 @@ func _measure_plateaus() -> void:
 			var height: int = int(lift[next])
 			for at: int in members:
 				_heights[at] = height
+				_shelf[at] = 1
 		next += 1
 	_settle_lips()
 	_settle_ponds()
@@ -4746,6 +4871,9 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	if _art[at] == ART_LEDGE:
 		_wedge(tx, ty, atlas)
 		return
+	if _ramp[at] == 1:
+		_ramp_tile(tx, ty, atlas)
+		return
 	var here: int = _heights[at]
 	var is_volume: bool = _volume[at] == 1
 
@@ -5253,7 +5381,10 @@ func _commonest_edge_floor() -> Vector2i:
 					and tx != box.end.x - 1 and ty != box.end.y - 1:
 				continue
 			var index: int = ty * _size.x + tx
-			if _art[index] != ART_FLAT or _tiles[index] < 0:
+			# A RAMP IS FLAT ART AND IS NOT A FLOOR. The rim of a rock shelf is
+			# resolved flat so its drawing can lie on the slope, and counting it
+			# here paved the whole outside of Ecruteak in cliff face.
+			if _art[index] != ART_FLAT or _tiles[index] < 0 or _ramp[index] == 1:
 				continue
 			var key: int = _tiles[index] * 1024 + _heights[index] + 512
 			counts[key] = int(counts.get(key, 0)) + 1
@@ -5460,6 +5591,85 @@ func _face_roof(tx: int, ty: int, uv: Rect2, shade: Color) -> void:
 	if normal.y < 0.0:
 		normal = -normal
 	_quad(a, b, c, d, normal, uv, shade)
+
+
+## ONE TILE OF THE ROCK RIM, as the ramp `_measure_ramps` measured.
+##
+## Its top is a quad on four corner heights rather than one, wearing the tile's
+## own drawing: the cartridge draws the rim as the rock's face and that face is
+## exactly what a walker up the slope is looking at. What is left of the vertical
+## skirt is only where the ramp meets something that is NOT shelf and stands
+## lower, which is a rim running into a wall or a recess rather than into the
+## floor it was cut for.
+func _ramp_tile(tx: int, ty: int, atlas: RefCounted) -> void:
+	var at: int = ty * _size.x + tx
+	var uv: Rect2 = atlas.uv(maxi(_tiles[at], 0))
+	var x0: float = _world_x(tx)
+	var x1: float = x0 + TILE
+	var z0: float = _world_z(ty)
+	var z1: float = z0 + TILE
+	var nw: float = float(_corners[at * 4])
+	var ne: float = float(_corners[at * 4 + 1])
+	var sw: float = float(_corners[at * 4 + 2])
+	var se: float = float(_corners[at * 4 + 3])
+	var normal: Vector3 = (Vector3(x1, ne, z0) - Vector3(x0, sw, z1)).cross(
+		Vector3(x1, se, z1) - Vector3(x0, nw, z0)
+	).normalized()
+	if normal.y < 0.0:
+		normal = -normal
+	_quad(
+		Vector3(x0, sw, z1), Vector3(x1, se, z1),
+		Vector3(x1, ne, z0), Vector3(x0, nw, z0),
+		normal, uv, SHADE_TOP_FLAT
+	)
+	# South, north, east and west, each from the neighbour's own floor up to the
+	# two corners of the shared edge. A neighbour that is shelf too has the same
+	# two heights there by construction, so there is nothing to close.
+	_ramp_side(tx, ty, Vector2i(0, 1), sw, se, Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, uv)
+	_ramp_side(tx, ty, Vector2i(0, -1), ne, nw, Vector3(0.0, 0.0, -1.0), SHADE_NORTH, uv)
+	_ramp_side(tx, ty, Vector2i(1, 0), se, ne, Vector3(1.0, 0.0, 0.0), SHADE_SIDE, uv)
+	_ramp_side(tx, ty, Vector2i(-1, 0), nw, sw, Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, uv)
+
+
+## One side of a ramp, as a single quad with a sloping top edge. [param first]
+## and [param second] are the corners of that edge read left to right from
+## outside, which is the order `_quad` wants.
+func _ramp_side(
+	tx: int, ty: int, step: Vector2i, first: float, second: float,
+	normal: Vector3, shade: Color, uv: Rect2
+) -> void:
+	var to := Vector2i(tx + step.x, ty + step.y)
+	if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+		return
+	var index: int = to.y * _size.x + to.x
+	if _shelf[index] == 1:
+		return
+	var floor_y: float = float(_heights[index])
+	if floor_y >= first and floor_y >= second:
+		return
+	var x0: float = _world_x(tx)
+	var x1: float = x0 + TILE
+	var z0: float = _world_z(ty)
+	var z1: float = z0 + TILE
+	var a := Vector3.ZERO
+	var b := Vector3.ZERO
+	if step.y > 0:
+		a = Vector3(x0, floor_y, z1)
+		b = Vector3(x1, floor_y, z1)
+	elif step.y < 0:
+		a = Vector3(x1, floor_y, z0)
+		b = Vector3(x0, floor_y, z0)
+	elif step.x > 0:
+		a = Vector3(x1, floor_y, z1)
+		b = Vector3(x1, floor_y, z0)
+	else:
+		a = Vector3(x0, floor_y, z0)
+		b = Vector3(x0, floor_y, z1)
+	_quad(
+		a, b,
+		Vector3(b.x, maxf(second, floor_y), b.z), Vector3(a.x, maxf(first, floor_y), a.z),
+		normal, uv, shade
+	)
 
 
 func _face_top(tx: int, ty: int, y: float, uv: Rect2, shade: Color) -> void:

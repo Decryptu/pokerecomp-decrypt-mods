@@ -846,6 +846,58 @@ const OBJECTS: Dictionary = {
 			&"height": 6,
 		},
 	],
+	1: [
+		# THE BELL TOWER, and it is the tallest thing in the game and the clearest
+		# case yet of a drawing whose FOOTPRINT is not its picture. Seven tiers of
+		# pagoda are drawn one above the other in a column sixteen tiles tall, and
+		# every pass here read them as seven storeys of facade stacked on each
+		# other: a leaning slab that runs off the top of any frame.
+		#
+		# The reviewer read it as what it is: "the tower should be a 8x8 tiles
+		# square base. then its just a giant tower that goes up. in 3D the tower is
+		# only taking 8x8 tiles from above. but in 2D since its faking perspective,
+		# the tower is 6 large, but then its very very long in the vertical axis.
+		# so for us it will be empty here."
+		#
+		# So the object is the whole drawn rectangle and the BOX is its bottom
+		# quarter: `depth` 64 against a window 128 rows tall puts the near face at
+		# the drawing's foot and the far face eight tiles north of it, which is the
+		# square base, and the drawing hangs down the height one drawn pixel per
+		# world pixel. The rows above the base are covered like any other object
+		# tile and come back as the floor beside them, which is the whole of "just
+		# fill this empty space at floor level with whatever is around".
+		#
+		# The last two rows of the arrangement are the rock ring under the tower,
+		# which the reviewer calls flat floor: covering them is what lays it flat.
+		{
+			&"name": &"bell_tower",
+			&"tiles": [
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[59, 26, 39, 40, 149, 150, 28, 61],
+				[59, 151, 41, 42, 152, 152, 153, 61],
+				[59, 6, 6, 6, 6, 6, 6, 61],
+				[75, 76, 154, 154, 76, 76, 76, 77],
+			],
+			&"window": Rect2i(0, 0, 64, 128),
+			&"filled": true,
+			&"top": 0,
+			&"depth": 64,
+			&"height": 128,
+		},
+	],
 	6: [
 		# A TELEVISION STANDING FREE IN THE ROOM, "2 tiles wide and 2 tall, waist
 		# high", drawn FACE-ON as a casing with a blue screen in it. Revolved it was
