@@ -155,7 +155,7 @@ func _initialize() -> void:
 		quit()
 		return
 
-	var text: String = _header() + "\n".join(entries) + "\n" + _footer()
+	var text: String = _header() + "\n".join(_merged(entries)) + "\n" + _footer()
 	var path: String = ProjectSettings.globalize_path(OUT)
 	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
@@ -166,6 +166,41 @@ func _initialize() -> void:
 	file.close()
 	print("wrote ", path)
 	quit()
+
+
+## THE PAINTINGS ALREADY IN THE FILE, PLUS THE ONES JUST PAINTED.
+##
+## A page is prepared for ONE map, because that is how a person is asked: a map
+## they can see, with the guess pre-filled, and a matrix back. The file this
+## writes holds every map ever painted, so writing only what the last page saved
+## would delete every earlier one, and it would do it silently, on a tool whose
+## whole purpose is to hold the one thing in this project that cannot be
+## re-derived. Eight maps of a person's own hour would have gone in the first
+## write of the ninth.
+##
+## So the existing table is read back and the painted maps override their own
+## entries. A map is removed by removing it here, deliberately, never by leaving
+## it out of a page.
+func _merged(painted: Array[String]) -> Array[String]:
+	var fresh: Dictionary = {}
+	for entry: String in painted:
+		fresh[entry.substr(0, entry.find(":"))] = true
+	var out: Array[String] = painted.duplicate()
+	var existing: GDScript = load(OUT)
+	if existing == null:
+		return out
+	var kept: Dictionary = existing.get("MAPS") as Dictionary
+	for key: String in kept:
+		var head: String = '\t"%s"' % key
+		if fresh.has(head):
+			continue
+		var rows: Array = kept[key] as Array
+		out.append('%s: [\n%s\n\t],' % [
+			head,
+			"\n".join(rows.map(func(r: Variant) -> String: return '\t\t"%s",' % r))
+		])
+	out.sort()
+	return out
 
 
 func _header() -> String:

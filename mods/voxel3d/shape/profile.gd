@@ -70,6 +70,7 @@ const HEIGHTS: Dictionary = {
 	# A STATUE ON A PILLAR carries no height of its own either: how tall it stands
 	# is counted off its own drawing, which is two cells of it.
 	&"statue_pillar": 0,
+	&"idol": 0,
 	&"stand": 0,
 	&"lie": 0,
 	# A STOOL is a turned model and counts its own height off its own drawing,
@@ -128,6 +129,7 @@ const DEPTHS: Dictionary = {
 	# and 2 cell high". It is round, so each row's own drawn run is its diameter
 	# and this only says the cap is the cell rather than two thirds of it.
 	&"statue_pillar": 16,
+	&"idol": 16,
 	# The two the full pass falls back to when its words name no known thing:
 	# something standing, and something low with an outline.
 	&"stand": 8,
@@ -241,6 +243,13 @@ const OUTLINE: Dictionary = {
 	# slot cut clean through the case. The second shade closes that foot, and the
 	# whole cabinet stands at 222.
 	&"notice_case": 2,
+	# THE STONE IDOL, and it is the pin that made the square carve legible rather
+	# than the fill. Both rooms draw it in the floor's own shades, so the ground
+	# rule cuts INSIDE the plinth and `FILLED` can only put back a column that
+	# still has a pixel somewhere in it: the pedestal came back as loose plates
+	# with the room showing between them. It is drawn inside a closed ring of its
+	# darkest shade like everything else on this list.
+	&"idol": 1,
 }
 
 ## The classes that lie flat AND stand a thin slab of their own drawing up.
@@ -421,6 +430,7 @@ const SPANS: Dictionary = {
 	# a class is how the profile addresses one, so the drawings a person has
 	# actually read get their own.
 	&"statue_pillar": Vector2i(1, 2),
+	&"idol": Vector2i(1, 2),
 }
 
 ## The cutouts whose extra cells are DEPTH rather than height.
@@ -495,6 +505,25 @@ const FILLED: Dictionary = {
 	# chose in round twenty-four and closes the gap between the leaves and the urn.
 	# Two drawings, two classes.
 	&"palm": true,
+	# THE STONE IDOL, which is `statue_pillar` with this added and `ROUND` taken
+	# away, and it is a class rather than a pin because those are the only two
+	# things about it that differ.
+	#
+	# It fills its own 16x32 box edge to edge in the box's own shades, so there is
+	# no ground inside the drawing for the border flood to cut against and whatever
+	# the flood eats it eats out of the statue: down one side in the Ruins, leaving
+	# pale sticks, and much further in the wooden hall, leaving the head in loose
+	# pieces above its plinth. Filling each column puts the stone back and carving
+	# it square keeps the face, which a revolve of a filled drawing cannot: turned
+	# AND filled it is a featureless drum, which was rendered and is why the flood
+	# was left alone for as long as it was.
+	#
+	# ASKED TWICE. Round fifteen showed the Ruins copy both ways and the turn was
+	# taken; round thirty-four showed both rooms with the plates numbered and the
+	# answer was the square carve for both. The first page was refused outright for
+	# want of the numbers, which is worth more than the answer: "identify clearly
+	# each image with a number or before / after".
+	&"idol": true,
 }
 
 ## THE OBJECTS, per tileset number. A thing that is not a tile and does not fit
@@ -1684,6 +1713,7 @@ const ART: Dictionary = {
 	&"palm": &"cutout",
 	&"statue": &"cutout",
 	&"statue_pillar": &"cutout",
+	&"idol": &"cutout",
 	&"stand": &"cutout",
 	&"lie": &"cutout",
 	&"boulder": &"cutout",
@@ -1977,8 +2007,15 @@ const TILESETS: Dictionary = {
 	# onto it over a dark gap, where the fallback stands a legible red dome on a
 	# grey cabinet. What it is drawn as is a BOX with a round lid, and nothing here
 	# turns half a drawing.
+	#
+	# ALL OF THEM ARE `idol` AND THE SHARED BASE IS WHY. The reviewer's answer in
+	# round thirty-four was the square carve for the idol; [54,55] is the bottom
+	# row of the creature as well, and a box whose rows are not all one class
+	# resolves no span at all, so the creature comes with it or the idol keeps its
+	# own drawing cut cell by cell. Built both ways and photographed: the creature
+	# is no worse square, and the idol is unrecognisable turned.
 	23: {
-		&"statue_pillar": [34, 35, 50, 51, 18, 19, 54, 55, 74, 75, 90, 91, 76, 92],
+		&"idol": [34, 35, 50, 51, 18, 19, 54, 55, 74, 75, 90, 91, 76, 92],
 	},
 	# THE OTHER FIVE THE FULL PASS CALLED `statue`, all of them the same
 	# arrangement as the three above: a 2x4 run of tiles, one walk cell wide and
@@ -2001,16 +2038,13 @@ const TILESETS: Dictionary = {
 	# tileset 23 places in its wooden hall, pixel for pixel over both cells and
 	# only the palette apart.
 	#
-	# IT IS TURNED ON A LATHE AND THAT IS THE REVIEWER'S OWN ANSWER, taken over a
-	# square-carved build of the same drawing that was committed first and shown
-	# beside it. So the exception this drawing seemed to want is not one: it fills
-	# its 16x32 box edge to edge, which makes every row's run the full width, and
-	# it is still a round thing. What that costs is a column the flood has walked
-	# into down one side; what carving it square bought was a legible face on a
-	# boxy prop, and a stone pillar was wanted over the face. Do not re-derive the
-	# square build: it was measured, photographed and refused.
+	# IT IS CARVED SQUARE, which is the reviewer's answer in round thirty-four,
+	# taken over the turn they had chosen for this room alone in round fifteen. The
+	# question changed because the second room was put beside it: the same drawing
+	# is eaten much further in the wooden hall, and shown both at once with the
+	# plates numbered they took the carve for both. See `idol` under `FILLED`.
 	26: {
-		&"statue_pillar": [14, 15, 30, 31, 46, 47, 62, 63],
+		&"idol": [14, 15, 30, 31, 46, 47, 62, 63],
 	},
 	# THE SCHOOL'S NORTH WALL, which the full pass read as three more flights of
 	# stairs and the reviewer read tile by tile. One run holds two real flights set
