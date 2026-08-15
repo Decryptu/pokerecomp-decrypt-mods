@@ -3942,13 +3942,24 @@ func _cutout(
 	# its own two rows at its own depth. Only the mask is cut over the whole
 	# thing, because a cell in the middle of the bed has no ground on its border
 	# for the flood to come in through.
+	#
+	# THROUGH `_world_z`, WHICH IS WHERE A CARVED DRAWING USED TO GO MISSING. The
+	# depth axis is world pixels, exactly as `x` is, and the cell row is a GRID
+	# row: the grid is the map inside its border ring, so a row of it stands
+	# `_margin` tiles north of the same row of the map. Multiplying the grid row
+	# out directly stood every carved cutout on an outdoor map 32 world pixels
+	# south of its own cell, and 128 wherever the ring is a stamped model. The
+	# ground under it, its skirt and every stamped model beside it all measure
+	# through `_world_z` and stayed where they belong, which is why this read as a
+	# drawing that was not being built rather than as one standing in the wrong
+	# place.
 	var mid: float = 0.0
 	var top: float = 0.0
 	if _lying[at] == 1:
-		mid = float(ty >> 1) * CELL_TILES * TILE + CELL_TILES * TILE * 0.5
+		mid = _world_z((ty >> 1) * CELL_TILES) + CELL_TILES * TILE * 0.5
 		top = CELL_TILES * TILE - float((ty & 1) * edge)
 	else:
-		mid = float((start.y + across.y - 1) >> 1) * CELL_TILES * TILE \
+		mid = _world_z(((start.y + across.y - 1) >> 1) * CELL_TILES) \
 			+ CELL_TILES * TILE * 0.5
 		top = float(span.y - origin.y)
 

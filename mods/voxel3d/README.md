@@ -424,7 +424,9 @@ which only shows if you look at the mask as a picture.
 
 What bounds such a drawing is its own outline, and an outline is the darkest
 shade in the tile. So those classes flood through every pixel that is NOT that
-shade, and what the flood cannot reach is the tree. The shadow pooled under a
+shade, and what the flood cannot reach is the tree. How MANY shades bound one is
+the drawing's own business rather than the rule's: a tree draws a ring in one,
+and a case that meets the ground in a paler shade needs two. The shadow pooled under a
 canopy is dark but is not enclosed by the outline, so it floods away with the
 grass, which is what should happen to it.
 
@@ -482,6 +484,14 @@ had nothing to cut on and the flood ate the whole thing: on that paving the mod
 drew no bin. Read as a stone it is cut on its own dark outline instead, and one
 of the few things in this game that costs more than leaving it wrong, since
 nothing at all is cheap.
+
+The notice cabinet beside it is the same fault answered the other way. It is flat
+and face-on rather than round, so it is carved rather than turned: a board in a
+frame on two posts, standing the rows it is drawn. What it needed was TWO shades
+of outline instead of one. A drawing's own dark frame is what bounds it, and this
+one closes round the top and the sides but meets the paving in a paler shade, so
+cutting on one shade let the flood up through its foot and took a slot out of the
+middle of the case.
 
 A round stool takes the stone's reading and adds the one thing none of the others
 needs. Everything above can take its own DRAWN height, because a tree, a bush and
