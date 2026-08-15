@@ -36,9 +36,10 @@ each of them reproducible.
 
 ## Settings
 
-Eight rows, in the start menu's MODS entry and on this mod's card in the launcher.
-Both surfaces are built by the host out of one registration in `options.gd`, so
-this mod writes no settings screen.
+Eight rows, in the start menu's MODS entry and on this mod's own page in the
+launcher, which is reached by pressing its row in the mods list. Both surfaces
+are built by the host out of one registration in `options.gd`, so this mod
+writes no settings screen.
 
 | Setting | Rungs | Does |
 | --- | --- | --- |
