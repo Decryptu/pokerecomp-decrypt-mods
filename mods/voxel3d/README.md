@@ -338,6 +338,22 @@ flat ground and more on the upright faces, so morning carries more energy than
 day to stand the same ground up; all four rows are metered the same way the
 energies are, and the frame still tops out just under 255.
 
+## Water, and the sun in it
+
+Everything else in this view is paint stood up and lit. Water is a MIRROR, and
+the 2D view says so in the only way it can, by cycling the ripple art in place.
+So the surface is lifted out of the terrain mesh and given three things the flat
+drawing cannot carry. The sky in the lake is the sky over it, mixed in by
+Fresnel, so the far water is bright and the near water keeps the cartridge's own
+blue. The surface is not flat: two long waves cross it and their gradient is the
+normal everything else is read through, done per fragment so no vertex moves and
+the water cannot tear away from its own bank. And the sun is in it, hung by
+ANGLE rather than by screen position, because the reflection of a sun most of the
+way up the sky lands off the top of the frame at every hour: what is asked is how
+nearly a piece of water is tilted to bounce the sun into the eye, which is a fact
+about the swell, so the glitter rides the waves and goes out at night with the
+light.
+
 ## A drawing bigger than one cell
 
 A cutout stands the drawing's own silhouette up, and some drawings are bigger
@@ -397,13 +413,11 @@ nothing keyed to the cell grid reaches it at all. Its window is what keeps the
 paving either side of it out of the profile the turn is read from, and how tall
 it stands is the declaration's, since a turned body is as deep as it is wide.
 
-Nine things are declared this way: a desk, three chairs, a ship, a stone vessel,
-a ticket gate, a fountain and the ridge along a great roof. The ship is what made the machinery general, because a rectangle is not a
-footprint: a hull's bounding box is a quarter open sea, and a tile the box holds
-and the object is not has to be named as such, matched against nothing and
-covered by nothing. It still counts as part of the rectangle the mask is cut
-over, since a mask floods in from the border and the border of the hull's own box
-is hull.
+Fourteen things are declared this way: a desk, five chairs, a ship, a stone
+vessel, a ticket gate, a fountain, the ridge along a great roof, a parked
+bicycle, a television and a low padded seat. The last three are what a fallback
+that REVOLVES a drawing cannot do: a bicycle drawn side-on is a portrait three
+tiles wide, and turned it came out as a row of bollards.
 
 The largest of them is the ship at the port, fifteen tiles by six, and it added
 the one rule the smaller ones did not need: a bounding box is not a footprint. The
@@ -634,7 +648,7 @@ steering.gd          what a key or a wheel notch means, in either view
 world/renderer.gd    the overworld Node the host builds
 world/diorama.gd     the 3D stage both views share: viewport, daylight, cards
 world/sky.gd         the banded, dithered sky and the shader that paints it
-world/water.gd       the water surface: the sky in it by Fresnel, and its swell
+world/water.gd       the water surface: the sky by Fresnel, the swell, the sun
 world/wind.gd        what makes grass and foliage bend, and part around a walker
 world/frame.gd       the pass over the finished picture, and the hour's tint in it
 world/camera_rig.gd  pitch, distance, lens and the ease between settings
