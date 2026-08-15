@@ -74,6 +74,28 @@ const TRUNK_THICKNESS: float = 0.22
 ## material rather than as something showing through the leaves.
 const TONE_SHARE: int = 8
 
+## HOW THE DRAWING'S COLOURS ARE SPENT, which is a question with more than one
+## answer and is the reviewer's to settle. Three are built beside the one that
+## has always been in, they are compared with `tools/foliage.gd`, and whichever
+## is chosen becomes the code with the switch taken out.
+##
+##   KEPT    the shades the drawing uses MINUS its darkest, spent on exposure.
+##           The darkest is the outline a flat drawing needs, so it is dropped
+##           whole; what is left is often two colours and the model wears two.
+##   DEEP    the same rule with the darkest kept and spent only where the body is
+##           deepest. The drawing's whole palette, arranged the same way.
+##   TURNED  the drawing's own colour AT THAT ROW AND THAT DISTANCE FROM THE
+##           CENTRE, turned with the shape. The rim is dark because the artist
+##           drew the rim dark, and the highlight lands where they put it.
+##   LIT     the palette spent on how much sky a face can see, counted over the
+##           voxels around it rather than the column above it, and mixed between
+##           rungs so a two-shade drawing still comes out a gradient.
+enum { KEPT, DEEP, TURNED, LIT }
+## Set before a model is built. A comparison switch and nothing else: every model
+## in the game is built at whatever this says, so it is not a per-drawing option
+## and must not become one.
+static var style: int = KEPT
+
 
 var _vertices := PackedVector3Array()
 var _normals := PackedVector3Array()
@@ -86,6 +108,9 @@ var _sways := PackedVector2Array()
 var _sway: float = 0.0
 ## And the drawing's own colour at that row, which is what a ROCK is painted in.
 var _band := Color(0.5, 0.5, 0.5)
+## The drawing's colours across that row, nearest the centre first, which is what
+## `TURNED` paints with. Set per voxel row beside `_band`.
+var _ring := PackedColorArray()
 ## World pixels per voxel for the model being built. See `FINE_VOXEL`.
 var _voxel: float = VOXEL
 
@@ -124,6 +149,13 @@ class Measure extends RefCounted:
 	var stretch: float = 0.0
 	## Lightest first, and the drawing's darkest shade is NOT among them.
 	var tones: PackedColorArray = PackedColorArray()
+	## The same reading with the darkest KEPT, lightest first, for the styles that
+	## spend it. See the `style` switch.
+	var shades: PackedColorArray = PackedColorArray()
+	## Per crown row, top row first: the drawing's own colour at each whole world
+	## pixel of distance from that row's centre. What `TURNED` paints with, and the
+	## only reading here that keeps WHERE in the drawing a colour was used.
+	var rings: Array = []
 	var bark: PackedColorArray = PackedColorArray()
 	## The drawing's own colour at each row of the profile, top row first, which is
 	## how a ROCK is painted. See `_bands`.
@@ -173,6 +205,7 @@ static func measure(
 	if first_row < 0:
 		out.profile = PackedFloat32Array([6.0, 8.0, 8.0, 6.0])
 		out.tones = PackedColorArray([Color(0.35, 0.62, 0.28), Color(0.2, 0.42, 0.18)])
+		out.shades = out.tones
 		out.bark = PackedColorArray([Color(0.42, 0.28, 0.14)])
 		return out
 
@@ -207,6 +240,10 @@ static func measure(
 	out.trunk_width = maxi(trunk, 3)
 
 	out.tones = _tones(mask, span, tiles, across, atlas, first_row, crown_bottom - 1)
+	out.shades = _tones(
+		mask, span, tiles, across, atlas, first_row, crown_bottom - 1, false
+	)
+	out.rings = _rings(mask, span, tiles, across, atlas, first_row, crown_bottom - 1)
 	out.bands = _bands(mask, span, tiles, across, atlas, first_row, crown_bottom - 1)
 	# The bark is read all the way down to the drawing's last row, shadow and all:
 	# what a tree draws under its crown is trunk, roots and the dark they sit in,
@@ -228,6 +265,8 @@ static func measure(
 		out.bark = wood
 	if out.tones.is_empty():
 		out.tones = PackedColorArray([Color(0.35, 0.62, 0.28), Color(0.2, 0.42, 0.18)])
+	if out.shades.is_empty():
+		out.shades = out.tones
 	if out.bark.is_empty():
 		out.bark = PackedColorArray([Color(0.42, 0.28, 0.14)])
 	return out
@@ -243,7 +282,7 @@ static func measure(
 ## `_tone` spend it on the light.
 static func _tones(
 	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
-	atlas: RefCounted, from_row: int, to_row: int
+	atlas: RefCounted, from_row: int, to_row: int, drop_dark: bool = true
 ) -> PackedColorArray:
 	var counts: Dictionary = {}
 	var colours: Dictionary = {}
@@ -255,7 +294,7 @@ static func _tones(
 			@warning_ignore("integer_division")
 			var tile: int = tiles[(py / 8) * across.x + px / 8]
 			var index: int = atlas.pixel(tile, px % 8, py % 8)
-			if index < 0 or atlas.is_dark(tile, index, 1):
+			if index < 0 or (drop_dark and atlas.is_dark(tile, index, 1)):
 				continue
 			var colour: Color = atlas.color_of(tile, index)
 			var key: int = colour.to_rgba32()
@@ -335,6 +374,97 @@ static func _bands(
 			for above: int in at:
 				out[above] = out[at]
 			break
+	return out
+
+
+## THE DRAWING'S COLOUR AT EACH DISTANCE FROM EACH ROW'S CENTRE, top row first.
+##
+## A turn already says that a drawn row's half-width is that row's radius. The
+## same reading applies to the colour: a pixel drawn nine across from the middle
+## of a row is what that row looks like nine out, all the way round. So a rim the
+## artist shaded dark comes back as a dark rim rather than as a rung on a ladder,
+## and the pale patch they put where the light lands stays where they put it.
+##
+## Both sides of the row are read and the nearer pixel wins, since a sprite is
+## lit from one side and a body of revolution has no side. A distance the drawing
+## has nothing at keeps the last one it had, which is what makes the ring reach
+## the jitter's own outermost voxel.
+static func _rings(
+	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
+	atlas: RefCounted, from_row: int, to_row: int
+) -> Array:
+	var out: Array = []
+	for py: int in range(maxi(from_row, 0), mini(to_row + 1, span.y)):
+		var first: int = -1
+		var last: int = -1
+		for px: int in span.x:
+			if mask[py * span.x + px] == 1:
+				if first < 0:
+					first = px
+				last = px
+		var ring := PackedColorArray()
+		if first >= 0:
+			var middle: float = float(first + last) * 0.5
+			var reach: int = int(ceilf(float(last - first) * 0.5)) + 1
+			var counts: Array = []
+			var found: Array = []
+			counts.resize(reach + 1)
+			found.resize(reach + 1)
+			for py_near: int in range(maxi(py - 1, 0), mini(py + 2, span.y)):
+				for px: int in range(span.x):
+					if mask[py_near * span.x + px] == 0:
+						continue
+					@warning_ignore("integer_division")
+					var tile: int = tiles[(py_near / 8) * across.x + px / 8]
+					var index: int = atlas.pixel(tile, px % 8, py_near % 8)
+					# THE OUTLINE IS DROPPED HERE TOO, and it costs more here than
+					# anywhere else if it is not. A drawn row's outermost pixels are
+					# its outline, and the outer ring of a turned body is most of its
+					# surface, since a disc's area is nearly all at a large radius. So
+					# an outline kept is an outline sprayed over the whole crown, and
+					# the tree comes back the colour of its own silhouette.
+					if index < 0 or atlas.is_dark(tile, index, 1):
+						continue
+					var away: int = clampi(int(round(absf(float(px) - middle))), 0, reach)
+					# THE COMMONEST COLOUR AT THAT DISTANCE, over both sides of the
+					# row and the row above and below it. Taking the first pixel
+					# found instead reads a DITHER, which alternates two shades
+					# pixel by pixel, as whichever of them the left side happened to
+					# carry, and a crown dithered light over dark came back dark
+					# wherever the scan started dark.
+					if counts[away] == null:
+						counts[away] = {}
+					var tally: Dictionary = counts[away]
+					var key: int = atlas.color_of(tile, index).to_rgba32()
+					tally[key] = int(tally.get(key, 0)) + 1
+			for away: int in counts.size():
+				if counts[away] == null:
+					continue
+				var tally: Dictionary = counts[away]
+				var best: int = -1
+				for key: int in tally:
+					if best < 0 or int(tally[key]) > int(tally[best]):
+						best = key
+				found[away] = Color.hex(best)
+			# A distance the drawing has nothing at takes the last one inside it,
+			# and the innermost gap takes the first one outside it, so a ring is
+			# never grey where the drawing had a colour anywhere.
+			var carried: Variant = null
+			for away: int in found.size():
+				if found[away] == null:
+					found[away] = carried
+				else:
+					carried = found[away]
+			carried = null
+			for step: int in found.size():
+				var away: int = found.size() - 1 - step
+				if found[away] == null:
+					found[away] = carried
+				else:
+					carried = found[away]
+			for away: int in found.size():
+				ring.append(found[away] if found[away] != null else Color(0.5, 0.5, 0.5))
+		out.append(ring)
 	return out
 
 
@@ -419,6 +549,7 @@ func tree(measured: Measure) -> ArrayMesh:
 			float(vy - trunk_high) / float(maxi(crown_high - 1, 1)), 0.0, 1.0
 		)
 		_band = _band_at(measured, vy - trunk_high, crown_high)
+		_ring = _ring_at(measured, vy - trunk_high, crown_high)
 		for vz: int in wide:
 			for vx: int in wide:
 				if solid[(vy * wide + vz) * wide + vx] == EMPTY:
@@ -466,6 +597,20 @@ func _band_at(measured: Measure, up: int, crown_high: int) -> Color:
 	return measured.bands[at]
 
 
+## The drawing's colours ACROSS the same profile row `_radius` reads the width
+## off, so a ring and the width it paints belong to each other.
+func _ring_at(measured: Measure, up: int, crown_high: int) -> PackedColorArray:
+	if measured.rings.is_empty():
+		return PackedColorArray()
+	var rows: int = measured.rings.size()
+	var at: int = clampi(
+		int(round(float(crown_high - 1 - up) * float(rows - 1)
+			/ float(maxi(crown_high - 1, 1)))),
+		0, rows - 1
+	)
+	return measured.rings[at]
+
+
 func _hash(x: int, y: int, z: int) -> float:
 	var value: float = sin(float(x) * 12.9898 + float(y) * 78.233 + float(z) * 37.719) \
 		* 43758.5453
@@ -489,6 +634,21 @@ func _faces(
 	for above: int in range(vy + 1, tall):
 		if solid[(above * wide + vz) * wide + vx] != EMPTY:
 			sky += 1
+	# How enclosed the voxel is, out of the twenty-six around it, and how far out
+	# from the axis it stands. Neither is wanted by the rule that is in today, and
+	# both are counted here rather than in `_tone` because they are facts about the
+	# voxel and `_tone` is asked six times for it. See the `style` switch.
+	var near: int = 0
+	if style == LIT:
+		for dy: int in range(maxi(vy - 1, 0), mini(vy + 2, tall)):
+			for dz: int in range(maxi(vz - 1, 0), mini(vz + 2, wide)):
+				for dx: int in range(maxi(vx - 1, 0), mini(vx + 2, wide)):
+					if solid[(dy * wide + dz) * wide + dx] != EMPTY:
+						near += 1
+		near -= 1
+	var out: float = float(vx - reach)
+	var deep: float = float(vz - reach)
+	var plan: float = sqrt(out * out + deep * deep)
 	for side: Vector3i in SIDES:
 		var nx: int = vx + side.x
 		var ny: int = vy + side.y
@@ -502,7 +662,7 @@ func _faces(
 		var origin := Vector3(
 			float(vx - reach) * _voxel, float(vy) * _voxel, float(vz - reach) * _voxel
 		)
-		_quad(origin, side, _tone(measured, fill, side, sky))
+		_quad(origin, side, _tone(measured, fill, side, sky, plan, near))
 
 
 ## THE DRAWING'S OWN SHADING RULE, IN THREE DIMENSIONS.
@@ -518,8 +678,15 @@ func _faces(
 ## couple of voxels of canopy standing over it. The result is the sprite's own
 ## palette arranged by exposure, which is what it was arranged by in the first
 ## place.
-func _tone(measured: Measure, fill: int, side: Vector3i, sky: int) -> Color:
+func _tone(
+	measured: Measure, fill: int, side: Vector3i, sky: int, plan: float, near: int
+) -> Color:
 	var palette: PackedColorArray = measured.bark if fill == BARK else measured.tones
+	# A ROCK is painted by band and keeps the reading it was measured with,
+	# whatever the crown styles are being compared at.
+	if style != KEPT and fill == LEAF and not measured.rock \
+			and not measured.shades.is_empty():
+		palette = measured.shades
 	if palette.is_empty():
 		return Color(0.3, 0.5, 0.25)
 	# A ROCK IS PAINTED BY BAND, not by exposure: see `_bands`. What is left of the
@@ -528,7 +695,7 @@ func _tone(measured: Measure, fill: int, side: Vector3i, sky: int) -> Color:
 	if measured.rock:
 		if side.y >= 0:
 			return _band
-		return palette[clampi(_ladder(measured, _band) + 1, 0, palette.size() - 1)]
+		return palette[clampi(_ladder(palette, _band) + 1, 0, palette.size() - 1)]
 	# A SHRUB STARTS A STEP DARKER, because exposure alone reads it wrong. The
 	# rule spends the palette on how much stands over a face, and almost nothing
 	# stands over a thing seven voxels tall: every top face takes the lightest
@@ -539,6 +706,10 @@ func _tone(measured: Measure, fill: int, side: Vector3i, sky: int) -> Color:
 	# on top and shaded down its side, which is the exposure rule already, so it
 	# takes the tree's own reading rather than the shrub's correction to it.
 	var dark_mass: bool = measured.shrub and not measured.rock
+	if style == TURNED and fill == LEAF:
+		return _turned(measured, palette, side, plan, dark_mass)
+	if style == LIT:
+		return _lit(palette, side, sky, near, dark_mass)
 	var step: int = 1 if dark_mass else 0
 	if side.y > 0:
 		# A shrub's top is not lightened, only its sides are darkened. Lightening
@@ -552,11 +723,63 @@ func _tone(measured: Measure, fill: int, side: Vector3i, sky: int) -> Color:
 	return palette[clampi(step, 0, palette.size() - 1)]
 
 
-## Where a colour sits on the drawing's own ladder of shades, lightest first, so
-## a band can be stepped down from without leaving the cartridge's palette.
-func _ladder(measured: Measure, colour: Color) -> int:
-	for at: int in measured.tones.size():
-		if measured.tones[at].is_equal_approx(colour):
+## TURNED. The colour the drawing has at this row, this far out from its centre,
+## and then the one thing a flat drawing cannot say: which way the face points.
+##
+## The ring is the whole of the reading, so the step either way is a single rung
+## and no more. Spending more than that on the face would be the exposure rule
+## again, on top of a colour that already came from where the artist put it.
+func _turned(
+	measured: Measure, palette: PackedColorArray, side: Vector3i, plan: float,
+	dark_mass: bool
+) -> Color:
+	var ring: PackedColorArray = _ring
+	if ring.is_empty():
+		ring = palette
+	var colour: Color = ring[clampi(int(round(plan * _voxel)), 0, ring.size() - 1)]
+	var step: int = _ladder(palette, colour)
+	if side.y > 0 and not dark_mass:
+		step -= 1
+	elif side.y < 0:
+		step += 1
+	return palette[clampi(step, 0, palette.size() - 1)]
+
+
+## LIT. The palette spent on how much of the sky a face can see, counted over the
+## voxels AROUND it rather than the column above it, and mixed between rungs.
+##
+## Two things it answers that stepping by the column does not. A voxel deep in
+## the middle of a crown has as much sky over it as one at the edge of the same
+## row, so the whole rim of a wide tree took the same tone as its middle; and a
+## drawing with two shades in it had two tones to spend however deep the body
+## went, which is what makes a big crown read flat.
+##
+## Mixing is the one thing here that puts a colour on the model the cartridge did
+## not draw. It stays between two of the drawing's own shades and never outside
+## them, and it is exactly what the reviewer is being asked to accept or refuse.
+func _lit(
+	palette: PackedColorArray, side: Vector3i, sky: int, near: int, dark_mass: bool
+) -> Color:
+	var rung: float = 1.0 if dark_mass else 0.0
+	if side.y > 0:
+		rung -= 0.5
+	elif side.y < 0:
+		rung += 0.6
+	rung += float(sky) * 0.5
+	# Out of the twenty-six voxels around it, so a face on an open rim is lighter
+	# than one in a hollow with the same sky over it.
+	rung += float(near) / 26.0 * 1.6
+	var top: int = palette.size() - 1
+	var at: float = clampf(rung, 0.0, float(top))
+	var low: int = int(floorf(at))
+	return palette[low].lerp(palette[mini(low + 1, top)], at - float(low))
+
+
+## Where a colour sits on a ladder of shades, lightest first, so a band or a ring
+## can be stepped down from without leaving the cartridge's palette.
+func _ladder(palette: PackedColorArray, colour: Color) -> int:
+	for at: int in palette.size():
+		if palette[at].is_equal_approx(colour):
 			return at
 	return 0
 

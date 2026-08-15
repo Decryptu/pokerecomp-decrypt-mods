@@ -14,7 +14,12 @@ extends SceneTree
 ## stools when they are the question.
 ##
 ##   Godot --path <pokerecomp> -s tools/foliage.gd -- <cache> <out dir> \
-##       [classes] [pitch] [bearing]
+##       [classes] [pitch] [bearing] [colour style]
+##
+## The STYLE is `shape/model.gd`'s own switch, by name, and it is how the
+## propositions for how a drawing's colours should be spent are compared: run
+## the tool once per style into its own directory and lay the strips out with
+## `tools/foliage_sheet.py`.
 ##
 ## Writes `foliage_2d.png`, `foliage_3d.png` and `foliage.json`, whose slots are
 ## the same width in both, so `tools/foliage_sheet.py` can number one column
@@ -59,6 +64,18 @@ func _initialize() -> void:
 		wanted[StringName(word.strip_edges())] = true
 	var pitch: float = deg_to_rad(float(args[3]) if args.size() > 3 else 30.0)
 	var bearing: float = deg_to_rad(float(args[4]) if args.size() > 4 else 35.0)
+	var style: String = (args[5] if args.size() > 5 else "kept").to_upper()
+	var model_script: GDScript = load("%s/shape/model.gd" % MOD)
+	var styles: Dictionary = {}
+	for name_of: String in ["KEPT", "DEEP", "TURNED", "LIT"]:
+		styles[name_of] = int(model_script.get(name_of))
+	if not styles.has(style):
+		print("no colour style ", style, ", one of ", styles.keys())
+		quit(1)
+		return
+	# The switch is on the SCRIPT, so it reaches the models the mesher builds
+	# without the mesher knowing there is a question. See `model.gd:style`.
+	model_script.style = styles[style]
 
 	var found: Array = _census(data, wanted)
 	if found.is_empty():
@@ -97,6 +114,7 @@ func _initialize() -> void:
 		"sheet_height": SHEET_HEIGHT,
 		"pitch": rad_to_deg(pitch),
 		"bearing": rad_to_deg(bearing),
+		"style": style,
 		"slots": slots,
 	}
 	var file: FileAccess = FileAccess.open("%s/foliage.json" % _out, FileAccess.WRITE)
@@ -308,14 +326,37 @@ func _stand_3d(
 	)
 
 
+## Six frames is `tools/shot.gd`'s own number and it is enough for the viewport
+## to have drawn, EXCEPT WHEN THE MACHINE IS BUSY: two of four styles came back
+## as a pure black frame, with no error anywhere, while another process was
+## importing a cartridge. A blank sheet is not a picture of anything and it looks
+## exactly like a rendering fault in the thing being judged, so the shutter waits
+## for the frame to have something in it rather than for a count of frames.
+const HOLD: int = 6
+const GIVE_UP: int = 240
+
+
 func _process(_delta: float) -> bool:
 	if _stage == null:
 		return true
 	_frames += 1
-	# Six is enough for the viewport to have drawn and for the atlas to have
-	# landed, which is `tools/shot.gd`'s own number.
-	if _frames < 6:
+	if _frames < HOLD:
 		return false
-	_stage.viewport.get_texture().get_image().save_png("%s/foliage_3d.png" % _out)
-	print("%s/foliage_3d.png" % _out)
+	var shot: Image = _stage.viewport.get_texture().get_image()
+	if _frames < GIVE_UP and _blank(shot):
+		return false
+	shot.save_png("%s/foliage_3d.png" % _out)
+	print("%s/foliage_3d.png" % _out, " after ", _frames, " frames")
+	return true
+
+
+## Whether nothing has been drawn yet. The stage is never black: the floor fills
+## the frame and the void behind it is this tool's own dark field.
+func _blank(shot: Image) -> bool:
+	for at: Vector2i in [
+		Vector2i(2, 2), shot.get_size() / 2, shot.get_size() - Vector2i(3, 3)
+	]:
+		var pixel: Color = shot.get_pixel(at.x, at.y)
+		if pixel.r + pixel.g + pixel.b > 0.02:
+			return false
 	return true

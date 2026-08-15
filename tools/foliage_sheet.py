@@ -10,10 +10,16 @@ in both sheets, and says what each one is.
 The number is the whole point, as it is on the survey sheet: an answer is
 "3 is too dark", never a description of which bush was meant.
 
-    foliage_sheet.py <foliage dir> [columns]
+    foliage_sheet.py <foliage dir> [more dirs ...] [--columns N] [--slots a,b,c]
 
 Reads `foliage.json` and writes `foliage_2d_sheet.png` and
-`foliage_3d_sheet.png` beside it. Needs Pillow.
+`foliage_3d_sheet.png` beside it.
+
+GIVEN MORE THAN ONE DIRECTORY it writes `foliage_compare.png` instead: the
+cartridge's own drawing on the top row and each directory's render under it,
+one row per colour style, the same drawing down each column. That is the form
+a question about colour has to take, since every one of these is defensible on
+its own and only the comparison decides. Needs Pillow.
 """
 
 import json
@@ -82,12 +88,79 @@ def sheet(strip, manifest, columns, title):
     return out
 
 
+# What each style of `shape/model.gd` does, in one line, for the comparison's
+# own row heading. The names are the enum's.
+STYLES = {
+    "KEPT": "what is in today: the drawing's shades MINUS its darkest, "
+            "spent on exposure",
+    "DEEP": "the darkest shade KEPT, and spent only where the body is deepest",
+    "TURNED": "the drawing's own colour AT THAT ROW and that distance from "
+              "the centre, turned with the shape",
+    "LIT": "spent on how much SKY a face sees, counted over the voxels around "
+           "it, and mixed between the drawing's shades",
+}
+BAR = 30
+
+
+def compare(dirs, slots_wanted):
+    """One drawing down each column, the art on top and a style per row."""
+    first = json.loads((dirs[0] / "foliage.json").read_text())
+    width = first["slot_pixels"]
+    height = first["sheet_height"]
+    slots = first["slots"]
+    picked = slots_wanted or list(range(len(slots)))
+    rows = [("the cartridge's own drawing",
+             Image.open(dirs[0] / "foliage_2d.png").convert("RGB"))]
+    for at in dirs:
+        manifest = json.loads((at / "foliage.json").read_text())
+        style = manifest.get("style", at.name.upper())
+        rows.append(("%s   %s" % (style, STYLES.get(style, "")),
+                     Image.open(at / "foliage_3d.png").convert("RGB")))
+    band = height + BAR
+    out = Image.new("RGB", (len(picked) * width, len(rows) * band + BAR), BACK)
+    g = ImageDraw.Draw(out)
+    face = font(14)
+    small = font(12)
+    number = font(19)
+    for row, (title, strip) in enumerate(rows):
+        y = row * band
+        g.text((PAD, y + 8), title, font=face, fill=INK)
+        for column, at in enumerate(picked):
+            x = column * width
+            out.paste(strip.crop((at * width, 0, (at + 1) * width, height)),
+                      (x, y + BAR))
+            g.line([(x, y), (x, y + band)], fill=RULE)
+    for column, at in enumerate(picked):
+        slot = slots[at]
+        x = column * width
+        g.text((x + PAD, len(rows) * band + 4), str(at), font=number, fill=INK)
+        g.text((x + PAD + 26, len(rows) * band + 8),
+               "ts%d  %s" % (slot["tileset"], slot["class"]), font=small, fill=DIM)
+    return out
+
+
 def main(argv):
     if len(argv) < 2:
         print(__doc__)
         return 1
-    here = pathlib.Path(argv[1])
-    columns = int(argv[2]) if len(argv) > 2 else COLUMNS
+    dirs = []
+    columns = COLUMNS
+    picked = []
+    rest = argv[1:]
+    while rest:
+        word = rest.pop(0)
+        if word == "--columns":
+            columns = int(rest.pop(0))
+        elif word == "--slots":
+            picked = [int(n) for n in rest.pop(0).split(",")]
+        else:
+            dirs.append(pathlib.Path(word))
+    if len(dirs) > 1:
+        out = dirs[0] / "foliage_compare.png"
+        compare(dirs, picked).save(out)
+        print(out)
+        return 0
+    here = dirs[0]
     manifest = json.loads((here / "foliage.json").read_text())
     for kind, title in (
         ("2d", "the cartridge's own drawing"),

@@ -8,7 +8,11 @@ extends SceneTree
 ##
 ##   Godot --path <pokerecomp> -s tools/shot.gd -- <cache> <group> <number> \
 ##       <tile x> <tile y> <out.png> [pitch] [back] [time 0-3] [sky] [hold]
-##       [bearing]
+##       [bearing] [colour style]
+##
+## The STYLE is `shape/model.gd`'s own switch, by name, and it is here for the
+## same reason `tools/foliage.gd` has it: a model judged on a plain floor is not
+## judged, and this is what puts a proposition in the wood it will be seen in.
 ##
 ## HOLD is how many frames to run before the shutter, and it is how MOTION is
 ## photographed: everything that moves in this view moves on the shader clock, so
@@ -54,6 +58,15 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
+
+	if args.size() > 12:
+		var model_script: GDScript = load("%s/shape/model.gd" % MOD)
+		var style: String = args[12].to_upper()
+		if model_script.get(style) == null:
+			print("no colour style ", style)
+			quit(1)
+			return
+		model_script.style = int(model_script.get(style))
 
 	var atlas: RefCounted = (load("%s/shape/atlas.gd" % MOD) as GDScript).new()
 	var mesher: RefCounted = (load("%s/shape/mesher.gd" % MOD) as GDScript).new()
