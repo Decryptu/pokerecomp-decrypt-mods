@@ -873,6 +873,31 @@ const OBJECTS: Dictionary = {
 			&"depth": 3,
 			&"height": 16,
 		},
+		# THE LEAGUE'S CARVED GOLD PILLAR, two of them either side of the door, and
+		# it is the last of the `stand` tail that a picture showed wrong. A round
+		# column two tiles wide and FOUR tall, its capital carved and its foot in a
+		# dark base ring on the cream courtyard.
+		#
+		# A CELL CUT IT IN HALF AND THE FALLBACK REVOLVED EACH HALF, so what stood
+		# was two drums of different widths, one on the other, a walk cell of pillar
+		# where four tiles are drawn. `SPANS` cannot reach it: the shaft is drawn
+		# out of one pair of ids repeated down two cells, so the box a placement
+		# tests is the shaft alone and the capital above it belongs to the rows
+		# `stand` had already cut away. An arrangement of ids has no such trouble,
+		# and the repeat is what identifies this drawing rather than what defeats
+		# it.
+		#
+		# It is TURNED, being a column, and it stands the 32 rows it is drawn: a
+		# pillar is a vertical thing seen face-on, so the drawing states its height
+		# as honestly as its width, which is the Bell Tower's own reading at a
+		# smaller size.
+		{
+			&"name": &"pillar",
+			&"tiles": [[193, 194], [195, 196], [197, 198], [197, 198]],
+			&"window": Rect2i(0, 0, 16, 32),
+			&"height": 32,
+			&"model": true,
+		},
 	],
 	22: [
 		# A LOW PADDED SEAT, 2x2 tiles, standing in rows on the carpet of the big
@@ -1455,9 +1480,18 @@ const FRONTS: Dictionary = {
 ## where the platform meets the pale ground beyond".
 const LIPS: Dictionary = {
 	3: [1],
+	# THE NORTH RIM OF THE ROUTE SHELF, and it is the fourth side of every rock
+	# patch in the game. The pass reads it as what a lip is: "the top lip of the
+	# raised brown rock shelf, drawn from ABOVE, looking down onto the rim". Its
+	# class is `ledge`, which stands it a flat 8 px band whatever the rock behind
+	# it does, so left out of this table it was the one side of a patch that took
+	# neither the shelf's own height nor the ring's slope. Blackthorn's 22 patches
+	# came out ramped on three sides and stepped along the north.
+	1: [44],
 }
 
-## THE TWO TILES THAT DRAW A FENCE FACE-ON, top row first, per tileset number.
+## THE TILES THAT DRAW A FENCE FACE-ON, as ROWS of tile ids, top row first and
+## each row left to right, per tileset number.
 ##
 ## A fence runs both ways and the cartridge draws the two runs differently: the
 ## one going ACROSS is a portrait of the fence, posts and rails seen from the
@@ -1466,17 +1500,28 @@ const LIPS: Dictionary = {
 ## the one the model is read from and the same model is turned to serve the other,
 ## which is the reviewer's own instruction: "just do the same normal fence model".
 ##
-## Everything else about the shape is read off these two tiles and nothing is
+## THE PERIOD IS THE DRAWING'S, NOT THE TILE'S, which is what the rows are for. A
+## fence whose posts come one per tile is one tile wide and is laid down twice
+## across a walk cell; the National Park's arch is a 16 px drawing whose apex
+## sits on the seam between two tiles, and cutting it at that seam and repeating
+## either half would build two half arches back to back. A row as wide as the
+## cell is laid down once.
+##
+## Everything else about the shape is read off these tiles and nothing is
 ## authored: how tall it stands, where its posts are, how thick its rails are and
-## where the gaps between them are. `mesher.gd:_fence_mask` has the two rules
-## that reading needs.
+## where the gaps between them are. `mesher.gd:_fence_profile` has the rules that
+## reading needs.
 const FENCES: Dictionary = {
 	# The white fence round Ecruteak's yards: 90 is the post top and the upper
 	# rail, 89 the shafts, the foot and the shadow under it.
-	1: [90, 89],
+	1: [[90], [89]],
 	# Goldenrod's street railing, the same drawing at the same two ids on the city
 	# tileset: 178 tiles of it on three maps.
-	2: [90, 89],
+	2: [[90], [89]],
+	# THE NATIONAL PARK'S WOODEN FENCE, and it is the drawing the two-tile period
+	# exists for: an arched top over a solid rail, drawn as a 16 px pair with the
+	# arch's apex on the tile seam. 35 and 36 are the arch, 51 and 52 the rail.
+	25: [[35, 36], [51, 52]],
 }
 
 
@@ -1711,6 +1756,21 @@ const TILESETS: Dictionary = {
 	1: {
 		# The paving in front of the mart door, walked on and drawn flat.
 		&"ground": [154],
+		# THE CAVE MOUTH, and it was lying on the floor. Two tiles by two of black
+		# opening cut into the foot of the rock, which the pass reads four times
+		# over as "drawn FACE-ON as an opening in the cliff face, part of a doorway
+		# two tiles wide and two tall". `CLIFFS` has listed it from the start and
+		# that pin could never fire: a cliff has to be a VOLUME first, and the cell
+		# is walked into, so the collision resolved it to floor and the arch was
+		# painted flat on the ground in a gap in the rock.
+		#
+		# A DOORWAY IS DRAWN STANDING EVEN THOUGH IT IS WALKED THROUGH, which is
+		# the reviewer's own rule for the houses: "it should also be vertical
+		# facing texture, but player just walk through it since no collision".
+		# Standing, it joins the rock structure and takes the rock's own height and
+		# the rim's own slope, which is what they asked for: "make it a vertical
+		# wall and use same degree as adjacent wall".
+		&"wall": [70, 71, 86, 87],
 		# THE WHITE FENCE round the yards, and it is three tiles for two runs: 90
 		# over 89 is the run drawn face-on going ACROSS, and 74 is the run going
 		# AWAY, drawn as a line from above with its shadow beside it. All three
@@ -1834,6 +1894,15 @@ const TILESETS: Dictionary = {
 		],
 		# The meadow flower, the same id and the same drawing as tileset 1's.
 		&"flower": [3],
+		# THE NATIONAL PARK'S WOODEN FENCE, the last drawing in the game a fence
+		# was owed. Both runs of it take the class and `mesher.gd:_fence` builds
+		# the same model for each, turned to whichever way the run goes: 35 and 36
+		# over 51 and 52 is the run drawn face-on going ACROSS, an arch on four
+		# pickets over a solid rail, with 37 and 38 over 53 and 54 the same thing
+		# where the run ends; 5 with the post column 27, 67 and 83 beside it is
+		# the run going AWAY, drawn from above, and 43 is the beam where the two
+		# meet at a corner.
+		&"fence": [5, 27, 35, 36, 37, 38, 43, 51, 52, 53, 54, 67, 83],
 		# THE NATIONAL PARK'S BIN, and it was drawn NOWHERE AT ALL. A round grey
 		# vessel with a dark hollow in its top, one walk cell over four tiles,
 		# standing on the paving beside the benches; five placements on three maps.
@@ -2107,8 +2176,8 @@ static func pinned_class(tileset_number: int, tile: int) -> StringName:
 	return PASS.pinned_class(tileset_number, tile)
 
 
-## The two tiles a fence is modelled from, or an empty array where a tileset
-## draws none. Ordered top row first.
+## The rows of tiles a fence is modelled from, or an empty array where a tileset
+## draws none. Ordered top row first, each row left to right.
 static func fence_face(tileset_number: int) -> Array:
 	var tiles: Variant = FENCES.get(tileset_number, null)
 	return tiles as Array if tiles is Array else []

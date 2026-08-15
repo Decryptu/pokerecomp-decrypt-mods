@@ -64,21 +64,33 @@ func _initialize() -> void:
 		return String(names.get(int(mesher._klass[at]), "?")).substr(0, 4))
 	_grid(mesher, box, "HEIGHT, world pixels", func(at: int) -> String:
 		return str(int(mesher._heights[at])))
+	# THE CORNERS ARE WHAT A SLOPE IS. A height is one number per tile and says
+	# nothing about a rim that ramps, so a patch built as a box and one built as a
+	# frustum print the same height grid: the four corners are what tell them
+	# apart, and a flat tile prints its own height four times.
+	_grid(mesher, box, "CORNERS nw/ne/sw/se, world pixels", func(at: int) -> String:
+		var corners: PackedStringArray = PackedStringArray()
+		for corner: int in 4:
+			corners.append(str(int(mesher._corners[at * 4 + corner])))
+		return "/".join(corners)
+	, 12)
 	quit()
 
 
 ## One grid, five columns wide a cell, with the map's own tile numbers on the
 ## top and the left: a reading of it has to be pointable at in the same words
 ## the numbered art uses.
-func _grid(mesher: RefCounted, box: Rect2i, title: String, cell: Callable) -> void:
+func _grid(
+	mesher: RefCounted, box: Rect2i, title: String, cell: Callable, wide: int = 5
+) -> void:
 	print("\n", title)
 	var header: String = "     "
 	for tx: int in range(box.position.x, box.end.x):
-		header += "%5d" % tx
+		header += ("%" + str(wide) + "d") % tx
 	print(header)
 	for ty: int in range(box.position.y, box.end.y):
 		var line: String = "%4d " % ty
 		for tx: int in range(box.position.x, box.end.x):
 			var at: int = mesher.grid_index(Vector2i(tx, ty))
-			line += "%5s" % (cell.call(at) if at >= 0 else "-")
+			line += ("%" + str(wide) + "s") % (cell.call(at) if at >= 0 else "-")
 		print(line)
