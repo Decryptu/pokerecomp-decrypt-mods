@@ -3445,11 +3445,29 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 		return
 	var top_rows: int = clampi(int(object.get(&"top", 0)), 0, window.size.y)
 	var face_rows: int = window.size.y - top_rows
+	# A DRAWING'S LAST ROWS ARE NOT ALWAYS DRAWN. The face band is authored as
+	# whole tiles, so its bottom row is often the shadow under the thing rather
+	# than the thing, and a face laid over the whole band stops short of the floor:
+	# the two benches stood a couple of pixels in the air with the lino visible
+	# under them. `foot` maps the band's DRAWN extent onto the height instead, so
+	# the drawing reaches the ground whatever the tiles hold below it.
+	var face_from: int = window.position.y + top_rows
+	var face_until: int = window.position.y + window.size.y
+	if bool(object.get(&"foot", false)):
+		var reach: Vector2i = _drawn_rows(mask, span, window, face_from, face_until)
+		if reach.y > reach.x:
+			face_from = reach.x
+			face_until = reach.y
+			face_rows = face_until - face_from
 	var deep: float = float(object[&"depth"])
 	var tall: float = float(object[&"height"])
 	# ONE ground for the whole thing, taken at the drawing's own foot. Reading it
 	# per tile would tilt an object that stands across two of them.
 	var base: float = float(_ground_art(start.x, start.y + across.y - 1).y)
+	# UNLESS IT STANDS ON SOMETHING. A terminal on a bench meets the bench and not
+	# the floor, and nothing in a drawing seen from above says how high the thing
+	# under it is: the object that IS the bench says, and this is where it is spent.
+	base += float(object.get(&"rise", 0))
 	# The drawing's bottom row is where the thing meets the floor, so it is also
 	# its NEAR edge in plan: a 2.5D drawing puts the front-bottom corner there and
 	# everything else behind it.
@@ -3470,10 +3488,10 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 	taken.resize(window.size.x * window.size.y)
 	for row: int in window.size.y:
 		var py: int = window.position.y + row
-		var above: bool = row < top_rows
+		var above: bool = py < face_from
 		var down_stop: int = mini(
 			((py / int(TILE)) + 1) * int(TILE) - window.position.y,
-			top_rows if above else window.size.y
+			face_from - window.position.y if above else window.size.y
 		)
 		var px: int = window.position.x
 		while px < window.position.x + window.size.x:
@@ -3512,8 +3530,8 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 				far = back + deep * float(row) / float(top_rows)
 				near = back + deep * float(row + deep_rows) / float(top_rows)
 			else:
-				far = high - tall * float(row - top_rows) / float(face_rows)
-				near = high - tall * float(row - top_rows + deep_rows) / float(face_rows)
+				far = high - tall * float(py - face_from) / float(face_rows)
+				near = high - tall * float(py - face_from + deep_rows) / float(face_rows)
 			@warning_ignore("integer_division")
 			var tile: int = int(tiles[(py / int(TILE)) * across.x + px / int(TILE)])
 			var uv: Rect2 = atlas.uv_box(
@@ -3535,10 +3553,16 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 				)
 			px = run
 
-	if bool(object.get(&"wrap", false)):
+	if bool(object.get(&"wrap", false)) or bool(object.get(&"box", false)):
+		var ends := Rect2()
+		if bool(object.get(&"box", false)):
+			ends = _bin_texel(
+				atlas, tiles, across, mask, span, window,
+				window.position.y, window.position.y + top_rows, -1
+			)
 		_object_wrap(
-			atlas, tiles, across, mask, span, window, top_rows,
-			left, right, front, back, base, high
+			atlas, tiles, across, mask, span, window, face_from, face_rows,
+			left, right, front, back, base, high, ends
 		)
 		return
 	var side: Rect2 = _object_texel(
@@ -3658,9 +3682,11 @@ func _object_bin(
 		atlas, tiles, across, mask, span, window,
 		window.position.y + top_rows, window.position.y + window.size.y, body_index
 	)
-	var band_row: int = _bin_band_row(
-		atlas, tiles, across, mask, span, window, top_rows, face_rows, body_index
-	)
+	# ROUND THE MIDDLE, which is the reviewer's own placement of it. Read off the
+	# drawing the line lands wherever the strongest run of the second shade happens
+	# to be, and on this can that is the row under the rim, where it is the rim.
+	@warning_ignore("integer_division")
+	var band_row: int = face_rows / 2
 	var mouth: Rect2 = _bin_texel(
 		atlas, tiles, across, mask, span, window,
 		window.position.y, window.position.y + top_rows, -1
@@ -3698,11 +3724,14 @@ func _object_bin(
 	for segment: int in BIN_SEGMENTS:
 		var d0: Vector2 = _bin_ray(float(segment) * step)
 		var d1: Vector2 = _bin_ray(float(segment + 1) * step)
+		# OUTER EDGE FIRST. Wound the other way the lip faces down, is culled from
+		# above, and the two cylinders stand side by side with a slot between them
+		# that is nothing at all: a bin with no rim, seen straight into.
 		_quad(
-			_bin_point(centre, d0, lip - BIN_WALL, high),
-			_bin_point(centre, d1, lip - BIN_WALL, high),
-			_bin_point(centre, d1, lip, high),
 			_bin_point(centre, d0, lip, high),
+			_bin_point(centre, d1, lip, high),
+			_bin_point(centre, d1, lip - BIN_WALL, high),
+			_bin_point(centre, d0, lip - BIN_WALL, high),
 			Vector3.UP, band, SHADE_TOP_FLAT
 		)
 		_tri(
@@ -3808,35 +3837,6 @@ func _bin_index(
 	return _bin_best(counts, besides)
 
 
-## Which body row the band is DRAWN on: the one the band's own shade covers most
-## of. One row of the drawing is one row of the model, so the line comes out where
-## the cartridge put it.
-func _bin_band_row(
-	atlas: RefCounted, tiles: Array, across: Vector2i, mask: PackedByteArray,
-	span: Vector2i, window: Rect2i, top_rows: int, face_rows: int, body: int
-) -> int:
-	var best: int = -1
-	var most: int = 0
-	# FROM THE SECOND ROW DOWN. The body's top row is the wall of the can seen
-	# immediately under its own rim and is drawn in the rim's own shade, so it wins
-	# this every time and the line comes out under the lip, where it is the lip.
-	for row: int in range(1, face_rows):
-		var py: int = window.position.y + top_rows + row
-		var counts: Dictionary = {}
-		var spot: Dictionary = {}
-		_bin_tally(
-			atlas, tiles, across, mask, span, window, py, py + 1, counts, spot
-		)
-		var here: int = 0
-		for index: int in counts:
-			if index != body:
-				here += int(counts[index])
-		if here > most:
-			most = here
-			best = row
-	return best
-
-
 func _bin_tally(
 	atlas: RefCounted, tiles: Array, across: Vector2i, mask: PackedByteArray,
 	span: Vector2i, window: Rect2i, from_row: int, to_row: int,
@@ -3864,6 +3864,26 @@ func _bin_best(counts: Dictionary, besides: int) -> int:
 		if best < 0 or int(counts[index]) > int(counts[best]):
 			best = index
 	return best
+
+
+## The first row the drawing draws anything on and the row after the last, within
+## the band asked about. An empty band answers with the band itself.
+func _drawn_rows(
+	mask: PackedByteArray, span: Vector2i, window: Rect2i, from_row: int, to_row: int
+) -> Vector2i:
+	var first: int = -1
+	var last: int = -1
+	for py: int in range(from_row, to_row):
+		for px: int in range(window.position.x, window.position.x + window.size.x):
+			if not _drawn(mask, span, px, py):
+				continue
+			if first < 0:
+				first = py
+			last = py
+			break
+	if first < 0:
+		return Vector2i(from_row, to_row)
+	return Vector2i(first, last + 1)
 
 
 ## The runs of one row of an object's FACE that the drawing actually draws, cut at
@@ -3905,19 +3925,34 @@ func _face_runs(
 ## invented and nothing is stretched.
 func _object_wrap(
 	atlas: RefCounted, tiles: Array, across: Vector2i, mask: PackedByteArray,
-	span: Vector2i, window: Rect2i, top_rows: int,
+	span: Vector2i, window: Rect2i, face_from: int, face_rows: int,
 	left: float, right: float, front: float, back: float,
-	base: float, high: float
+	base: float, high: float, ends: Rect2
 ) -> void:
-	var face_rows: int = window.size.y - top_rows
 	if face_rows <= 0:
 		return
 	var tall: float = high - base
 	var window_left: int = window.position.x
 	var window_right: int = window.position.x + window.size.x
 	var deep: int = int(roundf(front - back))
+	# A BOX'S ENDS ARE NOT ITS FRONT. A bookcase carries its shelves on the front
+	# and the back and nothing on the sides, so its ends wear one texel of the top
+	# the cartridge draws it with, and the strip-of-the-face rule that turns a
+	# desk's leg round the corner would put half a shelf there instead.
+	var plain: bool = ends.size != Vector2.ZERO
+	if plain:
+		_quad(
+			Vector3(right, base, front), Vector3(right, base, back),
+			Vector3(right, high, back), Vector3(right, high, front),
+			Vector3(1.0, 0.0, 0.0), ends, SHADE_SIDE
+		)
+		_quad(
+			Vector3(left, base, back), Vector3(left, base, front),
+			Vector3(left, high, front), Vector3(left, high, back),
+			Vector3(-1.0, 0.0, 0.0), ends, SHADE_SIDE
+		)
 	for row: int in face_rows:
-		var py: int = window.position.y + top_rows + row
+		var py: int = face_from + row
 		var high_y: float = high - tall * float(row) / float(face_rows)
 		var low_y: float = high - tall * float(row + 1) / float(face_rows)
 		for entry: Array in _face_runs(tiles, across, mask, span, window, py):
@@ -3937,6 +3972,8 @@ func _object_wrap(
 			# The west end takes the drawing's first `deep` pixels, laid from the
 			# front corner backwards, and the east end its last, the same way. A run
 			# outside that strip is not on this end at all.
+			if plain:
+				continue
 			var west_from: int = maxi(px, window_left)
 			var west_to: int = mini(run, window_left + deep)
 			if west_to > west_from:
@@ -6032,7 +6069,14 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		_sink = SINK_TERRAIN
 		return
 	var tilted: bool = _tilted(at)
-	if tilted:
+	# THE NEAR WALL KEEPS ITS TOP AND IT IS THE ONE THING OF IT LEFT. Its faces are
+	# culled away, so what a camera to the south sees of the room's south wall is a
+	# cream band lying across the bottom of the frame with nothing under it. The
+	# top of a wall is only worth drawing on the walls that are still there.
+	if not _room.is_empty() and _room[at] == ROOM_SHELL \
+			and ty >= _size.y - _margin.y:
+		_sink = SINK_TERRAIN
+	elif tilted:
 		_face_roof(tx, ty, atlas.uv(cap), SHADE_TOP_FLAT)
 	else:
 		_face_top(

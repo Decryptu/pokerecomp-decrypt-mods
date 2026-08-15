@@ -761,6 +761,49 @@ const OBJECTS: Dictionary = {
 			&"depth": 16,
 			&"height": 8,
 			&"wrap": true,
+			&"foot": true,
+		},
+		# THE TERMINAL ON OAK'S BENCH, and it is the one thing here that is a TRY
+		# rather than a reading. The cartridge draws it seen from above, so the
+		# bench's own top band carries it honestly and flat, and the question asked
+		# was whether it can be better than that. This stands the machine up on the
+		# bench as its own box: its own drawing face-on, its top repeated across its
+		# depth, and `rise` putting its foot on the bench rather than on the floor.
+		#
+		# THE FLAT ART UNDER IT STAYS. Two objects may cover one tile and both are
+		# drawn, and the bench cannot be told to leave a hole in its own top, so
+		# what is behind the standing machine is still the drawing lying down.
+		{
+			&"name": &"terminal",
+			&"tiles": [[10, 11], [26, 27]],
+			&"window": Rect2i(0, 0, 16, 15),
+			&"top": 0,
+			&"depth": 8,
+			&"height": 12,
+			&"rise": 8,
+			&"cap": 4,
+		},
+		# THE BOOKCASE, and there are twelve of them on this map in three groups of
+		# four, at 12,0 and 12,12 and 0,12. One is TWO TILES WIDE AND FOUR TALL and
+		# the reviewer read it out tile by tile: the top row is its flat top seen
+		# from above, and the three rows under it are its front, so it stands three
+		# tiles.
+		#
+		# A PLAIN BOX, which is the other half of what they said. Shelves are drawn
+		# on the front and the back and on neither end, so the back takes the face
+		# and the two ends take the top's own texture, which is what `box` is. Left
+		# to the resolver these were `wall`, measured off the column at four tile
+		# rows, so each stood a whole cell taller than it is and wore its shelves
+		# on all four sides.
+		{
+			&"name": &"bookcase",
+			&"tiles": [[5, 7], [3, 4], [3, 4], [53, 54]],
+			&"window": Rect2i(0, 0, 16, 32),
+			&"top": 8,
+			&"depth": 16,
+			&"height": 24,
+			&"box": true,
+			&"foot": true,
 		},
 		# THE BIN, an open cylinder and the only hollow thing in this file. Its
 		# drawing is 11 px across and 14 tall inside its two cells: seven rows of
@@ -772,7 +815,10 @@ const OBJECTS: Dictionary = {
 			&"window": Rect2i(2, 1, 11, 14),
 			&"top": 7,
 			&"depth": 11,
-			&"height": 14,
+			# EIGHT PIXELS, half a walk cell, and the reviewer's own measurement of
+			# it. The drawing is 14 rows tall on two cells, and stood up at its own
+			# row count the can came out waist high beside a bench 8 px tall.
+			&"height": 8,
 			&"bin": true,
 		},
 		# The long one the starters stand on, 48 wide and drawn with its own top.
@@ -788,6 +834,7 @@ const OBJECTS: Dictionary = {
 			&"depth": 16,
 			&"height": 8,
 			&"wrap": true,
+			&"foot": true,
 		},
 	],
 	17: [
