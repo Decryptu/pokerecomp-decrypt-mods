@@ -24,6 +24,14 @@ extends RefCounted
 ##   nearly all reflection and one seen from above is nearly all water, which is
 ##   what puts the bright band at the far shore and keeps the near water dark.
 ##
+##   THE SUN IS IN THE LAKE, hung BY ANGLE rather than by screen position, which
+##   is the reference's own arrangement and the reason it works at all here: the
+##   reflection of a sun 40 to 58 degrees up is usually off the top of the frame,
+##   so a mirror that only shows what the camera can see would show no sun at any
+##   hour. What is asked instead is how nearly this piece of water is tilted to
+##   bounce the sun into the eye, which is a fact about the swell and not about
+##   the frame, and the answer rides the waves as a moving band of glitter.
+##
 ##   THE SURFACE IS NOT FLAT. Two travelling waves cross it, and their gradient is
 ##   the normal every term above is then read through, so the light, the sky and
 ##   the glint all ride the swell. It is done in the FRAGMENT shader and moves no
@@ -65,6 +73,19 @@ const WAVE_SPEED_B: float = -4.5
 const REFLECT_LEAST: float = 0.10
 const REFLECT_MOST: float = 0.45
 
+## The sun's own disc in the water: how much of the light's colour the glint adds
+## at its brightest, and how tightly it is gathered.
+##
+## Both are held down deliberately. A specular lobe on water wants to be a hard
+## white star, and this is a Game Boy lake whose every other colour comes off the
+## cartridge's own palette: what is wanted is the glitter that says a surface is
+## tilting under a light, not a lens flare. The glint takes the SUN's colour
+## rather than white, so it deepens with the hour exactly as everything else in
+## the picture does, and it is scaled by the light's own energy, which is what
+## puts it out at night with nothing else to say so.
+const GLINT_STRENGTH: float = 0.30
+const GLINT_TIGHTNESS: float = 8.0
+
 const CODE: String = """
 shader_type spatial;
 render_mode specular_disabled, diffuse_lambert;
@@ -77,6 +98,10 @@ uniform vec2 wave_length;
 uniform vec2 wave_speed;
 uniform float reflect_least;
 uniform float reflect_most;
+uniform vec3 sun_direction;
+uniform vec3 sun_color : source_color;
+uniform float glint_strength;
+uniform float glint_tightness;
 
 // The surface's own height field, in world pixels, and its slope. Two travelling
 // waves crossing at an angle: one alone lays parallel bars across a lake.
@@ -109,7 +134,15 @@ void fragment() {
 	// which is the same ramp `world/sky.gd` paints and read the same way round.
 	vec3 sky = mix(horizon_color, zenith_color, facing);
 
-	ALBEDO = mix(water, sky, mirror);
+	// THE SUN'S DISC, off the half vector between the eye and the sun, which is
+	// the same question as "does this facet bounce the sun at me" and needs no
+	// screen-space anything. Both vectors are taken back into world space, since
+	// the swell's normal is authored there and the camera moves.
+	vec3 eye = normalize((INV_VIEW_MATRIX * vec4(VIEW, 0.0)).xyz);
+	vec3 half_way = normalize(sun_direction + eye);
+	float glint = pow(clamp(dot(tilted, half_way), 0.0, 1.0), glint_tightness);
+
+	ALBEDO = mix(water, sky, mirror) + sun_color * (glint * glint_strength);
 }
 """
 
@@ -130,6 +163,18 @@ func _init() -> void:
 	)
 	material.set_shader_parameter("reflect_least", REFLECT_LEAST)
 	material.set_shader_parameter("reflect_most", REFLECT_MOST)
+	material.set_shader_parameter("glint_strength", GLINT_STRENGTH)
+	material.set_shader_parameter("glint_tightness", GLINT_TIGHTNESS)
+	set_sun(Vector3(0.0, 1.0, 0.0), Color.BLACK)
+
+
+## Where the sun stands and what colour it is, both taken from the one light the
+## diorama hangs: `diorama.gd:SUN_ROTATION` moves it by the hour and `DAY_LIGHT`
+## and `DAY_ENERGY` colour it, so the glint is the same sun the rest of the
+## picture is lit by rather than a second one authored here.
+func set_sun(direction: Vector3, color: Color) -> void:
+	material.set_shader_parameter("sun_direction", direction.normalized())
+	material.set_shader_parameter("sun_color", color)
 
 
 func set_atlas(texture: Texture2D) -> void:

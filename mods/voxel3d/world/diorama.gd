@@ -175,6 +175,15 @@ func set_time_of_day(time_of_day: int) -> void:
 	_light.light_color = DAY_LIGHT[_time_of_day]
 	_light.light_energy = DAY_ENERGY[_time_of_day]
 	_light.rotation_degrees = SUN_ROTATION[_time_of_day]
+	# The water reflects the same sun, and it is given the direction the light
+	# TRAVELS FROM rather than the one it travels in, because a glint asks where
+	# the sun stands. Energy goes into the colour, so a night lake takes almost
+	# none and the term costs nothing when there is nothing to reflect.
+	_water_shader.set_sun(
+		-_light.global_transform.basis.z if _light.is_inside_tree()
+			else -_light.transform.basis.z,
+		DAY_LIGHT[_time_of_day] * DAY_ENERGY[_time_of_day]
+	)
 	_environment.ambient_light_color = DAY_AMBIENT[_time_of_day]
 	# And the hour over the whole PICTURE, which is the half of it a light cannot
 	# reach: see `frame.gd`.
