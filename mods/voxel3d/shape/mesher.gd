@@ -239,10 +239,12 @@ const FENCE_ACROSS: int = 1
 const FENCE_AWAY: int = 2
 var _fence_arms := PackedByteArray()
 var _fence_done: Dictionary = {}
-## The fence's own profile, cut once per map from the two tiles that draw it
-## face-on: 8 px across by however many rows stand above the shadow.
+## The fence's own profile, cut once per map from the tiles that draw it
+## face-on: as wide as the drawing's own period by however many rows stand above
+## the shadow. `_fence_tiles` is the rows of tile ids it was read from.
 var _fence_mask := PackedByteArray()
 var _fence_tall: int = 0
+var _fence_wide: int = 0
 var _fence_tiles: Array = []
 ## Per tile: whether it is rock a plateau is made of, face or floor. It is the
 ## set the RAMP is cut out of and nothing else reads it.
@@ -1246,30 +1248,35 @@ func _fence_arm(
 	middle: Vector2, ground: float, across: bool, atlas: RefCounted
 ) -> void:
 	var along: float = middle.x if across else middle.y
-	for copy: int in 2:
-		var start: float = along - TILE + TILE * float(copy)
+	var half_cell: float = float(CELL_TILES) * TILE * 0.5
+	@warning_ignore("integer_division")
+	var copies: int = maxi(1, CELL_TILES * TILE_PX / _fence_wide)
+	for copy: int in copies:
+		var start: float = along - half_cell + float(_fence_wide * copy)
 		var taken := PackedByteArray()
-		taken.resize(TILE_PX * _fence_tall)
+		taken.resize(_fence_wide * _fence_tall)
 		for py: int in _fence_tall:
 			# A RECTANGLE MAY NOT CROSS A TILE, because a texel is only sampled out
-			# of the tile it was drawn in. The profile is two tiles stacked.
+			# of the tile it was drawn in, and the profile is a grid of them.
 			@warning_ignore("integer_division")
 			var stop: int = mini((py / TILE_PX + 1) * TILE_PX, _fence_tall)
 			var px: int = 0
-			while px < TILE_PX:
-				if taken[py * TILE_PX + px] == 1 or _fence_mask[py * TILE_PX + px] == 0:
+			while px < _fence_wide:
+				if taken[py * _fence_wide + px] == 1 or _fence_mask[py * _fence_wide + px] == 0:
 					px += 1
 					continue
+				@warning_ignore("integer_division")
+				var edge: int = (px / TILE_PX + 1) * TILE_PX
 				var run: int = px
-				while run < TILE_PX and taken[py * TILE_PX + run] == 0 \
-						and _fence_mask[py * TILE_PX + run] == 1:
+				while run < edge and taken[py * _fence_wide + run] == 0 \
+						and _fence_mask[py * _fence_wide + run] == 1:
 					run += 1
 				var deep: int = 1
 				while py + deep < stop:
 					var whole: bool = true
 					for step: int in run - px:
-						if taken[(py + deep) * TILE_PX + px + step] == 1 \
-								or _fence_mask[(py + deep) * TILE_PX + px + step] == 0:
+						if taken[(py + deep) * _fence_wide + px + step] == 1 \
+								or _fence_mask[(py + deep) * _fence_wide + px + step] == 0:
 							whole = false
 							break
 					if not whole:
@@ -1277,14 +1284,13 @@ func _fence_arm(
 					deep += 1
 				for down: int in deep:
 					for step: int in run - px:
-						taken[(py + down) * TILE_PX + px + step] = 1
+						taken[(py + down) * _fence_wide + px + step] = 1
 				# The profile's bottom row stands ON the ground and its top row
 				# `_fence_tall` above it.
 				var low: float = ground + float(_fence_tall - py - deep)
 				var high: float = ground + float(_fence_tall - py)
-				@warning_ignore("integer_division")
-				var tile: int = int(_fence_tiles[py / TILE_PX])
-				var sub := Rect2i(px, py % TILE_PX, run - px, deep)
+				var tile: int = _profile_tile(px, py)
+				var sub := Rect2i(px % TILE_PX, py % TILE_PX, run - px, deep)
 				var half: float = FENCE_THICK * 0.5
 				var box := AABB(
 					Vector3(start + float(px), low, middle.y - half),
@@ -1300,15 +1306,13 @@ func _fence_arm(
 				# boxes, which is the same answer and needs no bookkeeping.
 				var cap: bool = _fence_open(px, run, py - 1, py)
 				var west: bool = px == 0 or _fence_open(px - 1, px, py, py + deep)
-				var east: bool = run == TILE_PX or _fence_open(run, run + 1, py, py + deep)
+				var east: bool = run == _fence_wide or _fence_open(run, run + 1, py, py + deep)
 				_fence_box(box, atlas.uv_box(tile, sub),
 					atlas.uv_box(tile, Rect2i(sub.position, Vector2i.ONE)),
 					across, cap, west, east)
 				px = run
 
 
-## One box of the fence, wearing the drawing on the two faces that show it and
-## one texel of the same rectangle on the four edges that do not.
 ## Whether any pixel of the profile in this box is NOT drawn, which is what says
 ## a face of it can be seen. Off the profile, so it is out of range at the top
 ## and the bottom and open there.
@@ -1317,11 +1321,13 @@ func _fence_open(from_x: int, to_x: int, from_y: int, to_y: int) -> bool:
 		if py < 0 or py >= _fence_tall:
 			return true
 		for px: int in range(from_x, to_x):
-			if px < 0 or px >= TILE_PX or _fence_mask[py * TILE_PX + px] == 0:
+			if px < 0 or px >= _fence_wide or _fence_mask[py * _fence_wide + px] == 0:
 				return true
 	return false
 
 
+## One box of the fence, wearing the drawing on the two faces that show it and
+## one texel of the same rectangle on the four edges that do not.
 func _fence_box(
 	box: AABB, face: Rect2, edge: Rect2, across: bool,
 	cap: bool, west: bool, east: bool
@@ -1445,82 +1451,85 @@ func _measure_fences() -> void:
 					_volume[at] = 0
 
 
-## THE FENCE'S OWN SHAPE, read off the two tiles that draw it face-on.
+## THE FENCE'S OWN SHAPE, read off the tiles that draw it face-on.
 ##
-## Two rules and the drawing answers everything else. THE SHADOW IS NOT THE
+## Three rules and the drawing answers everything else. THE SHADOW IS NOT THE
 ## FENCE: it is drawn under the foot in the middle shade, so every row below the
 ## last one carrying the DARKEST shade is dropped, which is the reviewer's own
-## warning that "its not as dark as the outline". And THE FLOOD MAY NOT COME IN
-## FROM THE SIDES: a fence is a run, its rails cross the tile edge to edge and
-## carry on into the next tile, so seeding the left and right borders the way
-## every other mask here does eats every rail in the game. It comes in from the
-## top and from the shadow line, which are the two edges a fence really has.
+## warning that "its not as dark as the outline". THE FLOOD MAY NOT COME IN FROM
+## THE SIDES: a fence is a run, its rails cross the tile edge to edge and carry on
+## into the next tile, so seeding the left and right borders the way every other
+## mask here does eats every rail in the game. It comes in from the TOP alone,
+## which is the one edge a fence really has, and a pocket the outside cannot
+## reach is wood: the post's shaft, the rail's body and the inside of an arch are
+## all drawn in the middle shades and all stand.
 ##
-## What is left is filled per column between its topmost and bottommost pixel,
-## since the post's foot is drawn open where it meets the ground.
+## AND THE GROUND SHOWS THROUGH BELOW THE DRAWING. What opens the gaps between
+## the posts is the drawing stopping: every pixel below a column's lowest dark
+## one is ground, so the rail carries on over a gap and the gap goes to the
+## floor. That is why the flood needs no second seed under the foot, and it is
+## the rule that lets an arched fence keep its arch: a seed under the foot has to
+## be undone by filling each column between its topmost and bottommost pixel, and
+## a fill like that closes any opening with drawing above and below it.
 func _fence_profile(atlas: RefCounted) -> void:
 	_fence_mask = PackedByteArray()
 	_fence_tall = 0
 	if _fence_tiles.size() < 2:
 		return
+	var across: int = (_fence_tiles[0] as Array).size()
+	_fence_wide = across * TILE_PX
 	var rows: int = _fence_tiles.size() * TILE_PX
-	var indices := PackedInt32Array()
-	indices.resize(TILE_PX * rows)
 	var dark := PackedByteArray()
-	dark.resize(TILE_PX * rows)
+	dark.resize(_fence_wide * rows)
 	var foot: int = -1
 	for py: int in rows:
-		@warning_ignore("integer_division")
-		var tile: int = int(_fence_tiles[py / TILE_PX])
-		for px: int in TILE_PX:
-			var index: int = atlas.pixel(tile, px, py % TILE_PX)
-			indices[py * TILE_PX + px] = index
-			if atlas.is_dark(tile, index, 1):
-				dark[py * TILE_PX + px] = 1
+		for px: int in _fence_wide:
+			var index: int = atlas.pixel(_profile_tile(px, py), px % TILE_PX, py % TILE_PX)
+			if atlas.is_dark(_profile_tile(px, py), index, 1):
+				dark[py * _fence_wide + px] = 1
 				foot = py
 	if foot < 0:
 		return
 	_fence_tall = foot + 1
-	var open := PackedByteArray()
-	open.resize(TILE_PX * _fence_tall)
-	for at: int in open.size():
-		open[at] = 1 - dark[at]
 	var mask := PackedByteArray()
-	mask.resize(open.size())
+	mask.resize(_fence_wide * _fence_tall)
 	mask.fill(1)
 	var stack := PackedInt32Array()
-	for px: int in TILE_PX:
+	for px: int in _fence_wide:
 		stack.append(px)
-		stack.append((_fence_tall - 1) * TILE_PX + px)
 	while not stack.is_empty():
 		var at: int = stack[stack.size() - 1]
 		stack.remove_at(stack.size() - 1)
-		if mask[at] == 0 or open[at] == 0:
+		if mask[at] == 0 or dark[at] == 1:
 			continue
 		mask[at] = 0
 		@warning_ignore("integer_division")
-		var py: int = at / TILE_PX
-		var px: int = at % TILE_PX
+		var py: int = at / _fence_wide
+		var px: int = at % _fence_wide
 		if px > 0:
 			stack.append(at - 1)
-		if px < TILE_PX - 1:
+		if px < _fence_wide - 1:
 			stack.append(at + 1)
 		if py > 0:
-			stack.append(at - TILE_PX)
+			stack.append(at - _fence_wide)
 		if py < _fence_tall - 1:
-			stack.append(at + TILE_PX)
-	for px: int in TILE_PX:
-		var first: int = -1
-		var last: int = -1
+			stack.append(at + _fence_wide)
+	for px: int in _fence_wide:
+		var foot_row: int = -1
 		for py: int in _fence_tall:
-			if mask[py * TILE_PX + px] == 1:
-				if first < 0:
-					first = py
-				last = py
-		if first >= 0:
-			for py: int in range(first, last + 1):
-				mask[py * TILE_PX + px] = 1
+			if dark[py * _fence_wide + px] == 1:
+				foot_row = py
+		for py: int in range(foot_row + 1, _fence_tall):
+			mask[py * _fence_wide + px] = 0
 	_fence_mask = mask
+
+
+## Which tile of the fence's own drawing a pixel of the profile was painted in.
+func _profile_tile(px: int, py: int) -> int:
+	@warning_ignore("integer_division")
+	var row: Array = _fence_tiles[py / TILE_PX] as Array
+	@warning_ignore("integer_division")
+	return int(row[px / TILE_PX])
 
 
 ## A ROCK RIM IS A 45 DEGREE SLOPE, not a step.
