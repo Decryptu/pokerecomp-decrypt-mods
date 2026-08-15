@@ -665,6 +665,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	if painted_map != null:
 		_match_houses(shape, painted_map.tileset)
 	_measure_columns()
+	# Before the plateau pass reads a cliff's height off it, and after the column
+	# pass, whose cell-granular answer it replaces wherever a face is drawn.
+	_measure_cliffs()
 	# Before the plateau pass, which is the automatic reading of the same thing:
 	# where a person has said what the levels are, the cliff pass has nothing left
 	# to work out and its flood would only fight the answer.
@@ -1138,6 +1141,101 @@ func _measure_columns() -> void:
 					if _heights[at] == -1:
 						_heights[at] = height
 						_bases[at] = base
+
+
+## A CLIFF IS AS TALL AS ITS FACE IS DRAWN, in 8px bands.
+##
+## Every other height here is measured per COLUMN OF WALK CELLS, so the smallest
+## thing it can say is 16 px, and it says it by the PERIOD of the run: a rock
+## patch four tiles square is one cell of face over one cell of top and measures
+## two cells, which is 32 px of stone round an 8 px shelf. Ecruteak's pond patches
+## were exactly that, and the reviewer's reading of the same drawing is the one
+## this pass takes: "in 2D you can see they are 8px high".
+##
+## THE FACE ITSELF IS THE HONEST STATEMENT and `profile.gd:FRONTS` is the tile
+## that draws it, so the run of front tiles up a column IS the height in bands.
+## One row of face is 8, two rows is 16, and nothing has to be authored per
+## tileset that the survey has not already named.
+##
+## Read per STRUCTURE and not per column, which is the region rule again and for
+## its reason: a rim column draws no front at all, and what says how tall a rim
+## stands is the rock it belongs to. Each column votes with the length of its own
+## front run and the commonest wins, so a face that is two tiles nearly
+## everywhere is not lifted by the one column where a cave mouth is cut into it.
+## A structure with no front anywhere keeps what the column pass measured: only
+## the front knows which side of a wall is up, and a rim seen from its end says
+## nothing at all.
+func _measure_cliffs() -> void:
+	var seen := PackedByteArray()
+	seen.resize(_size.x * _size.y)
+	for start: int in seen.size():
+		if seen[start] == 1 or _cliff[start] == 0:
+			continue
+		var members := PackedInt32Array()
+		var stack: Array[int] = [start]
+		seen[start] = 1
+		while not stack.is_empty():
+			var at: int = stack.pop_back()
+			members.append(at)
+			var tx: int = at % _size.x
+			@warning_ignore("integer_division")
+			var ty: int = at / _size.x
+			for step: Vector2i in [
+				Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
+			]:
+				var to := Vector2i(tx + step.x, ty + step.y)
+				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+					continue
+				var index: int = to.y * _size.x + to.x
+				if seen[index] == 1 or _cliff[index] == 0:
+					continue
+				seen[index] = 1
+				stack.append(index)
+		var bands: int = _face_bands(members)
+		if bands <= 0:
+			continue
+		for at: int in members:
+			_heights[at] = bands * BAND
+			_bases[at] = _cliff_base(at)
+
+
+## How many bands of face one structure draws: every column's own run of FRONT
+## tiles votes with its length, and the commonest run wins. A tie goes to the
+## shorter, which is this file's standing rule that a structure too tall is worse
+## than one too short.
+func _face_bands(members: PackedInt32Array) -> int:
+	var runs: Dictionary = {}
+	for at: int in members:
+		if _front[at] == 0:
+			continue
+		# Counted once per run, off its topmost tile, so a two-tile face is one
+		# vote of two rather than two votes of two and one.
+		if at >= _size.x and _front[at - _size.x] == 1:
+			continue
+		var run: int = 0
+		var walk: int = at
+		while walk < _front.size() and _front[walk] == 1:
+			run += 1
+			walk += _size.x
+		runs[run] = int(runs.get(run, 0)) + run
+	var best: int = 0
+	for run: int in runs:
+		var count: int = int(runs[run])
+		var top: int = int(runs.get(best, -1))
+		if count > top or (count == top and run < best):
+			best = run
+	return best
+
+
+## The bottom row of the cliff run this tile sits in, which is the row its bands
+## are sampled up from. A face folds its own drawing upward, so a two-band wall
+## reads its lower tile at the bottom and the tile above it at the top.
+func _cliff_base(at: int) -> int:
+	var walk: int = at
+	while walk + _size.x < _cliff.size() and _cliff[walk + _size.x] == 1:
+		walk += _size.x
+	@warning_ignore("integer_division")
+	return walk / _size.x
 
 
 ## The ground BEHIND a cliff stands on top of it.

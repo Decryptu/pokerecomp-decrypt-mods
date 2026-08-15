@@ -194,6 +194,17 @@ const OUTLINE: Dictionary = {
 	# A stool stands on a carpet or on floorboards drawn in its own shades, and it
 	# is drawn inside a dark ring like everything else indoors.
 	&"stool": 1,
+	# THE WOODEN ROUTE SIGN, and it wants TWO for the same reason the cabinet
+	# below does, that cabinet being this drawing at the park's own scale. Its
+	# board is painted the FLOOR'S own index inside a frame the floor's own
+	# palette also draws, so the ground rule ranks the frame as ground and the
+	# flood walks in through it; what stood was whatever `FILLED` could put back,
+	# and a column whose only drawn pixel is low down was filled only from there,
+	# so tileset 1's sign came out as a board with a slit of open air between it
+	# and each of its two posts. The frame closes on the darkest shade round the
+	# top and the sides and meets the ground in the middle shade, which is the
+	# second shade's whole job.
+	&"sign_post": 2,
 	# THE NATIONAL PARK'S NOTICE CABINET, and it wants TWO. Its frame is the
 	# darkest shade and closes round the top and the sides, but its lower panel is
 	# drawn in the middle shade and meets the ground in it, so one shade lets the
@@ -1271,7 +1282,13 @@ const STAIRS: Dictionary = {
 ## the reviewer's answers for tileset 3.
 const CLIFFS: Dictionary = {
 	# Routes: the raised brown rock shelf, its four rims and the cave mouth in it.
-	1: [76, 59, 61, 77, 43, 45, 70, 71, 86, 87],
+	# 75 is the SOUTH-WEST corner and was the one tile of the ring missing here,
+	# 77 its mirror having been listed from the start. It cost nothing while a
+	# height was measured per column and everything once `_measure_cliffs` read
+	# one per connected structure: the gap cut the west rim off from the face
+	# below it, so that rim was a structure of its own with no front in it and
+	# stood 32 px beside an 8 px shelf.
+	1: [76, 59, 61, 75, 77, 43, 45, 70, 71, 86, 87],
 	# The tan rock face under a raised earth terrace.
 	2: [76],
 	# Towns: the rock walls of Cianwood and Olivine. 55 is the upper band of the
