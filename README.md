@@ -15,14 +15,28 @@ Silver and Crystal recompilation. Each one is interpreted GDScript under
 
 Two routes, both ending in the same installer:
 
-**Follow this index.** In the game's launcher, on its mods page, add
-`Decryptu/pokerecomp-decrypt-mods`. The launcher resolves that to
-`https://decryptu.github.io/pokerecomp-decrypt-mods/index.json` and lists
-everything above; picking one downloads and installs it.
+**Follow this index.** In the game's launcher, on its mods page, add:
+
+```
+Decryptu/pokerecomp-decrypt-mods
+```
+
+The launcher resolves that to the feed itself, which can be pasted instead and
+means the same thing:
+
+```
+https://decryptu.github.io/pokerecomp-decrypt-mods/index.json
+```
+
+Either lists everything above; picking one downloads and installs it. A mod
+listed here is grouped under this index in the launcher, so uninstalling it
+leaves the row behind and the download is one press away again.
 
 **Or install a `.zip` by hand.** Take an archive from
 [Releases](https://github.com/Decryptu/pokerecomp-decrypt-mods/releases) and use
 **Install** on the same page, or drop it on the window where the OS offers that.
+A copy installed this way belongs to no index, so the launcher files it under
+"Installed from a file" and removing it deletes it.
 
 Following an index is trusting whoever publishes it, so the game follows none
 until you add one. Nothing here asks for a permission a hand-picked `.zip` would

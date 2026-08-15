@@ -3,7 +3,7 @@ extends RefCounted
 ## The settings this mod registers, and the one place that names them.
 ##
 ## A setting is DESCRIBED here and never drawn: the host builds the start menu's
-## MODS entry and this mod's card in the launcher out of the same registration.
+## MODS entry and this mod's own page in the launcher out of the registration.
 ## See `docs/MODS.md` in pokerecomp.
 ##
 ## Values live per installation in `user://mod_options.json`. That is right for
