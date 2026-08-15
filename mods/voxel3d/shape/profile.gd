@@ -739,6 +739,103 @@ const OBJECTS: Dictionary = {
 			&"depth": 6,
 			&"height": 6,
 		},
+		# THE LABORATORY'S TWO BENCHES, and they are one thing declared twice
+		# because the cartridge draws them at two widths. Both are the same
+		# section: two tile rows of the top seen from above, then one of the apron
+		# seen face-on with a leg at each end of it.
+		#
+		# ONE TILE HIGH AND NOT TWO, which is the reviewer's own correction and
+		# worth more than it looks. The apron is 8 rows of drawing, so 8 world
+		# pixels; what the resolver made of these tiles before was `surface` at
+		# that class's own 16, and a bench standing a whole walk cell is a counter.
+		# The DEPTH is the top band's own 16 rows, which is the rule everywhere a
+		# drawing has a top band at all.
+		#
+		# WRAPPED, because a bench stands in the middle of a room and is seen from
+		# behind and from both ends. See `mesher.gd:_object_wrap`.
+		{
+			&"name": &"bench",
+			&"tiles": [[10, 11, 12, 13], [26, 27, 28, 29], [37, 38, 38, 39]],
+			&"window": Rect2i(0, 0, 32, 24),
+			&"top": 16,
+			&"depth": 16,
+			&"height": 8,
+			&"wrap": true,
+			&"foot": true,
+		},
+		# THE TERMINAL ON OAK'S BENCH, and it is the one thing here that is a TRY
+		# rather than a reading. The cartridge draws it seen from above, so the
+		# bench's own top band carries it honestly and flat, and the question asked
+		# was whether it can be better than that. This stands the machine up on the
+		# bench as its own box: its own drawing face-on, its top repeated across its
+		# depth, and `rise` putting its foot on the bench rather than on the floor.
+		#
+		# THE FLAT ART UNDER IT STAYS. Two objects may cover one tile and both are
+		# drawn, and the bench cannot be told to leave a hole in its own top, so
+		# what is behind the standing machine is still the drawing lying down.
+		{
+			&"name": &"terminal",
+			&"tiles": [[10, 11], [26, 27]],
+			&"window": Rect2i(0, 0, 16, 15),
+			&"top": 0,
+			&"depth": 8,
+			&"height": 12,
+			&"rise": 8,
+			&"cap": 4,
+		},
+		# THE BOOKCASE, and there are twelve of them on this map in three groups of
+		# four, at 12,0 and 12,12 and 0,12. One is TWO TILES WIDE AND FOUR TALL and
+		# the reviewer read it out tile by tile: the top row is its flat top seen
+		# from above, and the three rows under it are its front, so it stands three
+		# tiles.
+		#
+		# A PLAIN BOX, which is the other half of what they said. Shelves are drawn
+		# on the front and the back and on neither end, so the back takes the face
+		# and the two ends take the top's own texture, which is what `box` is. Left
+		# to the resolver these were `wall`, measured off the column at four tile
+		# rows, so each stood a whole cell taller than it is and wore its shelves
+		# on all four sides.
+		{
+			&"name": &"bookcase",
+			&"tiles": [[5, 7], [3, 4], [3, 4], [53, 54]],
+			&"window": Rect2i(0, 0, 16, 32),
+			&"top": 8,
+			&"depth": 16,
+			&"height": 24,
+			&"box": true,
+			&"foot": true,
+		},
+		# THE BIN, an open cylinder and the only hollow thing in this file. Its
+		# drawing is 11 px across and 14 tall inside its two cells: seven rows of
+		# the mouth seen from above, then seven of the body, which narrows to seven
+		# pixels at the foot. See `mesher.gd:_object_bin`.
+		{
+			&"name": &"bin",
+			&"tiles": [[14, 15], [30, 31]],
+			&"window": Rect2i(2, 1, 11, 14),
+			&"top": 7,
+			&"depth": 11,
+			# EIGHT PIXELS, half a walk cell, and the reviewer's own measurement of
+			# it. The drawing is 14 rows tall on two cells, and stood up at its own
+			# row count the can came out waist high beside a bench 8 px tall.
+			&"height": 8,
+			&"bin": true,
+		},
+		# The long one the starters stand on, 48 wide and drawn with its own top.
+		{
+			&"name": &"bench_long",
+			&"tiles": [
+				[5, 6, 6, 6, 6, 7],
+				[21, 22, 22, 22, 22, 23],
+				[37, 38, 38, 38, 38, 39],
+			],
+			&"window": Rect2i(0, 0, 48, 24),
+			&"top": 16,
+			&"depth": 16,
+			&"height": 8,
+			&"wrap": true,
+			&"foot": true,
+		},
 	],
 	17: [
 		# THE MAGNET TRAIN TICKET GATE, two of them side by side at the head of the
@@ -1573,6 +1670,35 @@ const FENCES: Dictionary = {
 	# exists for: an arched top over a solid rail, drawn as a 16 px pair with the
 	# arch's apex on the tile seam. 35 and 36 are the arch, 51 and 52 the rail.
 	25: [[35, 36], [51, 52]],
+}
+
+
+## THE ROOM SHELL, per tileset: the arrangement of tile ids a blank interior wall
+## is drawn with, top row first, repeated over the shell.
+##
+## A Game Boy camera never stands outside a room, so the cartridge draws the one
+## wall the player looks AT and nothing else: two tile rows along the north edge,
+## and the other three sides are not drawn at all. In three dimensions the camera
+## does stand outside, and what it found was a floor with furniture on it and no
+## room around it.
+##
+## So a room is given the shell it always had. `mesher.gd:_measure_room` rings the
+## map with this drawing, one walk cell deep, standing two cells, and raises the
+## wall the cartridge DOES draw to meet it. The upper course is this same drawing
+## rather than a stretch of the window or the poster below it, which is the
+## reviewer's own instruction against the lab's own tiles: reuse the blank wall to
+## fill the wall a level higher.
+##
+## Per tileset, because a tile id means nothing without one. A tileset with no
+## entry gets no shell and its interiors are drawn exactly as they were.
+## THE BLANK COURSE AND NOT THE WHOLE WALL. Tileset 10 draws its wall as plaster
+## over a blue skirting, and the skirting is the foot of the one wall the
+## cartridge places. Repeated up a shell two cells tall it is a stripe every other
+## band, and repeated across the shell's top it is a striped ledge, so what is
+## reused is the plaster alone.
+const ROOM_WALL: Dictionary = {
+	# The Kanto laboratory and the houses that share its tileset.
+	10: [[1, 1]],
 }
 
 

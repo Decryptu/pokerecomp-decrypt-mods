@@ -217,6 +217,12 @@ func stairs() -> Array:
 	return _profile.STAIRS.get(_tileset_number, [])
 
 
+## The blank wall a room is shelled in, or an empty array where this tileset
+## draws no interior worth shelling. See `profile.gd:ROOM_WALL`.
+func room_wall() -> Array:
+	return _profile.ROOM_WALL.get(_tileset_number, [])
+
+
 
 func _pin(tile: int) -> StringName:
 	if _pinned.has(tile):
