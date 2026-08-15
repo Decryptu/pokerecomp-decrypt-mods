@@ -60,6 +60,10 @@ const HEIGHTS: Dictionary = {
 	&"sapling": 0,
 	&"tombstone": 0,
 	&"flowers": 0,
+	# THE MEADOW FLOWER counts its height off its own drawing like every other
+	# cutout, which is one tile: ankle height, and the full pass's own reading of
+	# all three tilesets that draw it.
+	&"flower": 0,
 	&"planter": 0,
 	&"statue": 0,
 	# A STATUE ON A PILLAR carries no height of its own either: how tall it stands
@@ -112,6 +116,9 @@ const DEPTHS: Dictionary = {
 	&"sapling": 14,
 	&"tombstone": 5,
 	&"flowers": 12,
+	# As deep as it is wide, like every other round thing: a bloom is a bloom from
+	# whatever side it is looked at.
+	&"flower": 12,
 	&"planter": 12,
 	&"statue": 10,
 	# A STATUE ON A PILLAR STANDS ON A WHOLE CELL, which is the reviewer's own
@@ -138,11 +145,30 @@ const DEPTHS: Dictionary = {
 ## and every face still wears the FRONT drawing's texel at its own column: the
 ## reviewer's call, and the right one, because the drawing's outline is dark and
 ## a naive revolve would paint the whole object its own outline colour.
+## WHICH CLASSES ARE HELD UP ON A STEM. The shape itself is DRAWN rather than
+## declared, and `shape/stems.gd` is where it lands: this only says which classes
+## go and look for one.
+##
+## Everything else carved here is drawn standing on the ground, so its own bottom
+## row IS its foot. A flower is drawn LOOKED DOWN ON: the cartridge draws the
+## bloom and nothing else, because from directly above a stem is hidden under the
+## petals it holds up. Carved literally the bloom therefore hangs in the air with
+## the grass showing under it, and stood on the floor the head sits in the grass.
+##
+## SO ONE IS BUILT, and it is the only thing in this file put into the world that
+## the cartridge does not draw. That is why it is DRAWN BY A PERSON on
+## `tools/stem_page.py` rather than authored as a thickness here: a stem is thin,
+## it bends, and no number says either.
+const STEMS: Dictionary = {
+	&"flower": true,
+}
+
 const ROUND: Dictionary = {
 	&"post": true,
 	&"bush": true,
 	&"sapling": true,
 	&"flowers": true,
+	&"flower": true,
 	&"planter": true,
 	&"statue": true,
 	&"statue_pillar": true,
@@ -434,6 +460,22 @@ const FILLED: Dictionary = {
 	# read off and the legs reach as wide as it does; kept because it is the safer
 	# reading of an open ring and it costs nothing here.
 	&"stool": true,
+	# A DITHER HAS NO RING AT ALL, which is the meadow flower's whole difference
+	# from everything else on this list. Printed as text it is a checkerboard of
+	# red, pink and pale green over the whole 8x8 with no silhouette anywhere in
+	# it, so the flood walks between its own pixels and what is left is a SPRAY:
+	# revolved per body, each surviving pixel became a lump of its own with the
+	# world visible between them, which is the reviewer's holes.
+	# Filling each column between its topmost and bottommost drawn pixel is what
+	# makes it one clump, and it still wears every texel the cartridge drew.
+	# CUT ON THE GROUND'S OWN COLOURS rather than on an outline, which is what
+	# keeps it TIGHT. A drawing's mask is cut over its whole span box, and a
+	# flower is one tile inside a walk cell of grass: read as an outline every
+	# tile in that box offers its own darkest shade, the grass included, so the
+	# fill ran the full sixteen rows and the bloom came back a cube. The ground
+	# rule eats the grass, so only the bloom's own rows have anything to fill
+	# between.
+	&"flower": true,
 }
 
 ## THE OBJECTS, per tileset number. A thing that is not a tile and does not fit
@@ -896,6 +938,45 @@ const OBJECTS: Dictionary = {
 			&"top": 0,
 			&"depth": 64,
 			&"height": 128,
+		},
+		# SPROUT TOWER IS THE SAME PAGODA WITH THREE TIERS INSTEAD OF SEVEN, and it
+		# is the same drawing tile for tile: its tiers, its doorway and the rock ring
+		# at its foot are the rows the Bell Tower is built out of, under a wide roof
+		# of its own. Only the tier COUNT differs, so the arrangement the Bell Tower
+		# is found by cannot reach it and it was left to the passes below.
+		#
+		# What they made of it is worse than the Bell Tower's leaning slab, and it is
+		# the painting rather than the passes: a column of a painting is a section
+		# through a building, and a tower's storeys are stacked in PERSPECTIVE rather
+		# than side by side, so the wall flood cuts them apart at each eave and each
+		# comes back as a separate building standing on the ground. Three storeys
+		# three deep, with the eaves left standing between them as two thin spires.
+		#
+		# So it is the Bell Tower's reading at its own size: the whole drawn
+		# rectangle, the BOX its bottom eight rows, and the drawing hung down the
+		# height one drawn pixel per world pixel. `depth` 64 is the reviewer's own
+		# 8x8 footprint for this drawing, which is the same base at the same width.
+		{
+			&"name": &"sprout_tower",
+			&"tiles": [
+				[49, 83, 83, 83, 83, 83, 83, 52],
+				[65, 83, 83, 83, 83, 83, 83, 68],
+				[65, 83, 83, 83, 83, 83, 83, 68],
+				[81, 82, 82, 82, 82, 82, 82, 84],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[59, 26, 39, 40, 149, 150, 28, 61],
+				[59, 151, 41, 42, 152, 152, 153, 61],
+				[59, 6, 6, 6, 6, 6, 6, 61],
+				[75, 76, 154, 154, 76, 76, 76, 77],
+			],
+			&"window": Rect2i(0, 0, 64, 80),
+			&"filled": true,
+			&"top": 0,
+			&"depth": 64,
+			&"height": 80,
 		},
 	],
 	6: [
@@ -1393,6 +1474,9 @@ const FENCES: Dictionary = {
 	# The white fence round Ecruteak's yards: 90 is the post top and the upper
 	# rail, 89 the shafts, the foot and the shadow under it.
 	1: [90, 89],
+	# Goldenrod's street railing, the same drawing at the same two ids on the city
+	# tileset: 178 tiles of it on three maps.
+	2: [90, 89],
 }
 
 
@@ -1528,6 +1612,7 @@ const ART: Dictionary = {
 	&"sapling": &"cutout",
 	&"tombstone": &"cutout",
 	&"flowers": &"cutout",
+	&"flower": &"cutout",
 	&"planter": &"cutout",
 	&"statue": &"cutout",
 	&"statue_pillar": &"cutout",
@@ -1560,6 +1645,8 @@ const TILESETS: Dictionary = {
 		# The concrete bollard along a path, 15 px of art over a 1 px shadow, and
 		# the wooden pole, 13 px over a shadow with two rows of floor above it.
 		&"post": [42, 43, 58, 59, 14, 85],
+		# The meadow flower, the same id and the same drawing as tileset 1's.
+		&"flower": [3],
 		# The wooden route sign: 14 px with a row of floor top and bottom.
 		&"sign_post": [70, 71, 86, 87],
 		# THE METAL RAILING round Goldenrod's lawns, 2200 tiles and the largest
@@ -1631,6 +1718,12 @@ const TILESETS: Dictionary = {
 		# turned to whichever way the run goes. 74 is also the lower half of a
 		# CORNER, where the cartridge draws it under a 90.
 		&"fence": [74, 89, 90],
+		# THE MEADOW FLOWER, and this pin is on all three tilesets that draw it,
+		# 1, 3 and 25, at the same id. `flowers` is the brick flower BED, a real
+		# solid a cell wide that the same word had been carrying, and the two want
+		# opposite geometry: the bed is a box and this is a clump of blooms in the
+		# grass. See the class in `FILLED`.
+		&"flower": [3],
 		&"tall_grass": [4],
 		# THE PINK BRICK WALL of the small house, which the pass read as paving and
 		# which is why every one of those houses was a roof block over a hole. The
@@ -1674,6 +1767,14 @@ const TILESETS: Dictionary = {
 		&"tall_grass": [4],
 		&"tree": [30, 31, 19, 21, 62, 63],
 		&"boulder": [88],
+		# THE SAME METAL RAILING TILESET 1 DRAWS, at the same three ids, dividing
+		# pavement from grass instead of enclosing a yard. The full pass read both
+		# tilesets and gave the same three roles: 90 the round post tops and the top
+		# rail, 89 the post stubs and the kerb under them, 74 the run seen end-on
+		# going away. So nothing is authored here that tileset 1 has not already
+		# said, and the pin is what keeps the two from drifting apart, as the
+		# conifer and the notice board are kept.
+		&"fence": [74, 89, 90],
 	},
 	4: {
 		&"tree": [30, 31, 19, 21, 62, 63],
@@ -1731,6 +1832,8 @@ const TILESETS: Dictionary = {
 		&"canopy": [
 			12, 13, 14, 15, 28, 29, 30, 31, 44, 45, 46, 47, 60, 61, 62, 63,
 		],
+		# The meadow flower, the same id and the same drawing as tileset 1's.
+		&"flower": [3],
 		# THE NATIONAL PARK'S BIN, and it was drawn NOWHERE AT ALL. A round grey
 		# vessel with a dark hollow in its top, one walk cell over four tiles,
 		# standing on the paving beside the benches; five placements on three maps.
@@ -2004,8 +2107,6 @@ static func pinned_class(tileset_number: int, tile: int) -> StringName:
 	return PASS.pinned_class(tileset_number, tile)
 
 
-## Whether a tile draws the face of a terrain cliff, which is what says the
-## ground behind it stands on top of it.
 ## The two tiles a fence is modelled from, or an empty array where a tileset
 ## draws none. Ordered top row first.
 static func fence_face(tileset_number: int) -> Array:
@@ -2013,6 +2114,8 @@ static func fence_face(tileset_number: int) -> Array:
 	return tiles as Array if tiles is Array else []
 
 
+## Whether a tile draws the face of a terrain cliff, which is what says the
+## ground behind it stands on top of it.
 static func is_cliff(tileset_number: int, tile: int) -> bool:
 	var tiles: Variant = CLIFFS.get(tileset_number, null)
 	return tiles is Array and (tiles as Array).has(tile)
