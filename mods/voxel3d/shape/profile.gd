@@ -1153,6 +1153,118 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	6: [
+		# THE KITCHEN TABLE, four tiles square with a stool at each corner. Read out
+		# tile by tile: 10,6 to 13,9 is its top seen from above and 10,10 to 13,10
+		# is its apron, so it is one tile high and its top is TWO WALK CELLS deep,
+		# which is the largest top band in this file. Wrapped, since a table stands
+		# in the middle of a room and the apron is what every side of it shows.
+		#
+		# IT TAKES TWO STRAYS WITH IT. 10,10 and 13,10 are its own front corners and
+		# fell to `stand` and `post` on their own, which put a black slab and a grey
+		# lump on the floor in front of it. An object hands every tile it covers
+		# back to the floor, so declaring the table is what removes them.
+		{
+			&"name": &"table",
+			&"tiles": [
+				[35, 34, 34, 36],
+				[37, 21, 21, 53],
+				[37, 21, 21, 53],
+				[51, 50, 50, 52],
+				[28, 64, 64, 29],
+			],
+			&"window": Rect2i(0, 0, 32, 40),
+			&"top": 32,
+			&"depth": 32,
+			&"height": 8,
+			&"wrap": true,
+			&"foot": true,
+		},
+		# THE STOOL, one at each corner of it and four on this map alone. Built from
+		# a section rather than from the drawing: see `mesher.gd:_object_stool`. Its
+		# drawing sits in the middle of its two cells, so the window is the twelve
+		# pixels it actually occupies and not the sixteen it is declared over.
+		{
+			&"name": &"stool",
+			&"tiles": [[2, 3], [18, 19]],
+			&"window": Rect2i(2, 2, 12, 12),
+			&"top": 0,
+			&"depth": 12,
+			&"height": 8,
+			&"stool": true,
+		},
+		# THE HALF WALL between the kitchen and the room, and the one thing here
+		# that was nearly right already: it stood at the correct height and wore its
+		# own FACE on its top. 6,0 to 7,5 is the top seen from above and 6,6 to 7,7
+		# is the face, two tiles of it, so it stands two tiles.
+		{
+			&"name": &"half_wall",
+			&"tiles": [
+				[37, 53], [37, 53], [37, 53], [37, 53], [37, 53], [51, 52],
+				[17, 17], [17, 17],
+			],
+			&"window": Rect2i(0, 0, 16, 64),
+			# SOLID, and it is the drawing that makes it necessary: its face is the
+			# panelling the room's own walls are drawn with, so no mask can tell the
+			# two apart. Flooded against the outline it kept the lines between the
+			# planks and lost the planks, and the half wall stood as a plank on four
+			# thin legs; cut against the ground's colours it lost a strip up the
+			# middle and stood as two posts.
+			&"solid": true,
+			&"top": 48,
+			&"depth": 48,
+			&"height": 16,
+		},
+		# THE TELEVISION ON ITS STAND, against the wall, which is a different thing
+		# from the free-standing set below however much of the drawing they share:
+		# this one is two and a half tiles tall and its bottom row is the stand.
+		{
+			&"name": &"television_stand",
+			&"tiles": [[6, 7], [22, 23], [8, 9]],
+			&"window": Rect2i(0, 0, 16, 24),
+			&"filled": true,
+			&"top": 0,
+			&"depth": 14,
+			&"height": 20,
+		},
+		# THE FRIDGE, two tiles high, with 4,1 to 5,1 its top seen from above. What
+		# it wore up there before was the front of the thing above it, which is the
+		# roof the reviewer saw bleeding over it.
+		{
+			&"name": &"fridge",
+			&"tiles": [[10, 11], [26, 27], [42, 43]],
+			&"window": Rect2i(0, 0, 16, 24),
+			&"top": 8,
+			&"depth": 16,
+			&"height": 16,
+		},
+		# THE SINK, its basin and its tap seen from above on the upper row and its
+		# front on the lower.
+		{
+			&"name": &"sink",
+			&"tiles": [[67, 69], [24, 25]],
+			&"window": Rect2i(0, 0, 16, 16),
+			&"top": 8,
+			&"depth": 16,
+			&"height": 16,
+		},
+		# THE HOB, the same section: rings seen from above, oven door face-on.
+		{
+			&"name": &"hob",
+			&"tiles": [[80, 81], [82, 83]],
+			&"window": Rect2i(0, 0, 16, 16),
+			&"top": 8,
+			&"depth": 16,
+			&"height": 16,
+		},
+		# AND THE CHEST OF DRAWERS, which is that section a third time.
+		{
+			&"name": &"drawers",
+			&"tiles": [[14, 15], [58, 59]],
+			&"window": Rect2i(0, 0, 16, 16),
+			&"top": 8,
+			&"depth": 16,
+			&"height": 16,
+		},
 		# A TELEVISION STANDING FREE IN THE ROOM, "2 tiles wide and 2 tall, waist
 		# high", drawn FACE-ON as a casing with a blue screen in it. Revolved it was
 		# a drum with the screen smeared round it.

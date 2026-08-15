@@ -3439,6 +3439,17 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 		tiles, across, atlas, bool(object.get(&"filled", false)),
 		int(object.get(&"outline", 1))
 	)
+	# SOLID: THE RECTANGLE IS THE OBJECT, and no mask is cut at all. Every rule
+	# this file has for finding where a drawing ends is a rule about telling it
+	# apart from what is behind it, by an outline or by the ground's own colours,
+	# and neither can say anything about a thing drawn in the SAME art as the room
+	# it stands in: the half wall's face is the panelling the walls are drawn with,
+	# so a flood ate the planks and left the lines between them, and the ground
+	# rule ate a strip up the middle. Where a drawing fills its own rectangle,
+	# saying so is the honest answer and the only one available.
+	if bool(object.get(&"solid", false)):
+		mask = mask.duplicate()
+		mask.fill(1)
 	var window: Rect2i = object[&"window"]
 	# AN OBJECT MAY BE TURNED RATHER THAN STOOD UP, which is the one thing this
 	# path could not do and the reason two round drawings sat unbuilt. See
@@ -3448,6 +3459,9 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 		return
 	if bool(object.get(&"bin", false)):
 		_object_bin(object, start, across, tiles, mask, span, window, atlas)
+		return
+	if bool(object.get(&"stool", false)):
+		_object_stool(object, start, across, tiles, window, atlas)
 		return
 	var top_rows: int = clampi(int(object.get(&"top", 0)), 0, window.size.y)
 	var face_rows: int = window.size.y - top_rows
@@ -3777,6 +3791,128 @@ func _room_faces(tx: int, ty: int, normal: Vector3) -> bool:
 	if normal.z > 0.0:
 		return ty < _margin.y
 	return ty >= _size.y - _margin.y
+
+
+## THE STOOL, BUILT RATHER THAN CARVED, and the reviewer's own section of it: a
+## disc three pixels thick that you sit on, on four legs five high and three
+## thick, so the whole thing stands eight and nothing about it is in the drawing.
+##
+## A Generation II stool is drawn looked down on. Its seat is a circle and its
+## legs are four marks under the near edge of it, and every route this file has
+## for standing a drawing up reads that as a lump: carved it is a wafer, turned it
+## is a drum, and stood up it is a post. The section is the only thing that says
+## what it is, and a section is three numbers.
+##
+## WHAT IS NOT AUTHORED IS THE COLOUR. `Atlas.shade_order` ranks the tile's own
+## shades by luminance, so the darkest paints the legs and the ring round the
+## seat's edge, the next paints the seat's face and the one above that its rim:
+## darker inside than out, which is how a turned wooden seat reads, and every one
+## of them the cartridge's own.
+const STOOL_SEGMENTS: int = 16
+const STOOL_SEAT: float = 3.0
+const STOOL_LEG: float = 5.0
+const STOOL_LEG_THICK: float = 3.0
+## How far in from the seat's own edge the darkest ring reaches.
+const STOOL_RIM: float = 1.0
+## Where a leg stands, as a share of the seat's radius. The four stand on the
+## diagonals, so each reaches this far along one and `SQRT_HALF` of it on each
+## axis.
+const STOOL_LEG_REACH: float = 0.62
+const SQRT_HALF: float = 0.70710678
+
+
+func _object_stool(
+	object: Dictionary, start: Vector2i, across: Vector2i, tiles: Array,
+	window: Rect2i, atlas: RefCounted
+) -> void:
+	var base: float = float(_ground_art(start.x, start.y + across.y - 1).y)
+	var wide: float = float(window.size.x)
+	var front: float = _world_z(start.y) + float(window.position.y + window.size.y)
+	var centre := Vector2(
+		_world_x(start.x) + float(window.position.x) + wide * 0.5, front - wide * 0.5
+	)
+	var radius: float = wide * 0.5
+	var tile: int = int(tiles[0])
+	var dark: Rect2 = _shade_texel(atlas, tile, 0)
+	var face: Rect2 = _shade_texel(atlas, tile, 1)
+	var rim: Rect2 = _shade_texel(atlas, tile, 2)
+	var low: float = base + STOOL_LEG
+	var high: float = low + STOOL_SEAT
+	var step: float = TAU / float(STOOL_SEGMENTS)
+	for segment: int in STOOL_SEGMENTS:
+		var d0: Vector2 = _bin_ray(float(segment) * step)
+		var d1: Vector2 = _bin_ray(float(segment + 1) * step)
+		var out := Vector3(d0.x + d1.x, 0.0, d0.y + d1.y).normalized()
+		_quad(
+			_bin_point(centre, d0, radius, low), _bin_point(centre, d1, radius, low),
+			_bin_point(centre, d1, radius, high), _bin_point(centre, d0, radius, high),
+			out, rim, SHADE_SIDE
+		)
+		# The seat, as a ring of the darkest shade round a face of the next: the
+		# outer edge first, or the lid faces down and is culled. See the bin's lip.
+		_quad(
+			_bin_point(centre, d0, radius, high),
+			_bin_point(centre, d1, radius, high),
+			_bin_point(centre, d1, radius - STOOL_RIM, high),
+			_bin_point(centre, d0, radius - STOOL_RIM, high),
+			Vector3.UP, dark, SHADE_TOP_FLAT
+		)
+		_tri(
+			_bin_point(centre, d0, radius - STOOL_RIM, high),
+			_bin_point(centre, d1, radius - STOOL_RIM, high),
+			Vector3(centre.x, high, centre.y), Vector3.UP,
+			face.position, face.end, face.position + face.size * 0.5,
+			SHADE_TOP_FLAT
+		)
+	var reach: float = radius * STOOL_LEG_REACH
+	var half: float = STOOL_LEG_THICK * 0.5
+	for corner: Vector2 in [
+		Vector2(1.0, 1.0), Vector2(-1.0, 1.0), Vector2(-1.0, -1.0), Vector2(1.0, -1.0)
+	]:
+		var at := Vector2(
+			centre.x + corner.x * reach * SQRT_HALF,
+			centre.y + corner.y * reach * SQRT_HALF
+		)
+		_box(
+			at.x - half, at.x + half, base, low, at.y - half, at.y + half, dark
+		)
+
+
+## The four sides of an upright box, which is all of one that is ever seen: its
+## top is under whatever it holds up and its bottom is on the floor.
+func _box(
+	x0: float, x1: float, y0: float, y1: float, z0: float, z1: float, uv: Rect2
+) -> void:
+	_quad(
+		Vector3(x0, y0, z1), Vector3(x1, y0, z1), Vector3(x1, y1, z1),
+		Vector3(x0, y1, z1), Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
+	)
+	_quad(
+		Vector3(x1, y0, z0), Vector3(x0, y0, z0), Vector3(x0, y1, z0),
+		Vector3(x1, y1, z0), Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
+	)
+	_quad(
+		Vector3(x1, y0, z1), Vector3(x1, y0, z0), Vector3(x1, y1, z0),
+		Vector3(x1, y1, z1), Vector3(1.0, 0.0, 0.0), uv, SHADE_SIDE
+	)
+	_quad(
+		Vector3(x0, y0, z0), Vector3(x0, y0, z1), Vector3(x0, y1, z1),
+		Vector3(x0, y1, z0), Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
+	)
+
+
+## One texel of a tile's [param rank]th shade counting from the darkest, as a uv
+## box. Ranks past what the tile is drawn with take the last one it has.
+func _shade_texel(atlas: RefCounted, tile: int, rank: int) -> Rect2:
+	var order: PackedInt32Array = atlas.shade_order(tile)
+	if order.is_empty():
+		return atlas.uv(tile)
+	var want: int = order[clampi(rank, 0, order.size() - 1)]
+	for py: int in int(TILE):
+		for px: int in int(TILE):
+			if atlas.pixel(tile, px, py) == want:
+				return atlas.uv_box(tile, Rect2i(px, py, 1, 1))
+	return atlas.uv(tile)
 
 
 func _bin_ray(angle: float) -> Vector2:
