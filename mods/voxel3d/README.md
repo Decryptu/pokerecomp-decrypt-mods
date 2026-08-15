@@ -503,10 +503,21 @@ disc on a stump. How TALL a tree is drawn is the drawing's business too, so the
 one class covers both the conifer drawn in a single cell and the one drawn in
 two, and the placement is what says which.
 
-Bushes and boulders go the same way, and the differences between them are the
-interesting part. A bush is not a small tree: a tree's sprite is foreshortened
-and its trunk is drawn behind its crown, so reading a bush that way stands it on
-a stalk. A boulder is not a plant at all: it takes one world pixel per voxel
+The crown is ragged rather than lathed, and the jitter that does it is a fact
+about a DIRECTION rather than about a voxel. Rolled per voxel it draws no
+surface at all: what comes back is a speckle a couple of voxels thick with as
+many gaps as leaves in it, and the ground behind a bush is visible through the
+middle of it. Rolled per direction there is one radius per ray, everything
+inside it is solid, and the silhouette is as ragged as before. It only ever cuts
+IN, because the drawing states the width and a crown wider than its own cell is
+a hedge standing on the road beside it.
+
+Bushes, saplings and boulders go the same way, and the differences between them
+are the interesting part. A bush is not a small tree: a tree's sprite is
+foreshortened and its trunk is drawn behind its crown, so reading a bush that way
+stands it on a stalk. The small tree that can be Cut is the opposite and needs
+both corrections taken off: it draws its own stem, so it stands on one, and it
+draws its own height, so nothing stretches it. A boulder is not a plant at all: it takes one world pixel per voxel
 rather than two, because a 16px stone six voxels across is a pillow; it does not
 sway; and its colour is read in horizontal BANDS off the drawing, since a stone
 is drawn pale where the sky reaches it and dark underneath.

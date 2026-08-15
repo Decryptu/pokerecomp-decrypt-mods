@@ -177,6 +177,11 @@ const OUTLINE: Dictionary = {
 	&"canopy": 1,
 	&"tree": 1,
 	&"bush": 1,
+	# THE CUT TREE IS DRAWN AS A DITHER and it is the reason this pin matters
+	# here: its crown is a checkerboard of its own dark shades against the grass's
+	# own two, so the ground rule keeps every other pixel and drops the rest. It
+	# is ringed in the darkest shade like every other plant.
+	&"sapling": 1,
 	# A rock standing in the sea is drawn in the water's own blues and a rock on a
 	# cave floor in the floor's own golds, so the ground rule has nothing to cut
 	# on. Every one of them is drawn inside a dark ring.
@@ -227,6 +232,12 @@ const MODEL: Dictionary = {
 	&"canopy": true,
 	&"tree": true,
 	&"bush": true,
+	# THE CUT TREE, which is a small tree drawn as its own silhouette and is
+	# therefore a portrait of a symmetric thing, the third row of the pipeline
+	# table. Carved it was the worst thing on the tileset: a dithered crown cut
+	# per pixel run is a lattice of separated columns with the paving, the wall
+	# and the sky all visible straight through it.
+	&"sapling": true,
 	&"boulder": true,
 	&"stool": true,
 	# THE CONCRETE BOLLARD, which the carved path revolved per row into a ribbed
@@ -279,6 +290,13 @@ const SHRUB: Dictionary = {
 ## drawn 32 px in round twenty-four.
 const STRETCH: Dictionary = {
 	&"stool": 0.6,
+	# A CUT TREE IS NOT FORESHORTENED, which is the whole reason it takes a number
+	# here. `tree`'s own 1.3 corrects a sprite that draws its trunk BEHIND its
+	# crown and so states no height at all; this drawing states all of it, a
+	# ragged crown over four rows of bare stem over a flared foot, and stretching
+	# that stands a full-sized tree where the cartridge draws a waist-high one.
+	# Read at 1.0 it is 15 px across and 16 tall, which is its own drawing.
+	&"sapling": 1.0,
 	# A BOLLARD IS DRAWN TALLER THAN IT STANDS, for the reason this table exists:
 	# seven of its fourteen drawn rows are the LID seen from above, which is depth
 	# on the page and no height at all, so read literally it comes out a drum

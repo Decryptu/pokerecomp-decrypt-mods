@@ -280,14 +280,33 @@ static func measure(
 	# is drawn with the crown's own greens in it wherever the canopy hangs over
 	# the trunk, and taking the lightest of those paints a green trunk: dropping
 	# every tone the crown already claimed is what leaves the wood behind.
+	# AND BARK IS NEVER LIGHTER THAN THE LEAVES OVER IT, which is the other half of
+	# the same rule and is what the cut tree needed. Its stem is drawn as two dark
+	# lines with the GRASS between them, and the flood encloses that grass, so the
+	# band under its crown holds a tone the crown never claimed and the leftover
+	# came back at 0.89 luminance against the crown's 0.66: a pale green stalk
+	# under a near-black canopy. A trunk stands in its own shade, so a leftover
+	# brighter than the brightest leaf is the ground showing through the drawing
+	# rather than wood, and what is left when both filters empty the band is the
+	# darkest shade the drawing has, which is what those two lines are painted in.
+	var lightest: float = 0.0
+	for leaf: Color in out.tones:
+		lightest = maxf(lightest, leaf.get_luminance())
 	var wood := PackedColorArray()
 	for colour: Color in out.bark:
 		var claimed: bool = false
 		for leaf: Color in out.tones:
 			if leaf.is_equal_approx(colour):
 				claimed = true
-		if not claimed:
+		if not claimed and colour.get_luminance() <= lightest:
 			wood.append(colour)
+	# ONLY WHERE THE BAND HAD SOMETHING TO SAY. A band that ranks NO tone at all,
+	# which is most conifers, already has an answer below: the authored brown, and
+	# it is the right one for a trunk the drawing does not paint. Reaching for the
+	# darkest shade there paints every tree in the game on a near-black stem, which
+	# is what this line did before it was measured.
+	if wood.is_empty() and not out.bark.is_empty() and not out.shades.is_empty():
+		wood.append(out.shades[out.shades.size() - 1])
 	if not wood.is_empty():
 		out.bark = wood
 	if out.tones.is_empty():
@@ -565,8 +584,7 @@ func tree(measured: Measure) -> ArrayMesh:
 						# as lathe work, and a bollard IS lathe work.
 						var ragged: float = 0.0 if measured.column \
 							else (ROCK_NOISE if measured.rock else LEAF_NOISE)
-						var wobble: float = 1.0 + (_hash(vx, vy, vz) - 0.5) * 2.0 * ragged
-						if plan <= radius * wobble:
+						if plan <= radius * _wobble(x, z, plan, vy, ragged):
 							fill = LEAF
 				solid[(vy * wide + vz) * wide + vx] = fill
 
@@ -598,6 +616,37 @@ func tree(measured: Measure) -> ArrayMesh:
 	if not _vertices.is_empty():
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+
+## How much of its row's radius the crown reaches along one RAY, in 0 to 1.
+##
+## THE JITTER IS A ROUGH SURFACE AND NOT A SIEVE, and what makes the difference
+## is what the hash is keyed on. Keyed on the VOXEL, which is what this was, the
+## wobble is a different number for every voxel along the same ray out from the
+## axis: the shell it draws is a speckle a couple of voxels thick with as many
+## gaps as leaves in it, and the ground, the wall and the sky behind a bush are
+## all visible straight through the middle of it. Keyed on the RAY there is one
+## radius per direction per row, so everything inside it is solid and the
+## silhouette is exactly as ragged as it was.
+##
+## AND IT ONLY EVER CUTS IN. A Generation II sprite states its WIDTH honestly,
+## which is the one thing this whole file is built on, so a crown wobbling OUT is
+## wider than the thing the cartridge drew: the bush came out 18 px across on a
+## 16 px cell and stood on the road where a map's border ring meets a
+## connection's paving.
+##
+## RAY_STEPS is how coarse the directions are, and it is what decides how big a
+## clump of leaves is. Finer than this and the crown reads as sandpaper.
+const RAY_STEPS: float = 8.0
+
+
+func _wobble(x: float, z: float, plan: float, vy: int, ragged: float) -> float:
+	if ragged <= 0.0:
+		return 1.0
+	var ray: float = maxf(plan, 1.0)
+	return 1.0 - _hash(
+		int(roundf(x / ray * RAY_STEPS)), vy, int(roundf(z / ray * RAY_STEPS))
+	) * ragged
 
 
 ## The crown's radius at a voxel row, in voxels, read off the drawing's own
