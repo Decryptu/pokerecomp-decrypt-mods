@@ -1699,6 +1699,10 @@ const FENCES: Dictionary = {
 const ROOM_WALL: Dictionary = {
 	# The Kanto laboratory and the houses that share its tileset.
 	10: [[1, 1]],
+	# The house tileset, which is most of the doors in the game. One tile, and it
+	# repeats up a wall on its own: 17 is eight rows of panelling whose top half
+	# and bottom half are the same drawing.
+	6: [[17]],
 }
 
 
