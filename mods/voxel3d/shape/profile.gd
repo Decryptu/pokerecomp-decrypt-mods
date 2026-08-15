@@ -1756,6 +1756,21 @@ const TILESETS: Dictionary = {
 	1: {
 		# The paving in front of the mart door, walked on and drawn flat.
 		&"ground": [154],
+		# THE CAVE MOUTH, and it was lying on the floor. Two tiles by two of black
+		# opening cut into the foot of the rock, which the pass reads four times
+		# over as "drawn FACE-ON as an opening in the cliff face, part of a doorway
+		# two tiles wide and two tall". `CLIFFS` has listed it from the start and
+		# that pin could never fire: a cliff has to be a VOLUME first, and the cell
+		# is walked into, so the collision resolved it to floor and the arch was
+		# painted flat on the ground in a gap in the rock.
+		#
+		# A DOORWAY IS DRAWN STANDING EVEN THOUGH IT IS WALKED THROUGH, which is
+		# the reviewer's own rule for the houses: "it should also be vertical
+		# facing texture, but player just walk through it since no collision".
+		# Standing, it joins the rock structure and takes the rock's own height and
+		# the rim's own slope, which is what they asked for: "make it a vertical
+		# wall and use same degree as adjacent wall".
+		&"wall": [70, 71, 86, 87],
 		# THE WHITE FENCE round the yards, and it is three tiles for two runs: 90
 		# over 89 is the run drawn face-on going ACROSS, and 74 is the run going
 		# AWAY, drawn as a line from above with its shadow beside it. All three
