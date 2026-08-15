@@ -74,6 +74,33 @@ const TRUNK_THICKNESS: float = 0.22
 ## material rather than as something showing through the leaves.
 const TONE_SHARE: int = 8
 
+## THREE OTHER WAYS OF SPENDING THE COLOURS WERE BUILT AND REFUSED, in round
+## twenty-six, and they must not be re-derived. The reviewer saw all four in one
+## sheet and in one wood and took the one below.
+##
+##   KEPT    what was in until then: the shades the drawing uses MINUS its
+##           darkest, spent on exposure. The darkest is the outline a flat
+##           drawing needs, so it was dropped whole, which left most crowns TWO
+##           colours. That is the poverty this replaced, and it is what the
+##           reviewer saw without being told to look for it.
+##   DEEP    the same rule with the darkest kept for the deepest faces.
+##   TURNED  the drawing's own colour at that row and that distance from the
+##           centre. It needed the outline dropped from the ring and the dither
+##           read by its commonest colour, and both of those are worth knowing:
+##           a drawn row's outermost pixels are its outline and the outer ring of
+##           a turned body is nearly all of its surface, so an outline kept is an
+##           outline sprayed over the whole crown.
+##
+## Pictures for all four are in the survey directory under `round26/styles`.
+
+## AND HOW A COLUMN IS BUILT was the same question one level down, asked in round
+## twenty-eight with three propositions against what was committed. The reviewer
+## took the last of them and it is what `_radius`, `_band_at` and `_tone` do now:
+## the ends bevelled, the lid's rows out of the side, and the side painted by the
+## drawn COLUMN. What they refused, so nobody rebuilds it: a straight barrel
+## painted by band alone, which reads as a plain drum; the bevel on its own; and
+## the bevel with the lid taken out but the side still mixed by row.
+
 
 var _vertices := PackedVector3Array()
 var _normals := PackedVector3Array()
@@ -86,6 +113,9 @@ var _sways := PackedVector2Array()
 var _sway: float = 0.0
 ## And the drawing's own colour at that row, which is what a ROCK is painted in.
 var _band := Color(0.5, 0.5, 0.5)
+## And its colours ACROSS that row, left to right, which is what a WRAPPED column
+## is painted with. Set per voxel row beside `_band`.
+var _wrap := PackedColorArray()
 ## World pixels per voxel for the model being built. See `FINE_VOXEL`.
 var _voxel: float = VOXEL
 
@@ -111,6 +141,9 @@ class Measure extends RefCounted:
 	## ragged, it does not bend in the wind, and it is not the dark mass a hedge
 	## is, so the drawing's own exposure reads straight back off it.
 	var rock: bool = false
+	## A COLUMN is not turned from its silhouette: it is the widest row's radius
+	## all the way up, with a flat top. See `profile.gd:COLUMN`.
+	var column: bool = false
 	## HOW TALL THE THING STANDS AGAINST HOW TALL IT IS DRAWN, where a person has
 	## said and the drawing cannot. Zero takes the class's own default: 1.3 for a
 	## tree, which is the foreshortening, and 1.0 for anything sitting on the
@@ -124,10 +157,26 @@ class Measure extends RefCounted:
 	var stretch: float = 0.0
 	## Lightest first, and the drawing's darkest shade is NOT among them.
 	var tones: PackedColorArray = PackedColorArray()
+	## The same reading with the drawing's DARKEST kept, lightest first. This is
+	## what the crown is painted from: see `_lit`.
+	var shades: PackedColorArray = PackedColorArray()
 	var bark: PackedColorArray = PackedColorArray()
 	## The drawing's own colour at each row of the profile, top row first, which is
 	## how a ROCK is painted. See `_bands`.
 	var bands: PackedColorArray = PackedColorArray()
+	## The colour of the CAP: what a drawing seen from above puts on the top of the
+	## thing, which is the commonest colour over its upper rows. Only a COLUMN uses
+	## it, and it is the one thing a band cannot say, since a band maps a drawn row
+	## onto a HEIGHT and a cap is not at a height at all. See `_cap`.
+	var cap := Color(0.5, 0.5, 0.5)
+	## How many of the drawing's leading rows ARE that cap, so a column can take
+	## them out of its side. See `_cap_rows`.
+	var cap_rows: int = 0
+	## The bands with those rows taken out: what a column's SIDE is painted from.
+	var side_bands: PackedColorArray = PackedColorArray()
+	## Per side row, the drawing's own colours across it, left to right, which is
+	## what wraps round a barrel. See `_wraps`.
+	var wraps: Array = []
 
 	func width() -> int:
 		var widest: float = 0.0
@@ -173,6 +222,7 @@ static func measure(
 	if first_row < 0:
 		out.profile = PackedFloat32Array([6.0, 8.0, 8.0, 6.0])
 		out.tones = PackedColorArray([Color(0.35, 0.62, 0.28), Color(0.2, 0.42, 0.18)])
+		out.shades = out.tones
 		out.bark = PackedColorArray([Color(0.42, 0.28, 0.14)])
 		return out
 
@@ -207,7 +257,21 @@ static func measure(
 	out.trunk_width = maxi(trunk, 3)
 
 	out.tones = _tones(mask, span, tiles, across, atlas, first_row, crown_bottom - 1)
+	out.shades = _tones(
+		mask, span, tiles, across, atlas, first_row, crown_bottom - 1, false
+	)
 	out.bands = _bands(mask, span, tiles, across, atlas, first_row, crown_bottom - 1)
+	out.cap = _cap(out.bands)
+	out.cap_rows = _cap_rows(out.bands, out.cap)
+	# The side is what is left under the cap, and never nothing: a drawing that is
+	# all lid keeps its whole band rather than coming back blank.
+	for at: int in range(out.cap_rows, out.bands.size()):
+		out.side_bands.append(out.bands[at])
+	if out.side_bands.is_empty():
+		out.side_bands = out.bands
+	out.wraps = _wraps(
+		mask, span, tiles, across, atlas, first_row + out.cap_rows, crown_bottom - 1
+	)
 	# The bark is read all the way down to the drawing's last row, shadow and all:
 	# what a tree draws under its crown is trunk, roots and the dark they sit in,
 	# and the trunk band alone is too few pixels to rank on some tilesets.
@@ -228,6 +292,8 @@ static func measure(
 		out.bark = wood
 	if out.tones.is_empty():
 		out.tones = PackedColorArray([Color(0.35, 0.62, 0.28), Color(0.2, 0.42, 0.18)])
+	if out.shades.is_empty():
+		out.shades = out.tones
 	if out.bark.is_empty():
 		out.bark = PackedColorArray([Color(0.42, 0.28, 0.14)])
 	return out
@@ -243,7 +309,7 @@ static func measure(
 ## `_tone` spend it on the light.
 static func _tones(
 	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
-	atlas: RefCounted, from_row: int, to_row: int
+	atlas: RefCounted, from_row: int, to_row: int, drop_dark: bool = true
 ) -> PackedColorArray:
 	var counts: Dictionary = {}
 	var colours: Dictionary = {}
@@ -255,7 +321,7 @@ static func _tones(
 			@warning_ignore("integer_division")
 			var tile: int = tiles[(py / 8) * across.x + px / 8]
 			var index: int = atlas.pixel(tile, px % 8, py % 8)
-			if index < 0 or atlas.is_dark(tile, index, 1):
+			if index < 0 or (drop_dark and atlas.is_dark(tile, index, 1)):
 				continue
 			var colour: Color = atlas.color_of(tile, index)
 			var key: int = colour.to_rgba32()
@@ -338,6 +404,99 @@ static func _bands(
 	return out
 
 
+## THE COLOUR OF A CAP, out of the bands the drawing was read into.
+##
+## A 2.5D sprite is a top and a front stacked, which this mod already reads that
+## way at object and at building scale. A bollard is the same picture: its upper
+## rows are the flat top seen from ABOVE and its lower rows are the side. Mapped
+## onto height like any other band, the cap ends up painted round the shoulder of
+## the cylinder and the top face takes the outline ring drawn at the very top,
+## which is how a pale concrete cap came out grey.
+##
+## The commonest band over the upper half, then, which is the cap wherever a
+## drawing has one and is the upper body wherever it does not.
+static func _cap(bands: PackedColorArray) -> Color:
+	if bands.is_empty():
+		return Color(0.5, 0.5, 0.5)
+	var counts: Dictionary = {}
+	var colours: Dictionary = {}
+	for at: int in maxi(bands.size() / 2, 1):
+		var key: int = bands[at].to_rgba32()
+		counts[key] = int(counts.get(key, 0)) + 1
+		colours[key] = bands[at]
+	var best: int = -1
+	for key: int in counts:
+		if best < 0 or int(counts[key]) > int(counts[best]):
+			best = key
+	return colours[best]
+
+
+## HOW MANY LEADING ROWS ARE THE CAP: the deepest row in the drawing's upper
+## half that is still painted the cap's own colour, and everything above it.
+##
+## Counting the leading run instead misses it entirely, because a drawing's first
+## row is its outline arc rather than its lid: the bollard's row 0 is the dark
+## ring, and a run test stops there and calls the cap zero rows deep.
+static func _cap_rows(bands: PackedColorArray, cap: Color) -> int:
+	var deepest: int = -1
+	for at: int in maxi(bands.size() / 2, 1):
+		if bands[at].is_equal_approx(cap):
+			deepest = at
+	return deepest + 1
+
+
+## THE DRAWING'S OWN COLOURS ACROSS EACH ROW, left to right, one per world pixel
+## of the row's width, for the rows a column's SIDE is painted from.
+##
+## A barrel is the one shape where a drawn row IS the surface: the sprite shows
+## the near half of it straight on, so the pixel three across from the middle is
+## what the barrel looks like three across from ITS middle, and the artist's lit
+## side and shaded side wrap round it as drawn. That is the reference mod's own
+## texel rule for a can, and it is the one reading here that keeps WHERE across a
+## drawing a colour was used.
+static func _wraps(
+	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
+	atlas: RefCounted, from_row: int, to_row: int
+) -> Array:
+	var out: Array = []
+	for py: int in range(maxi(from_row, 0), mini(to_row + 1, span.y)):
+		var row := PackedColorArray()
+		var first: int = -1
+		var last: int = -1
+		for px: int in span.x:
+			if mask[py * span.x + px] == 1:
+				if first < 0:
+					first = px
+				last = px
+		if first >= 0:
+			for px: int in range(first, last + 1):
+				@warning_ignore("integer_division")
+				var tile: int = tiles[(py / 8) * across.x + px / 8]
+				var index: int = atlas.pixel(tile, px % 8, py % 8)
+				# The outline is the drawing's edge and not the barrel's colour at
+				# that column: it would paint a black stripe down both flanks.
+				if index < 0 or atlas.is_dark(tile, index, 1):
+					row.append(Color(0.0, 0.0, 0.0, 0.0))
+				else:
+					row.append(atlas.color_of(tile, index))
+			# An outline pixel takes the nearest colour inside it, so the flanks
+			# are the material rather than a hole.
+			var carried := Color(0.5, 0.5, 0.5)
+			for at: int in row.size():
+				if row[at].a > 0.0:
+					carried = row[at]
+				else:
+					row[at] = carried
+			for step: int in row.size():
+				var at: int = row.size() - 1 - step
+				if row[at].a > 0.0:
+					carried = row[at]
+				else:
+					row[at] = carried
+		out.append(row)
+	return out
+
+
 static func _luminance(colour: Color) -> float:
 	return colour.r * 0.299 + colour.g * 0.587 + colour.b * 0.114
 
@@ -402,8 +561,11 @@ func tree(measured: Measure) -> ArrayMesh:
 					if radius > 0.0:
 						# The jitter is the leaves. Deterministic, so one tree is
 						# one model however many times it is stamped.
-						var wobble: float = 1.0 + (_hash(vx, vy, vz) - 0.5) \
-							* 2.0 * (ROCK_NOISE if measured.rock else LEAF_NOISE)
+						# A COLUMN takes none: the jitter is what stops a turn reading
+						# as lathe work, and a bollard IS lathe work.
+						var ragged: float = 0.0 if measured.column \
+							else (ROCK_NOISE if measured.rock else LEAF_NOISE)
+						var wobble: float = 1.0 + (_hash(vx, vy, vz) - 0.5) * 2.0 * ragged
 						if plan <= radius * wobble:
 							fill = LEAF
 				solid[(vy * wide + vz) * wide + vx] = fill
@@ -419,6 +581,7 @@ func tree(measured: Measure) -> ArrayMesh:
 			float(vy - trunk_high) / float(maxi(crown_high - 1, 1)), 0.0, 1.0
 		)
 		_band = _band_at(measured, vy - trunk_high, crown_high)
+		_wrap = _wrap_at(measured, vy - trunk_high, crown_high)
 		for vz: int in wide:
 			for vx: int in wide:
 				if solid[(vy * wide + vz) * wide + vx] == EMPTY:
@@ -442,6 +605,17 @@ func tree(measured: Measure) -> ArrayMesh:
 func _radius(measured: Measure, up: int, crown_high: int) -> float:
 	if up < 0 or up >= crown_high:
 		return 0.0
+	# A COLUMN is the widest row all the way up, which is what makes its side
+	# straight and its top flat. It is not a taper read off the drawing, because
+	# what tapers in the drawing is the far edge of a flat cap seen from above.
+	if measured.column:
+		var straight: float = float(measured.width()) * 0.5 / _voxel
+		# CAST CONCRETE HAS AN EDGE and a barrel of voxels has none. One voxel
+		# drawn in at the top ring and at the foot is the whole of it: two, or a
+		# taper over more rows, and the post is a plinth rather than a bollard.
+		if up == 0 or up == crown_high - 1:
+			return maxf(straight - 1.0, 1.0)
+		return straight
 	var rows: int = measured.profile.size()
 	# The profile is written top row first and the model is built from the
 	# ground, so the row is read from the far end.
@@ -452,18 +626,38 @@ func _radius(measured: Measure, up: int, crown_high: int) -> float:
 	return measured.profile[at] / _voxel
 
 
-## The drawing's colour at a voxel row, read off the same profile row `_radius`
-## reads the width off, so a band and the width it paints belong to each other.
-func _band_at(measured: Measure, up: int, crown_high: int) -> Color:
-	if measured.bands.is_empty():
-		return Color(0.5, 0.5, 0.5)
-	var rows: int = measured.bands.size()
+## The drawing's colours ACROSS the side row that `_band_at` takes its band from,
+## so a wrap and the band it replaces are the same row of the same drawing.
+func _wrap_at(measured: Measure, up: int, crown_high: int) -> PackedColorArray:
+	if measured.wraps.is_empty():
+		return PackedColorArray()
+	var rows: int = measured.wraps.size()
 	var at: int = clampi(
 		int(round(float(crown_high - 1 - up) * float(rows - 1)
 			/ float(maxi(crown_high - 1, 1)))),
 		0, rows - 1
 	)
-	return measured.bands[at]
+	return measured.wraps[at]
+
+
+## The drawing's colour at a voxel row, read off the same profile row `_radius`
+## reads the width off, so a band and the width it paints belong to each other.
+func _band_at(measured: Measure, up: int, crown_high: int) -> Color:
+	var bands: PackedColorArray = measured.bands
+	# A COLUMN'S SIDE IS WHAT IS UNDER THE LID. Painting the lid's rows up the
+	# side as well squashes the body's own shading into the lower half of the
+	# post, which is what makes it read as banded rather than as concrete.
+	if measured.column and not measured.side_bands.is_empty():
+		bands = measured.side_bands
+	if bands.is_empty():
+		return Color(0.5, 0.5, 0.5)
+	var rows: int = bands.size()
+	var at: int = clampi(
+		int(round(float(crown_high - 1 - up) * float(rows - 1)
+			/ float(maxi(crown_high - 1, 1)))),
+		0, rows - 1
+	)
+	return bands[at]
 
 
 func _hash(x: int, y: int, z: int) -> float:
@@ -483,12 +677,18 @@ func _faces(
 	vx: int, vy: int, vz: int, reach: int, measured: Measure
 ) -> void:
 	var fill: int = solid[(vy * wide + vz) * wide + vx]
-	# How much sky the voxel has over it, which is what decides its colour: see
-	# `_tone`. Counted once per voxel rather than once per face.
+	# How much of the sky the voxel can see, which is what decides its colour: the
+	# column ABOVE it and how enclosed it is by the twenty-six voxels AROUND it.
+	# See `_tone`. Both are counted once per voxel, since they are facts about the
+	# voxel and `_tone` is asked six times for it.
+	# COUNTED ONLY IF SOMETHING IS DRAWN, and only once for the six faces. The
+	# twenty-six neighbours are what the colour rule costs: the round tree's build
+	# went from 10.4 ms to 17.6 counting them for every solid voxel, and 16.1
+	# counting them only where a face is emitted. Less than it looks, because a
+	# jittered crown is nearly all surface and has little inside it.
 	var sky: int = 0
-	for above: int in range(vy + 1, tall):
-		if solid[(above * wide + vz) * wide + vx] != EMPTY:
-			sky += 1
+	var near: int = 0
+	var counted: bool = false
 	for side: Vector3i in SIDES:
 		var nx: int = vx + side.x
 		var ny: int = vy + side.y
@@ -499,10 +699,21 @@ func _faces(
 		# Nothing sees under a tree, and the foot is closed by the ground.
 		if side.y < 0 and vy == 0:
 			continue
+		if not counted:
+			counted = true
+			for above: int in range(vy + 1, tall):
+				if solid[(above * wide + vz) * wide + vx] != EMPTY:
+					sky += 1
+			near = -1
+			for dy: int in range(maxi(vy - 1, 0), mini(vy + 2, tall)):
+				for dz: int in range(maxi(vz - 1, 0), mini(vz + 2, wide)):
+					for dx: int in range(maxi(vx - 1, 0), mini(vx + 2, wide)):
+						if solid[(dy * wide + dz) * wide + dx] != EMPTY:
+							near += 1
 		var origin := Vector3(
 			float(vx - reach) * _voxel, float(vy) * _voxel, float(vz - reach) * _voxel
 		)
-		_quad(origin, side, _tone(measured, fill, side, sky))
+		_quad(origin, side, _tone(measured, fill, side, sky, near, float(vx - reach)))
 
 
 ## THE DRAWING'S OWN SHADING RULE, IN THREE DIMENSIONS.
@@ -513,22 +724,38 @@ func _faces(
 ## drawing saying which way is up, and it is exactly the information a flat
 ## picture loses when it becomes a solid.
 ##
-## So the shades are spent the same way here. A face gets one step lighter for
-## looking up and one step darker for looking down, and one step darker for every
-## couple of voxels of canopy standing over it. The result is the sprite's own
-## palette arranged by exposure, which is what it was arranged by in the first
-## place.
-func _tone(measured: Measure, fill: int, side: Vector3i, sky: int) -> Color:
+## So the shades are spent the same way here, on how much of the sky a face can
+## see. See `_lit` for the rule, and for the two things it took to make the
+## drawing's WHOLE palette usable rather than most of it.
+func _tone(
+	measured: Measure, fill: int, side: Vector3i, sky: int, near: int,
+	across: float
+) -> Color:
 	var palette: PackedColorArray = measured.bark if fill == BARK else measured.tones
+	# The crown is painted from the drawing's whole ladder, its darkest included.
+	# A ROCK is painted by BAND and keeps the reading it was measured with, which
+	# is that ladder without it.
+	if fill == LEAF and not measured.rock and not measured.shades.is_empty():
+		palette = measured.shades
 	if palette.is_empty():
 		return Color(0.3, 0.5, 0.25)
 	# A ROCK IS PAINTED BY BAND, not by exposure: see `_bands`. What is left of the
 	# rule here is the one thing a band cannot say, which is that a face looking
 	# down at the ground is in its own shadow.
 	if measured.rock:
+		# A COLUMN's top face is the CAP the drawing draws, not the band at the
+		# height the cap happens to be drawn at. See `_cap`.
+		if measured.column and side.y > 0:
+			return measured.cap
+		if measured.column and side.y == 0 and not _wrap.is_empty():
+			# WHERE ACROSS THE DRAWING THIS FACE STANDS. The barrel is as wide as
+			# the row is drawn, so the two are the same measure and the artist's
+			# own lit and shaded flanks land on the flanks.
+			var at: int = int(round(float(_wrap.size()) * 0.5 + across * _voxel))
+			return _wrap[clampi(at, 0, _wrap.size() - 1)]
 		if side.y >= 0:
 			return _band
-		return palette[clampi(_ladder(measured, _band) + 1, 0, palette.size() - 1)]
+		return palette[clampi(_ladder(palette, _band) + 1, 0, palette.size() - 1)]
 	# A SHRUB STARTS A STEP DARKER, because exposure alone reads it wrong. The
 	# rule spends the palette on how much stands over a face, and almost nothing
 	# stands over a thing seven voxels tall: every top face takes the lightest
@@ -539,24 +766,46 @@ func _tone(measured: Measure, fill: int, side: Vector3i, sky: int) -> Color:
 	# on top and shaded down its side, which is the exposure rule already, so it
 	# takes the tree's own reading rather than the shrub's correction to it.
 	var dark_mass: bool = measured.shrub and not measured.rock
-	var step: int = 1 if dark_mass else 0
+	return _lit(palette, side, sky, near, dark_mass)
+
+
+## LIT. The palette spent on how much of the sky a face can see, counted over the
+## voxels AROUND it rather than the column above it, and mixed between rungs.
+##
+## Two things it answers that stepping by the column does not. A voxel deep in
+## the middle of a crown has as much sky over it as one at the edge of the same
+## row, so the whole rim of a wide tree took the same tone as its middle; and a
+## drawing with two shades in it had two tones to spend however deep the body
+## went, which is what makes a big crown read flat.
+##
+## Mixing is the one thing here that puts a colour on the model the cartridge did
+## not draw, and it is the only place in this mod that does. It stays between two
+## of the drawing's own shades and never outside them. The reviewer took it in
+## round twenty-six over three rules that do not mix, having been told which one
+## was which and shown all four in a wood.
+func _lit(
+	palette: PackedColorArray, side: Vector3i, sky: int, near: int, dark_mass: bool
+) -> Color:
+	var rung: float = 1.0 if dark_mass else 0.0
 	if side.y > 0:
-		# A shrub's top is not lightened, only its sides are darkened. Lightening
-		# it cancels the step above exactly, and the top is most of what is seen
-		# of a thing at knee height.
-		step -= 0 if dark_mass else 1
+		rung -= 0.5
 	elif side.y < 0:
-		step += 1
-	@warning_ignore("integer_division")
-	step += sky / 2
-	return palette[clampi(step, 0, palette.size() - 1)]
+		rung += 0.6
+	rung += float(sky) * 0.5
+	# Out of the twenty-six voxels around it, so a face on an open rim is lighter
+	# than one in a hollow with the same sky over it.
+	rung += float(near) / 26.0 * 1.6
+	var top: int = palette.size() - 1
+	var at: float = clampf(rung, 0.0, float(top))
+	var low: int = int(floorf(at))
+	return palette[low].lerp(palette[mini(low + 1, top)], at - float(low))
 
 
-## Where a colour sits on the drawing's own ladder of shades, lightest first, so
-## a band can be stepped down from without leaving the cartridge's palette.
-func _ladder(measured: Measure, colour: Color) -> int:
-	for at: int in measured.tones.size():
-		if measured.tones[at].is_equal_approx(colour):
+## Where a colour sits on a ladder of shades, lightest first, so a band or a ring
+## can be stepped down from without leaving the cartridge's palette.
+func _ladder(palette: PackedColorArray, colour: Color) -> int:
+	for at: int in palette.size():
+		if palette[at].is_equal_approx(colour):
 			return at
 	return 0
 

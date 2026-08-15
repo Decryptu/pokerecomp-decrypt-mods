@@ -122,6 +122,8 @@ var _outlined := PackedByteArray()
 var _modelled := PackedByteArray()
 var _shrub := PackedByteArray()
 var _rock := PackedByteArray()
+## And whether it is a straight COLUMN rather than a turned silhouette.
+var _column := PackedByteArray()
 ## Per tile: how tall a modelled class stands against how tall it is drawn, or
 ## zero for the class's own default. See `profile.gd:STRETCH`.
 var _stretch := PackedFloat32Array()
@@ -543,6 +545,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_modelled.resize(count)
 	_shrub.resize(count)
 	_rock.resize(count)
+	_column.resize(count)
 	_stretch.resize(count)
 	_tufted.resize(count)
 	_long_grass.resize(count)
@@ -599,6 +602,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_modelled[at] = 1 if shape.is_model(shape_class) else 0
 			_shrub[at] = 1 if shape.is_shrub(shape_class) else 0
 			_rock[at] = 1 if shape.is_rock(shape_class) else 0
+			_column[at] = 1 if shape.is_column(shape_class) else 0
 			_stretch[at] = shape.model_stretch(shape_class)
 			# WHICH CELLS ARE GRASS IS THE CARTRIDGE'S OWN ANSWER, and it is in
 			# the collision byte rather than in the drawing. `grass_kind` is the
@@ -1014,6 +1018,7 @@ func _house_tile(shape: RefCounted, at: int, stroke: String) -> void:
 	_modelled[at] = 0
 	_shrub[at] = 0
 	_rock[at] = 0
+	_column[at] = 0
 	_tufted[at] = 0
 	_long_grass[at] = 0
 	_lying[at] = 0
@@ -2626,6 +2631,7 @@ func _model_bodies_of(
 			var measured: RefCounted = Model.measure(only, span, tiles, across, atlas)
 			measured.shrub = _shrub[at] == 1
 			measured.rock = _rock[at] == 1
+			measured.column = _column[at] == 1
 			measured.stretch = _stretch[at]
 			_model_meshes[key] = (Model.new() as RefCounted).tree(measured)
 			_model_spots[key] = {}

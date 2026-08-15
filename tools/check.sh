@@ -12,20 +12,30 @@
 #
 # Parsing resolves against the game project, so it needs a pokerecomp checkout:
 # the first argument, else $POKERECOMP, else the read-only one in `.references`.
-# The Godot binary is $GODOT, else whatever `godot` is on the path.
+# The Godot binary is $GODOT, else `godot` on the path, else where the macOS
+# installer puts it: a stock install leaves no `godot` on the path at all, so
+# the one-word command this file's own instructions promise failed there.
 #
 #   tools/check.sh [pokerecomp path]
 
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-GODOT="${GODOT:-godot}"
 HOST="${1:-${POKERECOMP:-$HERE/.references/pokerecomp}}"
 if [ ! -d "$HOST" ]; then
 	echo "no pokerecomp checkout at $HOST; pass one or set POKERECOMP" >&2
 	exit 2
 fi
-if ! command -v "$GODOT" > /dev/null 2>&1; then
-	echo "no Godot at $GODOT; set GODOT to the binary" >&2
+for candidate in "${GODOT:-godot}" \
+		/Applications/Godot.app/Contents/MacOS/Godot \
+		"$HOME/Applications/Godot.app/Contents/MacOS/Godot"; do
+	GODOT=""
+	if command -v "$candidate" > /dev/null 2>&1; then
+		GODOT="$candidate"
+		break
+	fi
+done
+if [ -z "$GODOT" ]; then
+	echo "no Godot found; set GODOT to the binary" >&2
 	exit 2
 fi
 

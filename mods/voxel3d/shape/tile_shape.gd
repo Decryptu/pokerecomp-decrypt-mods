@@ -125,6 +125,12 @@ func is_rock(shape_class: StringName) -> bool:
 	return bool(_profile.ROCK.get(shape_class, false))
 
 
+## Whether a modelled class is a straight COLUMN rather than a turned
+## silhouette. See `profile.gd:COLUMN`.
+func is_column(shape_class: StringName) -> bool:
+	return bool(_profile.COLUMN.get(shape_class, false))
+
+
 ## How tall a modelled class stands against how tall it is drawn, or zero for the
 ## class's own default. See `profile.gd:STRETCH`.
 func model_stretch(shape_class: StringName) -> float:
