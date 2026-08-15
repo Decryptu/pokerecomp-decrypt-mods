@@ -8,7 +8,7 @@ extends SceneTree
 ##
 ##   Godot --path <pokerecomp> -s tools/shot.gd -- <cache> <group> <number> \
 ##       <tile x> <tile y> <out.png> [pitch] [back] [time 0-3] [sky] [hold]
-##       [bearing]
+##       [bearing] [column style]
 ##
 ## HOLD is how many frames to run before the shutter, and it is how MOTION is
 ## photographed: everything that moves in this view moves on the shader clock, so
@@ -54,6 +54,14 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
+
+	if args.size() > 12:
+		var model_script: GDScript = load("%s/shape/model.gd" % MOD)
+		if model_script.get(args[12].to_upper()) == null:
+			print("no column style ", args[12])
+			quit(1)
+			return
+		model_script.column_style = int(model_script.get(args[12].to_upper()))
 
 	var atlas: RefCounted = (load("%s/shape/atlas.gd" % MOD) as GDScript).new()
 	var mesher: RefCounted = (load("%s/shape/mesher.gd" % MOD) as GDScript).new()
