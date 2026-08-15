@@ -33,6 +33,22 @@ const TILE: float = 8.0
 ## The same eight as a whole number, which is what a painted mask is indexed in.
 const TILE_PX: int = 8
 const BAND: int = 8
+## The shortest face that may lift the ground BEHIND it, in world pixels.
+##
+## A CLIFF MAY LOWER A HEIGHT AND MAY NOT INTRODUCE ONE, which is the reviewer's
+## own rule, given on Celadon in round thirty-four: "its a flat town. and i dont
+## see a single rocks rims, wtf happened here". Reading a face in BANDS rather
+## than in walk cells made the city's paving edge measure 8 px where it had
+## measured nothing, and the plateau flood then lifted the whole city one band
+## proud of the grass round it. The kerb is real and the lift is not: a step you
+## can see in the drawing is not a storey.
+##
+## So a face shorter than a walk cell stands its own drawn rim and seeds nothing.
+## This does NOT take the band back as a unit, which is the distinction worth
+## keeping: Ecruteak's rock patches still stand the 8 px the reviewer measured
+## them at in round thirty-one, because that is the patch's OWN height off its own
+## front rather than a floor lifted behind it.
+const PLATEAU_FLOOR: int = BAND * 2
 
 ## Volume height cap, in walk cells. Three is 48 world pixels: tall enough for a
 ## house drawn three cells deep, short enough that nothing measured wrong can
@@ -1933,7 +1949,7 @@ func _cliff_evidence(seeds: Dictionary, fronts: Dictionary) -> bool:
 				var above: int = ty - 1
 				if above >= 0 and _is_plateau_floor(above * _size.x + tx):
 					var height: int = _cliff_height(tx, ty)
-					if height > 0:
+					if height >= PLATEAU_FLOOR:
 						var index: int = above * _size.x + tx
 						seeds[index] = mini(int(seeds.get(index, height)), height)
 				var below: int = ty + run
@@ -3512,16 +3528,90 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 		Vector3(-1.0, 0.0, 0.0), side, SHADE_SIDE
 	)
 	if top_rows == 0:
-		_quad(
-			Vector3(left, high, front), Vector3(right, high, front),
-			Vector3(right, high, back), Vector3(left, high, back),
-			Vector3.UP,
-			_object_texel(
-				atlas, tiles, across, mask, span, window,
-				window.position.y, window.position.y + window.size.y
-			),
-			SHADE_TOP_FLAT
-		)
+		var cap: int = int(object.get(&"cap", 0))
+		if cap > 0:
+			_object_cap(
+				atlas, tiles, across, mask, span, window, cap,
+				left, right, high, front, back
+			)
+		else:
+			_quad(
+				Vector3(left, high, front), Vector3(right, high, front),
+				Vector3(right, high, back), Vector3(left, high, back),
+				Vector3.UP,
+				_object_texel(
+					atlas, tiles, across, mask, span, window,
+					window.position.y, window.position.y + window.size.y
+				),
+				SHADE_TOP_FLAT
+			)
+
+
+## THE ROOF OF A THING THE CARTRIDGE NEVER DRAWS FROM ABOVE.
+##
+## An object with no `top` band gets one texel across its whole cap, which is
+## right for a chair seen from six feet up and wrong for the tallest thing in the
+## game: the Bell Tower's cap is four walk cells of one pale plaster colour, and
+## the reviewer's answer in round thirty-four was "keep but add a texture on the
+## roof instead of plain white".
+##
+## There is no roof to sample. A pagoda is drawn face-on, tier over tier, and no
+## row of it is a surface seen from above, so the honest answer is not to invent
+## one but to REPEAT the drawing's own topmost rows across the depth at one world
+## pixel per drawn row. What lands up there is the top tier's own tiled roof, in
+## its own colours, running back over the cap the way a real roof's courses do.
+##
+## Laid across the depth ONCE instead, which was built and photographed first, it
+## stretches eight rows over sixty-four pixels and comes back as pale streaks with
+## the drawing's dark ridge smeared down the middle.
+func _object_cap(
+	atlas: RefCounted, tiles: Array, across: Vector2i, mask: PackedByteArray,
+	span: Vector2i, window: Rect2i, rows: int,
+	left: float, right: float, high: float, front: float, back: float
+) -> void:
+	var deep: float = front - back
+	# WHERE THE TOP ROWS DRAW NOTHING the cap still has to be closed, or the roof
+	# comes back with the sky either side of the ridge cut out of it. Those runs
+	# wear the one interior texel the flat cap used to wear whole.
+	var blank: Rect2 = _object_texel(
+		atlas, tiles, across, mask, span, window,
+		window.position.y, window.position.y + window.size.y
+	)
+	var course: float = 0.0
+	while course < deep:
+		var cut: float = minf(float(rows), deep - course)
+		for row: int in rows:
+			if float(row) >= cut:
+				break
+			var py: int = window.position.y + row
+			var px: int = window.position.x
+			while px < window.position.x + window.size.x:
+				var stop: int = mini(
+					(px / int(TILE) + 1) * int(TILE),
+					window.position.x + window.size.x
+				)
+				var here: bool = _drawn(mask, span, px, py)
+				var run: int = px
+				while run < stop and _drawn(mask, span, run, py) == here:
+					run += 1
+				@warning_ignore("integer_division")
+				var tile: int = int(tiles[(py / int(TILE)) * across.x + px / int(TILE)])
+				var uv: Rect2 = blank
+				if here:
+					uv = atlas.uv_box(
+						tile, Rect2i(px % int(TILE), py % int(TILE), run - px, 1)
+					)
+				var near: float = back + course + float(row) + 1.0
+				var far: float = back + course + float(row)
+				var x0: float = left + float(px - window.position.x)
+				var x1: float = left + float(run - window.position.x)
+				_quad(
+					Vector3(x0, high, near), Vector3(x1, high, near),
+					Vector3(x1, high, far), Vector3(x0, high, far),
+					Vector3.UP, uv, SHADE_TOP_FLAT
+				)
+				px = run
+		course += float(rows)
 
 
 ## ONE OBJECT, TURNED RATHER THAN STOOD UP.

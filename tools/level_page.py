@@ -483,7 +483,12 @@ def main():
     missing = [m["art"] for m in maps if not (directory / m["art"]).exists()]
     if missing:
         print("missing map art beside the page: %s" % ", ".join(missing))
-        print("run tools/map_art.gd for each, at scale 1")
+        # Named rather than described: `map_art.gd` writes whatever path it is
+        # given, and the name this page looks for is not the one that tool's own
+        # examples use, so "run map_art.gd" on its own has sent two sessions
+        # round the loop again with the file sitting right there under the other
+        # name.
+        print("run tools/map_art.gd at scale 1, writing each to that exact name")
         return 1
     out = directory / "levels.html"
     out.write_text(PAGE.replace("__MAPS__", json.dumps(maps)))

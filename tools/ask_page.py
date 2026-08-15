@@ -13,7 +13,13 @@ first, two seconds each, then the questions, and one SAVE for both.
 
     tools/ask_page.py <survey dir> <spec.json>   # writes <survey dir>/ask.html
 
-The spec is a dict with `title`, `out` and `items`. An item is one of:
+The spec is a dict with `title`, `out` and `items`, and optionally `page`, which
+is the file name to write beside the pictures. It defaults to `ask.html`; a round
+that asks two separate things names the second, because the alternative is
+building one over the other and renaming it afterwards, and a renamed page is how
+a stale one gets sent.
+
+An item is one of:
 
     {"kind": "tile", "tileset": 9, "tile": 66, "image": "ctx_ts9_66.png",
      "note": "what the pass said about it"}
@@ -226,7 +232,10 @@ function tally() {
   let q = 0;
   for (const x of QUESTIONS)
     if (answers[key("Q", x.id)] || answers[key("Qtext", x.id)]) q++;
-  const text = `${n} of ${TILES.length} tiles · ${q} of ${QUESTIONS.length} questions`;
+  // A round of judgement calls alone carries no tiles, and "0 of 0 tiles"
+  // beside the real count reads as something left undone.
+  const text = (TILES.length ? `${n} of ${TILES.length} tiles · ` : "")
+    + `${q} of ${QUESTIONS.length} questions`;
   for (const id of ["count", "count2"]) {
     const el = $(id);
     if (el) el.innerHTML = `<span class="${n + q ? "done" : ""}">${text}</span>`;
@@ -277,7 +286,7 @@ def main():
     page = (PAGE.replace("__SPEC__", json.dumps(spec))
                 .replace("__TITLE__", spec.get("title", "voxel3d"))
                 .replace("__OUT__", spec["out"]))
-    out = directory / "ask.html"
+    out = directory / spec.get("page", "ask.html")
     out.write_text(page)
     tiles = sum(1 for i in spec["items"] if i["kind"] == "tile")
     questions = sum(1 for i in spec["items"] if i["kind"] == "question")

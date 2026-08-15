@@ -185,6 +185,26 @@ func _load_anim(
 	if background:
 		_view["bg_palette_maps"] = maps
 		_view["ob_palette_maps"] = player.background().ob_palette_maps
+	# THE SCANLINE WOBBLE, built the way `battle_screen.gd:_anim_raster` builds
+	# it: the animation's own `hSCY` on every line, replaced by the scanline
+	# table wherever it has opened a window on that register. Without it the view
+	# says no move ever wobbles, and the camera shake this drives cannot be
+	# checked at all. A still cannot SHOW a shake; what it can show is that the
+	# shot moved between two frames of the same move, which is the whole of what
+	# there is to verify.
+	var wobble := PackedInt32Array()
+	var scene: Gen2BattleAnimBackground = player.background()
+	var windowed: bool = scene.lcdc_pointer == Gen2BattleAnimBackground.LCDC_SCY
+	if scene.scy != 0 or windowed:
+		wobble.resize(Gen2BattleAnimBackground.SCREEN_LINES)
+		for line: int in Gen2BattleAnimBackground.SCREEN_LINES:
+			wobble[line] = int(scene.ly_overrides[line]) if windowed else scene.scy
+	_view["raster_scy"] = wobble
+	var shake: float = 0.0
+	for line: int in wobble.size():
+		shake += float(wobble[line] if wobble[line] < 128 else wobble[line] - 256)
+	if not wobble.is_empty():
+		shake = -shake / float(wobble.size())
 	# `BattleAnimClearHud` takes the panels and both bars off for the length of a
 	# move, so a shot of one that leaves them up is not a picture of the game.
 	_view["hud_visible"] = false
@@ -192,7 +212,8 @@ func _load_anim(
 	for slot: int in maps.size():
 		written += "%02x " % maps[slot]
 	print("anim ", index, " frame ", frame, ": ",
-		(player.sprites() as Array).size(), " sprites, bg pals ", written)
+		(player.sprites() as Array).size(), " sprites, bg pals ", written,
+		", shake ", "%.2f" % shake, " hardware px")
 
 
 func _process(_delta: float) -> bool:

@@ -65,10 +65,12 @@ const HEIGHTS: Dictionary = {
 	# all three tilesets that draw it.
 	&"flower": 0,
 	&"planter": 0,
+	&"palm": 0,
 	&"statue": 0,
 	# A STATUE ON A PILLAR carries no height of its own either: how tall it stands
 	# is counted off its own drawing, which is two cells of it.
 	&"statue_pillar": 0,
+	&"idol": 0,
 	&"stand": 0,
 	&"lie": 0,
 	# A STOOL is a turned model and counts its own height off its own drawing,
@@ -120,12 +122,14 @@ const DEPTHS: Dictionary = {
 	# whatever side it is looked at.
 	&"flower": 12,
 	&"planter": 12,
+	&"palm": 12,
 	&"statue": 10,
 	# A STATUE ON A PILLAR STANDS ON A WHOLE CELL, which is the reviewer's own
 	# measurement of it: "in a 3D world the statue would be 1 cell on the ground
 	# and 2 cell high". It is round, so each row's own drawn run is its diameter
 	# and this only says the cap is the cell rather than two thirds of it.
 	&"statue_pillar": 16,
+	&"idol": 16,
 	# The two the full pass falls back to when its words name no known thing:
 	# something standing, and something low with an outline.
 	&"stand": 8,
@@ -170,6 +174,7 @@ const ROUND: Dictionary = {
 	&"flowers": true,
 	&"flower": true,
 	&"planter": true,
+	&"palm": true,
 	&"statue": true,
 	&"statue_pillar": true,
 	&"stand": true,
@@ -238,6 +243,13 @@ const OUTLINE: Dictionary = {
 	# slot cut clean through the case. The second shade closes that foot, and the
 	# whole cabinet stands at 222.
 	&"notice_case": 2,
+	# THE STONE IDOL, and it is the pin that made the square carve legible rather
+	# than the fill. Both rooms draw it in the floor's own shades, so the ground
+	# rule cuts INSIDE the plinth and `FILLED` can only put back a column that
+	# still has a pixel somewhere in it: the pedestal came back as loose plates
+	# with the room showing between them. It is drawn inside a closed ring of its
+	# darkest shade like everything else on this list.
+	&"idol": 1,
 }
 
 ## The classes that lie flat AND stand a thin slab of their own drawing up.
@@ -391,6 +403,7 @@ const COLUMN: Dictionary = {
 ## are drawn out of the same top and bottom tiles.
 const SPANS: Dictionary = {
 	&"planter": Vector2i(1, 2),
+	&"palm": Vector2i(1, 2),
 	&"flowers": Vector2i(1, 2),
 	&"canopy": Vector2i(2, 2),
 	# The conifer: one cell across and TWO down, which is what the routes mostly
@@ -417,6 +430,7 @@ const SPANS: Dictionary = {
 	# a class is how the profile addresses one, so the drawings a person has
 	# actually read get their own.
 	&"statue_pillar": Vector2i(1, 2),
+	&"idol": Vector2i(1, 2),
 }
 
 ## The cutouts whose extra cells are DEPTH rather than height.
@@ -476,6 +490,40 @@ const FILLED: Dictionary = {
 	# rule eats the grass, so only the bloom's own rows have anything to fill
 	# between.
 	&"flower": true,
+	# THE DEPARTMENT STORE'S PALM is the flower's case at four times the size, and
+	# it is why it has a class of its own rather than sharing the potted plant's.
+	# Its crown is a dither of three greens against the shop floor's own blue with
+	# no silhouette round it, so the ground rule walks between its own pixels and
+	# each survivor is hulled as a body of its own: the taller of the two palms,
+	# whose drawing is three rows of crown with no stalk between them, came back as
+	# a spray of loose leaves with the shop showing through it.
+	# Filling each column between its topmost and bottommost drawn pixel makes it
+	# one clump, exactly as it does for the flower.
+	# NOT PUT ON `planter` ITSELF, which was built and photographed first: the
+	# potted plant of tilesets 5, 11 and 28 is drawn inside its own outline and
+	# wants none of it, and filling it squares off a crown whose shape the reviewer
+	# chose in round twenty-four and closes the gap between the leaves and the urn.
+	# Two drawings, two classes.
+	&"palm": true,
+	# THE STONE IDOL, which is `statue_pillar` with this added and `ROUND` taken
+	# away, and it is a class rather than a pin because those are the only two
+	# things about it that differ.
+	#
+	# It fills its own 16x32 box edge to edge in the box's own shades, so there is
+	# no ground inside the drawing for the border flood to cut against and whatever
+	# the flood eats it eats out of the statue: down one side in the Ruins, leaving
+	# pale sticks, and much further in the wooden hall, leaving the head in loose
+	# pieces above its plinth. Filling each column puts the stone back and carving
+	# it square keeps the face, which a revolve of a filled drawing cannot: turned
+	# AND filled it is a featureless drum, which was rendered and is why the flood
+	# was left alone for as long as it was.
+	#
+	# ASKED TWICE. Round fifteen showed the Ruins copy both ways and the turn was
+	# taken; round thirty-four showed both rooms with the plates numbered and the
+	# answer was the square carve for both. The first page was refused outright for
+	# want of the numbers, which is worth more than the answer: "identify clearly
+	# each image with a number or before / after".
+	&"idol": true,
 }
 
 ## THE OBJECTS, per tileset number. A thing that is not a tile and does not fit
@@ -961,6 +1009,9 @@ const OBJECTS: Dictionary = {
 			&"window": Rect2i(0, 0, 64, 128),
 			&"filled": true,
 			&"top": 0,
+			# Its cap is the top tier's own roof, repeated back over the depth: see
+			# `mesher.gd:_object_cap`.
+			&"cap": 8,
 			&"depth": 64,
 			&"height": 128,
 		},
@@ -1659,8 +1710,10 @@ const ART: Dictionary = {
 	&"flowers": &"cutout",
 	&"flower": &"cutout",
 	&"planter": &"cutout",
+	&"palm": &"cutout",
 	&"statue": &"cutout",
 	&"statue_pillar": &"cutout",
+	&"idol": &"cutout",
 	&"stand": &"cutout",
 	&"lie": &"cutout",
 	&"boulder": &"cutout",
@@ -1954,8 +2007,15 @@ const TILESETS: Dictionary = {
 	# onto it over a dark gap, where the fallback stands a legible red dome on a
 	# grey cabinet. What it is drawn as is a BOX with a round lid, and nothing here
 	# turns half a drawing.
+	#
+	# ALL OF THEM ARE `idol` AND THE SHARED BASE IS WHY. The reviewer's answer in
+	# round thirty-four was the square carve for the idol; [54,55] is the bottom
+	# row of the creature as well, and a box whose rows are not all one class
+	# resolves no span at all, so the creature comes with it or the idol keeps its
+	# own drawing cut cell by cell. Built both ways and photographed: the creature
+	# is no worse square, and the idol is unrecognisable turned.
 	23: {
-		&"statue_pillar": [34, 35, 50, 51, 18, 19, 54, 55, 74, 75, 90, 91, 76, 92],
+		&"idol": [34, 35, 50, 51, 18, 19, 54, 55, 74, 75, 90, 91, 76, 92],
 	},
 	# THE OTHER FIVE THE FULL PASS CALLED `statue`, all of them the same
 	# arrangement as the three above: a 2x4 run of tiles, one walk cell wide and
@@ -1978,16 +2038,13 @@ const TILESETS: Dictionary = {
 	# tileset 23 places in its wooden hall, pixel for pixel over both cells and
 	# only the palette apart.
 	#
-	# IT IS TURNED ON A LATHE AND THAT IS THE REVIEWER'S OWN ANSWER, taken over a
-	# square-carved build of the same drawing that was committed first and shown
-	# beside it. So the exception this drawing seemed to want is not one: it fills
-	# its 16x32 box edge to edge, which makes every row's run the full width, and
-	# it is still a round thing. What that costs is a column the flood has walked
-	# into down one side; what carving it square bought was a legible face on a
-	# boxy prop, and a stone pillar was wanted over the face. Do not re-derive the
-	# square build: it was measured, photographed and refused.
+	# IT IS CARVED SQUARE, which is the reviewer's answer in round thirty-four,
+	# taken over the turn they had chosen for this room alone in round fifteen. The
+	# question changed because the second room was put beside it: the same drawing
+	# is eaten much further in the wooden hall, and shown both at once with the
+	# plates numbered they took the carve for both. See `idol` under `FILLED`.
 	26: {
-		&"statue_pillar": [14, 15, 30, 31, 46, 47, 62, 63],
+		&"idol": [14, 15, 30, 31, 46, 47, 62, 63],
 	},
 	# THE SCHOOL'S NORTH WALL, which the full pass read as three more flights of
 	# stairs and the reviewer read tile by tile. One run holds two real flights set
@@ -2095,13 +2152,23 @@ const TILESETS: Dictionary = {
 	# "the dark green foliage of a potted plant, its own silhouette drawn from the
 	# front" over "the red planter box at its foot", two tiles by four.
 	#
-	# TILESET 21'S IS NOT THIS DRAWING and its blocks are what say so, which is the
-	# rule about looking at the block rather than the tile list. It is drawn at
-	# three heights out of the same crown, trunk and pot, and one of them REPEATS
-	# the trunk row: that is the flower bed's case, a thing that tiles into a
-	# continuous row, and pinning it here stood one plant of a pair as a sprawl.
 	12: {
 		&"planter": [74, 75, 8, 9, 137, 138, 167, 168],
+	},
+	# TILESET 21 DRAWS ONE PALM AT TWO HEIGHTS, which is what its blocks say and
+	# what a tile list hides. Read on map 11,21, its only one: tall ones at tile
+	# rows 28-31, a cell wide and two tall, and short ones at rows 30-31 out of the
+	# same crown and pot with the middle left out. That is exactly what `SPANS`
+	# means by the largest the drawing gets, so both fall out of one pin and the
+	# placement chooses between them.
+	#
+	# The two tall ones differ by one row, [206,207] against a second [190,191],
+	# which is a stalk against a third row of crown. An earlier reading took that
+	# for the flower bed's case, a drawing that tiles into a continuous row, and
+	# left the whole group in the `stand` tail standing eight pixels tall.
+	# It is a `palm` and not a `planter` because of the same one row: see `FILLED`.
+	21: {
+		&"palm": [174, 175, 190, 191, 206, 207, 222, 223],
 	},
 }
 

@@ -131,6 +131,22 @@ const DRIFT_PERIOD: float = 19.0
 const DRIFT_DOLLY: float = 1.6
 const DRIFT_DOLLY_PERIOD: float = 13.0
 
+## A MOVE THAT WOBBLES THE SCREEN SHAKES THE CAMERA, which is the reviewer's own
+## answer in round thirty-four and the one thing on that page a still picture
+## could not have asked.
+##
+## The hardware scrolls the background a different distance on every scanline,
+## which is a thing a flat screen can do and a diorama cannot: there are no
+## scanlines here, and warping the world per row would be the one thing this view
+## has never done, moving the cartridge's own texel off the pixel it was drawn
+## on. What the wobble MEANS is that the picture jumps, so the picture jumps.
+##
+## The whole list is read as one displacement, its mean, so a window opened over
+## six rows and one opened over the whole screen shake by what they actually
+## move rather than by how much of the screen they reach. In hardware pixels,
+## scaled here into the world by the same ratio the lens frames the screen with.
+const SHAKE_SCALE: float = FRAME_HEIGHT / 144.0
+
 var _source: RefCounted = null
 var _heights: RefCounted = null
 ## The arena's midpoint, halfway between the two battlers.
@@ -149,6 +165,8 @@ var _t: float = 1.0
 ## The drift's own clock, in seconds. It is the one thing here that never
 ## finishes, so it is advanced whether or not a steer is easing.
 var _drift: float = 0.0
+## The move animation's own displacement, in world pixels, set per frame.
+var _shake: float = 0.0
 ## Which way a wheel notch zooms, from the player's own setting.
 var _wheel_sign: int = 1
 
@@ -262,7 +280,18 @@ func enemy_trainer_ground() -> Vector3:
 
 ## What the lens is aimed at, which is also what the eye swings and climbs about.
 func target() -> Vector3:
-	return _mid + Vector3(LOOK_X, LOOK_Y, 0.0)
+	return _mid + Vector3(LOOK_X, LOOK_Y + _shake, 0.0)
+
+
+## How far a move animation is displacing the shot, in HARDWARE pixels. A frame
+## that opens no scanline window asks for zero and the shot sits still.
+##
+## Applied to the aim, and the seat rides it in `eye()`, so the whole picture
+## moves together and the pair stays exactly where the rig put it in the frame.
+## Displacing the aim alone would swing the eye and slide the battlers out of
+## their hardware slots, which is the one thing this rig exists to prevent.
+func set_shake(hardware_pixels: float) -> void:
+	_shake = hardware_pixels * SHAKE_SCALE
 
 
 ## How far the drift has swung the eye and pushed it back, this instant. See the
@@ -285,6 +314,9 @@ func eye() -> Vector3:
 		HEIGHT,
 		SIDE * sin(yaw) + BACK * cos(yaw)
 	)
+	# Shaken before anything else reads the arm, so the whole rig moves together
+	# and the dolly and the climb are taken against the same displaced aim.
+	seat.y += _shake
 	# The dolly rides the arm from the focus, so it lengthens the shot rather
 	# than sliding it, and the climb below preserves whatever it came to.
 	var aim: Vector3 = target()
