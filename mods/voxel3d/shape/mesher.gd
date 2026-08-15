@@ -2182,6 +2182,21 @@ func _measure_cutouts() -> void:
 				_span_cut[at] = rows if rows < across.y else 0
 
 
+## Whether ANY tile of one ROW of the box at [param start] is [param klass],
+## which is what says the row is part of the drawing at all. `_row_carries` next
+## to it asks whether the row is WHOLLY the drawing, which is a different
+## question and answers a different one: see `_cutout`.
+func _row_holds(start: Vector2i, row: int, wide: int, klass: int) -> bool:
+	var ty: int = start.y + row
+	if ty >= _size.y:
+		return false
+	for column: int in wide:
+		var tx: int = start.x + column
+		if tx < _size.x and _klass[ty * _size.x + tx] == klass:
+			return true
+	return false
+
+
 ## Whether every tile of one ROW of the box at [param start] carries
 ## [param klass].
 func _row_carries(start: Vector2i, row: int, wide: int, klass: int) -> bool:
@@ -4763,7 +4778,28 @@ func _cutout(
 	else:
 		mid = _world_z(((start.y + across.y - 1) >> 1) * CELL_TILES) \
 			+ CELL_TILES * TILE * 0.5
-		top = float(span.y - origin.y)
+		# THE DRAWING'S FOOT IS ITS OWN LOWEST TILE ROW, NOT THE BOX'S.
+		#
+		# A span box is snapped to the walk-cell grid, and a cell is TWO tiles. A
+		# drawing one tile tall therefore lands in the top half of its cell as
+		# often as in the bottom, and measuring its rows from the bottom of the
+		# BOX stood every one of those a whole tile up in the air. Both were
+		# built, so a field of them came out as two crops at two heights: measured
+		# over map 10,5, eight flowers standing y 10 to 18 and eight standing y 18
+		# to 26, same ground, same stem. The reviewer read it off a screenshot as
+		# one tile drawing two flowers with one higher than the other.
+		#
+		# The foot is the last row of the box that HOLDS this class. Not the same
+		# test `_measure_cutouts` cuts a box's bottom with, and the difference is
+		# the whole of it: that one asks whether EVERY tile of the row carries the
+		# class, which is right for a drawing that fills its box and is never true
+		# of a drawing one tile wide inside a cell two tiles across. Asked that
+		# way the flower's foot came out above its own tile and the bloom sank
+		# into the ground.
+		var foot: int = across.y
+		while foot > 1 and not _row_holds(start, foot - 1, across.x, _klass[at]):
+			foot -= 1
+		top = float(foot * int(TILE) - origin.y)
 
 	# The ground and the stretch every height in this carve is measured through.
 	# See `_carve_y`. Unlisted classes take 1.0 and stand exactly as they are
