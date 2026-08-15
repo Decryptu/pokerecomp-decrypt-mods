@@ -116,9 +116,9 @@ const DEPTHS: Dictionary = {
 	&"sapling": 14,
 	&"tombstone": 5,
 	&"flowers": 12,
-	# A BILLBOARD, WHICH IS WHAT A DITHER WANTS. Two world pixels, standing on the
-	# cell's own centre line: see the class below.
-	&"flower": 2,
+	# As deep as it is wide, like every other round thing: a bloom is a bloom from
+	# whatever side it is looked at.
+	&"flower": 12,
 	&"planter": 12,
 	&"statue": 10,
 	# A STATUE ON A PILLAR STANDS ON A WHOLE CELL, which is the reviewer's own
@@ -145,11 +145,34 @@ const DEPTHS: Dictionary = {
 ## and every face still wears the FRONT drawing's texel at its own column: the
 ## reviewer's call, and the right one, because the drawing's outline is dark and
 ## a naive revolve would paint the whole object its own outline colour.
+## HOW THICK A STEM STANDS UNDER A CUTOUT, in world pixels, for the one kind of
+## drawing that needs one.
+##
+## Everything else carved here is drawn standing on the ground, so its own bottom
+## row IS its foot. A flower is drawn LOOKED DOWN ON: the cartridge draws the
+## bloom and nothing else, because from directly above a stem is hidden under the
+## petals it holds up. Carved literally the bloom therefore hangs in the air with
+## the grass showing under it, which is the reviewer's own "flying flowers".
+##
+## SO ONE IS BUILT, and it is the only thing in this file put into the world that
+## the cartridge does not draw. It is kept to the least that answers the fault: a
+## single square post, on the bloom's own centre, from the ground to the lowest
+## pixel the bloom is drawn at. ITS COLOUR IS NOT INVENTED and that is what keeps
+## the rule: it wears the GREENEST TEXEL OF THE GRASS the flower stands on, the
+## reviewer's own instruction, so every pixel of it is still one the cartridge
+## painted on that map at that hour.
+## HOW THICK the post is and HOW FAR it lifts the drawing off the ground, both in
+## world pixels.
+const STEMS: Dictionary = {
+	&"flower": Vector2i(3, 5),
+}
+
 const ROUND: Dictionary = {
 	&"post": true,
 	&"bush": true,
 	&"sapling": true,
 	&"flowers": true,
+	&"flower": true,
 	&"planter": true,
 	&"statue": true,
 	&"statue_pillar": true,
@@ -201,9 +224,6 @@ const OUTLINE: Dictionary = {
 	# A stool stands on a carpet or on floorboards drawn in its own shades, and it
 	# is drawn inside a dark ring like everything else indoors.
 	&"stool": 1,
-	# The red of the bloom is the only tone the grass under it does not also
-	# draw, so it is what says where the clump is. See `FILLED`.
-	&"flower": 1,
 	# THE WOODEN ROUTE SIGN, and it wants TWO for the same reason the cabinet
 	# below does, that cabinet being this drawing at the park's own scale. Its
 	# board is painted the FLOOR'S own index inside a frame the floor's own
@@ -447,11 +467,18 @@ const FILLED: Dictionary = {
 	# A DITHER HAS NO RING AT ALL, which is the meadow flower's whole difference
 	# from everything else on this list. Printed as text it is a checkerboard of
 	# red, pink and pale green over the whole 8x8 with no silhouette anywhere in
-	# it, so neither cutting rule can find a body: the ground rule ranks two of
-	# the three as ground and keeps a speckle, and the outline rule keeps the red
-	# and encloses nothing. Filling each column between its topmost and
-	# bottommost red pixel is what makes it a clump rather than a spray, and it
-	# still wears every texel the cartridge drew.
+	# it, so the flood walks between its own pixels and what is left is a SPRAY:
+	# revolved per body, each surviving pixel became a lump of its own with the
+	# world visible between them, which is the reviewer's holes.
+	# Filling each column between its topmost and bottommost drawn pixel is what
+	# makes it one clump, and it still wears every texel the cartridge drew.
+	# CUT ON THE GROUND'S OWN COLOURS rather than on an outline, which is what
+	# keeps it TIGHT. A drawing's mask is cut over its whole span box, and a
+	# flower is one tile inside a walk cell of grass: read as an outline every
+	# tile in that box offers its own darkest shade, the grass included, so the
+	# fill ran the full sixteen rows and the bloom came back a cube. The ground
+	# rule eats the grass, so only the bloom's own rows have anything to fill
+	# between.
 	&"flower": true,
 }
 

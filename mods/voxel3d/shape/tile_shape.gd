@@ -160,6 +160,13 @@ func is_filled(shape_class: StringName) -> bool:
 	return bool(_profile.FILLED.get(shape_class, false))
 
 
+## The post under the drawing, as its thickness and how far it lifts the drawing
+## off the ground, both in world pixels. Zero for everything drawn standing on
+## its own foot, which is all but the flower. See `profile.gd:STEMS`.
+func stem_of(shape_class: StringName) -> Vector2i:
+	return _profile.STEMS.get(shape_class, Vector2i.ZERO) as Vector2i
+
+
 ## Which surface of a building a class depicts, empty for everything that is not
 ## one, and how far a sloped roof tile has fallen, in bands.
 func building_part(shape_class: StringName) -> StringName:

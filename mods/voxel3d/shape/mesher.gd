@@ -121,6 +121,11 @@ var _depths := PackedByteArray()
 ## solid body the border flood cannot be trusted with.
 var _round := PackedByteArray()
 var _filled := PackedByteArray()
+## Per tile: how thick a stem stands under its drawing and how far it lifts the
+## drawing off the ground, both 0 for the drawings that are drawn standing on
+## their own foot, which is all but the flower. See `profile.gd:STEMS`.
+var _stem := PackedByteArray()
+var _stem_rise := PackedByteArray()
 ## Per tile: how many of its darkest shades bound the drawing, 0 for a mask cut
 ## from the ground's colours instead.
 var _outlined := PackedByteArray()
@@ -569,6 +574,8 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_depths.resize(count)
 	_round.resize(count)
 	_filled.resize(count)
+	_stem.resize(count)
+	_stem_rise.resize(count)
 	_outlined.resize(count)
 	_modelled.resize(count)
 	_shrub.resize(count)
@@ -628,6 +635,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_depths[at] = clampi(shape.depth(shape_class), 1, 16)
 			_round[at] = 1 if shape.is_round(shape_class) else 0
 			_filled[at] = 1 if shape.is_filled(shape_class) else 0
+			var stem: Vector2i = shape.stem_of(shape_class)
+			_stem[at] = clampi(stem.x, 0, 8)
+			_stem_rise[at] = clampi(stem.y, 0, 16)
 			_outlined[at] = shape.outline_shades(shape_class)
 			_modelled[at] = 1 if shape.is_model(shape_class) else 0
 			_shrub[at] = 1 if shape.is_shrub(shape_class) else 0
@@ -1055,6 +1065,8 @@ func _house_tile(shape: RefCounted, at: int, stroke: String) -> void:
 	# drawing cannot be a wall and a turned model at the same time.
 	_round[at] = 0
 	_filled[at] = 0
+	_stem[at] = 0
+	_stem_rise[at] = 0
 	_outlined[at] = 0
 	_modelled[at] = 0
 	_shrub[at] = 0
@@ -4685,7 +4697,7 @@ func _tile_pieces(box: Rect2i) -> Array:
 ## and no class constant would have found either.
 func _cutout(
 	tx: int, ty: int, depth: float, round_plan: bool, filled: bool, outline: int,
-	base: float, atlas: RefCounted
+	base: float, ground_tile: int, atlas: RefCounted
 ) -> void:
 	var at: int = ty * _size.x + tx
 	# The structure's own grid, which is the block grid: a drawing one cell wide
@@ -4746,7 +4758,11 @@ func _cutout(
 	# The ground and the stretch every height in this carve is measured through.
 	# See `_carve_y`. Unlisted classes take 1.0 and stand exactly as they are
 	# drawn, which is every carved drawing in the game but the potted plants.
-	_carve_base = base
+	# A STEM LIFTS THE WHOLE DRAWING, which is what makes it a stem rather than a
+	# peg beside one. The bloom is drawn looked down on, so its own bottom row is
+	# the near edge of the petals and not a foot: standing it on the floor puts the
+	# flower head in the grass, and the post has to hold it up.
+	_carve_base = base + float(_stem_rise[at])
 	_carve_lift = _stretch[at] if _stretch[at] > 0.0 else 1.0
 
 	var taken := PackedByteArray()
@@ -4782,6 +4798,84 @@ func _cutout(
 				tx, tile, atlas, mask, origin, span, top,
 				Rect2i(column, row, wide, tall), mid - half, mid + half
 			)
+
+	if _stem[at] > 0 and _stem_rise[at] > 0:
+		_stem_post(tx, mask, span, origin, mid, base, ground_tile,
+			int(_stem[at]), float(_stem_rise[at]), atlas)
+
+
+## THE STEM UNDER A FLOWER, and it is the one piece of geometry in this mod that
+## the cartridge does not draw. See `profile.gd:STEMS` for why it is owed one.
+##
+## A post from the ground up to the foot the drawing has been lifted to, standing
+## under the middle of the drawing's own BOTTOM ROW rather than under the middle
+## of the tile, so a clump sitting off to one side of its tile is held up under
+## itself instead of beside itself.
+##
+## IT WEARS THE GRASS. `_ground_art` has already found the flat tile the flower
+## stands beside, which is the grass it grows out of, and the greenest texel of
+## that tile is what every face of the post is painted with. So the colour moves
+## with the map and with the hour exactly as the ground does, and no value in
+## this file says what green is.
+##
+## NOTHING IS DRAWN WHERE NOTHING IS OWED: a mask with no pixel in it at all is a
+## tile the flood ate, and a post standing on its own in the grass is worse than
+## the gap it was meant to close.
+func _stem_post(
+	tx: int, mask: PackedByteArray, span: Vector2i, origin: Vector2i,
+	mid: float, base: float, ground_tile: int, thick: int, rise: float,
+	atlas: RefCounted
+) -> void:
+	var edge: int = int(TILE)
+	var lowest: int = -1
+	var from: int = 0
+	var to: int = 0
+	for row: int in range(edge - 1, -1, -1):
+		for column: int in edge:
+			if not _drawn(mask, span, origin.x + column, origin.y + row):
+				continue
+			if lowest < 0:
+				lowest = row
+				from = column
+			to = column
+		if lowest >= 0:
+			break
+	if lowest < 0:
+		return
+	var foot: float = base + rise
+	var middle: float = _world_x(tx) + (float(from) + float(to) + 1.0) * 0.5
+	var half: float = float(thick) * 0.5
+	var green: Rect2 = atlas.uv_box(
+		ground_tile, Rect2i(_greenest(ground_tile, atlas), Vector2i.ONE)
+	)
+	# The cap is drawn: a bloom narrower than its own stem shows the top of it,
+	# and it is one quad on a drawing that has a few dozen.
+	_fence_box(
+		AABB(
+			Vector3(middle - half, base, mid - half),
+			Vector3(float(thick), foot - base, float(thick))
+		),
+		green, green, true, true, true, true
+	)
+
+
+## The greenest texel of a tile, as the pixel it is drawn at.
+##
+## Greenest rather than darkest or commonest: what is wanted is the colour of the
+## grass, and a grass tile is drawn in two greens over a shadow. Ranked on how
+## far green stands over the other two channels, so a tile with no green in it at
+## all still answers with its least unsuitable pixel rather than with nothing.
+func _greenest(tile: int, atlas: RefCounted) -> Vector2i:
+	var best := Vector2i.ZERO
+	var score: float = -2.0
+	for py: int in int(TILE):
+		for px: int in int(TILE):
+			var color: Color = atlas.color_of(tile, atlas.pixel(tile, px, py))
+			var green: float = color.g - maxf(color.r, color.b)
+			if green > score:
+				score = green
+				best = Vector2i(px, py)
+	return best
 
 
 ## WHERE A CARVED ROW STANDS, given how many rows of the drawing are under it.
@@ -5230,7 +5324,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		else:
 			_cutout(
 				tx, ty, float(_depths[at]), _round[at] == 1, _filled[at] == 1,
-				int(_outlined[at]), float(ground.y), atlas
+				int(_outlined[at]), float(ground.y), ground.x, atlas
 			)
 		return
 	if _art[at] == ART_LEDGE:
