@@ -181,6 +181,11 @@ const OUTLINE: Dictionary = {
 	# cave floor in the floor's own golds, so the ground rule has nothing to cut
 	# on. Every one of them is drawn inside a dark ring.
 	&"boulder": 1,
+	# A BOLLARD'S TOP FACE IS DRAWN IN THE PAVING'S OWN INDEX, which is what put
+	# the holes in it: the cap is index 0 and so is the pavement it stands on, so
+	# the ground rule cut the middle out of every one of them and left a ring. The
+	# dark ring the cartridge draws round it closes on one shade.
+	&"post": 1,
 	# A stool stands on a carpet or on floorboards drawn in its own shades, and it
 	# is drawn inside a dark ring like everything else indoors.
 	&"stool": 1,
@@ -224,6 +229,10 @@ const MODEL: Dictionary = {
 	&"bush": true,
 	&"boulder": true,
 	&"stool": true,
+	# THE CONCRETE BOLLARD, which the carved path revolved per row into a ribbed
+	# drum with the paving showing THROUGH it. See `COLUMN` for the shape and
+	# `OUTLINE` for the holes.
+	&"post": true,
 }
 
 ## The modelled classes that sit ON THE GROUND rather than standing on a trunk.
@@ -237,6 +246,7 @@ const SHRUB: Dictionary = {
 	&"bush": true,
 	&"boulder": true,
 	&"stool": true,
+	&"post": true,
 }
 
 ## The modelled classes that are STONE rather than growing.
@@ -281,6 +291,29 @@ const ROCK: Dictionary = {
 	# pedestal, which is a horizontal rule and not an exposure one, and exposure
 	# would take the lightest tone for every face of a thing nothing stands over.
 	&"stool": true,
+	# A CONCRETE BOLLARD is stone by every one of those readings.
+	&"post": true,
+}
+
+
+## The modelled classes that are a straight COLUMN rather than a turned
+## silhouette: the same radius all the way up, and a FLAT top.
+##
+## A turn is right for anything drawn as a portrait of a rounded body, which is
+## most of what this pipeline builds. A bollard is not one. The reviewer's own
+## words for it in round twenty-seven: "they are not like a ball, they are a
+## standing cylinder, so the upper part is flat, it is not rounded". The drawing
+## agrees and says why the turn cannot know: what a bollard's sprite draws is its
+## flat top seen from ABOVE with its side below, so the rows that taper are the
+## far edge of the cap rather than a body narrowing, and a revolve reads that
+## taper as a dome.
+##
+## The widest row is the radius, the drawn height is the height, and `model.gd`
+## does the rest. Colour comes from `ROCK`'s own band reading, which is what puts
+## the light on top and the dark at the foot, since that is where the drawing
+## puts them.
+const COLUMN: Dictionary = {
+	&"post": true,
 }
 
 ## How many walk cells a cutout's DRAWING covers, where it is more than one.
@@ -1424,7 +1457,13 @@ const TILESETS: Dictionary = {
 		# Ground the detector was standing up because its cell is blocked by
 		# what stands NEXT to it: grass under a ledge lip, and the stone floor
 		# of a plateau.
-		&"ground": [17, 44, 57],
+		#
+		# AND 4, THE STEP THROUGH THE LEDGE, which the generated pass called a lip
+		# and which is the flat pale tread the player walks down: 126 tiles on 21
+		# maps, and the reviewer's own item. A LIP IS THE BLOCKED CELL A HOP
+		# PASSES OVER, so a tile whose every placement is WALKABLE is not one, and
+		# that test is what found this and the four tilesets below.
+		&"ground": [17, 44, 57, 4],
 		&"tall_grass": [82],
 		# A lip drawn from above, lying low. Where the collision says a lip can be
 		# HOPPED, `mesher.gd:_measure_ledges` overrides this with a wedge; the pin
@@ -1466,6 +1505,8 @@ const TILESETS: Dictionary = {
 	# it, so these pins are an OVERRIDE and no longer the only reading: they stand
 	# a drawing up where no collision code says so.
 	1: {
+		# The paving in front of the mart door, walked on and drawn flat.
+		&"ground": [154],
 		&"tall_grass": [4],
 		# THE PINK BRICK WALL of the small house, which the pass read as paving and
 		# which is why every one of those houses was a roof block over a hole. The
@@ -1504,6 +1545,8 @@ const TILESETS: Dictionary = {
 	# for the tall one and top over foot for the short, so `SPANS` and the repeat
 	# rule collapse it exactly as they do tileset 1's.
 	2: {
+		# The step up to a doorway, drawn as a flat tread and walked on.
+		&"ground": [91],
 		&"tall_grass": [4],
 		&"tree": [30, 31, 19, 21, 62, 63],
 		&"boulder": [88],
@@ -1532,6 +1575,11 @@ const TILESETS: Dictionary = {
 	},
 	29: {
 		&"boulder": [196, 197, 212, 213],
+	},
+	30: {
+		# The floor of the opening in the cave wall, one walk cell of it, walked
+		# through rather than hopped over.
+		&"ground": [14, 15, 30, 31],
 	},
 	17: {
 		&"tall_grass": [87],
@@ -1712,6 +1760,8 @@ const TILESETS: Dictionary = {
 	},
 	16: {
 		&"railing": [64, 65],
+		# The tread at the foot of the shop counter, walked on and drawn flat.
+		&"ground": [16],
 	},
 	# THE POTTED PLANT, which is the drawing tileset 5 already calls `planter`: a
 	# leafy crown over a stalk over a pot, two tiles across and four down, one walk

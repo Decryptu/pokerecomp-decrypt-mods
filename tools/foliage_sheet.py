@@ -143,6 +143,10 @@ def main(argv):
             columns = int(rest.pop(0))
         elif word == "--slots":
             picked = [int(n) for n in rest.pop(0).split(",")]
+        elif word.isdigit():
+            # A bare number is a column count and never a directory, which is
+            # what this took before the flags existed.
+            columns = int(word)
         else:
             dirs.append(pathlib.Path(word))
     if len(dirs) > 1:

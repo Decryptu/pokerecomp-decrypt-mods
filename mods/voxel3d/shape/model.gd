@@ -130,6 +130,9 @@ class Measure extends RefCounted:
 	## ragged, it does not bend in the wind, and it is not the dark mass a hedge
 	## is, so the drawing's own exposure reads straight back off it.
 	var rock: bool = false
+	## A COLUMN is not turned from its silhouette: it is the widest row's radius
+	## all the way up, with a flat top. See `profile.gd:COLUMN`.
+	var column: bool = false
 	## HOW TALL THE THING STANDS AGAINST HOW TALL IT IS DRAWN, where a person has
 	## said and the drawing cannot. Zero takes the class's own default: 1.3 for a
 	## tree, which is the foreshortening, and 1.0 for anything sitting on the
@@ -150,6 +153,11 @@ class Measure extends RefCounted:
 	## The drawing's own colour at each row of the profile, top row first, which is
 	## how a ROCK is painted. See `_bands`.
 	var bands: PackedColorArray = PackedColorArray()
+	## The colour of the CAP: what a drawing seen from above puts on the top of the
+	## thing, which is the commonest colour over its upper rows. Only a COLUMN uses
+	## it, and it is the one thing a band cannot say, since a band maps a drawn row
+	## onto a HEIGHT and a cap is not at a height at all. See `_cap`.
+	var cap := Color(0.5, 0.5, 0.5)
 
 	func width() -> int:
 		var widest: float = 0.0
@@ -234,6 +242,7 @@ static func measure(
 		mask, span, tiles, across, atlas, first_row, crown_bottom - 1, false
 	)
 	out.bands = _bands(mask, span, tiles, across, atlas, first_row, crown_bottom - 1)
+	out.cap = _cap(out.bands)
 	# The bark is read all the way down to the drawing's last row, shadow and all:
 	# what a tree draws under its crown is trunk, roots and the dark they sit in,
 	# and the trunk band alone is too few pixels to rank on some tilesets.
@@ -366,6 +375,33 @@ static func _bands(
 	return out
 
 
+## THE COLOUR OF A CAP, out of the bands the drawing was read into.
+##
+## A 2.5D sprite is a top and a front stacked, which this mod already reads that
+## way at object and at building scale. A bollard is the same picture: its upper
+## rows are the flat top seen from ABOVE and its lower rows are the side. Mapped
+## onto height like any other band, the cap ends up painted round the shoulder of
+## the cylinder and the top face takes the outline ring drawn at the very top,
+## which is how a pale concrete cap came out grey.
+##
+## The commonest band over the upper half, then, which is the cap wherever a
+## drawing has one and is the upper body wherever it does not.
+static func _cap(bands: PackedColorArray) -> Color:
+	if bands.is_empty():
+		return Color(0.5, 0.5, 0.5)
+	var counts: Dictionary = {}
+	var colours: Dictionary = {}
+	for at: int in maxi(bands.size() / 2, 1):
+		var key: int = bands[at].to_rgba32()
+		counts[key] = int(counts.get(key, 0)) + 1
+		colours[key] = bands[at]
+	var best: int = -1
+	for key: int in counts:
+		if best < 0 or int(counts[key]) > int(counts[best]):
+			best = key
+	return colours[best]
+
+
 static func _luminance(colour: Color) -> float:
 	return colour.r * 0.299 + colour.g * 0.587 + colour.b * 0.114
 
@@ -430,8 +466,11 @@ func tree(measured: Measure) -> ArrayMesh:
 					if radius > 0.0:
 						# The jitter is the leaves. Deterministic, so one tree is
 						# one model however many times it is stamped.
-						var wobble: float = 1.0 + (_hash(vx, vy, vz) - 0.5) \
-							* 2.0 * (ROCK_NOISE if measured.rock else LEAF_NOISE)
+						# A COLUMN takes none: the jitter is what stops a turn reading
+						# as lathe work, and a bollard IS lathe work.
+						var ragged: float = 0.0 if measured.column \
+							else (ROCK_NOISE if measured.rock else LEAF_NOISE)
+						var wobble: float = 1.0 + (_hash(vx, vy, vz) - 0.5) * 2.0 * ragged
 						if plan <= radius * wobble:
 							fill = LEAF
 				solid[(vy * wide + vz) * wide + vx] = fill
@@ -470,6 +509,11 @@ func tree(measured: Measure) -> ArrayMesh:
 func _radius(measured: Measure, up: int, crown_high: int) -> float:
 	if up < 0 or up >= crown_high:
 		return 0.0
+	# A COLUMN is the widest row all the way up, which is what makes its side
+	# straight and its top flat. It is not a taper read off the drawing, because
+	# what tapers in the drawing is the far edge of a flat cap seen from above.
+	if measured.column:
+		return float(measured.width()) * 0.5 / _voxel
 	var rows: int = measured.profile.size()
 	# The profile is written top row first and the model is built from the
 	# ground, so the row is read from the far end.
@@ -576,6 +620,10 @@ func _tone(
 	# rule here is the one thing a band cannot say, which is that a face looking
 	# down at the ground is in its own shadow.
 	if measured.rock:
+		# A COLUMN's top face is the CAP the drawing draws, not the band at the
+		# height the cap happens to be drawn at. See `_cap`.
+		if measured.column and side.y > 0:
+			return measured.cap
 		if side.y >= 0:
 			return _band
 		return palette[clampi(_ladder(palette, _band) + 1, 0, palette.size() - 1)]
