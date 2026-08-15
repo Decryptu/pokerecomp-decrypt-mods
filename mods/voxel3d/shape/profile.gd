@@ -194,6 +194,17 @@ const OUTLINE: Dictionary = {
 	# A stool stands on a carpet or on floorboards drawn in its own shades, and it
 	# is drawn inside a dark ring like everything else indoors.
 	&"stool": 1,
+	# THE WOODEN ROUTE SIGN, and it wants TWO for the same reason the cabinet
+	# below does, that cabinet being this drawing at the park's own scale. Its
+	# board is painted the FLOOR'S own index inside a frame the floor's own
+	# palette also draws, so the ground rule ranks the frame as ground and the
+	# flood walks in through it; what stood was whatever `FILLED` could put back,
+	# and a column whose only drawn pixel is low down was filled only from there,
+	# so tileset 1's sign came out as a board with a slit of open air between it
+	# and each of its two posts. The frame closes on the darkest shade round the
+	# top and the sides and meets the ground in the middle shade, which is the
+	# second shade's whole job.
+	&"sign_post": 2,
 	# THE NATIONAL PARK'S NOTICE CABINET, and it wants TWO. Its frame is the
 	# darkest shade and closes round the top and the sides, but its lower panel is
 	# drawn in the middle shade and meets the ground in it, so one shade lets the
@@ -835,6 +846,58 @@ const OBJECTS: Dictionary = {
 			&"height": 6,
 		},
 	],
+	1: [
+		# THE BELL TOWER, and it is the tallest thing in the game and the clearest
+		# case yet of a drawing whose FOOTPRINT is not its picture. Seven tiers of
+		# pagoda are drawn one above the other in a column sixteen tiles tall, and
+		# every pass here read them as seven storeys of facade stacked on each
+		# other: a leaning slab that runs off the top of any frame.
+		#
+		# The reviewer read it as what it is: "the tower should be a 8x8 tiles
+		# square base. then its just a giant tower that goes up. in 3D the tower is
+		# only taking 8x8 tiles from above. but in 2D since its faking perspective,
+		# the tower is 6 large, but then its very very long in the vertical axis.
+		# so for us it will be empty here."
+		#
+		# So the object is the whole drawn rectangle and the BOX is its bottom
+		# quarter: `depth` 64 against a window 128 rows tall puts the near face at
+		# the drawing's foot and the far face eight tiles north of it, which is the
+		# square base, and the drawing hangs down the height one drawn pixel per
+		# world pixel. The rows above the base are covered like any other object
+		# tile and come back as the floor beside them, which is the whole of "just
+		# fill this empty space at floor level with whatever is around".
+		#
+		# The last two rows of the arrangement are the rock ring under the tower,
+		# which the reviewer calls flat floor: covering them is what lays it flat.
+		{
+			&"name": &"bell_tower",
+			&"tiles": [
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[34, 65, 148, 149, 149, 150, 68, 37],
+				[80, 81, 82, 82, 82, 82, 84, 85],
+				[59, 26, 39, 40, 149, 150, 28, 61],
+				[59, 151, 41, 42, 152, 152, 153, 61],
+				[59, 6, 6, 6, 6, 6, 6, 61],
+				[75, 76, 154, 154, 76, 76, 76, 77],
+			],
+			&"window": Rect2i(0, 0, 64, 128),
+			&"filled": true,
+			&"top": 0,
+			&"depth": 64,
+			&"height": 128,
+		},
+	],
 	6: [
 		# A TELEVISION STANDING FREE IN THE ROOM, "2 tiles wide and 2 tall, waist
 		# high", drawn FACE-ON as a casing with a blue screen in it. Revolved it was
@@ -1271,7 +1334,13 @@ const STAIRS: Dictionary = {
 ## the reviewer's answers for tileset 3.
 const CLIFFS: Dictionary = {
 	# Routes: the raised brown rock shelf, its four rims and the cave mouth in it.
-	1: [76, 59, 61, 77, 43, 45, 70, 71, 86, 87],
+	# 75 is the SOUTH-WEST corner and was the one tile of the ring missing here,
+	# 77 its mirror having been listed from the start. It cost nothing while a
+	# height was measured per column and everything once `_measure_cliffs` read
+	# one per connected structure: the gap cut the west rim off from the face
+	# below it, so that rim was a structure of its own with no front in it and
+	# stood 32 px beside an 8 px shelf.
+	1: [76, 59, 61, 75, 77, 43, 45, 70, 71, 86, 87],
 	# The tan rock face under a raised earth terrace.
 	2: [76],
 	# Towns: the rock walls of Cianwood and Olivine. 55 is the upper band of the
@@ -1305,6 +1374,25 @@ const FRONTS: Dictionary = {
 ## where the platform meets the pale ground beyond".
 const LIPS: Dictionary = {
 	3: [1],
+}
+
+## THE TWO TILES THAT DRAW A FENCE FACE-ON, top row first, per tileset number.
+##
+## A fence runs both ways and the cartridge draws the two runs differently: the
+## one going ACROSS is a portrait of the fence, posts and rails seen from the
+## side over two tile rows, and the one going AWAY is a line seen from above with
+## its shadow beside it. Only the first says what a fence looks like, so it is
+## the one the model is read from and the same model is turned to serve the other,
+## which is the reviewer's own instruction: "just do the same normal fence model".
+##
+## Everything else about the shape is read off these two tiles and nothing is
+## authored: how tall it stands, where its posts are, how thick its rails are and
+## where the gaps between them are. `mesher.gd:_fence_mask` has the two rules
+## that reading needs.
+const FENCES: Dictionary = {
+	# The white fence round Ecruteak's yards: 90 is the post top and the upper
+	# rail, 89 the shafts, the foot and the shadow under it.
+	1: [90, 89],
 }
 
 
@@ -1414,7 +1502,10 @@ const ART: Dictionary = {
 	&"roof": &"top",
 	&"bed": &"top",
 	&"wall": &"upright",
-	&"fence": &"upright",
+	# A FENCE IS NOT A WALL AND IS NOT A DRAWING STOOD UP. It is a run of posts
+	# with rails between them, so it is built from its own drawing as real
+	# geometry on the CENTRE LINE of its cell: see `mesher.gd:_fence`.
+	&"fence": &"fence",
 	&"sign": &"upright",
 	&"cliff": &"upright",
 	&"counter": &"upright",
@@ -1533,6 +1624,13 @@ const TILESETS: Dictionary = {
 	1: {
 		# The paving in front of the mart door, walked on and drawn flat.
 		&"ground": [154],
+		# THE WHITE FENCE round the yards, and it is three tiles for two runs: 90
+		# over 89 is the run drawn face-on going ACROSS, and 74 is the run going
+		# AWAY, drawn as a line from above with its shadow beside it. All three
+		# take the class and `mesher.gd:_fence` builds the same model for each,
+		# turned to whichever way the run goes. 74 is also the lower half of a
+		# CORNER, where the cartridge draws it under a 90.
+		&"fence": [74, 89, 90],
 		&"tall_grass": [4],
 		# THE PINK BRICK WALL of the small house, which the pass read as paving and
 		# which is why every one of those houses was a roof block over a hole. The
@@ -1908,6 +2006,13 @@ static func pinned_class(tileset_number: int, tile: int) -> StringName:
 
 ## Whether a tile draws the face of a terrain cliff, which is what says the
 ## ground behind it stands on top of it.
+## The two tiles a fence is modelled from, or an empty array where a tileset
+## draws none. Ordered top row first.
+static func fence_face(tileset_number: int) -> Array:
+	var tiles: Variant = FENCES.get(tileset_number, null)
+	return tiles as Array if tiles is Array else []
+
+
 static func is_cliff(tileset_number: int, tile: int) -> bool:
 	var tiles: Variant = CLIFFS.get(tileset_number, null)
 	return tiles is Array and (tiles as Array).has(tile)
