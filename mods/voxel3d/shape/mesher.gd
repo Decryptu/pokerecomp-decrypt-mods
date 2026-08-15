@@ -97,6 +97,14 @@ const ART_CUTOUT: int = 3
 const ART_LEDGE: int = 4
 ## A LINE seen from above: see `_railing`.
 const ART_RAILING: int = 5
+## POSTS AND RAILS, modelled from the drawing and stood on the cell's own centre
+## line: see `_fence`.
+const ART_FENCE: int = 6
+## How thick a fence is, in world pixels. The one authored number in it, because
+## a drawing seen face-on states its width and its height honestly and says
+## nothing at all about its depth. Three is the wooden sign's own thickness and a
+## fence is the same kind of thing: a plank on a post.
+const FENCE_THICK: float = 3.0
 
 ## The RESOLVED grid, which is the map plus the border ring around it, and the
 ## MAP's own size inside it. Every array below is indexed on the grid; the world
@@ -217,6 +225,17 @@ var _front := PackedByteArray()
 ## Per tile: whether it draws the plateau's far EDGE, which ends one and then
 ## stands at the height of what lies south of it.
 var _lip := PackedByteArray()
+## Per tile: which arms of a fence stand in its walk cell, as a pair of bits,
+## and which cells this emit has already built one for.
+const FENCE_ACROSS: int = 1
+const FENCE_AWAY: int = 2
+var _fence_arms := PackedByteArray()
+var _fence_done: Dictionary = {}
+## The fence's own profile, cut once per map from the two tiles that draw it
+## face-on: 8 px across by however many rows stand above the shadow.
+var _fence_mask := PackedByteArray()
+var _fence_tall: int = 0
+var _fence_tiles: Array = []
 ## Per tile: whether it is rock a plateau is made of, face or floor. It is the
 ## set the RAMP is cut out of and nothing else reads it.
 var _shelf := PackedByteArray()
@@ -324,6 +343,7 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	_object_done.clear()
 	_house_done.clear()
 	_stair_done.clear()
+	_fence_done.clear()
 	_built_model = false
 	# Chunks are cut on the world's own grid rather than on the window's corner,
 	# so walking one cell east recentres the window onto the SAME chunks and the
@@ -703,6 +723,11 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# Last, because it overrides whatever the passes above made of a ledge tile
 	# and reads the ground they settled either side of it.
 	_measure_ledges(source)
+	# The fence's own drawing is read at emit, where the atlas is; what resolve
+	# owns is which cells carry one and which way each run goes.
+	_fence_tiles = shape.fence_face()
+	_fence_mask = PackedByteArray()
+	_measure_fences()
 	# After every one of them, since each can still move a height and a ramp is
 	# cut from the heights as they finally stand.
 	_measure_ramps()
@@ -1063,6 +1088,8 @@ func _art_mode(art: StringName) -> int:
 			return ART_CUTOUT
 		&"railing":
 			return ART_RAILING
+		&"fence":
+			return ART_FENCE
 		_:
 			return ART_FLAT
 
@@ -1154,6 +1181,324 @@ func _measure_columns() -> void:
 					if _heights[at] == -1:
 						_heights[at] = height
 						_bases[at] = base
+
+
+## ONE FENCE, on the centre line of its walk cell.
+##
+## The profile is 8 px of drawing and a cell is 16, so an arm is TWO copies of it
+## laid end to end, which is a post every tile exactly as the cartridge draws
+## one. Each is cut into maximal rectangles the way `_cutout` cuts a drawing, for
+## its reason: a rectangle of pixels maps onto a rectangle of texels exactly, so
+## the picture is the drawing's and a fence is a few dozen boxes rather than a
+## few hundred.
+##
+## THE ARMS RUN HALF A CELL EACH WAY FROM THE CENTRE, so a straight run is
+## continuous and a corner is two arms crossing. A cell with no fence beside it
+## keeps the drawing's own axis.
+func _fence(tx: int, ty: int, ground: float, atlas: RefCounted) -> void:
+	var at: int = ty * _size.x + tx
+	if _fence_mask.is_empty():
+		_fence_profile(atlas)
+	if _fence_mask.is_empty():
+		return
+	var arms: int = int(_fence_arms[at])
+	var cell := Vector2i((tx - _margin.x) >> 1, (ty - _margin.y) >> 1)
+	var middle := Vector2(
+		_world_x(_margin.x + cell.x * CELL_TILES) + TILE,
+		_world_z(_margin.y + cell.y * CELL_TILES) + TILE
+	)
+	if arms & FENCE_ACROSS:
+		_fence_arm(middle, ground, true, atlas)
+	if arms & FENCE_AWAY:
+		_fence_arm(middle, ground, false, atlas)
+
+
+## One arm, a whole cell long, centred on [param middle].
+##
+## [param across] runs it east to west and lays the drawing's own x along the
+## world's; otherwise it runs north to south and the same drawing is turned a
+## quarter, which is what the reviewer asked for rather than reading the second
+## run's own tile, that tile being a line seen from above and no portrait of
+## anything.
+func _fence_arm(
+	middle: Vector2, ground: float, across: bool, atlas: RefCounted
+) -> void:
+	var along: float = middle.x if across else middle.y
+	for copy: int in 2:
+		var start: float = along - TILE + TILE * float(copy)
+		var taken := PackedByteArray()
+		taken.resize(TILE_PX * _fence_tall)
+		for py: int in _fence_tall:
+			# A RECTANGLE MAY NOT CROSS A TILE, because a texel is only sampled out
+			# of the tile it was drawn in. The profile is two tiles stacked.
+			@warning_ignore("integer_division")
+			var stop: int = mini((py / TILE_PX + 1) * TILE_PX, _fence_tall)
+			var px: int = 0
+			while px < TILE_PX:
+				if taken[py * TILE_PX + px] == 1 or _fence_mask[py * TILE_PX + px] == 0:
+					px += 1
+					continue
+				var run: int = px
+				while run < TILE_PX and taken[py * TILE_PX + run] == 0 \
+						and _fence_mask[py * TILE_PX + run] == 1:
+					run += 1
+				var deep: int = 1
+				while py + deep < stop:
+					var whole: bool = true
+					for step: int in run - px:
+						if taken[(py + deep) * TILE_PX + px + step] == 1 \
+								or _fence_mask[(py + deep) * TILE_PX + px + step] == 0:
+							whole = false
+							break
+					if not whole:
+						break
+					deep += 1
+				for down: int in deep:
+					for step: int in run - px:
+						taken[(py + down) * TILE_PX + px + step] = 1
+				# The profile's bottom row stands ON the ground and its top row
+				# `_fence_tall` above it.
+				var low: float = ground + float(_fence_tall - py - deep)
+				var high: float = ground + float(_fence_tall - py)
+				@warning_ignore("integer_division")
+				var tile: int = int(_fence_tiles[py / TILE_PX])
+				var sub := Rect2i(px, py % TILE_PX, run - px, deep)
+				var half: float = FENCE_THICK * 0.5
+				var box := AABB(
+					Vector3(start + float(px), low, middle.y - half),
+					Vector3(float(run - px), high - low, FENCE_THICK)
+				) if across else AABB(
+					Vector3(middle.x - half, low, start + float(px)),
+					Vector3(FENCE_THICK, high - low, float(run - px))
+				)
+				# INTERIOR FACES ARE NOT DRAWN. A fence is a few dozen boxes and
+				# most of the faces between two of them are inside the wood: the
+				# lid under the piece above it, and the end against the piece
+				# beside it. Checked against the profile rather than against the
+				# boxes, which is the same answer and needs no bookkeeping.
+				var cap: bool = _fence_open(px, run, py - 1, py)
+				var west: bool = px == 0 or _fence_open(px - 1, px, py, py + deep)
+				var east: bool = run == TILE_PX or _fence_open(run, run + 1, py, py + deep)
+				_fence_box(box, atlas.uv_box(tile, sub),
+					atlas.uv_box(tile, Rect2i(sub.position, Vector2i.ONE)),
+					across, cap, west, east)
+				px = run
+
+
+## One box of the fence, wearing the drawing on the two faces that show it and
+## one texel of the same rectangle on the four edges that do not.
+## Whether any pixel of the profile in this box is NOT drawn, which is what says
+## a face of it can be seen. Off the profile, so it is out of range at the top
+## and the bottom and open there.
+func _fence_open(from_x: int, to_x: int, from_y: int, to_y: int) -> bool:
+	for py: int in range(from_y, to_y):
+		if py < 0 or py >= _fence_tall:
+			return true
+		for px: int in range(from_x, to_x):
+			if px < 0 or px >= TILE_PX or _fence_mask[py * TILE_PX + px] == 0:
+				return true
+	return false
+
+
+func _fence_box(
+	box: AABB, face: Rect2, edge: Rect2, across: bool,
+	cap: bool, west: bool, east: bool
+) -> void:
+	var a: Vector3 = box.position
+	var b: Vector3 = box.position + box.size
+	if across:
+		_quad(
+			Vector3(a.x, a.y, b.z), Vector3(b.x, a.y, b.z),
+			Vector3(b.x, b.y, b.z), Vector3(a.x, b.y, b.z),
+			Vector3(0.0, 0.0, 1.0), face, SHADE_SOUTH
+		)
+		_quad(
+			Vector3(b.x, a.y, a.z), Vector3(a.x, a.y, a.z),
+			Vector3(a.x, b.y, a.z), Vector3(b.x, b.y, a.z),
+			Vector3(0.0, 0.0, -1.0), face, SHADE_NORTH
+		)
+	else:
+		_quad(
+			Vector3(b.x, a.y, b.z), Vector3(b.x, a.y, a.z),
+			Vector3(b.x, b.y, a.z), Vector3(b.x, b.y, b.z),
+			Vector3(1.0, 0.0, 0.0), face, SHADE_SIDE
+		)
+		_quad(
+			Vector3(a.x, a.y, a.z), Vector3(a.x, a.y, b.z),
+			Vector3(a.x, b.y, b.z), Vector3(a.x, b.y, a.z),
+			Vector3(-1.0, 0.0, 0.0), face, SHADE_SIDE
+		)
+	if cap:
+		_quad(
+			Vector3(a.x, b.y, b.z), Vector3(b.x, b.y, b.z),
+			Vector3(b.x, b.y, a.z), Vector3(a.x, b.y, a.z),
+			Vector3.UP, edge, SHADE_TOP_FLAT
+		)
+	if across:
+		if east:
+			_quad(
+				Vector3(b.x, a.y, b.z), Vector3(b.x, a.y, a.z),
+				Vector3(b.x, b.y, a.z), Vector3(b.x, b.y, b.z),
+				Vector3(1.0, 0.0, 0.0), edge, SHADE_SIDE
+			)
+		if west:
+			_quad(
+				Vector3(a.x, a.y, a.z), Vector3(a.x, a.y, b.z),
+				Vector3(a.x, b.y, b.z), Vector3(a.x, b.y, a.z),
+				Vector3(-1.0, 0.0, 0.0), edge, SHADE_SIDE
+			)
+	else:
+		if east:
+			_quad(
+				Vector3(a.x, a.y, b.z), Vector3(b.x, a.y, b.z),
+				Vector3(b.x, b.y, b.z), Vector3(a.x, b.y, b.z),
+				Vector3(0.0, 0.0, 1.0), edge, SHADE_SOUTH
+			)
+		if west:
+			_quad(
+				Vector3(b.x, a.y, a.z), Vector3(a.x, a.y, a.z),
+				Vector3(a.x, b.y, a.z), Vector3(b.x, b.y, a.z),
+				Vector3(0.0, 0.0, -1.0), edge, SHADE_NORTH
+			)
+
+
+## A FENCE IS POSTS AND RAILS, and both runs of it are the same model turned.
+##
+## What stood here before was the drawing extruded into a box a walk cell deep,
+## which is a wall with a fence painted on it. The reviewer asked for the thing
+## itself, centred, and for the two runs to be joined: "just do the same normal
+## fence model, and then you try to do something to automate them so they are
+## properly done and attached to eachother".
+##
+## THE UNIT IS THE WALK CELL AND THAT IS WHAT JOINS THEM. A fence going across is
+## drawn over two tile rows and a fence going away over one tile column, so no
+## tile is a whole fence and neighbouring TILES cannot say which way a run goes:
+## the tile under a face-on fence is a fence tile too, and read per tile every
+## straight run would come out a corner. Per cell there is no such confusion, and
+## the arms of two neighbouring cells meet on their shared edge because each is
+## on its own cell's centre line, which is the same line along a run.
+func _measure_fences() -> void:
+	_fence_arms.resize(_size.x * _size.y)
+	_fence_arms.fill(0)
+	@warning_ignore("integer_division")
+	var cells := Vector2i(_size.x / CELL_TILES, _size.y / CELL_TILES)
+	var here := PackedByteArray()
+	here.resize(cells.x * cells.y)
+	var any: bool = false
+	for ty: int in _size.y:
+		for tx: int in _size.x:
+			if _art[ty * _size.x + tx] != ART_FENCE:
+				continue
+			any = true
+			@warning_ignore("integer_division")
+			here[(ty / CELL_TILES) * cells.x + tx / CELL_TILES] = 1
+	if not any:
+		return
+	for cell_y: int in cells.y:
+		for cell_x: int in cells.x:
+			if here[cell_y * cells.x + cell_x] == 0:
+				continue
+			var arms: int = 0
+			if (cell_x > 0 and here[cell_y * cells.x + cell_x - 1] == 1) \
+					or (cell_x + 1 < cells.x and here[cell_y * cells.x + cell_x + 1] == 1):
+				arms |= FENCE_ACROSS
+			if (cell_y > 0 and here[(cell_y - 1) * cells.x + cell_x] == 1) \
+					or (cell_y + 1 < cells.y and here[(cell_y + 1) * cells.x + cell_x] == 1):
+				arms |= FENCE_AWAY
+			# A fence cell on its own is a post and nothing else, and a stub of the
+			# run it is drawn as reads better than nothing: take the drawing's own
+			# axis, which is across wherever the face-on pair is what is drawn.
+			if arms == 0:
+				arms = FENCE_ACROSS
+			for row: int in CELL_TILES:
+				for column: int in CELL_TILES:
+					var at: int = (cell_y * CELL_TILES + row) * _size.x \
+						+ cell_x * CELL_TILES + column
+					if _art[at] != ART_FENCE:
+						continue
+					_fence_arms[at] = arms
+					# The fence stands ON the floor rather than being it, exactly as
+					# a cutout does, so the tile keeps the ground of its own cell.
+					_heights[at] = 0
+					_volume[at] = 0
+
+
+## THE FENCE'S OWN SHAPE, read off the two tiles that draw it face-on.
+##
+## Two rules and the drawing answers everything else. THE SHADOW IS NOT THE
+## FENCE: it is drawn under the foot in the middle shade, so every row below the
+## last one carrying the DARKEST shade is dropped, which is the reviewer's own
+## warning that "its not as dark as the outline". And THE FLOOD MAY NOT COME IN
+## FROM THE SIDES: a fence is a run, its rails cross the tile edge to edge and
+## carry on into the next tile, so seeding the left and right borders the way
+## every other mask here does eats every rail in the game. It comes in from the
+## top and from the shadow line, which are the two edges a fence really has.
+##
+## What is left is filled per column between its topmost and bottommost pixel,
+## since the post's foot is drawn open where it meets the ground.
+func _fence_profile(atlas: RefCounted) -> void:
+	_fence_mask = PackedByteArray()
+	_fence_tall = 0
+	if _fence_tiles.size() < 2:
+		return
+	var rows: int = _fence_tiles.size() * TILE_PX
+	var indices := PackedInt32Array()
+	indices.resize(TILE_PX * rows)
+	var dark := PackedByteArray()
+	dark.resize(TILE_PX * rows)
+	var foot: int = -1
+	for py: int in rows:
+		@warning_ignore("integer_division")
+		var tile: int = int(_fence_tiles[py / TILE_PX])
+		for px: int in TILE_PX:
+			var index: int = atlas.pixel(tile, px, py % TILE_PX)
+			indices[py * TILE_PX + px] = index
+			if atlas.is_dark(tile, index, 1):
+				dark[py * TILE_PX + px] = 1
+				foot = py
+	if foot < 0:
+		return
+	_fence_tall = foot + 1
+	var open := PackedByteArray()
+	open.resize(TILE_PX * _fence_tall)
+	for at: int in open.size():
+		open[at] = 1 - dark[at]
+	var mask := PackedByteArray()
+	mask.resize(open.size())
+	mask.fill(1)
+	var stack := PackedInt32Array()
+	for px: int in TILE_PX:
+		stack.append(px)
+		stack.append((_fence_tall - 1) * TILE_PX + px)
+	while not stack.is_empty():
+		var at: int = stack[stack.size() - 1]
+		stack.remove_at(stack.size() - 1)
+		if mask[at] == 0 or open[at] == 0:
+			continue
+		mask[at] = 0
+		@warning_ignore("integer_division")
+		var py: int = at / TILE_PX
+		var px: int = at % TILE_PX
+		if px > 0:
+			stack.append(at - 1)
+		if px < TILE_PX - 1:
+			stack.append(at + 1)
+		if py > 0:
+			stack.append(at - TILE_PX)
+		if py < _fence_tall - 1:
+			stack.append(at + TILE_PX)
+	for px: int in TILE_PX:
+		var first: int = -1
+		var last: int = -1
+		for py: int in _fence_tall:
+			if mask[py * TILE_PX + px] == 1:
+				if first < 0:
+					first = py
+				last = py
+		if first >= 0:
+			for py: int in range(first, last + 1):
+				mask[py * TILE_PX + px] = 1
+	_fence_mask = mask
 
 
 ## A ROCK RIM IS A 45 DEGREE SLOPE, not a step.
@@ -4836,7 +5181,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	var tile: int = _tiles[at]
 	if tile < 0:
 		return
-	if _art[at] == ART_CUTOUT or _art[at] == ART_RAILING:
+	if _art[at] == ART_CUTOUT or _art[at] == ART_RAILING or _art[at] == ART_FENCE:
 		var ground: Vector2i = _ground_art(tx, ty)
 		_face_top(tx, ty, float(ground.y), atlas.uv(ground.x), SHADE_TOP_FLAT)
 		_side(tx, ty, ground.y, _height_at(tx, ty + 1), Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
@@ -4860,6 +5205,14 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 				_emit_object(index, atlas)
 		elif _art[at] == ART_RAILING:
 			_railing(tx, ty, float(ground.y), atlas)
+		elif _art[at] == ART_FENCE:
+			# ONE FENCE PER WALK CELL, built by whichever of its tiles is emitted
+			# first: the model spans the cell and the run's two arms cross at its
+			# centre, so a tile is a quarter of it and not a thing of its own.
+			var cell: int = ((ty - _margin.y) >> 1) * _size.x + ((tx - _margin.x) >> 1)
+			if not _fence_done.has(cell):
+				_fence_done[cell] = true
+				_fence(tx, ty, float(ground.y), atlas)
 		elif _modelled[at] == 1:
 			_place_model(tx, ty, atlas)
 		else:

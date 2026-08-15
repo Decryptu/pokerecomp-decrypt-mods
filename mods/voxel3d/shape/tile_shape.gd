@@ -68,6 +68,13 @@ func is_cliff(tile: int) -> bool:
 	return _profile.is_cliff(_tileset_number, tile)
 
 
+## The two tiles this tileset draws a fence face-on with, top row first, or an
+## empty array where it draws none. The model is read off them and turned to
+## serve the run that goes the other way.
+func fence_face() -> Array:
+	return _profile.fence_face(_tileset_number)
+
+
 ## Whether it is the front of one: the face drawn toward the screen, with the
 ## raised floor immediately above it. Only a front says which side is up.
 func is_cliff_front(tile: int) -> bool:

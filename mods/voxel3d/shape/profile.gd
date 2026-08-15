@@ -1376,6 +1376,25 @@ const LIPS: Dictionary = {
 	3: [1],
 }
 
+## THE TWO TILES THAT DRAW A FENCE FACE-ON, top row first, per tileset number.
+##
+## A fence runs both ways and the cartridge draws the two runs differently: the
+## one going ACROSS is a portrait of the fence, posts and rails seen from the
+## side over two tile rows, and the one going AWAY is a line seen from above with
+## its shadow beside it. Only the first says what a fence looks like, so it is
+## the one the model is read from and the same model is turned to serve the other,
+## which is the reviewer's own instruction: "just do the same normal fence model".
+##
+## Everything else about the shape is read off these two tiles and nothing is
+## authored: how tall it stands, where its posts are, how thick its rails are and
+## where the gaps between them are. `mesher.gd:_fence_mask` has the two rules
+## that reading needs.
+const FENCES: Dictionary = {
+	# The white fence round Ecruteak's yards: 90 is the post top and the upper
+	# rail, 89 the shafts, the foot and the shadow under it.
+	1: [90, 89],
+}
+
 
 ## Which part of a BUILDING a class depicts, and how far a sloped roof tile has
 ## fallen from the flat section beside it, in 8px bands.
@@ -1483,7 +1502,10 @@ const ART: Dictionary = {
 	&"roof": &"top",
 	&"bed": &"top",
 	&"wall": &"upright",
-	&"fence": &"upright",
+	# A FENCE IS NOT A WALL AND IS NOT A DRAWING STOOD UP. It is a run of posts
+	# with rails between them, so it is built from its own drawing as real
+	# geometry on the CENTRE LINE of its cell: see `mesher.gd:_fence`.
+	&"fence": &"fence",
 	&"sign": &"upright",
 	&"cliff": &"upright",
 	&"counter": &"upright",
@@ -1602,6 +1624,13 @@ const TILESETS: Dictionary = {
 	1: {
 		# The paving in front of the mart door, walked on and drawn flat.
 		&"ground": [154],
+		# THE WHITE FENCE round the yards, and it is three tiles for two runs: 90
+		# over 89 is the run drawn face-on going ACROSS, and 74 is the run going
+		# AWAY, drawn as a line from above with its shadow beside it. All three
+		# take the class and `mesher.gd:_fence` builds the same model for each,
+		# turned to whichever way the run goes. 74 is also the lower half of a
+		# CORNER, where the cartridge draws it under a 90.
+		&"fence": [74, 89, 90],
 		&"tall_grass": [4],
 		# THE PINK BRICK WALL of the small house, which the pass read as paving and
 		# which is why every one of those houses was a roof block over a hole. The
@@ -1977,6 +2006,13 @@ static func pinned_class(tileset_number: int, tile: int) -> StringName:
 
 ## Whether a tile draws the face of a terrain cliff, which is what says the
 ## ground behind it stands on top of it.
+## The two tiles a fence is modelled from, or an empty array where a tileset
+## draws none. Ordered top row first.
+static func fence_face(tileset_number: int) -> Array:
+	var tiles: Variant = FENCES.get(tileset_number, null)
+	return tiles as Array if tiles is Array else []
+
+
 static func is_cliff(tileset_number: int, tile: int) -> bool:
 	var tiles: Variant = CLIFFS.get(tileset_number, null)
 	return tiles is Array and (tiles as Array).has(tile)
