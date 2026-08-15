@@ -317,9 +317,10 @@ func _build(number: int) -> bool:
 	# window is bounded by the display and a sheet is not: drawing through the
 	# window clipped the last rows off every tileset with more than a screenful
 	# of blocks, silently, because the image still came out looking like a sheet.
+	# The CONTAINER is what is sized, and only the container: it stretches, so it
+	# owns its SubViewport's size and setting that too is refused with a warning.
 	var view := Vector2i(int(size.x * SCALE), int(framed * SCALE))
 	_stage.container.size = Vector2(view)
-	_stage.viewport.size = view
 	_stage.camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	_stage.camera.size = framed
 	var focus := Vector3(size.x * 0.5, TALLEST * 0.5, size.y * 0.5)

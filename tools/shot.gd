@@ -8,6 +8,7 @@ extends SceneTree
 ##
 ##   Godot --path <pokerecomp> -s tools/shot.gd -- <cache> <group> <number> \
 ##       <tile x> <tile y> <out.png> [pitch] [back] [time 0-3] [sky] [hold]
+##       [bearing]
 ##
 ## HOLD is how many frames to run before the shutter, and it is how MOTION is
 ## photographed: everything that moves in this view moves on the shader clock, so
@@ -33,7 +34,8 @@ func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.size() < 6:
 		print("usage: <cache> <group> <number> <tile x> <tile y> <out.png>"
-			+ " [pitch] [back] [time 0-3] [sky #rrggbb] [hold frames]")
+			+ " [pitch] [back] [time 0-3] [sky #rrggbb] [hold frames]"
+			+ " [bearing east of south]")
 		quit(1)
 		return
 	var data: GameData = GameData.open_directory(args[0])
@@ -92,8 +94,8 @@ func _initialize() -> void:
 	holder.size = Vector2(VIEW)
 	holder.add_child(_stage.container)
 	_frame.add_child(holder)
+	# Only the container is sized: it stretches, so it owns its SubViewport.
 	_stage.container.size = Vector2(VIEW)
-	_stage.viewport.size = VIEW
 
 	# The hour is an argument because the light now MOVES with it: the sun's
 	# bearing is what a shot at one time says and a shot at another cannot.
@@ -124,8 +126,18 @@ func _initialize() -> void:
 	_hold = maxi(int(args[10]) if args.size() > 10 else 6, 1)
 	var pitch: float = deg_to_rad(float(args[6]) if args.size() > 6 else 32.0)
 	var back: float = float(args[7]) if args.size() > 7 else 220.0
+	# BEARING, east of due south, and it is an argument because the two things a
+	# shot is for want opposite answers. Standing the eye off to one side is what
+	# shows a face and a flank at once, which is how a shape is judged; DUE SOUTH,
+	# 0, is where the game's own overworld camera always stands, and it is also
+	# the only bearing whose picture lines up column for column with the map's own
+	# 2D art, so a tile can be pointed at in one picture and found in the other.
+	# The default is the angle every shot before this was taken at.
+	var bearing: float = deg_to_rad(float(args[11]) if args.size() > 11 else 20.4)
 	_stage.aim_camera(
-		focus + Vector3(back * cos(pitch) * 0.35, back * sin(pitch), back * cos(pitch) * 0.94),
+		focus + Vector3(
+			back * cos(pitch) * sin(bearing), back * sin(pitch), back * cos(pitch) * cos(bearing)
+		),
 		focus + Vector3(0.0, TILE, 0.0)
 	)
 	# Someone is standing where the shot is aimed, because that is where the

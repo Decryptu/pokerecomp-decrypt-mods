@@ -37,8 +37,8 @@ func _initialize() -> void:
 	var holder := Control.new()
 	holder.add_child(_stage.container)
 	root.add_child(holder)
+	# Only the container is sized: it stretches, so it owns its SubViewport.
 	_stage.container.size = Vector2(VIEW)
-	_stage.viewport.size = VIEW
 	_stage.set_time_of_day(1)
 
 	var material := StandardMaterial3D.new()
