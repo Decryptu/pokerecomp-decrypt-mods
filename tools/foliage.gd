@@ -14,12 +14,7 @@ extends SceneTree
 ## stools when they are the question.
 ##
 ##   Godot --path <pokerecomp> -s tools/foliage.gd -- <cache> <out dir> \
-##       [classes] [pitch] [bearing] [colour style]
-##
-## The STYLE is `shape/model.gd`'s own switch, by name, and it is how the
-## propositions for how a drawing's colours should be spent are compared: run
-## the tool once per style into its own directory and lay the strips out with
-## `tools/foliage_sheet.py`.
+##       [classes] [pitch] [bearing]
 ##
 ## Writes `foliage_2d.png`, `foliage_3d.png` and `foliage.json`, whose slots are
 ## the same width in both, so `tools/foliage_sheet.py` can number one column
@@ -64,18 +59,6 @@ func _initialize() -> void:
 		wanted[StringName(word.strip_edges())] = true
 	var pitch: float = deg_to_rad(float(args[3]) if args.size() > 3 else 30.0)
 	var bearing: float = deg_to_rad(float(args[4]) if args.size() > 4 else 35.0)
-	var style: String = (args[5] if args.size() > 5 else "kept").to_upper()
-	var model_script: GDScript = load("%s/shape/model.gd" % MOD)
-	var styles: Dictionary = {}
-	for name_of: String in ["KEPT", "DEEP", "TURNED", "LIT"]:
-		styles[name_of] = int(model_script.get(name_of))
-	if not styles.has(style):
-		print("no colour style ", style, ", one of ", styles.keys())
-		quit(1)
-		return
-	# The switch is on the SCRIPT, so it reaches the models the mesher builds
-	# without the mesher knowing there is a question. See `model.gd:style`.
-	model_script.style = styles[style]
 
 	var found: Array = _census(data, wanted)
 	if found.is_empty():
@@ -114,7 +97,6 @@ func _initialize() -> void:
 		"sheet_height": SHEET_HEIGHT,
 		"pitch": rad_to_deg(pitch),
 		"bearing": rad_to_deg(bearing),
-		"style": style,
 		"slots": slots,
 	}
 	var file: FileAccess = FileAccess.open("%s/foliage.json" % _out, FileAccess.WRITE)

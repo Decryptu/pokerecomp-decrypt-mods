@@ -88,17 +88,6 @@ def sheet(strip, manifest, columns, title):
     return out
 
 
-# What each style of `shape/model.gd` does, in one line, for the comparison's
-# own row heading. The names are the enum's.
-STYLES = {
-    "KEPT": "what is in today: the drawing's shades MINUS its darkest, "
-            "spent on exposure",
-    "DEEP": "the darkest shade KEPT, and spent only where the body is deepest",
-    "TURNED": "the drawing's own colour AT THAT ROW and that distance from "
-              "the centre, turned with the shape",
-    "LIT": "spent on how much SKY a face sees, counted over the voxels around "
-           "it, and mixed between the drawing's shades",
-}
 BAR = 30
 
 
@@ -113,8 +102,9 @@ def compare(dirs, slots_wanted):
              Image.open(dirs[0] / "foliage_2d.png").convert("RGB"))]
     for at in dirs:
         manifest = json.loads((at / "foliage.json").read_text())
-        style = manifest.get("style", at.name.upper())
-        rows.append(("%s   %s" % (style, STYLES.get(style, "")),
+        # The directory's own name is the caption, so the comparison needs no
+        # table of what is being compared and cannot go stale when one wins.
+        rows.append((manifest.get("style", at.name.upper()),
                      Image.open(at / "foliage_3d.png").convert("RGB")))
     band = height + BAR
     out = Image.new("RGB", (len(picked) * width, len(rows) * band + BAR), BACK)
