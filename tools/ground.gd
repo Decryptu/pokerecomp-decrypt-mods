@@ -9,12 +9,17 @@ extends SceneTree
 ## one, so the answer has to come from the tileset rather than from the
 ## neighbourhood.
 ##
-## WHAT A PLANT STANDS NEXT TO, over every map at once. Counted per MAP it is the
-## wrong answer and New Bark Town is the proof: its forest ring hugs the town
+## WHAT A DRAWING STANDS NEXT TO, over every map at once. Counted per MAP it is
+## the wrong answer and New Bark Town is the proof: its forest ring hugs the town
 ## square, so the pavement wins 145 to 85 and the wood comes out paved. Counted
 ## over the whole of tileset 1, where the routes dwarf the towns, the grass wins
 ## 4599 to 2307. The rule is the same one either way and only the population is
 ## different, which is why this is a table and not a pass.
+##
+## PER CLASS AND NOT PER TILESET, which one tileset carrying both a wood and a
+## quay settles: tileset 3's trees stand on grass and its concrete bollards stand
+## on pavement, and a single answer for the tileset puts one of the two on the
+## other's floor. A bollard on grass was the reported fault.
 ##
 ## GENERATED, NEVER TRANSCRIBED. Eighteen tilesets of one number each read off a
 ## listing is where a session puts a 6 where it meant a 5 and never finds it.
@@ -59,12 +64,25 @@ func _initialize() -> void:
 		var tiles: PackedInt32Array = mesher.get("_tiles")
 		var heights: PackedInt32Array = mesher.get("_heights")
 		var modelled: PackedByteArray = mesher.get("_modelled")
+		# INTERNED. `_klass` holds an id per tile and `_class_ids` maps the name to
+		# it, so the counts are kept by id and named at the end. Reading it as an
+		# `Array` converts the whole packed array per map and takes the run from
+		# seventeen seconds to longer than anyone waits.
+		var klass: PackedInt32Array = mesher.get("_klass")
 		var counts: Dictionary = beside.get(map.tileset, {})
 		for ty: int in size.y:
 			for tx: int in size.x:
 				var at: int = ty * size.x + tx
 				if modelled[at] != 1:
 					continue
+				# Looked up ONCE per tile. Asking for it per neighbour with a `{}`
+				# default builds a throwaway Dictionary a million times over and takes
+				# the run from thirty seconds to longer than anyone waits.
+				var key: int = klass[at]
+				var per: Variant = counts.get(key)
+				if per == null:
+					per = {}
+					counts[key] = per
 				for step: Vector2i in [
 					Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
 				]:
@@ -73,9 +91,13 @@ func _initialize() -> void:
 						continue
 					var index: int = next.y * size.x + next.x
 					if art[index] == ART_FLAT and heights[index] >= 0 and tiles[index] >= 0:
-						counts[tiles[index]] = int(counts.get(tiles[index], 0)) + 1
+						var tile: int = tiles[index]
+						per[tile] = int(per.get(tile, 0)) + 1
 		beside[map.tileset] = counts
 
+	var names: Dictionary = {}
+	for shape_class: StringName in mesher.get("_class_ids") as Dictionary:
+		names[int((mesher.get("_class_ids") as Dictionary)[shape_class])] = shape_class
 	var sets: Array = beside.keys()
 	sets.sort()
 	print("const GROUND: Dictionary = {")
@@ -83,15 +105,21 @@ func _initialize() -> void:
 		var counts: Dictionary = beside[tileset_number]
 		if counts.is_empty():
 			continue
-		var keys: Array = counts.keys()
-		keys.sort()
-		var best: int = keys[0]
-		for tile: int in keys:
-			if int(counts[tile]) > int(counts[best]):
-				best = tile
-		var total: int = 0
-		for tile: int in keys:
-			total += int(counts[tile])
-		print("\t%d: %d,  # %d of %d" % [tileset_number, best, int(counts[best]), total])
+		var classes: Array = counts.keys()
+		classes.sort()
+		print("\t%d: {" % tileset_number)
+		for id: int in classes:
+			var shape_class: StringName = names.get(id, &"?")
+			var per: Dictionary = counts[id]
+			var keys: Array = per.keys()
+			keys.sort()
+			var best: int = keys[0]
+			var total: int = 0
+			for tile: int in keys:
+				total += int(per[tile])
+				if int(per[tile]) > int(per[best]):
+					best = tile
+			print("\t\t&\"%s\": %d,  # %d of %d" % [shape_class, best, int(per[best]), total])
+		print("\t},")
 	print("}")
 	quit()
