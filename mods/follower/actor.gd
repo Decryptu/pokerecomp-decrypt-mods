@@ -3,13 +3,13 @@ extends RefCounted
 ## The follower as the host drives it: one observation a frame in, one sprite
 ## out, and no writes at all.
 ##
-## This is the shape `register_world_actor` asks for, which is the seam the
-## engine owes this mod and the one thing it cannot run without today.
-## Everything below it reads is already public
-## on `Gen2WorldAPI` and everything it draws with is already the host's: a
-## sprite here names the cartridge's own icon row and nothing else, so the host
-## resolves the strip, the palette, the time of day and the icon's own animation
-## rate exactly as it does for a mon-icon object standing on a map.
+## This is the shape `register_world_actor` asks for. Everything it reads is
+## public on `Gen2WorldAPI` and everything it draws with is the host's: a sprite
+## here names the cartridge's own icon row and nothing else, so the host
+## resolves the strip, the palette, the time of day and the icon's own two
+## frames. An actor gets both of those; a mon-icon MAP object shows frame 0
+## forever, because `GetUsedSprite` copies an icon's eight tiles into both
+## banks and the walking rows of `Facings` land on the same picture.
 ##
 ## Not a scene node and never one. A follower is a pose, and the pose layer is
 ## `docs/MODS.md`'s own answer to a mod that wants one.

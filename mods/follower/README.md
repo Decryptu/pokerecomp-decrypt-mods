@@ -50,17 +50,34 @@ WHO STAYS IN ITS BALL whatever the settings say: an empty slot, an egg, a
 fainted lead, and a species the cartridge has no icon for, which is every mod
 species. A Pokemon nothing can draw is not one to put on the map.
 
-## What it is waiting for
+## How it is drawn
 
-The host draws the world, and a mod cannot put a sprite in it. `mod.gd`
-registers the follower through `register_world_actor`, the seam that hands a mod
-one call a frame and draws what it asks for; until that lands the settings and
-the control register, the follower decides where it would stand, and nothing is
-drawn. The seam is asked for in the game repository. Nothing here works
-around it: a mod that drew its own sprite would have to replace the whole world
-renderer to do it, which is a second view of the same world and not a follower.
+The host draws the world, and this mod draws nothing. It registers a world
+ACTOR: `register_world_actor` hands the host an object it drives one frame at a
+time, and each frame the follower answers with one sprite naming the cartridge's
+own icon row for that species and where to put it, in walk cells. The host
+resolves the strip, the palette, the time of day and the icon's own two frames,
+and sorts it into the object pass by the row it stands on, so a follower a cell
+below an NPC is drawn over it. No pixel is composed here and no art ships.
 
-## Showing that it walks
+An actor's sprite is presentation, which is what lets it exist at all: world
+state is the one thing a mod must not write.
+
+THE 3D VIEW DOES NOT DRAW IT YET. A registered world renderer takes actors
+through the optional `set_actors`, and `voxel3d` does not implement it, so
+pressing `V` leaves the follower behind until it does.
+
+## Seeing it, and showing that it walks
+
+`tools/follower_shot.gd` photographs it on a real map through the game's own
+world screen: a save with a party is injected, the player is walked, and the
+picture is whatever the host drew. Rendering needs a display, and mods load in a
+tool run only when they are asked for:
+
+```bash
+Godot --path <pokerecomp> --mods -s tools/follower_shot.gd -- \
+	crystal 26 1 <out.png> [species] [steps]
+```
 
 `tools/follower_probe.gd` walks a route past the follower against a real
 cartridge cache and prints where it stood, with no game running:
