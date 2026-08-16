@@ -223,10 +223,19 @@ func room_wall() -> Array:
 	return _profile.ROOM_WALL.get(_tileset_number, [])
 
 
-## The floor a standing drawing is painted with where no ground is beside it, or
-## -1 where this tileset names none. See `profile.gd:GROUND`.
-func ground_tile() -> int:
-	return int(_profile.GROUND.get(_tileset_number, -1))
+## The tiles a CAVE MOUND is seeded from and made of, as `door` and `body`, or an
+## empty dictionary where this tileset draws none. See `profile.gd:MOUNDS`.
+func mound_tiles() -> Dictionary:
+	return _profile.MOUNDS.get(_tileset_number, {})
+
+
+## This tileset's floors for a standing drawing with no ground beside it, as
+## class -> tile id. A person's judgement over the count where there is one. See
+## `profile.gd:GROUND` and `GROUND_PINS`.
+func ground_table() -> Dictionary:
+	var table: Dictionary = (_profile.GROUND.get(_tileset_number, {}) as Dictionary).duplicate()
+	table.merge(_profile.GROUND_PINS.get(_tileset_number, {}) as Dictionary, true)
+	return table
 
 
 

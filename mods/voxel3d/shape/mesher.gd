@@ -121,6 +121,8 @@ const ART_RAILING: int = 5
 ## POSTS AND RAILS, modelled from the drawing and stood on the cell's own centre
 ## line: see `_fence`.
 const ART_FENCE: int = 6
+## Not carved and not turned: an authored ball of the drawn 8px. See `_ball`.
+const ART_BALL: int = 7
 ## How thick a fence is, in world pixels. The one authored number in it, because
 ## a drawing seen face-on states its width and its height honestly and says
 ## nothing at all about its depth. Three is the wooden sign's own thickness and a
@@ -573,7 +575,8 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_hulls.clear()
 	_border.clear()
 	_edge_floor = Vector2i(-2, 0)
-	_ground_tile = -1
+	_ground_table = {}
+	_ground_by_id.clear()
 	# Keyed on tile ids, which mean nothing without the tileset they came from.
 	# All three go together: a body list outliving its meshes is a drawing that
 	# resolves to a model nothing built.
@@ -595,7 +598,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# border block out; the indoor one is plaster this file stands there, so the
 	# two are the same margin and nothing downstream tells them apart.
 	_room_wall = [] if _outside else shape.room_wall()
-	_ground_tile = shape.ground_tile()
+	_ground_table = shape.ground_table()
 	var ring: int = _ring_depth(source, shape) if _outside \
 		else (ROOM_RING if not _room_wall.is_empty() else 0)
 	_margin = Vector2i(ring, ring)
@@ -797,7 +800,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# After every one of them, since each can still move a height and a ramp is
 	# cut from the heights as they finally stand.
 	_measure_ramps()
-	# After the ramps, which is what sizes and fills the corners it writes into.
+	# After the ramps, which is what sizes and fills the corners they write into.
+	_measure_mounds(shape)
+	_measure_doors(shape)
 	_measure_shores()
 
 
@@ -1160,6 +1165,8 @@ func _art_mode(art: StringName) -> int:
 			return ART_RAILING
 		&"fence":
 			return ART_FENCE
+		&"ball":
+			return ART_BALL
 		_:
 			return ART_FLAT
 
@@ -1701,6 +1708,208 @@ func _commonest_water() -> int:
 		if best < 0 or int(counts[tile]) > int(counts[best]):
 			best = tile
 	return best
+
+
+## THE CAVE MOUND, as a truncated pyramid instead of a flat slab.
+##
+## The hillside a cave is cut into resolved as ground at 0 with a ring of walls
+## around it at 16 and 48, so it read as a tan slab with a fence of rock round it
+## and the entrance was a hole in a flat wall. It is a MOUND: two walk cells high,
+## every side at 45 degrees, and the door cut into the slope rather than standing
+## upright in front of it.
+##
+## The footprint is not authored. It is the run of `body` tiles connected to a
+## `door`, which is what makes seeding from the door worth doing: see
+## `profile.gd:MOUNDS` for why the door is the only safe seed. Cianwood's comes
+## out 12 by 8, which is what the reviewer measured, without 12 or 8 appearing
+## anywhere here.
+##
+## 45 DEGREES IS THE HEIGHT AND NOT A NUMBER, which is `_measure_ramps`' own
+## rule: a corner stands at its distance from the outside in BANDS, capped at the
+## mound's height, so one tile in is 8px, two tiles in is 16 and everything past
+## that is the flat top. A band is a tile wide, so a band per tile is 45 degrees.
+## THE CORNER IS THE UNIT AND NOT THE TILE, so the four sides mitre into real
+## diagonals and the top comes out inset two tiles all round with nothing cased.
+##
+## AFTER `_measure_ramps`, which is what sizes and fills `_corners`.
+const MOUND_HIGH: int = 16
+## The largest run of rock a cave mouth may raise, in tiles. See the flood.
+const MOUND_MAX: int = 256
+
+
+func _measure_mounds(shape: RefCounted) -> void:
+	var tiles: Dictionary = shape.mound_tiles()
+	if tiles.is_empty():
+		return
+	var doors: Array = tiles.get(&"door", [])
+	var body: Array = tiles.get(&"body", [])
+	if doors.is_empty() or body.is_empty():
+		return
+	var count: int = _size.x * _size.y
+	# The mound: every body tile reachable from a door over body tiles, one door at
+	# a time so each run can be weighed on its own.
+	var inside := PackedByteArray()
+	inside.resize(count)
+	var seen := PackedByteArray()
+	seen.resize(count)
+	var any: bool = false
+	for seed: int in count:
+		if seen[seed] == 1 or _tiles[seed] < 0 or not doors.has(_tiles[seed]):
+			continue
+		var region := PackedInt32Array()
+		seen[seed] = 1
+		region.append(seed)
+		var head: int = 0
+		while head < region.size():
+			var at: int = region[head]
+			head += 1
+			@warning_ignore("integer_division")
+			var from := Vector2i(at % _size.x, at / _size.x)
+			for step: Vector2i in [
+				Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
+			]:
+				var to: Vector2i = from + step
+				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+					continue
+				var index: int = to.y * _size.x + to.x
+				if seen[index] == 1 or _tiles[index] < 0 or not body.has(_tiles[index]):
+					continue
+				seen[index] = 1
+				region.append(index)
+		# A MOUND IS A HILLOCK AND NOT A RANGE, and the two do not overlap: measured
+		# over the game, the four runs with a cave mouth in a hillside are 96, 96, 96
+		# and 128 tiles, and every other run a door sits in is 1320 or more. Those
+		# are real multi-level mountains that `_measure_plateaus` already reads, and
+		# flattening one to a single 16px table threw away every terrace on it, which
+		# is what map 19,2 showed. Ten times the largest mound and a fifth of the
+		# smallest range, so nothing is near the line.
+		if region.size() > MOUND_MAX:
+			continue
+		for at: int in region:
+			inside[at] = 1
+		any = true
+	if not any:
+		return
+
+	# How far each tile of it is from the world outside, in tiles.
+	var distance := PackedInt32Array()
+	distance.resize(count)
+	distance.fill(0)
+	var queue := PackedInt32Array()
+	for at: int in count:
+		if inside[at] == 0:
+			continue
+		distance[at] = -1
+		@warning_ignore("integer_division")
+		var from := Vector2i(at % _size.x, at / _size.x)
+		for step: Vector2i in [
+			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
+		]:
+			var to: Vector2i = from + step
+			if to.x >= 0 and to.y >= 0 and to.x < _size.x and to.y < _size.y \
+					and inside[to.y * _size.x + to.x] == 1:
+				continue
+			distance[at] = 1
+			queue.append(at)
+			break
+	var head: int = 0
+	while head < queue.size():
+		var at: int = queue[head]
+		head += 1
+		@warning_ignore("integer_division")
+		var from := Vector2i(at % _size.x, at / _size.x)
+		for step: Vector2i in [
+			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
+		]:
+			var to: Vector2i = from + step
+			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+				continue
+			var index: int = to.y * _size.x + to.x
+			if inside[index] == 0 or distance[index] >= 0:
+				continue
+			distance[index] = distance[at] + 1
+			queue.append(index)
+
+	for at: int in count:
+		if inside[at] == 0:
+			continue
+		var tx: int = at % _size.x
+		@warning_ignore("integer_division")
+		var ty: int = at / _size.x
+		# The whole mound stands at its full height and the rim is cut back out of
+		# it, which is what puts the flat top two tiles in on every side.
+		_heights[at] = MOUND_HIGH
+		_art[at] = ART_FLAT
+		_volume[at] = 0
+		_modelled[at] = 0
+		var sloped: bool = false
+		for corner: int in 4:
+			var step := Vector2i(-1 if corner % 2 == 0 else 1, -1 if corner < 2 else 1)
+			var near: int = maxi(distance[at], 0)
+			for reach: Vector2i in [Vector2i(step.x, 0), Vector2i(0, step.y), step]:
+				var to := Vector2i(tx + reach.x, ty + reach.y)
+				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+					near = 0
+					continue
+				var index: int = to.y * _size.x + to.x
+				near = mini(near, maxi(distance[index], 0) if inside[index] == 1 else 0)
+			var high: int = mini(near * BAND, MOUND_HIGH)
+			_corners[at * 4 + corner] = high
+			sloped = sloped or high < MOUND_HIGH
+		if sloped:
+			_ramp[at] = 1
+
+
+## THE CAVE MOUTH, standing in the wall it is cut into instead of lying in front
+## of it.
+##
+## A DOOR IS NEVER FLAT. Where the mound pass has raised the hillside the door is
+## carried up with it and slopes with the rest, but most cave mouths are cut into
+## a real mountain that `_measure_plateaus` already reads and that the mound pass
+## leaves alone, and there the door resolved as walkable GROUND at 0 with the
+## cliff standing at 16 all round it: a flat notch punched through the face, which
+## is what map 19,2 showed.
+##
+## So it takes the height of the wall around it and the face machinery paints it,
+## which is the whole fix: a band of a standing face wears the map row that folds
+## into it, so the mouth's own drawing lands on the cliff exactly where the
+## cartridge drew it. Vertical against a cliff, sloped against a mound, and
+## neither is cased here: it is the wall's height either way.
+##
+## AFTER `_measure_mounds`, whose doors are already carried and are left alone.
+func _measure_doors(shape: RefCounted) -> void:
+	var tiles: Dictionary = shape.mound_tiles()
+	if tiles.is_empty():
+		return
+	var doors: Array = tiles.get(&"door", [])
+	if doors.is_empty():
+		return
+	for at: int in _size.x * _size.y:
+		if _tiles[at] < 0 or not doors.has(_tiles[at]):
+			continue
+		# Raised already, by the mound it belongs to.
+		if _ramp[at] == 1 or _heights[at] > 0:
+			continue
+		@warning_ignore("integer_division")
+		var from := Vector2i(at % _size.x, at / _size.x)
+		var high: int = 0
+		for step: Vector2i in [
+			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
+		]:
+			var to: Vector2i = from + step
+			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+				continue
+			var index: int = to.y * _size.x + to.x
+			# The mouth is more than one tile, and the rest of it says nothing about
+			# how tall the wall is.
+			if _tiles[index] >= 0 and doors.has(_tiles[index]):
+				continue
+			high = maxi(high, _heights[index])
+		if high <= 0:
+			continue
+		_heights[at] = high
+		for corner: int in 4:
+			_corners[at * 4 + corner] = high
 
 
 ## THE SHORE, eased from the land down to the water instead of dropping to it.
@@ -6170,6 +6379,87 @@ func _rail_extent(counts: PackedInt32Array) -> Vector2i:
 ## One box of the railing, in tile pixels across the tile and world pixels up.
 ## Every face wears the same patch of the drawing, which is the rule a cutout's
 ## faces already follow.
+## THE ROUND CAP, authored as a ball rather than turned from its drawing.
+##
+## Every other model here is cut from the cartridge's own silhouette and this one
+## cannot be. THE MASK IS CUT PER WALK CELL, and the four caps inside Cianwood's
+## pen sit one to a tile in four DIFFERENT cells, so each drawing came back as an
+## 8px quadrant of a 16px square with eight empty rows at one end or the other.
+## Turned that way two of the four stood their full height and two stood three
+## pixels, which is exactly what the reviewer saw.
+##
+## So it is authored, and it is the one thing here that the cartridge does not
+## draw the shape of: a ball of the 8px the drawing IS wide, one world pixel per
+## voxel, sitting on the floor. The drawing still says everything else. Its
+## COLOUR is the tile's own shades BY BAND, darkest at the foot and lightest on
+## the crown, which is the rule `ROCK` already reads a stone by and is how a lit
+## sphere reads.
+const BALL_VOXELS: int = 8
+
+
+func _ball(tx: int, ty: int, ground: float, atlas: RefCounted) -> void:
+	var tile: int = _tile_at(tx, ty)
+	var shades: int = maxi(atlas.shade_order(tile).size(), 1)
+	var radius: float = float(BALL_VOXELS) * 0.5
+	var origin_x: float = _world_x(tx) + (TILE - float(BALL_VOXELS)) * 0.5
+	var origin_z: float = _world_z(ty) + (TILE - float(BALL_VOXELS)) * 0.5
+	for vy: int in BALL_VOXELS:
+		# `_shade_texel` counts from the DARKEST, so the foot takes rank 0 and the
+		# crown the last one the tile is drawn with.
+		@warning_ignore("integer_division")
+		var uv: Rect2 = _shade_texel(atlas, tile, vy * shades / BALL_VOXELS)
+		var y0: float = ground + float(vy)
+		var y1: float = y0 + 1.0
+		for vz: int in BALL_VOXELS:
+			var z0: float = origin_z + float(vz)
+			var z1: float = z0 + 1.0
+			for vx: int in BALL_VOXELS:
+				if not _in_ball(vx, vy, vz, radius):
+					continue
+				var x0: float = origin_x + float(vx)
+				var x1: float = x0 + 1.0
+				# Only the faces with nothing of the ball beside them, which is what
+				# keeps a 512 voxel solid down to its own surface.
+				if not _in_ball(vx, vy, vz + 1, radius):
+					_quad(
+						Vector3(x0, y0, z1), Vector3(x1, y0, z1), Vector3(x1, y1, z1),
+						Vector3(x0, y1, z1), Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
+					)
+				if not _in_ball(vx, vy, vz - 1, radius):
+					_quad(
+						Vector3(x1, y0, z0), Vector3(x0, y0, z0), Vector3(x0, y1, z0),
+						Vector3(x1, y1, z0), Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
+					)
+				if not _in_ball(vx + 1, vy, vz, radius):
+					_quad(
+						Vector3(x1, y0, z1), Vector3(x1, y0, z0), Vector3(x1, y1, z0),
+						Vector3(x1, y1, z1), Vector3(1.0, 0.0, 0.0), uv, SHADE_SIDE
+					)
+				if not _in_ball(vx - 1, vy, vz, radius):
+					_quad(
+						Vector3(x0, y0, z0), Vector3(x0, y0, z1), Vector3(x0, y1, z1),
+						Vector3(x0, y1, z0), Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
+					)
+				if not _in_ball(vx, vy + 1, vz, radius):
+					_quad(
+						Vector3(x0, y1, z1), Vector3(x1, y1, z1), Vector3(x1, y1, z0),
+						Vector3(x0, y1, z0), Vector3.UP, uv, SHADE_TOP_FLAT
+					)
+				if vy > 0 and not _in_ball(vx, vy - 1, vz, radius):
+					_quad(
+						Vector3(x0, y0, z0), Vector3(x1, y0, z0), Vector3(x1, y0, z1),
+						Vector3(x0, y0, z1), Vector3.DOWN, uv, SHADE_NORTH
+					)
+
+
+## Whether a voxel's own centre falls inside the ball.
+func _in_ball(vx: int, vy: int, vz: int, radius: float) -> bool:
+	var dx: float = float(vx) + 0.5 - radius
+	var dy: float = float(vy) + 0.5 - radius
+	var dz: float = float(vz) + 0.5 - radius
+	return dx * dx + dy * dy + dz * dz <= radius * radius
+
+
 func _rail_box(
 	from: Vector2, to: Vector2, tx: int, ty: int, low: float, high: float, uv: Rect2
 ) -> void:
@@ -6253,9 +6543,11 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 	# in, because a thing never stands on a picture of itself: this answered the
 	# drawing's own art until 2026-08-16 and every tree in the game stood on a flat
 	# drawing of a tree. See `profile.gd:GROUND`.
-	if _ground_tile >= 0:
-		return Vector2i(_ground_tile, 0)
-	return Vector2i(maxi(_tiles[ty * _size.x + tx], 0), 0)
+	var at: int = ty * _size.x + tx
+	var named: int = _ground_tile_at(at)
+	if named >= 0:
+		return Vector2i(named, 0)
+	return Vector2i(maxi(_tiles[at], 0), 0)
 
 
 func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
@@ -6263,13 +6555,21 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	var tile: int = _tiles[at]
 	if tile < 0:
 		return
-	if _art[at] == ART_CUTOUT or _art[at] == ART_RAILING or _art[at] == ART_FENCE:
+	if _art[at] == ART_CUTOUT or _art[at] == ART_RAILING or _art[at] == ART_FENCE \
+			or _art[at] == ART_BALL:
 		var ground: Vector2i = _ground_art(tx, ty)
 		_face_top(tx, ty, float(ground.y), atlas.uv(ground.x), SHADE_TOP_FLAT)
-		_side(tx, ty, ground.y, _height_at(tx, ty + 1), Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
-		_side(tx, ty, ground.y, _height_at(tx, ty - 1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
-		_side(tx, ty, ground.y, _height_at(tx + 1, ty), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
-		_side(tx, ty, ground.y, _height_at(tx - 1, ty), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
+		# THE SIDES WEAR THE FLOOR TOO. What stands here is a model and its drawing
+		# is the model, so a face cut from the tile is the flat sprite smeared down
+		# the side of the ground it stands on.
+		_side(tx, ty, ground.y, _height_at(tx, ty + 1),
+			Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas, ground.x)
+		_side(tx, ty, ground.y, _height_at(tx, ty - 1),
+			Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas, ground.x)
+		_side(tx, ty, ground.y, _height_at(tx + 1, ty),
+			Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas, ground.x)
+		_side(tx, ty, ground.y, _height_at(tx - 1, ty),
+			Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas, ground.x)
 		# The ground under it is drawn either way; what stands ON it is a whole
 		# OBJECT stood up beside its neighbours, the drawing carved out, an authored
 		# model stamped there, or a rail on its posts.
@@ -6285,6 +6585,8 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 					continue
 				_object_done[index] = true
 				_emit_object(index, atlas)
+		elif _art[at] == ART_BALL:
+			_ball(tx, ty, float(ground.y), atlas)
 		elif _art[at] == ART_RAILING:
 			_railing(tx, ty, float(ground.y), atlas)
 		elif _art[at] == ART_FENCE:
@@ -6954,9 +7256,23 @@ func _commonest_edge_floor() -> Vector2i:
 	return _edge_floor
 
 
-## The floor a standing drawing is painted with where no ground is beside it, off
-## `profile.gd:GROUND`, or -1 where the tileset names none.
-var _ground_tile: int = -1
+## This tileset's floors for a standing drawing with no ground beside it, as
+## class -> tile id, off `profile.gd:GROUND`.
+var _ground_table: Dictionary = {}
+## The same answer keyed by the INTERNED class id `_klass` holds, built once per
+## map at the first ask, since every class is interned by the time anything is
+## emitted.
+var _ground_by_id: Dictionary = {}
+
+
+## The floor for the class of one tile, or -1 where its tileset names none.
+func _ground_tile_at(at: int) -> int:
+	if _ground_by_id.is_empty():
+		for shape_class: StringName in _class_ids:
+			_ground_by_id[int(_class_ids[shape_class])] = int(
+				_ground_table.get(shape_class, -1)
+			)
+	return int(_ground_by_id.get(_klass[at], -1))
 
 
 ## A FACADE TILE THAT DOES NOT DRAW ONLY FACADE, narrowed to the part that is.
@@ -7252,9 +7568,14 @@ func _face_top(tx: int, ty: int, y: float, uv: Rect2, shade: Color) -> void:
 ## this one's. A neighbour standing at least as tall hides the face entirely,
 ## which is most of the geometry inside a building; a neighbour standing lower
 ## leaves a skirt, which is what puts a lip on every shoreline.
+## [param art] is the tile the faces WEAR, for the callers that stand something on
+## a floor that is not its own drawing. A cutout is the case: its tile draws the
+## thing rather than the ground, so a side cut from it paints the flat sprite down
+## the face, which is what the floor under it stopped doing in 0.3.3 and the sides
+## went on doing. Visible wherever a bollard or a tree stands over water.
 func _side(
 	tx: int, ty: int, here: int, neighbour: int,
-	normal: Vector3, shade: Color, atlas: RefCounted
+	normal: Vector3, shade: Color, atlas: RefCounted, art: int = -1
 ) -> void:
 	if neighbour >= here:
 		return
@@ -7276,7 +7597,9 @@ func _side(
 		var high: float = low + TILE
 		# The band's own height above the ground plane picks the map row that
 		# folds into it. A skirt below the plane repeats the tile's own art.
-		var uv: Rect2 = atlas.uv(_band_tile(tx, ty, maxi(floori(low / TILE), 0)))
+		var uv: Rect2 = atlas.uv(
+			art if art >= 0 else _band_tile(tx, ty, maxi(floori(low / TILE), 0))
+		)
 		if normal.z > 0.0:
 			_quad(
 				Vector3(x0, low, z1), Vector3(x1, low, z1),
