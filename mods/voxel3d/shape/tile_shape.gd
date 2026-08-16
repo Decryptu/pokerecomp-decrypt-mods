@@ -223,6 +223,12 @@ func room_wall() -> Array:
 	return _profile.ROOM_WALL.get(_tileset_number, [])
 
 
+## The floor a standing drawing is painted with where no ground is beside it, or
+## -1 where this tileset names none. See `profile.gd:GROUND`.
+func ground_tile() -> int:
+	return int(_profile.GROUND.get(_tileset_number, -1))
+
+
 
 func _pin(tile: int) -> StringName:
 	if _pinned.has(tile):

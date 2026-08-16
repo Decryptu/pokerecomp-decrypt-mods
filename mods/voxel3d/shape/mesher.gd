@@ -573,6 +573,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_hulls.clear()
 	_border.clear()
 	_edge_floor = Vector2i(-2, 0)
+	_ground_tile = -1
 	# Keyed on tile ids, which mean nothing without the tileset they came from.
 	# All three go together: a body list outliving its meshes is a drawing that
 	# resolves to a model nothing built.
@@ -594,6 +595,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# border block out; the indoor one is plaster this file stands there, so the
 	# two are the same margin and nothing downstream tells them apart.
 	_room_wall = [] if _outside else shape.room_wall()
+	_ground_tile = shape.ground_tile()
 	var ring: int = _ring_depth(source, shape) if _outside \
 		else (ROOM_RING if not _room_wall.is_empty() else 0)
 	_margin = Vector2i(ring, ring)
@@ -6166,6 +6168,13 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 			continue
 		if _art[index] == ART_FLAT and _heights[index] >= 0:
 			return Vector2i(maxi(_tiles[index], 0), _heights[index])
+	# NOTHING FLAT WITHIN TWO TILES, which is a wood, a hedge or a border ring, and
+	# is four in five of the game's modelled tiles. The tileset's own ground stands
+	# in, because a thing never stands on a picture of itself: this answered the
+	# drawing's own art until 2026-08-16 and every tree in the game stood on a flat
+	# drawing of a tree. See `profile.gd:GROUND`.
+	if _ground_tile >= 0:
+		return Vector2i(_ground_tile, 0)
 	return Vector2i(maxi(_tiles[ty * _size.x + tx], 0), 0)
 
 
@@ -6858,6 +6867,11 @@ func _commonest_edge_floor() -> Vector2i:
 				best = int(counts[key])
 				_edge_floor = Vector2i(_tiles[index], _heights[index])
 	return _edge_floor
+
+
+## The floor a standing drawing is painted with where no ground is beside it, off
+## `profile.gd:GROUND`, or -1 where the tileset names none.
+var _ground_tile: int = -1
 
 
 ## A FACADE TILE THAT DOES NOT DRAW ONLY FACADE, narrowed to the part that is.
