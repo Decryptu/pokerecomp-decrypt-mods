@@ -2,6 +2,7 @@
 
 A run generated from a seed. The same seed on the same cartridge is the same
 game, on anyone's machine, every time: every wild source, gifts, static Pokemon,
+starters, trades, item and badge rewards, shops,
 base stats, types, movesets, evolutions, move power and accuracy, and every
 trainer's team are drawn from the seed and from nothing else.
 
@@ -48,7 +49,7 @@ uses the current installation settings for its session.
 
 ## Settings
 
-Nine rows, in the start menu's MODS entry and on this mod's own page in the
+Fourteen rows, in the start menu's MODS entry and on this mod's own page in the
 launcher, which is reached by pressing its row in the mods list. Both surfaces
 are built by the host out of one registration in `options.gd`, so this mod
 writes no settings screen.
@@ -58,6 +59,11 @@ writes no settings screen.
 | SEED | 0 to 9999 | The run's code |
 | WILD | OFF, ON | Redraw every random wild source |
 | GIFTS/STATIC | OFF, ON | Redraw gifts, static battles and Pokemon prizes |
+| STARTERS | OFF, ON | Redraw the three starters |
+| TRADES | OFF, ON | Redraw both sides of every in-game trade |
+| ITEMS | OFF, ON | Rearrange item rewards |
+| BADGES | OFF, ON | Rearrange badge rewards |
+| SHOPS | OFF, ON | Rearrange the items sold in shops |
 | STATS | OFF, ON | Shuffle each species' six base stats |
 | TYPES | OFF, ON | Redraw each evolution line's types |
 | MOVESETS | OFF, ON | Redraw every level-up move, keeping every level |
@@ -122,15 +128,29 @@ GIFTS/STATIC changes only species at cartridge-decoded gift, static battle and
 Pokemon prize sites. Levels, held items, prices, scripts and completion flags
 stay where the cartridge put them.
 
-## What this deliberately does not touch
+STARTERS are distinct and strength-banded. The host changes the ball's picture
+and the Pokemon it gives as one transaction, leaving the ball item and the
+rival's branch alone.
 
-STARTERS, TRADES, ITEMS, BADGES and SHOPS stay vanilla until the host can apply
-each whole transaction and prove a critical placement traversable. A starter's
-picture must move with the Pokemon, both halves of a trade must agree, prize and
-shop prices must be the amounts actually checked and deducted, and required key
-items cannot be shuffled against an incomplete gate list. Patching adjacent
-script commands in this mod would be a private host implementation, so it is not
-done.
+TRADES redraw both the offered and requested species in the same strength bands.
+The host carries both halves on that one trade site, so a second script naming
+the same cartridge trade record is not changed by accident.
+
+ITEM REWARDS are permuted with their quantities, so the cartridge's whole item
+budget is preserved. BADGES are permuted by reward group, keeping alternate
+branches that awarded the same badge together. SHOPS receive one cartridge-wide
+bijection of their item ids: shelf sizes and prices stay in place, and a shelf
+that had no duplicate does not gain one.
+
+Every candidate item and badge placement is submitted to the host's progression
+proof before it is used. The first proof decodes and caches the script corpus and
+can take several seconds; retries use that cache. If no candidate passes, these
+three categories stay vanilla rather than installing a placement the host has
+rejected. A pass proves there is no self-lock visible to the host's map-granular
+model. It is deliberately not a formal proof that every cell and story state in
+the run is beatable.
+
+## What this deliberately does not touch
 
 TM AND HM COMPATIBILITY, and what each TM teaches, so the moves a run needs to
 cross the map are the ones the cartridge always had. MOVE EFFECTS, since an effect is a list of steps and the
@@ -149,7 +169,9 @@ Godot --headless --path <pokerecomp> -s tools/randomizer_probe.gd -- \
 	"user://rom_cache/<cache>"
 ```
 
-It exits non-zero if any of them fails.
+It exits non-zero if any of them fails, including the host accepting the final
+placement. `tools/randomizer_lifecycle_probe.gd` separately proves that saved
+settings reproduce the same run and that installation settings cannot reroll it.
 
 ## Layout
 

@@ -1,9 +1,9 @@
 {
 	"id": "randomizer",
 	"name": "Randomizer",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"api_version": 2,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
-	"description": "A save-bound run generated from a four-digit seed: wild encounters, gifts, static Pokemon, base stats, types, movesets, evolutions, moves and trainer teams. The same seed and settings on the same cartridge produce the same run."
+	"description": "A save-bound run generated from a four-digit seed: Pokemon, wild sources, items, badges, shops, species, moves and trainer teams. Critical placements are accepted only after the host finds no visible self-lock."
 }

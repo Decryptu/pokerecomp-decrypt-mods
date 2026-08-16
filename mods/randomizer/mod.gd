@@ -10,7 +10,7 @@ extends RefCounted
 
 const Options := preload("options.gd")
 const Plan := preload("plan.gd")
-const ALGORITHM_VERSION: int = 1
+const ALGORITHM_VERSION: int = 2
 const SAVE_ALGORITHM: String = "algorithm"
 const SAVE_SETTINGS: String = "settings"
 
@@ -27,6 +27,7 @@ var _manifest: Gen2ModManifest = null
 ## The cartridge as it shipped, gathered once. A rebuild starts from this, so a
 ## seed always means the same thing however many times a setting was moved.
 var _world: Dictionary = {}
+var _data: GameData = null
 func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
 	_host = host
 	_id = manifest.id
@@ -66,11 +67,13 @@ func _apply(settings: Dictionary) -> void:
 		var game: StringName = _host.target_game()
 		if String(game).is_empty():
 			return
-		var data: GameData = GameData.open(game)
-		if data == null:
+		_data = GameData.open(game)
+		if _data == null:
 			return
-		_world = Plan.gather(data)
-	var patches: Dictionary = Plan.build(_world, settings)
+		_world = Plan.gather(_data)
+	var validate := func(candidate: Dictionary) -> Dictionary:
+		return _host.validate_placement(_data, candidate)
+	var patches: Dictionary = Plan.build(_world, settings, validate)
 	for kind: StringName in NUMBERED_KINDS:
 		_apply_entries(kind, patches[kind], _patch_numbered)
 	_apply_entries(Gen2ContentOverlay.KIND_ENCOUNTER,

@@ -54,9 +54,12 @@ func _initialize() -> void:
 		(world["type_pool"] as Array).size(),
 	])
 
-	var first: Dictionary = plan.build(world, settings)
-	var again: Dictionary = plan.build(world, settings)
-	var elsewhere: Dictionary = plan.build(world, _with_seed(settings, other_seed))
+	var host: Gen2ModHost = Gen2ModHost.instance()
+	var validate := func(candidate: Dictionary) -> Dictionary:
+		return host.validate_placement(data, candidate)
+	var first: Dictionary = plan.build(world, settings, validate)
+	var again: Dictionary = plan.build(world, settings, validate)
+	var elsewhere: Dictionary = plan.build(world, _with_seed(settings, other_seed), validate)
 	var first_digest: int = rng.text_hash(_canonical(first))
 	var again_digest: int = rng.text_hash(_canonical(again))
 	var other_digest: int = rng.text_hash(_canonical(elsewhere))
@@ -71,7 +74,7 @@ func _initialize() -> void:
 	_counts(first)
 	_samples(world, first, data)
 	_wild_sample(world, first, data)
-	var failures: int = _rules(world, first)
+	var failures: int = _rules(world, first, validate)
 	quit(1 if failures > 0 else 0)
 
 
@@ -161,7 +164,7 @@ func _stat_line(stats: Dictionary) -> String:
 
 
 ## What the sane defaults promise, asked of every row rather than of a sample.
-func _rules(world: Dictionary, patches: Dictionary) -> int:
+func _rules(world: Dictionary, patches: Dictionary, validator: Callable) -> int:
 	var species: Dictionary = world[Gen2ContentOverlay.KIND_SPECIES]
 	var moves: Dictionary = world[Gen2ContentOverlay.KIND_MOVE]
 	var totals: Dictionary = world["totals"]
@@ -195,6 +198,8 @@ func _rules(world: Dictionary, patches: Dictionary) -> int:
 	var changed_species: bool = _species_replacements_change(world, patches)
 	var extended_wild: bool = _indexed_wild_keeps_shape(world, patches)
 	var decoded_sites: bool = _checks_change_species(world, patches)
+	var placement_pool: bool = _placement_is_permutation(world, patches)
+	var placement_valid: bool = _placement_validates(patches, validator)
 	var failures: int = 0
 	for check: Array in [
 		["a species keeps its base stat total", kept_total],
@@ -205,7 +210,9 @@ func _rules(world: Dictionary, patches: Dictionary) -> int:
 		["a learnset avoids repeat moves", distinct_learnsets],
 		["a species replacement is not a no-op", changed_species],
 		["extra wild sources keep every non-species field", extended_wild],
-		["gifts, statics and prizes change species", decoded_sites],
+		["decoded Pokemon sites change both trade halves", decoded_sites],
+		["items, badges and shop stock are permutations", placement_pool],
+		["the host accepts the critical placement", placement_valid],
 	]:
 		if not _report(String(check[0]), bool(check[1])):
 			failures += 1
@@ -265,12 +272,82 @@ func _species_replacements_change(world: Dictionary, patches: Dictionary) -> boo
 
 func _checks_change_species(world: Dictionary, patches: Dictionary) -> bool:
 	var rows: Dictionary = world[&"check"]
+	var found: bool = false
 	for entry: Dictionary in (patches[&"check"] as Array):
 		var number: int = int(entry["number"])
+		if not (rows[number] as Dictionary).has("species"):
+			continue
+		found = true
 		if int((rows[number] as Dictionary).get("species", 0)) \
 				== int((entry["fields"] as Dictionary).get("species", 0)):
 			return false
-	return not (patches[&"check"] as Array).is_empty()
+		if StringName((rows[number] as Dictionary).get("kind", &"")) \
+				== Gen2WorldCatalog.KIND_TRADE \
+				and int((rows[number] as Dictionary).get("requested_species", 0)) \
+				== int((entry["fields"] as Dictionary).get("requested_species", 0)):
+			return false
+	return found
+
+
+func _placement_is_permutation(world: Dictionary, patches: Dictionary) -> bool:
+	var rows: Dictionary = world[&"check"]
+	var changed: Dictionary = _by_number(patches[&"check"])
+	var before_items: Array[String] = []
+	var after_items: Array[String] = []
+	var before_badges: Array[int] = []
+	var after_badges: Array[int] = []
+	var badge_sites: int = 0
+	var before_stock: Array[int] = []
+	var after_stock: Array[int] = []
+	var before_prices: Array[int] = []
+	var after_prices: Array[int] = []
+	for id: int in rows:
+		var row: Dictionary = rows[id]
+		var kind: StringName = StringName(row.get("kind", &""))
+		if kind == Gen2WorldCatalog.KIND_ITEM:
+			before_items.append("%d:%d" % [int(row["item"]), int(row["quantity"])])
+			var now: Dictionary = changed.get(id, {})
+			after_items.append("%d:%d" % [int(now.get("item", -1)), int(now.get("quantity", -1))])
+		elif kind == Gen2WorldCatalog.KIND_BADGE:
+			badge_sites += 1
+			var before_badge: int = int(row["badge"])
+			var after_badge: int = int((changed.get(id, {}) as Dictionary).get("badge", -1))
+			if not before_badges.has(before_badge):
+				before_badges.append(before_badge)
+			if not after_badges.has(after_badge):
+				after_badges.append(after_badge)
+		elif kind == Gen2WorldCatalog.KIND_SHOP:
+			var was: Array = row.get("items", [])
+			var now: Array = (changed.get(id, {}) as Dictionary).get("items", [])
+			if was.size() != now.size():
+				return false
+			for entry: Dictionary in was:
+				if not before_stock.has(int(entry["item"])):
+					before_stock.append(int(entry["item"]))
+				before_prices.append(int(entry["price"]))
+			for entry: Dictionary in now:
+				if not after_stock.has(int(entry["item"])):
+					after_stock.append(int(entry["item"]))
+				after_prices.append(int(entry["price"]))
+	before_items.sort()
+	after_items.sort()
+	before_badges.sort()
+	after_badges.sort()
+	before_stock.sort()
+	after_stock.sort()
+	before_prices.sort()
+	after_prices.sort()
+	return badge_sites > 0 and before_items == after_items and before_badges == after_badges \
+		and before_stock == after_stock and before_prices == after_prices
+
+
+func _placement_validates(patches: Dictionary, validator: Callable) -> bool:
+	var proposed: Dictionary = {}
+	for entry: Dictionary in (patches[&"check"] as Array):
+		proposed[int(entry["number"])] = entry["fields"]
+	var first: Dictionary = validator.call(proposed)
+	var again: Dictionary = validator.call(proposed)
+	return bool(first.get("ok", false)) and first == again
 
 
 func _species_changed(before: Variant, after: Variant) -> bool:

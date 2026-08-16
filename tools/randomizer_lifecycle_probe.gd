@@ -44,7 +44,7 @@ func _initialize() -> void:
 	var same: bool = first_once == first_again
 	var differ: bool = first_once != second_once
 	var legacy_clean: bool = legacy_view == vanilla
-	var snapshotted: bool = int(created_data.get("algorithm", -1)) == 1 \
+	var snapshotted: bool = int(created_data.get("algorithm", -1)) == 2 \
 		and created_data.get("settings", null) is Dictionary
 	print("same save twice is byte-identical: %s" % ("yes" if same else "NO"))
 	print("two saves keep different runs: %s" % ("yes" if differ else "NO"))
@@ -56,12 +56,13 @@ func _initialize() -> void:
 
 func _snapshot(seed_value: int) -> Dictionary:
 	return {
-		"algorithm": 1,
+		"algorithm": 2,
 		"settings": {
 			"seed": seed_value,
 			"stats": true, "types": true, "learnsets": true,
 			"evolutions": true, "moves": true, "trainers": true,
-			"encounters": true, "specials": true,
+			"encounters": true, "specials": true, "starters": true,
+			"trades": true, "items": true, "badges": true, "shops": true,
 		},
 	}
 
