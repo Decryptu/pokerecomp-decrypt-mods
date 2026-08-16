@@ -191,6 +191,9 @@ var _class_ids: Dictionary = {}
 ## tile may carry two.
 var _object_covered := PackedByteArray()
 var _object_over: Dictionary = {}
+## Per tile: the top of the object standing on it, in world pixels, or 0. See
+## `_measure_surfaces`.
+var _surface := PackedInt32Array()
 ## One entry per object found on this map: its declaration, the tile its
 ## arrangement starts at, and how many tiles across and down that is.
 var _objects: Array = []
@@ -804,6 +807,8 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_measure_mounds(shape)
 	_measure_doors(shape)
 	_measure_shores()
+	# Last of all: it reads the heights every pass above may still have moved.
+	_measure_surfaces()
 
 
 ## The floors a PERSON painted, where they painted any.
@@ -1708,6 +1713,52 @@ func _commonest_water() -> int:
 		if best < 0 or int(counts[tile]) > int(counts[best]):
 			best = tile
 	return best
+
+
+## THE TOP OF WHAT IS DRAWN ON EACH TILE, for the things that STAND on it.
+##
+## `_heights` is the resolved column and it is 0 under a declared object, because
+## `_measure_objects` hands an object's tiles back to the floor of their own cell
+## and builds the thing itself at emit. That is right for the mesh and wrong for
+## anything that has to sit ON the object: a Pokeball on Elm's bench is an
+## overworld SPRITE rather than a tile, so no pass here ever saw it, and the
+## renderer stood it at y 0 where the bench then hid it. The reviewer's words are
+## that the balls appear behind the desk instead of above it.
+##
+## So the object's own top is recorded per covered tile, which is the same
+## `base + height` its body is built from, and `surface_height_at_position` hands
+## the larger of that and the column to whoever is standing there.
+##
+## AFTER every pass that can still move a height, since `_ground_art` reads them.
+func _measure_surfaces() -> void:
+	_surface.resize(_size.x * _size.y)
+	_surface.fill(0)
+	for entry: Array in _objects:
+		var object: Dictionary = entry[0]
+		var start: Vector2i = entry[1]
+		var across: Vector2i = entry[2]
+		var base: int = _ground_art(start.x, start.y + across.y - 1).y
+		var top: int = base + int(object.get(&"rise", 0)) + int(object.get(&"height", 0))
+		if top <= 0:
+			continue
+		for row: int in across.y:
+			for column: int in across.x:
+				var to := Vector2i(start.x + column, start.y + row)
+				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+					continue
+				var at: int = to.y * _size.x + to.x
+				if _object_covered[at] == 1:
+					_surface[at] = maxi(_surface[at], top)
+
+
+## The top of whatever is drawn at a world position: the resolved column, or the
+## object standing on it where one does. What a thing placed there stands on.
+func surface_height_at_position(position: Vector3) -> int:
+	var tx: int = floori(position.x / TILE) + _margin.x
+	var ty: int = floori(position.z / TILE) + _margin.y
+	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
+		return 0
+	return maxi(_height_at(tx, ty), _surface[ty * _size.x + tx])
 
 
 ## THE CAVE MOUND, as a truncated pyramid instead of a flat slab.
