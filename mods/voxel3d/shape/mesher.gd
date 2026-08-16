@@ -797,6 +797,8 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# After every one of them, since each can still move a height and a ramp is
 	# cut from the heights as they finally stand.
 	_measure_ramps()
+	# After the ramps, which is what sizes and fills the corners it writes into.
+	_measure_shores()
 
 
 ## The floors a PERSON painted, where they painted any.
@@ -1684,6 +1686,84 @@ func _measure_ramps() -> void:
 			# resolved as, its drawing is now the surface the player walks up.
 			_art[at] = ART_FLAT
 			_volume[at] = 0
+
+
+## The map's OPEN water: the tile id it draws most of its water with, or -1 where
+## it has none. What is left over is the bank. See `_measure_shores`.
+func _commonest_water() -> int:
+	var counts: Dictionary = {}
+	var best: int = -1
+	for at: int in _size.x * _size.y:
+		if not _is_water(at):
+			continue
+		var tile: int = _tiles[at]
+		counts[tile] = int(counts.get(tile, 0)) + 1
+		if best < 0 or int(counts[tile]) > int(counts[best]):
+			best = tile
+	return best
+
+
+## THE SHORE, eased from the land down to the water instead of dropping to it.
+##
+## Where water meets land the cartridge draws a small rock bank, and this file
+## laid it flat at the water's own recess, so a coast was a step down: eight
+## pixels of vertical rock face and then flat water hard against it. It is drawn
+## as a bank and it reads as one, so it is built as one, at the 45 degrees a whole
+## band across a whole tile comes to on its own. Nothing is authored and nothing
+## is pinned: the bank is every water tile with land beside it, which is what the
+## cartridge draws the bank on, so this is the same shape on every coast, lake,
+## pond and river in the game.
+##
+## THE CORNER IS THE UNIT AND NOT THE TILE, which is `_measure_ramps`' own rule
+## and is what makes the corners fall out rather than being cased. A corner
+## stands at the land's height if ANY of the three tiles meeting it there is
+## land, and at the water's otherwise, so a straight north bank lifts both its
+## north corners and lies along the shore, an outer corner lifts three and comes
+## down to a true diagonal, and an inner corner lifts one. Two tiles sharing an
+## edge read the same two corners of it, so the slopes meet exactly and the coast
+## is watertight without a skirt between them.
+##
+## It marks the tile a RAMP, which is what a ramp already is: a floor with a
+## slope on it rather than a box. `_ramp_tile` draws it, `_ramp_side` closes it
+## against the water and the land either side, and the bank stops being water
+## SURFACE, which is right, because a rock bank does not ripple.
+##
+## ONLY A TILE THAT DRAWS A BANK, which is every water tile except the commonest
+## one. Land beside it is not enough on its own and the map's east edge is why:
+## the cartridge draws open water right up to the boundary there and the border
+## ring folds a tree line in past it, so the rule without this test found land
+## beside open water and tilted the WATER up into the trees, in blue steps. A
+## bank is drawn as a bank, so the drawing is what has to say so, and the open
+## water of a map is the water tile it has most of.
+##
+## AFTER `_measure_ramps`, which is what sizes and fills `_corners`.
+func _measure_shores() -> void:
+	var count: int = _size.x * _size.y
+	var open_water: int = _commonest_water()
+	for at: int in count:
+		if _ramp[at] == 1 or not _is_water(at) or _tiles[at] == open_water:
+			continue
+		var tx: int = at % _size.x
+		@warning_ignore("integer_division")
+		var ty: int = at / _size.x
+		var sloped: bool = false
+		for corner: int in 4:
+			var step := Vector2i(-1 if corner % 2 == 0 else 1, -1 if corner < 2 else 1)
+			var high: int = _heights[at]
+			# The three tiles that meet this corner. The highest LAND among them is
+			# what the bank rises to; water and the map's own outside are not land.
+			for reach: Vector2i in [Vector2i(step.x, 0), Vector2i(0, step.y), step]:
+				var to := Vector2i(tx + reach.x, ty + reach.y)
+				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+					continue
+				var index: int = to.y * _size.x + to.x
+				if _tiles[index] < 0 or _heights[index] <= _heights[at]:
+					continue
+				high = maxi(high, _heights[index])
+			_corners[at * 4 + corner] = high
+			sloped = sloped or high > _heights[at]
+		if sloped:
+			_ramp[at] = 1
 
 
 ## A CLIFF IS AS TALL AS ITS FACE IS DRAWN, in 8px bands.
@@ -6227,6 +6307,11 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		_wedge(tx, ty, atlas)
 		return
 	if _ramp[at] == 1:
+		# STATED RATHER THAN INHERITED. A ramp is rock either way, but a SHORE ramp
+		# is cut from a tile `_is_water` answers true for, and this branch returns
+		# before the line below that would have said so: without this it drew with
+		# whatever surface the previous tile happened to leave behind.
+		_sink = SINK_TERRAIN
 		_ramp_tile(tx, ty, atlas)
 		return
 	var here: int = _heights[at]
