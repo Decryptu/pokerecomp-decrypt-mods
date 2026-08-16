@@ -191,6 +191,8 @@ func _rules(world: Dictionary, patches: Dictionary) -> int:
 
 	var lines: bool = _lines_climb(species, patched)
 	var levels: bool = _wild_keeps_levels(world, patches)
+	var distinct_learnsets: bool = _learnsets_do_not_repeat(patched)
+	var changed_species: bool = _species_replacements_change(world, patches)
 	var failures: int = 0
 	for check: Array in [
 		["a species keeps its base stat total", kept_total],
@@ -198,10 +200,71 @@ func _rules(world: Dictionary, patches: Dictionary) -> int:
 		["an evolution is never a downgrade", climbs],
 		["an evolution line's stats still climb", lines],
 		["a wild slot keeps its level and its place", levels],
+		["a learnset avoids repeat moves", distinct_learnsets],
+		["a species replacement is not a no-op", changed_species],
 	]:
 		if not _report(String(check[0]), bool(check[1])):
 			failures += 1
 	return failures
+
+
+func _learnsets_do_not_repeat(patched: Dictionary) -> bool:
+	for fields: Dictionary in patched.values():
+		var used: Array[int] = []
+		for entry: Dictionary in (fields.get("learnset", []) as Array):
+			var move: int = int(entry.get("move", 0))
+			if used.has(move):
+				return false
+			used.append(move)
+	return true
+
+
+func _species_replacements_change(world: Dictionary, patches: Dictionary) -> bool:
+	var trainer_patches: Dictionary = _by_number(patches[Gen2ContentOverlay.KIND_TRAINER])
+	for number: int in trainer_patches:
+		var before: Variant = (world[Gen2ContentOverlay.KIND_TRAINER] as Dictionary)[number] \
+			.get("trainers", [])
+		var after: Variant = (trainer_patches[number] as Dictionary).get("trainers", [])
+		if not _species_changed(before, after):
+			return false
+	for entry: Dictionary in (patches[Gen2ContentOverlay.KIND_ENCOUNTER] as Array):
+		var before: Dictionary = (world[Gen2ContentOverlay.KIND_ENCOUNTER] as Dictionary)[
+			int(entry["at"])
+		]
+		if not _species_changed(
+			before.get("slots", []), (entry["fields"] as Dictionary).get("slots", [])
+		):
+			return false
+	for entry: Dictionary in (patches[Gen2ContentOverlay.KIND_FISHING] as Array):
+		var before: Dictionary = (world[Gen2ContentOverlay.KIND_FISHING] as Dictionary)[
+			int(entry["number"])
+		]
+		if not _species_changed(
+			before.get("rods", []), (entry["fields"] as Dictionary).get("rods", [])
+		):
+			return false
+	return true
+
+
+func _species_changed(before: Variant, after: Variant) -> bool:
+	if before is Array:
+		if not after is Array or (before as Array).size() != (after as Array).size():
+			return false
+		for index: int in (before as Array).size():
+			if not _species_changed((before as Array)[index], (after as Array)[index]):
+				return false
+		return true
+	if before is Dictionary:
+		if not after is Dictionary:
+			return false
+		if (before as Dictionary).has("species"):
+			return int((before as Dictionary)["species"]) != int((after as Dictionary)["species"])
+		for key: Variant in before as Dictionary:
+			if not _species_changed(
+				(before as Dictionary)[key], (after as Dictionary).get(key, null)
+			):
+				return false
+	return true
 
 
 ## What the wild tables promise: every slot is still there, in the same place,

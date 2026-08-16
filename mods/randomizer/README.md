@@ -82,7 +82,7 @@ MOVESETS keep every level and replace every move. The opening is guarded: a
 species' first entry, and every entry at level five or below, is drawn from moves
 that do damage, land four times in five and are not overwhelming. A starter can
 always attack at level five, which is the one thing a randomized learnset has to
-promise.
+promise. A species does not repeat a move while an unused eligible one remains.
 
 EVOLUTIONS keep their method and their parameter, so a stone evolution is still
 that stone at that level for that happiness, and only the target changes. A
@@ -100,12 +100,13 @@ it cannot paralyse, and giving it a power turns it into something else.
 
 TRAINER PARTIES keep their levels, their held items and the moves a trainer's own
 record carries. Each Pokemon is replaced by one from the band around it in the
-base stat total order, so a gym leader gets a different team and not the top of
-the table.
+base stat total order, excluding itself while another candidate exists, so a gym
+leader gets a different team and not the top of the table.
 
 WILD ENCOUNTERS keep every slot in its place, at the level and the rate the
 cartridge gave it, and change only which Pokemon stands in it, drawn from the
-same band. A route stays as easy or as dangerous as it was, and the first grass
+same band and excluding the original while another candidate exists. A route
+stays as easy or as dangerous as it was, and the first grass
 in the game cannot hand out something that ends the run there. Grass, surfing,
 both swarm tables and all three rods go the same way.
 

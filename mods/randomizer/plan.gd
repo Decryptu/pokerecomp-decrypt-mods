@@ -328,11 +328,20 @@ static func _randomize_learnsets(world: Dictionary, seed_value: int, out: Dictio
 		var rng := Rng.new()
 		rng.begin(seed_value, "learnset", number)
 		var learnset: Array = (species[number].get("learnset", []) as Array).duplicate(true)
+		var used: Array[int] = []
 		for index: int in learnset.size():
 			var entry: Dictionary = learnset[index]
 			var opening: bool = index == 0 or int(entry.get("level", 1)) <= EARLY_LEVEL
 			var pool: Array[int] = early if opening else any
-			entry["move"] = pool[rng.below(pool.size())]
+			var available: Array[int] = []
+			for move: int in pool:
+				if not used.has(move):
+					available.append(move)
+			if available.is_empty():
+				available = pool
+			var chosen: int = available[rng.below(available.size())]
+			entry["move"] = chosen
+			used.append(chosen)
 		if not learnset.is_empty():
 			_field(out, number)["learnset"] = learnset
 
@@ -487,7 +496,13 @@ static func _near(world: Dictionary, original: int, rng: RefCounted) -> int:
 	var centre: int = int(rank.get(original, by_total.size() / 2))
 	var low: int = maxi(centre - TRAINER_WINDOW, 0)
 	var high: int = mini(centre + TRAINER_WINDOW, by_total.size() - 1)
-	return by_total[low + rng.below(high - low + 1)]
+	var candidates: Array[int] = []
+	for index: int in range(low, high + 1):
+		if by_total[index] != original:
+			candidates.append(by_total[index])
+	if candidates.is_empty():
+		return original
+	return candidates[rng.below(candidates.size())]
 
 
 ## The keys of [param rows] as ascending numbers, which is the order everything

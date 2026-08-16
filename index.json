@@ -12,9 +12,9 @@
 		{
 			"id": "randomizer",
 			"name": "Randomizer",
-			"version": "0.1.0",
+			"version": "0.1.1",
 			"description": "A run generated from a four-digit seed: what appears in the grass, base stats, types, movesets, evolutions, move power and accuracy, and every trainer's team. The same seed on the same cartridge is the same game, on anyone's machine. Each of the seven is its own setting.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/randomizer-0.1.0/randomizer-0.1.0.zip"
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/randomizer-0.1.1/randomizer-0.1.1.zip"
 		},
 		{
 			"id": "follower",
