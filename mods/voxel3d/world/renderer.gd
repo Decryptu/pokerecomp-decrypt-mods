@@ -49,6 +49,10 @@ var _tile_shape_script: GDScript = null
 var _map_source_script: GDScript = null
 
 var _actor_textures: Dictionary = {}
+## The sprites other mods put in the world, resolved by the host into the same
+## `Gen2WorldSprite` the map's own objects carry. Null where the host is older
+## than the actor layer, which is the only reason this view checks for one.
+var _mod_actors: Gen2WorldActors = null
 ## The tileset the shape resolver was built for. A warp to a map sharing it still
 ## rebuilds the mesh, because the block grid is what changed; this only says
 ## whether the resolver has to be replaced too.
@@ -120,6 +124,13 @@ func set_text_box_rect(rect: Rect2i) -> void:
 func set_native_size(size_pixels: Vector2i) -> void:
 	size = Vector2(size_pixels)
 	_stage.container.size = Vector2(size_pixels)
+
+
+## The sprites registered world actors ask for, handed over once when the view
+## is created. A follower is one of these, and it is drawn as a card on the cell
+## it names like everything else standing on the map.
+func set_actors(actors: Gen2WorldActors) -> void:
+	_mod_actors = actors
 
 
 func set_world(world: Gen2WorldAPI, animation: Gen2WorldAnimation = null) -> void:
@@ -398,6 +409,15 @@ func _rebuild_actors() -> void:
 		_world.player_facing, _world.player_walk_frame(),
 		_world.player_position_cells()
 	)
+	# A mod's own sprites, after the map's and the player's. Depth is the stage's
+	# to decide here rather than a row order's, which is the one thing this view
+	# does not have to copy from the tile page.
+	if _mod_actors != null:
+		for entry: Dictionary in _mod_actors.sprites():
+			_add_actor(
+				entry["sprite"], 0, int(entry["facing"]), int(entry["frame"]),
+				entry["position_cells"]
+			)
 	_stage.end_cards()
 	_stage.end_shadow_casters()
 
@@ -420,14 +440,20 @@ func _actor_texture(
 	if sprite == null or _world == null or _world.data == null:
 		return null
 	var palette: int = palette_override if palette_override != 0 else sprite.default_palette
-	var key: String = "%d:%d:%d:%d:%d" % [sprite.number, palette, facing, frame, _time_of_day]
+	# The type is part of the key: a mon icon's row and an OverworldSprites row
+	# are numbered separately, so two different drawings share a number.
+	var key: String = "%d:%d:%d:%d:%d:%d" % [
+		sprite.sprite_type, sprite.number, palette, facing, frame, _time_of_day,
+	]
 	if _actor_textures.has(key):
 		return _actor_textures[key]
 	# image_for applies the mirror itself, including frame 3 of down and up,
 	# which frame_is_mirrored is the public answer for.
 	var image: Image = Gen2WorldSprite.image_for(
 		sprite,
-		_world.data.overworld_sprite_indices(sprite.number),
+		_world.data.overworld_icon_indices(sprite.icon_number) \
+			if sprite.sprite_type == Gen2WorldSprite.TYPE_MON_ICON \
+			else _world.data.overworld_sprite_indices(sprite.number),
 		_world.data.overworld_sprite_palette(palette, _time_of_day),
 		facing,
 		frame,

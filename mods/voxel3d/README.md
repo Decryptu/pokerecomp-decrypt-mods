@@ -364,6 +364,19 @@ nearly a piece of water is tilted to bounce the sun into the eye, which is a fac
 about the swell, so the glitter rides the waves and goes out at night with the
 light.
 
+## Sprites another mod puts in the world
+
+A mod can register a world ACTOR: one sprite the host drives a frame at a time
+and resolves into the same `Gen2WorldSprite` the map's own objects carry. A
+Pokemon following the player is one. This view takes them through `set_actors`
+and stands each one up as a card on the cell it names, with its own shadow, so
+the same follower is behind the player in both views and `V` swaps between them
+without either one losing it.
+
+Nothing about them is this mod's to decide. The host resolves the art, the
+palette, the hour and, for a party icon, its own two frames; a card is drawn
+here from that and from nothing else.
+
 ## The one thing here the cartridge does not draw
 
 Everything else in this view is the cartridge's own drawing restated. Every

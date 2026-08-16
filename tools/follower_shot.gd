@@ -11,8 +11,12 @@ extends SceneTree
 ## Rendering needs a display, so this cannot run headless, and mods only load
 ## when they are asked for, so `--mods` is not optional:
 ##
+## A seventh argument is the view: the host's own `gen2` by default, or a
+## registered renderer's id, which is how the same walk is photographed in the
+## diorama.
+##
 ##   Godot --path <pokerecomp> --mods -s tools/follower_shot.gd -- \
-##       crystal 26 1 <out.png> [species] [steps]
+##       crystal 26 1 <out.png> [species] [steps] [renderer id]
 
 const WINDOW_SIZE := Vector2i(1152, 648)
 ## Hardware frames one plain step is drawn over, which is the host's own count.
@@ -24,8 +28,9 @@ const CAUGHT_AT: int = 4
 ## script has run and the player can be walked.
 const SETTLE_FRAMES: int = 60
 ## The real frame the picture is taken on, well past the one the walk was staged
-## on, so the renderer has drawn what the walk left.
-const CAPTURE_ON: int = 18
+## on. Long enough for a renderer that builds its view over several frames
+## rather than in one, which the diorama does on purpose.
+const CAPTURE_ON: int = 150
 
 var _screen: Gen2WorldScreen = null
 var _output_path: String = ""
@@ -58,6 +63,8 @@ func _initialize() -> void:
 	print("actors     %s, failures %s" % [
 		str(host.world_actor_ids()), str(host.failures())
 	])
+	if args.size() > 6:
+		print("view       %s" % str(host.select_world_renderer(StringName(args[6]))))
 
 	root.set_content_scale_size(WINDOW_SIZE)
 	root.size = WINDOW_SIZE
