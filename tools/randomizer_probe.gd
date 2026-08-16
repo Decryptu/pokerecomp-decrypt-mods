@@ -193,6 +193,8 @@ func _rules(world: Dictionary, patches: Dictionary) -> int:
 	var levels: bool = _wild_keeps_levels(world, patches)
 	var distinct_learnsets: bool = _learnsets_do_not_repeat(patched)
 	var changed_species: bool = _species_replacements_change(world, patches)
+	var extended_wild: bool = _indexed_wild_keeps_shape(world, patches)
+	var decoded_sites: bool = _checks_change_species(world, patches)
 	var failures: int = 0
 	for check: Array in [
 		["a species keeps its base stat total", kept_total],
@@ -202,6 +204,8 @@ func _rules(world: Dictionary, patches: Dictionary) -> int:
 		["a wild slot keeps its level and its place", levels],
 		["a learnset avoids repeat moves", distinct_learnsets],
 		["a species replacement is not a no-op", changed_species],
+		["extra wild sources keep every non-species field", extended_wild],
+		["gifts, statics and prizes change species", decoded_sites],
 	]:
 		if not _report(String(check[0]), bool(check[1])):
 			failures += 1
@@ -243,7 +247,30 @@ func _species_replacements_change(world: Dictionary, patches: Dictionary) -> boo
 			before.get("rods", []), (entry["fields"] as Dictionary).get("rods", [])
 		):
 			return false
+	for kind: StringName in [&"treemon", &"fishing_time"]:
+		var rows: Dictionary = world[kind]
+		for entry: Dictionary in (patches[kind] as Array):
+			var number: int = int(entry["number"])
+			if not _species_changed(rows[number], entry["fields"]):
+				return false
+	for kind: StringName in [&"bug_contest", &"roaming"]:
+		var rows: Dictionary = world[kind]
+		for entry: Dictionary in (patches[kind] as Array):
+			var number: int = int(entry["number"])
+			if int((rows[number] as Dictionary)["species"]) \
+					== int((entry["fields"] as Dictionary)["species"]):
+				return false
 	return true
+
+
+func _checks_change_species(world: Dictionary, patches: Dictionary) -> bool:
+	var rows: Dictionary = world[&"check"]
+	for entry: Dictionary in (patches[&"check"] as Array):
+		var number: int = int(entry["number"])
+		if int((rows[number] as Dictionary).get("species", 0)) \
+				== int((entry["fields"] as Dictionary).get("species", 0)):
+			return false
+	return not (patches[&"check"] as Array).is_empty()
 
 
 func _species_changed(before: Variant, after: Variant) -> bool:
@@ -284,6 +311,23 @@ func _wild_keeps_levels(world: Dictionary, patches: Dictionary) -> bool:
 		]
 		if not _same_shape(was.get("rods", []), (entry["fields"] as Dictionary)["rods"]):
 			return false
+	return true
+
+
+func _indexed_wild_keeps_shape(world: Dictionary, patches: Dictionary) -> bool:
+	for kind: StringName in [&"treemon", &"fishing_time"]:
+		var rows: Dictionary = world[kind]
+		for entry: Dictionary in (patches[kind] as Array):
+			if not _same_shape(rows[int(entry["number"])], entry["fields"]):
+				return false
+	for kind: StringName in [&"bug_contest", &"roaming"]:
+		var rows: Dictionary = world[kind]
+		for entry: Dictionary in (patches[kind] as Array):
+			var before: Dictionary = rows[int(entry["number"])]
+			var after: Dictionary = before.duplicate(true)
+			after["species"] = int((entry["fields"] as Dictionary)["species"])
+			if not _same_shape(before, after):
+				return false
 	return true
 
 

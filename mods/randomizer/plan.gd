@@ -33,6 +33,17 @@ const ENCOUNTER_METHODS: Array[StringName] = [
 ## reader answers empty past the last, so this is a bound rather than a count.
 const FISHING_GROUPS: int = 64
 
+const KIND_TREEMON: StringName = &"treemon"
+const KIND_BUG_CONTEST: StringName = &"bug_contest"
+const KIND_ROAMING: StringName = &"roaming"
+const KIND_FISHING_TIME: StringName = &"fishing_time"
+const KIND_CHECK: StringName = &"check"
+const SPECIAL_KINDS: Array[StringName] = [
+	Gen2WorldCatalog.KIND_GIFT,
+	Gen2WorldCatalog.KIND_STATIC,
+	Gen2WorldCatalog.KIND_PRIZE,
+]
+
 ## What a starter is holding at level five. Every learnset entry this early, and
 ## the first entry of every species whatever its level, is drawn from moves that
 ## do damage, land reliably and are not a one-off: a randomizer that opens with
@@ -78,47 +89,32 @@ static func build(world: Dictionary, settings: Dictionary) -> Dictionary:
 		_randomize_trainers(world, seed_value, trainers)
 	var encounters: Array = []
 	var fishing: Array = []
+	var treemons: Array = []
+	var contest: Array = []
+	var roaming: Array = []
+	var fishing_time: Array = []
+	var checks: Array = []
 	if bool(settings.get("encounters", false)):
 		_randomize_encounters(world, seed_value, encounters)
 		_randomize_fishing(world, seed_value, fishing)
+		_randomize_indexed(world, KIND_TREEMON, seed_value, "treemon", treemons)
+		_randomize_indexed(world, KIND_BUG_CONTEST, seed_value, "contest", contest)
+		_randomize_indexed(world, KIND_ROAMING, seed_value, "roaming", roaming)
+		_randomize_indexed(world, KIND_FISHING_TIME, seed_value, "fishing_time", fishing_time)
+	if bool(settings.get("specials", false)):
+		_randomize_checks(world, SPECIAL_KINDS, seed_value, checks)
 	return {
 		Gen2ContentOverlay.KIND_SPECIES: _listed(species),
 		Gen2ContentOverlay.KIND_MOVE: _listed(moves),
 		Gen2ContentOverlay.KIND_TRAINER: trainers,
 		Gen2ContentOverlay.KIND_ENCOUNTER: encounters,
 		Gen2ContentOverlay.KIND_FISHING: fishing,
+		KIND_TREEMON: treemons,
+		KIND_BUG_CONTEST: contest,
+		KIND_ROAMING: roaming,
+		KIND_FISHING_TIME: fishing_time,
+		KIND_CHECK: checks,
 	}
-
-
-## The cartridge's own values for every field this mod ever writes, which is
-## what puts a row back when its setting is switched off. A patch is what the
-## overlay holds, so a row is restored by patching it with what it was, not by
-## dropping the patch.
-static func original_fields(world: Dictionary, kind: StringName, number: int) -> Dictionary:
-	var rows: Dictionary = world[kind]
-	if not rows.has(number):
-		return {}
-	var row: Dictionary = rows[number]
-	if kind == Gen2ContentOverlay.KIND_SPECIES:
-		return {
-			"stats": (row.get("stats", {}) as Dictionary).duplicate(true),
-			"types": (row.get("types", []) as Array).duplicate(true),
-			"learnset": (row.get("learnset", []) as Array).duplicate(true),
-			"evolutions": (row.get("evolutions", []) as Array).duplicate(true),
-		}
-	if kind == Gen2ContentOverlay.KIND_MOVE:
-		return {
-			"power": int(row.get("power", 0)),
-			"accuracy": int(row.get("accuracy", 255)),
-			"type": int(row.get("type", 0)),
-		}
-	if kind == Gen2ContentOverlay.KIND_TRAINER:
-		return {"trainers": (row.get("trainers", []) as Array).duplicate(true)}
-	# An encounter row and a fishing group are both reached by their slots
-	# alone, which is the one field this mod writes to either.
-	if kind == Gen2ContentOverlay.KIND_ENCOUNTER:
-		return {"slots": (row.get("slots", []) as Array).duplicate(true)}
-	return {"rods": (row.get("rods", []) as Array).duplicate(true)}
 
 
 ## Everything the plan reads, gathered once: the rows, the totals, the type
@@ -169,6 +165,11 @@ static func gather(data: GameData) -> Dictionary:
 		"families": _families(species, species_numbers),
 		Gen2ContentOverlay.KIND_ENCOUNTER: _encounters(data),
 		Gen2ContentOverlay.KIND_FISHING: _fishing(data),
+		KIND_TREEMON: _treemons(data),
+		KIND_BUG_CONTEST: _indexed(data.bug_contest_mons()),
+		KIND_ROAMING: _indexed(data.world_roaming_mons()),
+		KIND_FISHING_TIME: _indexed(data.world_fishing_time_groups()),
+		KIND_CHECK: _checks(data.catalog()),
 	}
 
 
@@ -226,6 +227,31 @@ static func _fishing(data: GameData) -> Dictionary:
 		var row: Dictionary = data.world_fishing_group(group)
 		if not row.is_empty():
 			out[group] = row
+	return out
+
+
+static func _treemons(data: GameData) -> Dictionary:
+	var out: Dictionary = {}
+	for index: int in data.treemon_set_count():
+		var row: Dictionary = data.treemon_set(index)
+		if not row.is_empty():
+			out[index] = row
+	return out
+
+
+static func _indexed(rows: Array) -> Dictionary:
+	var out: Dictionary = {}
+	for index: int in rows.size():
+		if rows[index] is Dictionary:
+			out[index] = (rows[index] as Dictionary).duplicate(true)
+	return out
+
+
+static func _checks(catalog: Gen2WorldCatalog) -> Dictionary:
+	var out: Dictionary = {}
+	for kind: StringName in SPECIAL_KINDS:
+		for row: Dictionary in catalog.rows(kind):
+			out[int(row["id"])] = row.duplicate(true)
 	return out
 
 
@@ -455,8 +481,8 @@ static func _randomize_encounters(world: Dictionary, seed_value: int, out: Array
 
 
 ## The same for the three rods of every fishing group. An entry that names no
-## species defers to the day and night table, which is not patchable, so it is
-## left exactly as it is rather than half rewritten.
+## species defers to the day and night table; that table is randomized through
+## its own typed host seam below.
 static func _randomize_fishing(world: Dictionary, seed_value: int, out: Array) -> void:
 	var groups: Dictionary = world[Gen2ContentOverlay.KIND_FISHING]
 	if (world["by_total"] as Array).is_empty():
@@ -467,6 +493,51 @@ static func _randomize_fishing(world: Dictionary, seed_value: int, out: Array) -
 		rng.begin(seed_value, "fishing", group)
 		_substitute(rods, world, rng)
 		out.append({"number": group, "fields": {"rods": rods}})
+
+
+## The four indexed wild sources outside map and rod tables. Only species move;
+## encounter weights, level bounds, roaming position and rod thresholds remain
+## the cartridge's.
+static func _randomize_indexed(
+	world: Dictionary, kind: StringName, seed_value: int, stream: String, out: Array
+) -> void:
+	var rows: Dictionary = world[kind]
+	for index: int in _sorted(rows):
+		var row: Dictionary = (rows[index] as Dictionary).duplicate(true)
+		var rng := Rng.new()
+		rng.begin(seed_value, stream, index)
+		_substitute(row, world, rng)
+		var fields: Dictionary = {}
+		match kind:
+			KIND_TREEMON:
+				fields = {
+					"common": row.get("common", []),
+					"rare": row.get("rare", []),
+				}
+			KIND_FISHING_TIME:
+				fields = {"day": row.get("day", {}), "night": row.get("night", {})}
+			_:
+				fields = {"species": int(row.get("species", 0))}
+		out.append({"number": index, "fields": fields})
+
+
+## Pokemon handed over or fought at decoded sites. Levels, held items and Game
+## Corner prices stay attached to their sites; only the species changes.
+static func _randomize_checks(
+	world: Dictionary, kinds: Array[StringName], seed_value: int, out: Array
+) -> void:
+	var rows: Dictionary = world[KIND_CHECK]
+	for id: int in _sorted(rows):
+		var row: Dictionary = rows[id]
+		var kind: StringName = StringName(row.get("kind", &""))
+		if not kinds.has(kind):
+			continue
+		var rng := Rng.new()
+		rng.begin(seed_value, "check_%s" % kind, id)
+		out.append({
+			"number": id,
+			"fields": {"species": _near(world, int(row.get("species", 0)), rng)},
+		})
 
 
 ## Replaces the species of every entry inside [param value], however deeply it
@@ -481,10 +552,14 @@ static func _substitute(value: Variant, world: Dictionary, rng: RefCounted) -> v
 		for entry: Variant in value as Array:
 			_substitute(entry, world, rng)
 		return
-	if not value is Dictionary or not (value as Dictionary).has("species"):
+	if not value is Dictionary:
 		return
 	var entry: Dictionary = value
-	entry["species"] = _near(world, int(entry["species"]), rng)
+	if entry.has("species"):
+		entry["species"] = _near(world, int(entry["species"]), rng)
+		return
+	for child: Variant in entry.values():
+		_substitute(child, world, rng)
 
 
 ## A species of about the strength of [param original]: the band of the base

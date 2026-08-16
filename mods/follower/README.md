@@ -35,6 +35,11 @@ launcher, built by the host out of one registration in `options.gd`.
 | ON BIKE | OFF, ON | Whether it stays out while cycling |
 | ON WATER | OFF, ON | Whether it stays out while surfing |
 
+Opening a healthy Pokemon's own party menu adds FOLLOW. Choosing it updates WHO
+and closes the menu; opening that member again says FOLLOWING. Eggs get no row,
+and neither does the battle party menu, because changing a world actor in the
+middle of a turn is not a battle action.
+
 Both movement rows are off by default: a Pokemon jogging beside a bicycle and
 one walking on the sea are the two places the illusion breaks, and both are one
 press away for anyone who wants them anyway.
@@ -95,7 +100,7 @@ exits non-zero if any of them fails.
 ## Layout
 
 ```
-mod.gd       registers the settings, the control and the follower
+mod.gd       registers the settings, party row, control and follower
 options.gd   the settings and the control, named once
 party.gd     which Pokemon is out, read off the party the world mirrors
 trail.gd     the player's steps -> the follower's pose, as one pure function

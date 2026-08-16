@@ -35,15 +35,17 @@ const EVOLUTIONS: StringName = &"evolutions"
 const MOVES: StringName = &"moves"
 const TRAINERS: StringName = &"trainers"
 const ENCOUNTERS: StringName = &"encounters"
+const SPECIALS: StringName = &"specials"
 
 ## Each thing the mod can randomize is its own rung, so a player can shuffle
 ## movesets and leave base stats where the cartridge put them.
 const TOGGLES: Array[StringName] = [
-	STATS, TYPES, LEARNSETS, EVOLUTIONS, MOVES, TRAINERS, ENCOUNTERS,
+	STATS, TYPES, LEARNSETS, EVOLUTIONS, MOVES, TRAINERS, ENCOUNTERS, SPECIALS,
 ]
 const TOGGLE_LABELS: Dictionary = {
 	STATS: "STATS", TYPES: "TYPES", LEARNSETS: "MOVESETS", EVOLUTIONS: "EVOLVES",
 	MOVES: "MOVES", TRAINERS: "TRAINERS", ENCOUNTERS: "WILD",
+	SPECIALS: "GIFTS/STATIC",
 }
 const OFF_ON: Array = [0, 1]
 
