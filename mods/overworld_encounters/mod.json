@@ -1,7 +1,7 @@
 {
 	"id": "overworld_encounters",
 	"name": "Overworld Encounters",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"api_version": 2,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],

@@ -377,6 +377,12 @@ Nothing about them is this mod's to decide. The host resolves the art, the
 palette, the hour and, for a party icon, its own two frames; a card is drawn
 here from that and from nothing else.
 
+Visible wild Pokemon use the same actor path. Their host-resolved four colours
+override the ordinary icon row so shininess remains visible, and the optional
+encounter handle stands each tile of the cartridge's shiny sparkle around the
+Pokemon's centre. The built-in view and the diorama therefore share the same
+population, palette and live animation rather than approximating either one.
+
 ## The one thing here the cartridge does not draw
 
 Everything else in this view is the cartridge's own drawing restated. Every

@@ -1,8 +1,8 @@
 {
 	"id": "voxel3d",
 	"name": "Voxel 3D",
-	"version": "0.3.6",
-	"api_version": 1,
+	"version": "0.3.7",
+	"api_version": 2,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
 	"description": "Rebuilds the overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, stages a battle on the map it was started on, and stands the opposing trainer behind their Pokemon. Press V to switch between this and the Game Boy Color view, Q and E or the wheel to zoom, I and K to raise and lower the camera."

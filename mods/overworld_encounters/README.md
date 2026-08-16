@@ -3,7 +3,9 @@
 Wild Pokemon live on the map instead of interrupting a random step. Each map
 holds a bounded population drawn from its own active grass, cave and surf tables.
 They roam only across cells where that encounter method belongs, disappear on a
-map change and start the ordinary wild battle when met.
+map change and start the ordinary wild battle when met. An encounter leaves the
+population after its battle ends, whatever the battle result; the map does not
+refill until its next generation.
 
 A shiny is shiny before the battle starts: its overworld icon uses the shiny
 palette and the cartridge's own shiny animation and sound play over it on spawn,

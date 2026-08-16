@@ -21,10 +21,20 @@ func configure(host: Gen2ModHost, id: StringName) -> void:
 
 
 func set_context(context: Dictionary) -> void:
+	var generation: int = int(context.get("generation", -1))
+	var current_generation: int = int(_context.get("generation", -1))
+	if generation < current_generation:
+		return
 	_context = context.duplicate(true)
+	if generation == current_generation:
+		return
+	_rebuild()
+
+
+func _rebuild() -> void:
 	_frame = 0
 	_entries = Plan.build(
-		_context, int(_context.get("run_seed", 1)), _maximum()
+		_context, int(_context.get("run_seed", 1)), _maximum(), _id
 	)
 	for entry: Dictionary in _entries:
 		entry["pulse"] = true
@@ -43,16 +53,16 @@ func encounters() -> Array:
 	return _entries.duplicate(true)
 
 
-func battle_finished(id: int, _result: Dictionary) -> void:
+func battle_finished(id: StringName, _result: Dictionary) -> void:
 	for index: int in _entries.size():
-		if int((_entries[index] as Dictionary).get("id", -1)) == id:
+		if StringName((_entries[index] as Dictionary).get("id", &"")) == id:
 			_entries.remove_at(index)
 			return
 
 
 func _on_option_changed(id: StringName, key: StringName, _value: Variant) -> void:
 	if id == _id and key == &"maximum" and not _context.is_empty():
-		set_context(_context)
+		_rebuild()
 
 
 func _maximum() -> int:
@@ -62,20 +72,23 @@ func _maximum() -> int:
 
 func _roam() -> void:
 	var eligible: Dictionary = _context.get("eligible", {})
-	for entry: Dictionary in _entries:
+	var player: Dictionary = _context.get("player", {})
+	var player_cell: Vector2i = Vector2i(player.get("cell", Vector2i(-1, -1)))
+	for index: int in _entries.size():
+		var entry: Dictionary = _entries[index]
 		var method: StringName = StringName(entry.get("method", &""))
 		if method == &"":
 			continue
-		var cells: Array = eligible.get(method, [])
+		var cells: PackedVector2Array = eligible.get(method, PackedVector2Array())
 		var here: Vector2i = Vector2i(entry["cell"])
 		var choices: Array[Vector2i] = []
 		for delta: Vector2i in [Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT]:
 			var next: Vector2i = here + delta
-			if cells.has(next) and not _occupied(next):
+			if next != player_cell and cells.has(next) and not _occupied(next):
 				choices.append(next)
 		if choices.is_empty():
 			continue
-		var pick: int = (int(entry["id"]) + _frame / MOVE_FRAMES) % choices.size()
+		var pick: int = (index + 1 + _frame / MOVE_FRAMES) % choices.size()
 		entry["cell"] = choices[pick]
 		entry["facing"] = _facing(choices[pick] - here)
 

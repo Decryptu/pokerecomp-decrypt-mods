@@ -10,7 +10,10 @@ const SURF_WEIGHTS: Array[int] = [60, 30, 10]
 const SHINY_ATTACK: Array[int] = [2, 3, 6, 7, 10, 11, 14, 15]
 
 
-static func build(context: Dictionary, run_seed: int, maximum: int) -> Array:
+static func build(
+	context: Dictionary, run_seed: int, maximum: int,
+	id_prefix: StringName = &"overworld_encounters"
+) -> Array:
 	var map: Vector2i = Vector2i(context.get("map", Vector2i.ZERO))
 	var generation: int = int(context.get("generation", 0))
 	var random := Rng.new(Rng.mix(run_seed, [map.x, map.y, generation]))
@@ -21,18 +24,21 @@ static func build(context: Dictionary, run_seed: int, maximum: int) -> Array:
 	for index: int in count:
 		var candidate: Dictionary = candidates[index]
 		var method: StringName = StringName(candidate["method"])
-		var slots: Array = ((context.get("tables", {}) as Dictionary).get(method, []) as Array)
+		var table: Dictionary = (context.get("tables", {}) as Dictionary).get(method, {})
+		var slots: Array = table.get("slots", [])
 		var slot: Dictionary = _slot(slots, method, random)
 		if slot.is_empty():
 			continue
 		var dvs: int = _dvs(random)
+		var minimum: int = int(slot.get("min_level", 1))
+		var maximum_level: int = maxi(minimum, int(slot.get("max_level", minimum)))
 		out.append({
-			"id": index + 1,
+			"id": StringName("%s:%d" % [id_prefix, index + 1]),
 			"method": method,
 			"cell": Vector2i(candidate["cell"]),
 			"facing": random.below(4),
 			"species": int(slot.get("species", 0)),
-			"level": int(slot.get("level", 1)),
+			"level": minimum + random.below(maximum_level - minimum + 1),
 			"dvs": dvs,
 		})
 	return out
@@ -49,11 +55,14 @@ static func is_shiny(dvs: int) -> bool:
 static func _candidates(context: Dictionary) -> Array:
 	var out: Array = []
 	var eligible: Dictionary = context.get("eligible", {})
+	var player: Dictionary = context.get("player", {})
+	var player_cell: Vector2i = Vector2i(player.get("cell", Vector2i(-1, -1)))
 	var methods: Array = eligible.keys()
 	methods.sort()
 	for method: Variant in methods:
-		for cell: Variant in (eligible[method] as Array):
-			out.append({"method": StringName(method), "cell": Vector2i(cell)})
+		for cell: Variant in eligible[method]:
+			if Vector2i(cell) != player_cell:
+				out.append({"method": StringName(method), "cell": Vector2i(cell)})
 	return out
 
 

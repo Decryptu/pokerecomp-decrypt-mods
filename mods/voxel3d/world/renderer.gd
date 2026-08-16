@@ -49,10 +49,14 @@ var _tile_shape_script: GDScript = null
 var _map_source_script: GDScript = null
 
 var _actor_textures: Dictionary = {}
+var _pulse_textures: Dictionary = {}
 ## The sprites other mods put in the world, resolved by the host into the same
 ## `Gen2WorldSprite` the map's own objects carry. Null where the host is older
 ## than the actor layer, which is the only reason this view checks for one.
 var _mod_actors: Gen2WorldActors = null
+## Visible populations already arrive above. This handle is only the live
+## cartridge shiny animation that has to be placed in the 3D scene.
+var _encounters: Gen2WorldEncounters = null
 ## The tileset the shape resolver was built for. A warp to a map sharing it still
 ## rebuilds the mesh, because the block grid is what changed; this only says
 ## whether the resolver has to be replaced too.
@@ -133,10 +137,15 @@ func set_actors(actors: Gen2WorldActors) -> void:
 	_mod_actors = actors
 
 
+func set_encounters(encounters: Gen2WorldEncounters) -> void:
+	_encounters = encounters
+
+
 func set_world(world: Gen2WorldAPI, animation: Gen2WorldAnimation = null) -> void:
 	_world = world
 	_animation = animation
 	_actor_textures.clear()
+	_pulse_textures.clear()
 	_rebuild()
 
 
@@ -424,16 +433,18 @@ func _rebuild_actors() -> void:
 		for entry: Dictionary in _mod_actors.sprites():
 			_add_actor(
 				entry["sprite"], 0, int(entry["facing"]), int(entry["frame"]),
-				entry["position_cells"]
+				entry["position_cells"], entry.get("colors", PackedColorArray())
 			)
+	_add_encounter_pulse()
 	_stage.end_cards()
 	_stage.end_shadow_casters()
 
 
 func _add_actor(
-	sprite: Gen2WorldSprite, palette: int, facing: int, frame: int, cells: Vector2
+	sprite: Gen2WorldSprite, palette: int, facing: int, frame: int, cells: Vector2,
+	colors: PackedColorArray = PackedColorArray()
 ) -> void:
-	var texture: Texture2D = _actor_texture(sprite, palette, facing, frame)
+	var texture: Texture2D = _actor_texture(sprite, palette, facing, frame, colors)
 	if texture != null:
 		var ground: Vector3 = _ground(cells)
 		_stage.add_standing_card(texture, ground)
@@ -443,15 +454,16 @@ func _add_actor(
 
 
 func _actor_texture(
-	sprite: Gen2WorldSprite, palette_override: int, facing: int, frame: int
+	sprite: Gen2WorldSprite, palette_override: int, facing: int, frame: int,
+	colors: PackedColorArray = PackedColorArray()
 ) -> Texture2D:
 	if sprite == null or _world == null or _world.data == null:
 		return null
 	var palette: int = palette_override if palette_override != 0 else sprite.default_palette
 	# The type is part of the key: a mon icon's row and an OverworldSprites row
 	# are numbered separately, so two different drawings share a number.
-	var key: String = "%d:%d:%d:%d:%d:%d" % [
-		sprite.sprite_type, sprite.number, palette, facing, frame, _time_of_day,
+	var key: String = "%d:%d:%d:%d:%d:%d:%s" % [
+		sprite.sprite_type, sprite.number, palette, facing, frame, _time_of_day, str(colors),
 	]
 	if _actor_textures.has(key):
 		return _actor_textures[key]
@@ -462,10 +474,87 @@ func _actor_texture(
 		_world.data.overworld_icon_indices(sprite.icon_number) \
 			if sprite.sprite_type == Gen2WorldSprite.TYPE_MON_ICON \
 			else _world.data.overworld_sprite_indices(sprite.number),
-		_world.data.overworld_sprite_palette(palette, _time_of_day),
+		colors if colors.size() >= 4 \
+		else _world.data.overworld_sprite_palette(palette, _time_of_day),
 		facing,
 		frame,
 	)
 	var texture: Texture2D = ImageTexture.create_from_image(image)
 	_actor_textures[key] = texture
+	return texture
+
+
+const BATTLER_CENTRE := Vector2(
+	(Gen2BattleScreenMap.ENEMY_AT.x + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * Gen2Tiles.TILE_WIDTH,
+	(Gen2BattleScreenMap.ENEMY_AT.y + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * Gen2Tiles.TILE_HEIGHT
+)
+
+
+## Places each cartridge animation object around the wild Pokemon's centre. The
+## 2D host uses the same battler-centre translation; screen Y becomes world Y in
+## the opposite direction because height rises in the diorama.
+func _add_encounter_pulse() -> void:
+	if _encounters == null or _world == null or _world.data == null:
+		return
+	var anchor: Variant = _encounters.pulse_anchor()
+	if not anchor is Vector2:
+		return
+	var centre: Vector3 = _ground((anchor as Vector2) / CELL) + Vector3(0.0, CELL * 0.5, 0.0)
+	var window: Array = _encounters.pulse_tiles()
+	var pair: Array = _encounters.pulse_battler_pair()
+	for value: Variant in _encounters.pulse_sprites():
+		if not value is Dictionary:
+			continue
+		var sprite: Dictionary = value
+		var at: int = int(sprite.get("tile", 0)) - Gen2BattleAnimObject.BASE_TILE
+		if at < 0 or at >= window.size() or not window[at] is Dictionary:
+			continue
+		var slot: Dictionary = window[at]
+		if not slot.has("gfx"):
+			continue
+		var attributes: int = int(sprite.get("attributes", 0))
+		var texture: Texture2D = _pulse_texture(
+			int(slot["gfx"]), int(slot["tile"]), attributes, pair
+		)
+		if texture == null:
+			continue
+		var offset := Vector2(
+			float(int(sprite.get("x", 0)) - 8),
+			float(int(sprite.get("y", 0)) - 16)
+		) - BATTLER_CENTRE + Vector2(4.0, 4.0)
+		_stage.add_centred_card(texture, centre + Vector3(offset.x, -offset.y, 0.0))
+
+
+func _pulse_texture(
+	gfx: int, tile: int, attributes: int, pair: Array
+) -> Texture2D:
+	var key: String = "%d:%d:%d:%s" % [
+		gfx, tile, attributes & (Gen2BattleAnimObject.OAM_SHARED_FLAGS
+			| Gen2BattleAnimObject.OAM_PALETTE), str(pair),
+	]
+	if _pulse_textures.has(key):
+		return _pulse_textures[key]
+	var strip: PackedByteArray = _world.data.battle_anim_gfx_indices(gfx)
+	@warning_ignore("integer_division")
+	var width: int = strip.size() / Gen2Tiles.TILE_HEIGHT
+	if width <= 0 or (tile + 1) * Gen2Tiles.TILE_WIDTH > width:
+		return null
+	var pixels := PackedByteArray()
+	pixels.resize(Gen2Tiles.TILE_PIXELS)
+	for row: int in Gen2Tiles.TILE_HEIGHT:
+		var from: int = row * width + tile * Gen2Tiles.TILE_WIDTH
+		for column: int in Gen2Tiles.TILE_WIDTH:
+			pixels[row * Gen2Tiles.TILE_WIDTH + column] = strip[from + column]
+	var image: Image = Gen2PicImage.from_indices(
+		pixels, Gen2Tiles.TILE_WIDTH, Gen2Tiles.TILE_HEIGHT,
+		_world.data.battle_object_palette(
+			attributes & Gen2BattleAnimObject.OAM_PALETTE, pair
+		), true
+	)
+	if (attributes & Gen2BattleAnimObject.OAM_XFLIP) != 0:
+		image.flip_x()
+	if (attributes & Gen2BattleAnimObject.OAM_YFLIP) != 0:
+		image.flip_y()
+	var texture: Texture2D = ImageTexture.create_from_image(image)
+	_pulse_textures[key] = texture
 	return texture
