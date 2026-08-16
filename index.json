@@ -5,9 +5,9 @@
 		{
 			"id": "voxel3d",
 			"name": "Voxel 3D",
-			"version": "0.3.0",
+			"version": "0.3.1",
 			"description": "Rebuilds the overworld as a voxel diorama textured from the cartridge's own tileset, at the window's resolution, stages a battle on the map it was started on, and stands the opposing trainer behind their Pokemon. Press V to switch between it and the Game Boy Color view.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.3.0/voxel3d-0.3.0.zip"
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.3.1/voxel3d-0.3.1.zip"
 		},
 		{
 			"id": "randomizer",
@@ -15,6 +15,13 @@
 			"version": "0.1.0",
 			"description": "A run generated from a four-digit seed: what appears in the grass, base stats, types, movesets, evolutions, move power and accuracy, and every trainer's team. The same seed on the same cartridge is the same game, on anyone's machine. Each of the seven is its own setting.",
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/randomizer-0.1.0/randomizer-0.1.0.zip"
+		},
+		{
+			"id": "follower",
+			"name": "Follower",
+			"version": "0.1.0",
+			"description": "A Pokemon out of its ball and walking one cell behind you, drawn with the cartridge's own party icon for its species. Pick which slot comes out, whether it stays out on a bike and on the water, and put it away with one press.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.1.0/follower-0.1.0.zip"
 		}
 	]
 }
