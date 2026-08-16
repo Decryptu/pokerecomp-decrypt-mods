@@ -1,8 +1,8 @@
 {
 	"id": "follower",
 	"name": "Follower",
-	"version": "0.1.0",
-	"api_version": 1,
+	"version": "0.2.0",
+	"api_version": 2,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
 	"description": "A Pokemon out of its ball and walking one cell behind you, drawn with the cartridge's own party icon for its species. Pick which slot comes out, whether it stays out on a bike and on the water, and put it away with one press."

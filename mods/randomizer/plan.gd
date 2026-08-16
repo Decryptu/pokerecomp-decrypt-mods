@@ -33,6 +33,18 @@ const ENCOUNTER_METHODS: Array[StringName] = [
 ## reader answers empty past the last, so this is a bound rather than a count.
 const FISHING_GROUPS: int = 64
 
+const KIND_TREEMON: StringName = &"treemon"
+const KIND_BUG_CONTEST: StringName = &"bug_contest"
+const KIND_ROAMING: StringName = &"roaming"
+const KIND_FISHING_TIME: StringName = &"fishing_time"
+const KIND_CHECK: StringName = &"check"
+const SPECIAL_KINDS: Array[StringName] = [
+	Gen2WorldCatalog.KIND_GIFT,
+	Gen2WorldCatalog.KIND_STATIC,
+	Gen2WorldCatalog.KIND_PRIZE,
+]
+const PLACEMENT_ATTEMPTS: int = 1024
+
 ## What a starter is holding at level five. Every learnset entry this early, and
 ## the first entry of every species whatever its level, is drawn from moves that
 ## do damage, land reliably and are not a one-off: a randomizer that opens with
@@ -57,7 +69,9 @@ const TRAINER_WINDOW: int = 12
 ##
 ## [param world] is one [method gather], which the caller holds so that
 ## rebuilding after a setting changed does not read the whole cartridge again.
-static func build(world: Dictionary, settings: Dictionary) -> Dictionary:
+static func build(
+	world: Dictionary, settings: Dictionary, validator: Callable = Callable()
+) -> Dictionary:
 	var seed_value: int = int(settings.get("seed", 0))
 	var species: Dictionary = {}
 	var moves: Dictionary = {}
@@ -78,47 +92,37 @@ static func build(world: Dictionary, settings: Dictionary) -> Dictionary:
 		_randomize_trainers(world, seed_value, trainers)
 	var encounters: Array = []
 	var fishing: Array = []
+	var treemons: Array = []
+	var contest: Array = []
+	var roaming: Array = []
+	var fishing_time: Array = []
+	var checks: Array = []
 	if bool(settings.get("encounters", false)):
 		_randomize_encounters(world, seed_value, encounters)
 		_randomize_fishing(world, seed_value, fishing)
+		_randomize_indexed(world, KIND_TREEMON, seed_value, "treemon", treemons)
+		_randomize_indexed(world, KIND_BUG_CONTEST, seed_value, "contest", contest)
+		_randomize_indexed(world, KIND_ROAMING, seed_value, "roaming", roaming)
+		_randomize_indexed(world, KIND_FISHING_TIME, seed_value, "fishing_time", fishing_time)
+	if bool(settings.get("specials", false)):
+		_randomize_checks(world, SPECIAL_KINDS, seed_value, checks)
+	if bool(settings.get("starters", false)):
+		_randomize_starters(world, seed_value, checks)
+	if bool(settings.get("trades", false)):
+		_randomize_trades(world, seed_value, checks)
+	_randomize_placement(world, settings, seed_value, validator, checks)
 	return {
 		Gen2ContentOverlay.KIND_SPECIES: _listed(species),
 		Gen2ContentOverlay.KIND_MOVE: _listed(moves),
 		Gen2ContentOverlay.KIND_TRAINER: trainers,
 		Gen2ContentOverlay.KIND_ENCOUNTER: encounters,
 		Gen2ContentOverlay.KIND_FISHING: fishing,
+		KIND_TREEMON: treemons,
+		KIND_BUG_CONTEST: contest,
+		KIND_ROAMING: roaming,
+		KIND_FISHING_TIME: fishing_time,
+		KIND_CHECK: checks,
 	}
-
-
-## The cartridge's own values for every field this mod ever writes, which is
-## what puts a row back when its setting is switched off. A patch is what the
-## overlay holds, so a row is restored by patching it with what it was, not by
-## dropping the patch.
-static func original_fields(world: Dictionary, kind: StringName, number: int) -> Dictionary:
-	var rows: Dictionary = world[kind]
-	if not rows.has(number):
-		return {}
-	var row: Dictionary = rows[number]
-	if kind == Gen2ContentOverlay.KIND_SPECIES:
-		return {
-			"stats": (row.get("stats", {}) as Dictionary).duplicate(true),
-			"types": (row.get("types", []) as Array).duplicate(true),
-			"learnset": (row.get("learnset", []) as Array).duplicate(true),
-			"evolutions": (row.get("evolutions", []) as Array).duplicate(true),
-		}
-	if kind == Gen2ContentOverlay.KIND_MOVE:
-		return {
-			"power": int(row.get("power", 0)),
-			"accuracy": int(row.get("accuracy", 255)),
-			"type": int(row.get("type", 0)),
-		}
-	if kind == Gen2ContentOverlay.KIND_TRAINER:
-		return {"trainers": (row.get("trainers", []) as Array).duplicate(true)}
-	# An encounter row and a fishing group are both reached by their slots
-	# alone, which is the one field this mod writes to either.
-	if kind == Gen2ContentOverlay.KIND_ENCOUNTER:
-		return {"slots": (row.get("slots", []) as Array).duplicate(true)}
-	return {"rods": (row.get("rods", []) as Array).duplicate(true)}
 
 
 ## Everything the plan reads, gathered once: the rows, the totals, the type
@@ -169,6 +173,11 @@ static func gather(data: GameData) -> Dictionary:
 		"families": _families(species, species_numbers),
 		Gen2ContentOverlay.KIND_ENCOUNTER: _encounters(data),
 		Gen2ContentOverlay.KIND_FISHING: _fishing(data),
+		KIND_TREEMON: _treemons(data),
+		KIND_BUG_CONTEST: _indexed(data.bug_contest_mons()),
+		KIND_ROAMING: _indexed(data.world_roaming_mons()),
+		KIND_FISHING_TIME: _indexed(data.world_fishing_time_groups()),
+		KIND_CHECK: _checks(data.catalog()),
 	}
 
 
@@ -226,6 +235,31 @@ static func _fishing(data: GameData) -> Dictionary:
 		var row: Dictionary = data.world_fishing_group(group)
 		if not row.is_empty():
 			out[group] = row
+	return out
+
+
+static func _treemons(data: GameData) -> Dictionary:
+	var out: Dictionary = {}
+	for index: int in data.treemon_set_count():
+		var row: Dictionary = data.treemon_set(index)
+		if not row.is_empty():
+			out[index] = row
+	return out
+
+
+static func _indexed(rows: Array) -> Dictionary:
+	var out: Dictionary = {}
+	for index: int in rows.size():
+		if rows[index] is Dictionary:
+			out[index] = (rows[index] as Dictionary).duplicate(true)
+	return out
+
+
+static func _checks(catalog: Gen2WorldCatalog) -> Dictionary:
+	var out: Dictionary = {}
+	for kind: StringName in Gen2WorldCatalog.KINDS:
+		for row: Dictionary in catalog.rows(kind):
+			out[int(row["id"])] = row.duplicate(true)
 	return out
 
 
@@ -328,11 +362,20 @@ static func _randomize_learnsets(world: Dictionary, seed_value: int, out: Dictio
 		var rng := Rng.new()
 		rng.begin(seed_value, "learnset", number)
 		var learnset: Array = (species[number].get("learnset", []) as Array).duplicate(true)
+		var used: Array[int] = []
 		for index: int in learnset.size():
 			var entry: Dictionary = learnset[index]
 			var opening: bool = index == 0 or int(entry.get("level", 1)) <= EARLY_LEVEL
 			var pool: Array[int] = early if opening else any
-			entry["move"] = pool[rng.below(pool.size())]
+			var available: Array[int] = []
+			for move: int in pool:
+				if not used.has(move):
+					available.append(move)
+			if available.is_empty():
+				available = pool
+			var chosen: int = available[rng.below(available.size())]
+			entry["move"] = chosen
+			used.append(chosen)
 		if not learnset.is_empty():
 			_field(out, number)["learnset"] = learnset
 
@@ -446,8 +489,8 @@ static func _randomize_encounters(world: Dictionary, seed_value: int, out: Array
 
 
 ## The same for the three rods of every fishing group. An entry that names no
-## species defers to the day and night table, which is not patchable, so it is
-## left exactly as it is rather than half rewritten.
+## species defers to the day and night table; that table is randomized through
+## its own typed host seam below.
 static func _randomize_fishing(world: Dictionary, seed_value: int, out: Array) -> void:
 	var groups: Dictionary = world[Gen2ContentOverlay.KIND_FISHING]
 	if (world["by_total"] as Array).is_empty():
@@ -458,6 +501,196 @@ static func _randomize_fishing(world: Dictionary, seed_value: int, out: Array) -
 		rng.begin(seed_value, "fishing", group)
 		_substitute(rods, world, rng)
 		out.append({"number": group, "fields": {"rods": rods}})
+
+
+## The four indexed wild sources outside map and rod tables. Only species move;
+## encounter weights, level bounds, roaming position and rod thresholds remain
+## the cartridge's.
+static func _randomize_indexed(
+	world: Dictionary, kind: StringName, seed_value: int, stream: String, out: Array
+) -> void:
+	var rows: Dictionary = world[kind]
+	for index: int in _sorted(rows):
+		var row: Dictionary = (rows[index] as Dictionary).duplicate(true)
+		var rng := Rng.new()
+		rng.begin(seed_value, stream, index)
+		_substitute(row, world, rng)
+		var fields: Dictionary = {}
+		match kind:
+			KIND_TREEMON:
+				fields = {
+					"common": row.get("common", []),
+					"rare": row.get("rare", []),
+				}
+			KIND_FISHING_TIME:
+				fields = {"day": row.get("day", {}), "night": row.get("night", {})}
+			_:
+				fields = {"species": int(row.get("species", 0))}
+		out.append({"number": index, "fields": fields})
+
+
+## Pokemon handed over or fought at decoded sites. Levels, held items and Game
+## Corner prices stay attached to their sites; only the species changes.
+static func _randomize_checks(
+	world: Dictionary, kinds: Array[StringName], seed_value: int, out: Array
+) -> void:
+	var rows: Dictionary = world[KIND_CHECK]
+	for id: int in _sorted(rows):
+		var row: Dictionary = rows[id]
+		var kind: StringName = StringName(row.get("kind", &""))
+		if not kinds.has(kind):
+			continue
+		var rng := Rng.new()
+		rng.begin(seed_value, "check_%s" % kind, id)
+		out.append({
+			"number": id,
+			"fields": {"species": _near(world, int(row.get("species", 0)), rng)},
+		})
+
+
+static func _randomize_trades(world: Dictionary, seed_value: int, out: Array) -> void:
+	var rows: Dictionary = world[KIND_CHECK]
+	for id: int in _sorted(rows):
+		var row: Dictionary = rows[id]
+		if StringName(row.get("kind", &"")) != Gen2WorldCatalog.KIND_TRADE:
+			continue
+		var offered := Rng.new()
+		offered.begin(seed_value, "trade_offered", id)
+		var requested := Rng.new()
+		requested.begin(seed_value, "trade_requested", id)
+		out.append({
+			"number": id,
+			"fields": {
+				"species": _near(world, int(row.get("species", 0)), offered),
+				"requested_species": _near(
+					world, int(row.get("requested_species", 0)), requested
+				),
+			},
+		})
+
+
+static func _randomize_starters(world: Dictionary, seed_value: int, out: Array) -> void:
+	var rows: Dictionary = world[KIND_CHECK]
+	var used: Array[int] = []
+	for id: int in _check_ids(rows, Gen2WorldCatalog.KIND_STARTER):
+		var row: Dictionary = rows[id]
+		var rng := Rng.new()
+		rng.begin(seed_value, "starter", id)
+		var species: int = _near(world, int(row.get("species", 0)), rng, used)
+		used.append(species)
+		out.append({"number": id, "fields": {"species": species}})
+
+
+## Item rewards and badges are placements rather than independent substitutions:
+## their whole pool is permuted, then the host proves the proposed check map has
+## no self-lock it can see. A failed attempt installs nothing and advances only
+## this stream. Shop shelves are economic rather than progression rewards; their
+## prices stay in place while one bijection replaces item ids cartridge-wide.
+static func _randomize_placement(
+	world: Dictionary, settings: Dictionary, seed_value: int,
+	validator: Callable, out: Array
+) -> void:
+	var items: bool = bool(settings.get("items", false))
+	var badges: bool = bool(settings.get("badges", false))
+	var shops: bool = bool(settings.get("shops", false))
+	if not items and not badges and not shops:
+		return
+	# Critical placement is never accepted without the host's cartridge proof.
+	if (items or badges) and not validator.is_valid():
+		return
+	if items or badges:
+		validator.call({}) # Warm the host's catalog and map graph once.
+	for attempt: int in PLACEMENT_ATTEMPTS:
+		var candidate: Dictionary = _placement_candidate(
+			world, seed_value, attempt, items, badges, shops
+		)
+		if shops and not _shop_shelves_are_unique(world[KIND_CHECK], candidate):
+			continue
+		if items or badges:
+			var result: Variant = validator.call(candidate)
+			if not result is Dictionary or not bool((result as Dictionary).get("ok", false)):
+				continue
+		for id: int in _sorted(candidate):
+			out.append({"number": id, "fields": candidate[id]})
+		return
+
+
+static func _placement_candidate(
+	world: Dictionary, seed_value: int, attempt: int,
+	items: bool, badges: bool, shops: bool
+) -> Dictionary:
+	var rows: Dictionary = world[KIND_CHECK]
+	var out: Dictionary = {}
+	if items:
+		var sites: Array[int] = _check_ids(rows, Gen2WorldCatalog.KIND_ITEM)
+		var rewards: Array = []
+		for id: int in sites:
+			var row: Dictionary = rows[id]
+			rewards.append({
+				"item": int(row.get("item", 0)),
+				"quantity": int(row.get("quantity", 1)),
+			})
+		var rng := Rng.new()
+		rng.begin(seed_value, "item_placement", attempt)
+		rewards = rng.shuffled(rewards)
+		for index: int in sites.size():
+			out[sites[index]] = (rewards[index] as Dictionary).duplicate(true)
+	if badges:
+		var sites: Array[int] = _check_ids(rows, Gen2WorldCatalog.KIND_BADGE)
+		var groups: Dictionary = {}
+		for id: int in sites:
+			var badge: int = int((rows[id] as Dictionary).get("badge", 0))
+			if not groups.has(badge):
+				groups[badge] = [] as Array[int]
+			(groups[badge] as Array[int]).append(id)
+		var originals: Array[int] = _sorted(groups)
+		var rng := Rng.new()
+		rng.begin(seed_value, "badge_placement", attempt)
+		var rewards: Array = rng.shuffled(originals)
+		for index: int in originals.size():
+			for id: int in (groups[originals[index]] as Array[int]):
+				out[id] = {"badge": int(rewards[index])}
+	if shops:
+		var sites: Array[int] = _check_ids(rows, Gen2WorldCatalog.KIND_SHOP)
+		var item_pool: Array[int] = []
+		for id: int in sites:
+			var shelf: Array = (rows[id] as Dictionary).get("items", [])
+			for entry: Dictionary in shelf:
+				var item: int = int(entry.get("item", 0))
+				if not item_pool.has(item):
+					item_pool.append(item)
+		item_pool.sort()
+		var rng := Rng.new()
+		rng.begin(seed_value, "shop_placement", attempt)
+		var replacements: Array = rng.shuffled(item_pool)
+		var mapping: Dictionary = {}
+		for index: int in item_pool.size():
+			mapping[item_pool[index]] = int(replacements[index])
+		for id: int in sites:
+			var shelf: Array = (rows[id] as Dictionary).get("items", []).duplicate(true)
+			for entry: Dictionary in shelf:
+				entry["item"] = int(mapping.get(int(entry.get("item", 0)), entry.get("item", 0)))
+			out[id] = {"items": shelf}
+	return out
+
+
+static func _check_ids(rows: Dictionary, kind: StringName) -> Array[int]:
+	var out: Array[int] = []
+	for id: int in _sorted(rows):
+		if StringName((rows[id] as Dictionary).get("kind", &"")) == kind:
+			out.append(id)
+	return out
+
+
+static func _shop_shelves_are_unique(rows: Dictionary, patches: Dictionary) -> bool:
+	for id: int in _check_ids(rows, Gen2WorldCatalog.KIND_SHOP):
+		var used: Array[int] = []
+		for entry: Dictionary in (patches.get(id, {}) as Dictionary).get("items", []):
+			var item: int = int(entry.get("item", 0))
+			if used.has(item):
+				return false
+			used.append(item)
+	return true
 
 
 ## Replaces the species of every entry inside [param value], however deeply it
@@ -472,22 +705,34 @@ static func _substitute(value: Variant, world: Dictionary, rng: RefCounted) -> v
 		for entry: Variant in value as Array:
 			_substitute(entry, world, rng)
 		return
-	if not value is Dictionary or not (value as Dictionary).has("species"):
+	if not value is Dictionary:
 		return
 	var entry: Dictionary = value
-	entry["species"] = _near(world, int(entry["species"]), rng)
+	if entry.has("species"):
+		entry["species"] = _near(world, int(entry["species"]), rng)
+		return
+	for child: Variant in entry.values():
+		_substitute(child, world, rng)
 
 
 ## A species of about the strength of [param original]: the band of the base
 ## stat total order around it, which is what keeps an early route early and a
 ## gym leader beatable. See [constant TRAINER_WINDOW].
-static func _near(world: Dictionary, original: int, rng: RefCounted) -> int:
+static func _near(
+	world: Dictionary, original: int, rng: RefCounted, excluded: Array[int] = []
+) -> int:
 	var by_total: Array[int] = world["by_total"]
 	var rank: Dictionary = world["rank"]
 	var centre: int = int(rank.get(original, by_total.size() / 2))
 	var low: int = maxi(centre - TRAINER_WINDOW, 0)
 	var high: int = mini(centre + TRAINER_WINDOW, by_total.size() - 1)
-	return by_total[low + rng.below(high - low + 1)]
+	var candidates: Array[int] = []
+	for index: int in range(low, high + 1):
+		if by_total[index] != original and not excluded.has(int(by_total[index])):
+			candidates.append(by_total[index])
+	if candidates.is_empty():
+		return original
+	return candidates[rng.below(candidates.size())]
 
 
 ## The keys of [param rows] as ascending numbers, which is the order everything

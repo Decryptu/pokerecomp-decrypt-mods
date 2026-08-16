@@ -411,6 +411,20 @@ func add_standing_card(
 	return card
 
 
+## A camera-facing drawing whose centre, rather than its feet, is anchored in
+## the world. Battle animation objects use this because their offsets are
+## authored around the enemy battler's centre.
+func add_centred_card(
+	texture: Texture2D, centre: Vector3, pixel_size: float = 1.0
+) -> Sprite3D:
+	var card: Sprite3D = _card()
+	card.texture = texture
+	card.pixel_size = pixel_size
+	card.position = centre
+	card.visible = true
+	return card
+
+
 func end_cards() -> void:
 	for index: int in range(_cards_used, _cards.size()):
 		_cards[index].visible = false

@@ -35,6 +35,11 @@ launcher, built by the host out of one registration in `options.gd`.
 | ON BIKE | OFF, ON | Whether it stays out while cycling |
 | ON WATER | OFF, ON | Whether it stays out while surfing |
 
+Opening a healthy Pokemon's own party menu adds FOLLOW. Choosing it updates WHO
+and closes the menu; opening that member again says FOLLOWING. Eggs get no row,
+and neither does the battle party menu, because changing a world actor in the
+middle of a turn is not a battle action.
+
 Both movement rows are off by default: a Pokemon jogging beside a bicycle and
 one walking on the sea are the two places the illusion breaks, and both are one
 press away for anyone who wants them anyway.
@@ -47,7 +52,7 @@ handed a world rather than a save, so a recall that outlives a reload is a thing
 to ask the host for once anything wants it.
 
 WHO STAYS IN ITS BALL whatever the settings say: an empty slot, an egg, a
-fainted lead, and a species the cartridge has no icon for, which is every mod
+fainted Pokemon, and a species the cartridge has no icon for, which is every mod
 species. A Pokemon nothing can draw is not one to put on the map.
 
 ## How it is drawn
@@ -63,9 +68,8 @@ below an NPC is drawn over it. No pixel is composed here and no art ships.
 An actor's sprite is presentation, which is what lets it exist at all: world
 state is the one thing a mod must not write.
 
-THE 3D VIEW DOES NOT DRAW IT YET. A registered world renderer takes actors
-through the optional `set_actors`, and `voxel3d` does not implement it, so
-pressing `V` leaves the follower behind until it does.
+The 3D view takes the same resolved actor through `set_actors` and stands it up
+as a card with its own shadow. Pressing `V` swaps views without losing it.
 
 ## Seeing it, and showing that it walks
 
@@ -96,7 +100,7 @@ exits non-zero if any of them fails.
 ## Layout
 
 ```
-mod.gd       registers the settings, the control and the follower
+mod.gd       registers the settings, party row, control and follower
 options.gd   the settings and the control, named once
 party.gd     which Pokemon is out, read off the party the world mirrors
 trail.gd     the player's steps -> the follower's pose, as one pure function

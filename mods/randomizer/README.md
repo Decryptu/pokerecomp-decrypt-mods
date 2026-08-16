@@ -1,9 +1,10 @@
 # Randomizer
 
 A run generated from a seed. The same seed on the same cartridge is the same
-game, on anyone's machine, every time: what walks out of the grass, base stats,
-types, movesets, evolutions, move power and accuracy, and every trainer's team
-are drawn from the seed and from nothing else.
+game, on anyone's machine, every time: every wild source, gifts, static Pokemon,
+starters, trades, item and badge rewards, shops,
+base stats, types, movesets, evolutions, move power and accuracy, and every
+trainer's team are drawn from the seed and from nothing else.
 
 Nothing is invented and nothing is shipped. Every value written here came out of
 the cartridge the player imported, rearranged.
@@ -34,9 +35,21 @@ WHAT A SEED DOES NOT CARRY is the cartridge. Gold, Silver and Crystal do not
 have the same tables, so seed `1234` is three different runs on the three games,
 each of them reproducible.
 
+## A run belongs to its save
+
+The launcher settings describe the next new run. When a save is created, the
+seed, every toggle and an algorithm version are written into that save's own mod
+namespace. Loading it clears the previous run's overlay and rebuilds from those
+compact inputs before gameplay reads the cartridge. Changing an installation
+setting cannot reroll a save already in progress, two slots cannot leak into one
+another, and an older save with no snapshot stays vanilla.
+
+A DEVELOPMENT run has no save file to own a snapshot, so that disposable run
+uses the current installation settings for its session.
+
 ## Settings
 
-Eight rows, in the start menu's MODS entry and on this mod's own page in the
+Fourteen rows, in the start menu's MODS entry and on this mod's own page in the
 launcher, which is reached by pressing its row in the mods list. Both surfaces
 are built by the host out of one registration in `options.gd`, so this mod
 writes no settings screen.
@@ -44,7 +57,13 @@ writes no settings screen.
 | Setting | Rungs | Does |
 | --- | --- | --- |
 | SEED | 0 to 9999 | The run's code |
-| WILD | OFF, ON | Redraw what appears in the grass, the water and on a rod |
+| WILD | OFF, ON | Redraw every random wild source |
+| GIFTS/STATIC | OFF, ON | Redraw gifts, static battles and Pokemon prizes |
+| STARTERS | OFF, ON | Redraw the three starters |
+| TRADES | OFF, ON | Redraw both sides of every in-game trade |
+| ITEMS | OFF, ON | Rearrange item rewards |
+| BADGES | OFF, ON | Rearrange badge rewards |
+| SHOPS | OFF, ON | Rearrange the items sold in shops |
 | STATS | OFF, ON | Shuffle each species' six base stats |
 | TYPES | OFF, ON | Redraw each evolution line's types |
 | MOVESETS | OFF, ON | Redraw every level-up move, keeping every level |
@@ -52,14 +71,7 @@ writes no settings screen.
 | MOVES | OFF, ON | Rearrange move power and accuracy, redraw move types |
 | TRAINERS | OFF, ON | Replace every trainer's Pokemon |
 
-A change applies at once, and it applies to the tables rather than to what is
-already alive: a Pokemon in the party keeps the stats it was created with, the
-way the cartridge's own numbers work. Switching a setting off puts its rows back
-to the cartridge's own values rather than leaving the last seed's behind.
-
-Values are per installation and not per save, which is right for this mod as
-well as convenient: a run is what a seed generated, and a seed that changed when
-a slot was loaded would not be that run any more.
+A change applies to the next save created. It never rewrites the active one.
 
 ## Sane by default
 
@@ -82,7 +94,7 @@ MOVESETS keep every level and replace every move. The opening is guarded: a
 species' first entry, and every entry at level five or below, is drawn from moves
 that do damage, land four times in five and are not overwhelming. A starter can
 always attack at level five, which is the one thing a randomized learnset has to
-promise.
+promise. A species does not repeat a move while an unused eligible one remains.
 
 EVOLUTIONS keep their method and their parameter, so a stone evolution is still
 that stone at that level for that happiness, and only the target changes. A
@@ -100,28 +112,48 @@ it cannot paralyse, and giving it a power turns it into something else.
 
 TRAINER PARTIES keep their levels, their held items and the moves a trainer's own
 record carries. Each Pokemon is replaced by one from the band around it in the
-base stat total order, so a gym leader gets a different team and not the top of
-the table.
+base stat total order, excluding itself while another candidate exists, so a gym
+leader gets a different team and not the top of the table.
 
 WILD ENCOUNTERS keep every slot in its place, at the level and the rate the
 cartridge gave it, and change only which Pokemon stands in it, drawn from the
-same band. A route stays as easy or as dangerous as it was, and the first grass
+same band and excluding the original while another candidate exists. A route
+stays as easy or as dangerous as it was, and the first grass
 in the game cannot hand out something that ends the run there. Grass, surfing,
-both swarm tables and all three rods go the same way.
+both swarm tables, all three rods, their day/night substitutions, Headbutt and
+Rock Smash sets, the Bug Contest and roaming Pokemon go the same way. Their
+weights, thresholds, level bounds and live roaming positions stay untouched.
+
+GIFTS/STATIC changes only species at cartridge-decoded gift, static battle and
+Pokemon prize sites. Levels, held items, prices, scripts and completion flags
+stay where the cartridge put them.
+
+STARTERS are distinct and strength-banded. The host changes the ball's picture
+and the Pokemon it gives as one transaction, leaving the ball item and the
+rival's branch alone.
+
+TRADES redraw both the offered and requested species in the same strength bands.
+The host carries both halves on that one trade site, so a second script naming
+the same cartridge trade record is not changed by accident.
+
+ITEM REWARDS are permuted with their quantities, so the cartridge's whole item
+budget is preserved. BADGES are permuted by reward group, keeping alternate
+branches that awarded the same badge together. SHOPS receive one cartridge-wide
+bijection of their item ids: shelf sizes and prices stay in place, and a shelf
+that had no duplicate does not gain one.
+
+Every candidate item and badge placement is submitted to the host's progression
+proof before it is used. The first proof decodes and caches the script corpus and
+can take several seconds; retries use that cache. If no candidate passes, these
+three categories stay vanilla rather than installing a placement the host has
+rejected. A pass proves there is no self-lock visible to the host's map-granular
+model. It is deliberately not a formal proof that every cell and story state in
+the run is beatable.
 
 ## What this deliberately does not touch
 
-THE WILD TABLES THE HOST DOES NOT PATCH YET, and they are named rather than
-faked: the headbutt and rock-smash trees, the Bug Contest's own list, the three
-roaming Pokemon, and the day-and-night substitutions a rod entry defers to
-instead of naming a species. Each is read straight off the cartridge, so each is
-left exactly as it was rather than half rewritten. Mirroring them inside the mod
-to get around that is the private copy of host data this repository does not
-write.
-
 TM AND HM COMPATIBILITY, and what each TM teaches, so the moves a run needs to
-cross the map are the ones the cartridge always had. ITEMS, MARTS and what is
-found on the ground. MOVE EFFECTS, since an effect is a list of steps and the
+cross the map are the ones the cartridge always had. MOVE EFFECTS, since an effect is a list of steps and the
 power beside it is what this mod moves. And no species is ADDED: mod content has
 no art yet, and a Pokemon nothing can draw is not a Pokemon.
 
@@ -137,12 +169,14 @@ Godot --headless --path <pokerecomp> -s tools/randomizer_probe.gd -- \
 	"user://rom_cache/<cache>"
 ```
 
-It exits non-zero if any of them fails.
+It exits non-zero if any of them fails, including the host accepting the final
+placement. `tools/randomizer_lifecycle_probe.gd` separately proves that saved
+settings reproduce the same run and that installation settings cannot reroll it.
 
 ## Layout
 
 ```
-mod.gd       registers the settings, reads the cartridge, carries the patches
+mod.gd       snapshots each run and carries its saved plan to the host
 options.gd   the settings, named once, registered and read back here
 plan.gd      cartridge plus seed -> the patches, as one pure function
 rng.gd       the written-down generator, and the streams drawn off a seed
