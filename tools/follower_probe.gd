@@ -89,6 +89,7 @@ func _summary() -> Dictionary:
 	return {
 		"count": species.size(), "species": species,
 		"eggs": [false, true, false, false],
+		"fainted": [false, false, false, false],
 		"names": ["CYNDA", "EGG", "PIKA", "LUGIA"],
 		"lead_fainted": false,
 	}
@@ -114,9 +115,22 @@ func _report_party(party: GDScript, data: GameData, summary: Dictionary) -> int:
 		"an egg does not walk", not bool(party.member(summary, data, 2)["out"])
 	) else 1
 	var fainted: Dictionary = summary.duplicate(true)
-	fainted["lead_fainted"] = true
+	(fainted["fainted"] as Array)[0] = true
 	failures += 0 if _report(
 		"a fainted lead does not walk", not bool(party.member(fainted, data, 1)["out"])
+	) else 1
+	var legacy_fainted: Dictionary = summary.duplicate(true)
+	legacy_fainted.erase("fainted")
+	legacy_fainted["lead_fainted"] = true
+	failures += 0 if _report(
+		"an API 1 fainted lead does not walk",
+		not bool(party.member(legacy_fainted, data, 1)["out"])
+	) else 1
+	var fainted_nonlead: Dictionary = summary.duplicate(true)
+	(fainted_nonlead["fainted"] as Array)[2] = true
+	failures += 0 if _report(
+		"a fainted non-lead does not walk",
+		not bool(party.member(fainted_nonlead, data, 3)["out"])
 	) else 1
 	var empty: Dictionary = summary.duplicate(true)
 	empty["species"] = [] as Array[int]

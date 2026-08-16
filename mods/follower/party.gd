@@ -29,12 +29,14 @@ static func member(summary: Dictionary, data: GameData, slot: int) -> Dictionary
 	if index >= species.size():
 		return _in_ball(&"empty_slot")
 	# An egg does not walk, and the summary carries the flag per slot the way
-	# `CheckPartyMove` reads it. A fainted lead stays in its ball too; that is
-	# the one slot whose health the summary answers for.
+	# `CheckPartyMove` reads it. API 2 answers fainted the same way; API 1 named
+	# only the lead, kept as a fallback while the host transition is supported.
 	var eggs: Array = summary.get("eggs", [])
 	if index < eggs.size() and bool(eggs[index]):
 		return _in_ball(&"egg")
-	if index == 0 and bool(summary.get("lead_fainted", false)):
+	var fainted: Array = summary.get("fainted", [])
+	if (index < fainted.size() and bool(fainted[index])) \
+		or (fainted.is_empty() and index == 0 and bool(summary.get("lead_fainted", false))):
 		return _in_ball(&"fainted")
 	var number: int = int(species[index])
 	var icon: int = data.mon_menu_icon(number)

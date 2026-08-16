@@ -19,9 +19,9 @@
 		{
 			"id": "follower",
 			"name": "Follower",
-			"version": "0.1.0",
+			"version": "0.1.1",
 			"description": "A Pokemon out of its ball and walking one cell behind you, drawn with the cartridge's own party icon for its species. Pick which slot comes out, whether it stays out on a bike and on the water, and put it away with one press.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.1.0/follower-0.1.0.zip"
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.1.1/follower-0.1.1.zip"
 		},
 		{
 			"id": "overworld_encounters",

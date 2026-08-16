@@ -47,7 +47,7 @@ handed a world rather than a save, so a recall that outlives a reload is a thing
 to ask the host for once anything wants it.
 
 WHO STAYS IN ITS BALL whatever the settings say: an empty slot, an egg, a
-fainted lead, and a species the cartridge has no icon for, which is every mod
+fainted Pokemon, and a species the cartridge has no icon for, which is every mod
 species. A Pokemon nothing can draw is not one to put on the map.
 
 ## How it is drawn
@@ -63,9 +63,8 @@ below an NPC is drawn over it. No pixel is composed here and no art ships.
 An actor's sprite is presentation, which is what lets it exist at all: world
 state is the one thing a mod must not write.
 
-THE 3D VIEW DOES NOT DRAW IT YET. A registered world renderer takes actors
-through the optional `set_actors`, and `voxel3d` does not implement it, so
-pressing `V` leaves the follower behind until it does.
+The 3D view takes the same resolved actor through `set_actors` and stands it up
+as a card with its own shadow. Pressing `V` swaps views without losing it.
 
 ## Seeing it, and showing that it walks
 
