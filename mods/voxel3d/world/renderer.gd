@@ -388,7 +388,15 @@ func _frame_camera() -> void:
 ## cell of its path at once, so while the trail is being drawn an actor is as
 ## many cells behind as it has left to walk.
 func _ground(cells: Vector2) -> Vector3:
-	return Vector3(cells.x * CELL + CELL * 0.5, 0.0, cells.y * CELL + CELL * 0.5)
+	var at := Vector3(cells.x * CELL + CELL * 0.5, 0.0, cells.y * CELL + CELL * 0.5)
+	# ON WHAT IS THERE, not on the floor plane. An actor used to stand at y 0
+	# whatever it was standing on, so the three Pokeballs on Elm's bench sat at the
+	# lino with the bench in front of them, which reads as behind it. A bench is a
+	# declared OBJECT and its tiles resolve back to the floor, so the column alone
+	# cannot answer this: see `mesher.gd:surface_height_at_position`.
+	if _mesher != null:
+		at.y = float(_mesher.surface_height_at_position(at))
+	return at
 
 
 ## The map's live objects, rebuilt on each frame because a script can hide, move
