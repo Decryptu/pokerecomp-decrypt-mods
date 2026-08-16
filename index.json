@@ -22,6 +22,13 @@
 			"version": "0.1.0",
 			"description": "A Pokemon out of its ball and walking one cell behind you, drawn with the cartridge's own party icon for its species. Pick which slot comes out, whether it stays out on a bike and on the water, and put it away with one press.",
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.1.0/follower-0.1.0.zip"
+		},
+		{
+			"id": "overworld_encounters",
+			"name": "Overworld Encounters",
+			"version": "0.1.0",
+			"description": "Replaces random steps with a bounded population of visible roaming wild Pokemon drawn from each map's own encounter tables, with visible shiny Pokemon.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.1.0/overworld_encounters-0.1.0.zip"
 		}
 	]
 }

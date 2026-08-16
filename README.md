@@ -11,6 +11,7 @@ Silver and Crystal recompilation. Each one is interpreted GDScript under
 | [`voxel3d`](mods/voxel3d/) | 0.3.6 | The overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and the fight staged on the map it started on with a steerable over-the-shoulder camera. `V` switches views. |
 | [`randomizer`](mods/randomizer/) | 0.1.0 | A run generated from a four-digit seed: what appears in the grass, base stats, types, movesets, evolutions, move power and accuracy, and every trainer's team. The same seed on the same cartridge is the same game, on anyone's machine. Each of the seven is its own setting. |
 | [`follower`](mods/follower/) | 0.1.0 | One of your Pokemon out of its ball, walking the cell you just left, drawn with the cartridge's own party icon for its species. Pick the slot, whether it stays out on a bike and on the water, and put it away with one press. |
+| [`overworld_encounters`](mods/overworld_encounters/) | 0.1.0 | A bounded population of wild Pokemon roaming where random grass, cave and surf encounters used to be. Shiny Pokemon are visible before battle and announce themselves with the cartridge's own animation and sound. |
 
 ## Installing
 
