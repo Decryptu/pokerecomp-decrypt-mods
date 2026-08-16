@@ -5,30 +5,30 @@
 		{
 			"id": "voxel3d",
 			"name": "Voxel 3D",
-			"version": "0.3.6",
-			"description": "Rebuilds the overworld as a voxel diorama textured from the cartridge's own tileset, at the window's resolution, stages a battle on the map it was started on, and stands the opposing trainer behind their Pokemon. Press V to switch between it and the Game Boy Color view.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.3.6/voxel3d-0.3.6.zip"
+			"version": "0.3.7",
+			"description": "Rebuilds the overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, stages a battle on the map it was started on, and stands the opposing trainer behind their Pokemon. Press V to switch between this and the Game Boy Color view, Q and E or the wheel to zoom, I and K to raise and lower the camera.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.3.7/voxel3d-0.3.7.zip"
 		},
 		{
 			"id": "randomizer",
 			"name": "Randomizer",
-			"version": "0.1.1",
-			"description": "A run generated from a four-digit seed: what appears in the grass, base stats, types, movesets, evolutions, move power and accuracy, and every trainer's team. The same seed on the same cartridge is the same game, on anyone's machine. Each of the seven is its own setting.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/randomizer-0.1.1/randomizer-0.1.1.zip"
+			"version": "0.3.0",
+			"description": "A save-bound run generated from a four-digit seed: Pokemon, wild sources, items, badges, shops, species, moves and trainer teams. Critical placements are accepted only after the host finds no visible self-lock.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/randomizer-0.3.0/randomizer-0.3.0.zip"
 		},
 		{
 			"id": "follower",
 			"name": "Follower",
-			"version": "0.1.1",
+			"version": "0.2.0",
 			"description": "A Pokemon out of its ball and walking one cell behind you, drawn with the cartridge's own party icon for its species. Pick which slot comes out, whether it stays out on a bike and on the water, and put it away with one press.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.1.1/follower-0.1.1.zip"
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.2.0/follower-0.2.0.zip"
 		},
 		{
 			"id": "overworld_encounters",
 			"name": "Overworld Encounters",
-			"version": "0.1.0",
+			"version": "0.1.1",
 			"description": "Replaces random steps with a bounded population of visible roaming wild Pokemon drawn from each map's own encounter tables, with visible shiny Pokemon.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.1.0/overworld_encounters-0.1.0.zip"
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.1.1/overworld_encounters-0.1.1.zip"
 		}
 	]
 }
