@@ -231,7 +231,7 @@ func _in_shot(cell: Vector2i) -> bool:
 		return true
 	var mid: Vector3 = _centre(cell) + Vector3(0.0, 0.0, -GAP * 0.5)
 	var seat: Vector3 = mid + Vector3(SIDE, HEIGHT, BACK)
-	if seat.y <= float(_heights.height_at_position(seat)) + CLEARANCE:
+	if seat.y <= float(_occlusion_height(seat)) + CLEARANCE:
 		return false
 	for ground: Vector3 in [
 		mid + Vector3(0.0, 0.0, -GAP * 0.5), mid + Vector3(0.0, 0.0, GAP * 0.5)
@@ -244,9 +244,15 @@ func _in_shot(cell: Vector2i) -> bool:
 func _sight_line(from: Vector3, to: Vector3) -> bool:
 	for step: int in range(1, CLEARANCE_SAMPLES):
 		var at: Vector3 = to + (from - to) * (float(step) / float(CLEARANCE_SAMPLES))
-		if at.y <= float(_heights.height_at_position(at)) + CLEARANCE:
+		if at.y <= float(_occlusion_height(at)) + CLEARANCE:
 			return false
 	return true
+
+
+func _occlusion_height(at: Vector3) -> int:
+	if _heights.has_method(&"occlusion_height_at_position"):
+		return int(_heights.call(&"occlusion_height_at_position", at))
+	return int(_heights.height_at_position(at))
 
 
 ## Whether the arena's column stands on walkable ground at [param cell], with

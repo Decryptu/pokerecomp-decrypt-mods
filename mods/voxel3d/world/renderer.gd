@@ -419,12 +419,14 @@ func _rebuild_actors() -> void:
 	for object: Gen2WorldObject in _world.visible_objects():
 		_add_actor(
 			object.sprite, object.palette, object.facing, object.frame,
-			Vector2(object.cell) + object.step_offset_cells()
+			Vector2(object.cell) + object.step_offset_cells(), PackedColorArray(),
+			object.height_offset_pixels()
 		)
 	_add_actor(
 		_world.player_sprite(), _world.player_palette(),
 		_world.player_facing, _world.player_walk_frame(),
-		_world.player_position_cells()
+		_world.player_position_cells(), PackedColorArray(),
+		_world.player_height_offset_pixels()
 	)
 	# A mod's own sprites, after the map's and the player's. Depth is the stage's
 	# to decide here rather than a row order's, which is the one thing this view
@@ -442,15 +444,22 @@ func _rebuild_actors() -> void:
 
 func _add_actor(
 	sprite: Gen2WorldSprite, palette: int, facing: int, frame: int, cells: Vector2,
-	colors: PackedColorArray = PackedColorArray()
+	colors: PackedColorArray = PackedColorArray(), height_offset: float = 0.0
 ) -> void:
 	var texture: Texture2D = _actor_texture(sprite, palette, facing, frame, colors)
 	if texture != null:
 		var ground: Vector3 = _ground(cells)
-		_stage.add_standing_card(texture, ground)
+		_stage.add_standing_card(texture, _actor_position(ground, height_offset))
 		# The same drawing again, at the same size, for the sun alone: an actor
-		# turns to the camera and cannot be its own caster.
+		# turns to the camera and cannot be its own caster. A jumping actor's
+		# shadow stays on the ground, which is why the offset is not applied here.
 		_stage.add_shadow_caster(texture, ground, 1.0)
+
+
+## The host's jump offset is already in world pixels, the same unit as this
+## stage. Kept separate from the ground so the shadow and camera do not rise.
+func _actor_position(ground: Vector3, height_offset: float) -> Vector3:
+	return ground + Vector3(0.0, height_offset, 0.0)
 
 
 func _actor_texture(

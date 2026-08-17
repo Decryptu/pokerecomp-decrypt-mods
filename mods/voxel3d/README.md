@@ -141,7 +141,9 @@ mirroring anything. Ground is chosen by the shape the fight needs, three cells
 down a column with a one-cell apron, and every candidate is tested down both
 sight lines, because walkable is not the same question as visible: a fence or a
 building corner hides a battler completely while the cells it stands on are
-perfectly walkable.
+perfectly walkable. Stamped models take part in that test at their model height,
+not at the flat ground column beneath them, so a tree cannot be selected as the
+camera's open foreground.
 
 The eye breathes rather than sitting still, because a flat picture has no
 parallax until something moves and a fight is the one place here where nothing
@@ -228,6 +230,14 @@ Those tiles are built as a wedge: a ramp rising a band toward the drop and a
 vertical face at it. Which is the collision rule drawn as a shape. Going the way
 the hop goes, the ground rises and falls away under you; coming back, there is a
 small wall in front of you.
+
+Where perpendicular ledge runs end around the same corner, their grid
+intersection inherits both slopes. The corner is one continuous wedge rather
+than the flat tile that neither individual hop crosses.
+
+The player and a scripted NPC follow the host's own vertical jump offset while
+crossing one. The card rises and lands; its shadow and the camera stay on the
+ground, so a hop reads as movement rather than as a camera shake.
 
 Before that they stood a full walk cell tall, because a blocked cell with no pin
 is a wall like any other, and a route was fenced by 16px walls you could not see

@@ -285,13 +285,14 @@ var _corners := PackedInt32Array()
 ## structure shows the same drawing standing up and a face exposed at its back
 ## does not sample the ground behind it.
 var _bases := PackedInt32Array()
-## Per tile: which way a jumping ledge's drop faces, as a step, packed one to a
-## byte. Zero everywhere else.
+## Per tile: which ways a jumping ledge's drop faces, as a bit mask. A corner
+## carries two perpendicular ways so both runs meet in one continuous wedge.
+## Zero everywhere else.
 const LEDGE_NONE: int = 0
 const LEDGE_SOUTH: int = 1
 const LEDGE_NORTH: int = 2
-const LEDGE_EAST: int = 3
-const LEDGE_WEST: int = 4
+const LEDGE_EAST: int = 4
+const LEDGE_WEST: int = 8
 ## How far the wedge rises: one band, which is what the lip is drawn as.
 const LEDGE_RISE: int = BAND
 var _ledge := PackedByteArray()
@@ -2813,7 +2814,7 @@ func _measure_ledges(source: RefCounted) -> void:
 					var at: int = tile.y * _size.x + tile.x
 					if _tiles[at] < 0:
 						continue
-					_ledge[at] = _ledge_facing(step)
+					_ledge[at] |= _ledge_facing(step)
 					_heights[at] = base
 					_art[at] = ART_LEDGE
 					_volume[at] = 0
@@ -2823,6 +2824,64 @@ func _measure_ledges(source: RefCounted) -> void:
 					# The drop wears the lip's own drawing rather than folding in
 					# whatever structure the column pass had put this tile in.
 					_bases[at] = tile.y
+	_join_ledge_corners()
+
+
+## A ledge turn is absent from collision because neither hop crosses its corner.
+## It is still determined by the two runs: perpendicular ends two tiles apart
+## meet at their grid intersection, and the missing legs inherit their own
+## facing while the intersection carries both.
+func _join_ledge_corners() -> void:
+	var additions: Dictionary = {}
+	for ty: int in range(2, _size.y - 2):
+		for tx: int in range(2, _size.x - 2):
+			if _ledge_at(tx, ty) != LEDGE_NONE:
+				continue
+			for dy: int in [-1, 1]:
+				var vertical: int = _ledge_at(tx, ty + dy * 2)
+				if (vertical & (LEDGE_EAST | LEDGE_WEST)) == 0:
+					continue
+				for dx: int in [-1, 1]:
+					var horizontal: int = _ledge_at(tx + dx * 2, ty)
+					if (horizontal & (LEDGE_SOUTH | LEDGE_NORTH)) == 0:
+						continue
+					var leg_vertical := Vector2i(tx, ty + dy)
+					var leg_horizontal := Vector2i(tx + dx, ty)
+					if _ledge_at(leg_vertical.x, leg_vertical.y) != LEDGE_NONE \
+						or _ledge_at(leg_horizontal.x, leg_horizontal.y) != LEDGE_NONE:
+						continue
+					var vertical_facing: int = vertical & (LEDGE_EAST | LEDGE_WEST)
+					var horizontal_facing: int = horizontal & (LEDGE_SOUTH | LEDGE_NORTH)
+					# Both drops face out of the bend. Opposite facings this close are
+					# crossing runs at different levels, not one corner.
+					if _ledge_step(vertical_facing).x != -dx \
+						or _ledge_step(horizontal_facing).y != -dy:
+						continue
+					var vertical_base: int = _heights[(ty + dy * 2) * _size.x + tx]
+					var horizontal_base: int = _heights[ty * _size.x + tx + dx * 2]
+					if vertical_base != horizontal_base:
+						continue
+					var base: int = vertical_base
+					additions[leg_vertical] = [vertical_facing, base]
+					additions[leg_horizontal] = [horizontal_facing, base]
+					additions[Vector2i(tx, ty)] = [vertical_facing | horizontal_facing, base]
+	for tile: Vector2i in additions:
+		var values: Array = additions[tile]
+		_set_ledge_tile(tile, int(values[0]), int(values[1]))
+
+
+func _set_ledge_tile(tile: Vector2i, facing: int, base: int) -> void:
+	var at: int = tile.y * _size.x + tile.x
+	if _tiles[at] < 0:
+		return
+	_ledge[at] |= facing
+	_heights[at] = base
+	_art[at] = ART_LEDGE
+	_volume[at] = 0
+	_cliff[at] = 0
+	_front[at] = 0
+	_lip[at] = 0
+	_bases[at] = tile.y
 
 
 ## The two tiles of [param cell] on the far side of [param step].
@@ -2856,6 +2915,14 @@ func _ledge_step(facing: int) -> Vector2i:
 		LEDGE_EAST:
 			return Vector2i(1, 0)
 	return Vector2i(-1, 0)
+
+
+func _ledge_steps(facings: int) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for facing: int in [LEDGE_SOUTH, LEDGE_NORTH, LEDGE_EAST, LEDGE_WEST]:
+		if (facings & facing) != 0:
+			out.append(_ledge_step(facing))
+	return out
 
 
 ## The floor of one walk cell: the highest flat tile in it, and zero where the
@@ -3184,6 +3251,26 @@ func height_at_position(position: Vector3) -> int:
 	return _height_at(
 		floori(position.x / TILE) + _margin.x, floori(position.z / TILE) + _margin.y
 	)
+
+
+## The top a battle sight line must clear. Stamped models are deliberately not
+## part of `_heights`: the column under a tree is its ground because the tree is
+## instanced later. A camera ray still has to treat that tree as solid, so its
+## drawing span supplies a conservative top over the footprint it occupies.
+func occlusion_height_at_position(position: Vector3) -> int:
+	var tx: int = floori(position.x / TILE) + _margin.x
+	var ty: int = floori(position.z / TILE) + _margin.y
+	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
+		return 0
+	var at: int = ty * _size.x + tx
+	var top: int = _height_at(tx, ty)
+	if _modelled[at] == 0:
+		return top
+	var box: Rect2i = _span_box(at, tx, ty)
+	var stretch: float = _stretch[at]
+	if stretch <= 0.0:
+		stretch = 1.0 if _shrub[at] == 1 or _rock[at] == 1 else Model.CROWN_STRETCH
+	return top + ceili(float(box.size.y) * TILE * stretch)
 
 
 func _height_at(tx: int, ty: int) -> int:
@@ -6943,7 +7030,8 @@ func _commonest(tile: int, atlas: RefCounted) -> int:
 ## and refuses. Nothing about the facing is guessed: see `_measure_ledges`.
 func _wedge(tx: int, ty: int, atlas: RefCounted) -> void:
 	var at: int = ty * _size.x + tx
-	var step: Vector2i = _ledge_step(_ledge[at])
+	var facings: int = _ledge[at]
+	var steps: Array[Vector2i] = _ledge_steps(facings)
 	var base: int = _heights[at]
 	var top: int = base + LEDGE_RISE
 	var uv: Rect2 = atlas.uv(maxi(_tiles[at], 0))
@@ -6954,26 +7042,27 @@ func _wedge(tx: int, ty: int, atlas: RefCounted) -> void:
 	# The ramp, cornered in `_face_top`'s own order so the drawing keeps its
 	# north-up orientation, each corner lifted by how far along the slope it is.
 	_quad(
-		Vector3(x0, _wedge_y(base, step, 0, 1), z1),
-		Vector3(x1, _wedge_y(base, step, 1, 1), z1),
-		Vector3(x1, _wedge_y(base, step, 1, 0), z0),
-		Vector3(x0, _wedge_y(base, step, 0, 0), z0),
-		Vector3(-float(step.x), 1.0, -float(step.y)).normalized(), uv, SHADE_TOP_FLAT
+		Vector3(x0, _wedge_y(base, steps, 0, 1), z1),
+		Vector3(x1, _wedge_y(base, steps, 1, 1), z1),
+		Vector3(x1, _wedge_y(base, steps, 1, 0), z0),
+		Vector3(x0, _wedge_y(base, steps, 0, 0), z0),
+		_wedge_normal(steps), uv, SHADE_TOP_FLAT
 	)
 	# The drop is the one side standing at the top of the ramp. The other three
 	# skirt from the foot down to whatever is beside them, as any tile does.
-	_side(tx, ty, top if step.y > 0 else base, _height_at(tx, ty + 1),
+	_side(tx, ty, top if (facings & LEDGE_SOUTH) != 0 else base, _height_at(tx, ty + 1),
 		Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
-	_side(tx, ty, top if step.y < 0 else base, _height_at(tx, ty - 1),
+	_side(tx, ty, top if (facings & LEDGE_NORTH) != 0 else base, _height_at(tx, ty - 1),
 		Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
-	_side(tx, ty, top if step.x > 0 else base, _height_at(tx + 1, ty),
+	_side(tx, ty, top if (facings & LEDGE_EAST) != 0 else base, _height_at(tx + 1, ty),
 		Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
-	_side(tx, ty, top if step.x < 0 else base, _height_at(tx - 1, ty),
+	_side(tx, ty, top if (facings & LEDGE_WEST) != 0 else base, _height_at(tx - 1, ty),
 		Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 	# The slope's own profile closes the two ends of a run of them.
-	var across := Vector2i(step.y, step.x)
-	_wedge_end(tx, ty, across, step, base, top, uv)
-	_wedge_end(tx, ty, -across, step, base, top, uv)
+	for step: Vector2i in steps:
+		var across := Vector2i(step.y, step.x)
+		_wedge_end(tx, ty, across, step, facings, base, top, uv)
+		_wedge_end(tx, ty, -across, step, facings, base, top, uv)
 
 
 ## The triangle that ends a ledge sideways. A neighbour facing the same way
@@ -6981,11 +7070,15 @@ func _wedge(tx: int, ty: int, atlas: RefCounted) -> void:
 ## it.
 func _wedge_end(
 	tx: int, ty: int, side: Vector2i, step: Vector2i,
-	base: int, top: int, uv: Rect2
+	facings: int, base: int, top: int, uv: Rect2
 ) -> void:
 	var nx: int = tx + side.x
 	var ny: int = ty + side.y
-	if _ledge_at(nx, ny) == _ledge[ty * _size.x + tx]:
+	var facing: int = _ledge_facing(step)
+	if (_ledge_at(nx, ny) & facing) != 0:
+		return
+	# Another half of a corner owns this whole drop face.
+	if (_ledge_facing(side) & facings) != 0:
 		return
 	if _height_at(nx, ny) >= top:
 		return
@@ -7033,17 +7126,25 @@ func _wedge_end(
 ## How high one corner of the ramp stands: the foot on the side the player hops
 ## from, a band higher on the side it drops. [param u] and [param v] are the
 ## corner, 0 or 1 along x and along z.
-func _wedge_y(base: int, step: Vector2i, u: int, v: int) -> float:
+func _wedge_y(base: int, steps: Array[Vector2i], u: int, v: int) -> float:
 	var along: int = 0
-	if step.x > 0:
-		along = u
-	elif step.x < 0:
-		along = 1 - u
-	elif step.y > 0:
-		along = v
-	else:
-		along = 1 - v
+	for step: Vector2i in steps:
+		if step.x > 0:
+			along = maxi(along, u)
+		elif step.x < 0:
+			along = maxi(along, 1 - u)
+		elif step.y > 0:
+			along = maxi(along, v)
+		else:
+			along = maxi(along, 1 - v)
 	return float(base + LEDGE_RISE * along)
+
+
+func _wedge_normal(steps: Array[Vector2i]) -> Vector3:
+	var normal := Vector3(0.0, 1.0, 0.0)
+	for step: Vector2i in steps:
+		normal += Vector3(-float(step.x), 0.0, -float(step.y))
+	return normal.normalized()
 
 
 func _ledge_at(tx: int, ty: int) -> int:
