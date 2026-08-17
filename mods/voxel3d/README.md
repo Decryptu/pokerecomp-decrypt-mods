@@ -235,6 +235,10 @@ Where perpendicular ledge runs end around the same corner, their grid
 intersection inherits both slopes. The corner is one continuous wedge rather
 than the flat tile that neither individual hop crosses.
 
+The player and a scripted NPC follow the host's own vertical jump offset while
+crossing one. The card rises and lands; its shadow and the camera stay on the
+ground, so a hop reads as movement rather than as a camera shake.
+
 Before that they stood a full walk cell tall, because a blocked cell with no pin
 is a wall like any other, and a route was fenced by 16px walls you could not see
 over. 1380 cells of 72 maps are hopped over.

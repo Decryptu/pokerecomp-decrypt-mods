@@ -21,6 +21,7 @@ func _initialize() -> void:
 	var first_seed: int = int(args[1]) if args.size() > 1 else FIRST_SEED
 	var second_seed: int = int(args[2]) if args.size() > 2 else SECOND_SEED
 	var ok: bool = _ledge_corner(data)
+	ok = _jump_offset() and ok
 	ok = _population(data, first_seed, second_seed) and ok
 	quit(0 if ok else 1)
 
@@ -69,6 +70,19 @@ func _ledge_corner(data: GameData) -> bool:
 		if model_checked:
 			break
 	return joined and model_checked
+
+
+func _jump_offset() -> bool:
+	var root: String = (get_script() as Script).resource_path.get_base_dir().get_base_dir()
+	var renderer: Node = (load(root.path_join("mods/voxel3d/world/renderer.gd")) as GDScript).new()
+	var ground := Vector3(24.0, 7.0, 40.0)
+	var lifted: Vector3 = renderer._actor_position(ground, 8.0)
+	var ok: bool = lifted == Vector3(24.0, 15.0, 40.0)
+	print("host jump offset lifts the card and leaves its ground at y 7: %s" % (
+		"yes" if ok else "NO"
+	))
+	renderer.free()
+	return ok
 
 
 func _population(data: GameData, first_seed: int, second_seed: int) -> bool:
