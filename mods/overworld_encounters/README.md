@@ -6,6 +6,7 @@ They roam only across cells where that encounter method belongs, disappear on a
 map change and start the ordinary wild battle when met. An encounter leaves the
 population after its battle ends, whatever the battle result; the map does not
 refill until its next generation.
+Each moves at most one cell every 1.6 seconds, leaving time to route around it.
 
 A shiny is shiny before the battle starts: its overworld icon uses the shiny
 palette and the cartridge's own shiny animation and sound play over it on spawn,

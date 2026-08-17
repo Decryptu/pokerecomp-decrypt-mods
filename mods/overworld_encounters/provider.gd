@@ -5,7 +5,10 @@ extends RefCounted
 
 const Plan := preload("plan.gd")
 const SHINY_PULSE_FRAMES: int = 600
-const MOVE_FRAMES: int = 32
+## A full cell every 1.6 seconds at the hardware's 60 frames per second. The
+## actor seam names integer encounter cells, so moving faster reads as a chain
+## of teleports and gives the player no practical route around one.
+const MOVE_FRAMES: int = 96
 
 var _host: Gen2ModHost = null
 var _id: StringName = &""
