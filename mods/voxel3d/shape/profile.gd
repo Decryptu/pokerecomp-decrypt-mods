@@ -2191,6 +2191,51 @@ const ROOM_WALL: Dictionary = {
 	# THE LABORATORY AND THE ROOMS THAT SHARE IT: 2 stands both courses alone, 80
 	# placements against 12.
 	14: [[2]],
+	# THE CAVERN, and a cave takes one for the same reason a room does: its edge is
+	# rock everywhere the map draws rock and nothing at all where it does not. 38
+	# is the plain rock face, 124 placements against 18.
+	30: [[38]],
+	# THE DARK CAVERN, which draws its rock out of the same three ids as 30 and
+	# splits its placements evenly between them.
+	24: [[38]],
+	# THE PARK'S BUILDINGS AND THE RUINS CHAMBERS, which share a tileset. 192
+	# placements, six times anything else, and the same wall in both.
+	19: [[94, 95], [74, 75]],
+	# THE GAME CORNER.
+	26: [[8, 9], [10, 11]],
+	# THE STATION. Three candidates come back level at 8 placements each and the
+	# count cannot choose between them; the picture can. The 84 two of them share
+	# is a HEDGE, and a hedge ringed the platform in green. 138 and 139 over 154
+	# and 155 is the grey block the platform's own walls are drawn out of.
+	13: [[138, 139], [154, 155]],
+	# THE POWER PLANT AND THE ROOMS THAT SHARE IT, 17 over 16 and 90 placements.
+	27: [[17], [16]],
+	# THE ICE PATH. 82 over 83 is the candidate that repeats a single tile across
+	# and it is the wrong one: it is a dark barred wall, and ringing an icy cavern
+	# with it put a cellar door round the ice. 132 and 133 over 148 and 149 is the
+	# blue rock the cavern is cut from, and a wall two ids wide is still blank.
+	29: [[132, 133], [148, 149]],
+	# THE MAGNET TRAIN STATION. 48 stands both courses alone, 92 placements against
+	# 20 for the ticket gate beside it.
+	17: [[48]],
+	# THE UNDERGROUND.
+	22: [[84, 85], [80, 81]],
+	# THE MANSION.
+	18: [[70, 71], [86, 87]],
+	# THE TRAIN CARRIAGE.
+	20: [[2]],
+	# THE ELITE FOUR'S ROOMS, whose wall alternates two ids across and comes back
+	# level at 20 placements on both of its alignments.
+	21: [[131, 2], [2, 138]],
+	# THE BATTLE TOWER'S CAVERN, one map and the same rock face repeated.
+	1: [[61]],
+	# THE FOUR CHAMBERS OF THE RUINS, one map each and one tileset each, drawing
+	# the same wall: 6 is the blank course and what sits under it is the carving
+	# that tells the four apart.
+	33: [[6]],
+	34: [[6]],
+	35: [[6]],
+	36: [[6]],
 }
 
 
