@@ -1916,16 +1916,16 @@ func _measure_mounds(shape: RefCounted) -> void:
 	var seen := PackedByteArray()
 	seen.resize(count)
 	var any: bool = false
-	for seed: int in count:
-		if seen[seed] == 1 or _tiles[seed] < 0 or not doors.has(_tiles[seed]):
+	for start: int in count:
+		if seen[start] == 1 or _tiles[start] < 0 or not doors.has(_tiles[start]):
 			continue
 		var region := PackedInt32Array()
-		seen[seed] = 1
-		region.append(seed)
-		var head: int = 0
-		while head < region.size():
-			var at: int = region[head]
-			head += 1
+		seen[start] = 1
+		region.append(start)
+		var walked: int = 0
+		while walked < region.size():
+			var at: int = region[walked]
+			walked += 1
 			@warning_ignore("integer_division")
 			var from := Vector2i(at % _size.x, at / _size.x)
 			for step: Vector2i in [
@@ -4403,7 +4403,7 @@ const SQRT_HALF: float = 0.70710678
 
 
 func _object_stool(
-	object: Dictionary, start: Vector2i, across: Vector2i, tiles: Array,
+	_object: Dictionary, start: Vector2i, across: Vector2i, tiles: Array,
 	window: Rect2i, atlas: RefCounted
 ) -> void:
 	var base: float = float(_ground_art(start.x, start.y + across.y - 1).y)
@@ -4747,7 +4747,7 @@ func _object_wrap(
 func _object_cap(
 	atlas: RefCounted, tiles: Array, across: Vector2i, mask: PackedByteArray,
 	span: Vector2i, window: Rect2i, rows: int,
-	left: float, right: float, high: float, front: float, back: float
+	left: float, _right: float, high: float, front: float, back: float
 ) -> void:
 	var deep: float = front - back
 	# WHERE THE TOP ROWS DRAW NOTHING the cap still has to be closed, or the roof
@@ -6446,25 +6446,25 @@ func _cutout_edge(
 		if box.size.y > 1:
 			sample += 1 if near else -1
 		if near:
-			var column: int = box.position.x + from
+			var walk_column: int = box.position.x + from
 			for _step: int in INTERIOR_REACH:
-				if _interior(mask, span, origin.x + column, origin.y + sample):
+				if _interior(mask, span, origin.x + walk_column, origin.y + sample):
 					break
-				if not _drawn(mask, span, origin.x + column, origin.y + sample + 1):
+				if not _drawn(mask, span, origin.x + walk_column, origin.y + sample + 1):
 					break
 				sample += 1
-		var uv: Rect2 = atlas.uv_box(tile, Rect2i(box.position.x + from, sample, to - from, 1))
+		var strip: Rect2 = atlas.uv_box(tile, Rect2i(box.position.x + from, sample, to - from, 1))
 		if near:
 			_quad(
 				Vector3(x0, y, front), Vector3(x1, y, front),
 				Vector3(x1, y, back), Vector3(x0, y, back),
-				Vector3.UP, uv, SHADE_TOP_VOLUME
+				Vector3.UP, strip, SHADE_TOP_VOLUME
 			)
 		else:
 			_quad(
 				Vector3(x0, y, back), Vector3(x1, y, back),
 				Vector3(x1, y, front), Vector3(x0, y, front),
-				Vector3.DOWN, uv, SHADE_NORTH
+				Vector3.DOWN, strip, SHADE_NORTH
 			)
 		return
 
@@ -6792,10 +6792,10 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 		Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0),
 		Vector2i(0, 2), Vector2i(0, -2), Vector2i(2, 0), Vector2i(-2, 0),
 	]:
-		var at := Vector2i(tx + step.x, ty + step.y)
-		if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
+		var beside := Vector2i(tx + step.x, ty + step.y)
+		if beside.x < 0 or beside.y < 0 or beside.x >= _size.x or beside.y >= _size.y:
 			continue
-		var index: int = at.y * _size.x + at.x
+		var index: int = beside.y * _size.x + beside.x
 		if _stair_at[index] >= 0 or _ramp[index] == 1:
 			continue
 		if _art[index] == ART_FLAT and _heights[index] >= 0:

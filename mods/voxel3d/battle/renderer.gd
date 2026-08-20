@@ -591,9 +591,9 @@ func _texture(key: String, pic: Dictionary, palette: PackedColorArray) -> Textur
 func _cut_out(pic: Dictionary, palette: PackedColorArray) -> Image:
 	if pic.is_empty() or not pic.has("atlas"):
 		return null
-	var name: String = String(pic["atlas"])
-	var atlas: Dictionary = _data.atlas(name)
-	var indices: PackedByteArray = _data.atlas_indices(name)
+	var sheet: String = String(pic["atlas"])
+	var atlas: Dictionary = _data.atlas(sheet)
+	var indices: PackedByteArray = _data.atlas_indices(sheet)
 	var cell: int = int(atlas.get("cell", 0))
 	var columns: int = int(atlas.get("columns", 0))
 	var atlas_width: int = int(atlas.get("width", 0))

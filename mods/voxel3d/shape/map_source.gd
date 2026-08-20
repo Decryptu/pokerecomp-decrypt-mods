@@ -26,8 +26,8 @@ var _carried_blocks: Dictionary = {}
 ## world supplies its own two records, so those arguments are ignored.
 func _init(
 	world: Gen2WorldAPI = null,
-	map: Gen2WorldMap = null,
-	tileset: Gen2WorldTileset = null,
+	map_record: Gen2WorldMap = null,
+	tileset_record: Gen2WorldTileset = null,
 	data: GameData = null,
 ) -> void:
 	_world = world
@@ -36,8 +36,8 @@ func _init(
 		_map = world.current_map
 		_tileset = world.current_tileset
 	else:
-		_map = map
-		_tileset = tileset
+		_map = map_record
+		_tileset = tileset_record
 
 
 func valid() -> bool:

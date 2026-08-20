@@ -177,8 +177,8 @@ func advance(delta: float) -> bool:
 
 ## Where the eye sits relative to what it is looking at.
 func offset() -> Vector3:
-	var pitch: float = deg_to_rad(_pitch)
-	return Vector3(0.0, sin(pitch), cos(pitch)) * _distance
+	var above: float = deg_to_rad(_pitch)
+	return Vector3(0.0, sin(above), cos(above)) * _distance
 
 
 ## The lens. Zooming the lens rather than the dolly is what keeps the pitch and
@@ -220,11 +220,11 @@ func pan_for_text_box(box_top: int, screen_height: int) -> void:
 func pan() -> Vector3:
 	if is_zero_approx(_pan):
 		return Vector3.ZERO
-	var pitch: float = deg_to_rad(_pitch)
+	var above: float = deg_to_rad(_pitch)
 	# The frame's height in world pixels at the distance the eye is aimed from,
 	# and the camera's own up axis, which is where a pan runs.
 	var frame: float = 2.0 * _distance * tan(deg_to_rad(fov()) * 0.5)
-	return Vector3(0.0, -cos(pitch), sin(pitch)) * (_pan * frame)
+	return Vector3(0.0, -cos(above), sin(above)) * (_pan * frame)
 
 
 func pitch() -> float:
@@ -240,7 +240,8 @@ func zoom() -> float:
 
 
 func _aim(
-	pitch_degrees: float, distance_pixels: float, zoom: float, pan_fraction: float = -1.0
+	pitch_degrees: float, distance_pixels: float, zoom_scale: float,
+	pan_fraction: float = -1.0
 ) -> void:
 	_pitch_from = _pitch
 	_distance_from = _distance
@@ -248,7 +249,7 @@ func _aim(
 	_pan_from = _pan
 	_pitch_goal = clampf(pitch_degrees, PITCH_LIMITS.x, PITCH_LIMITS.y)
 	_distance_goal = clampf(distance_pixels, DISTANCE_LIMITS.x, DISTANCE_LIMITS.y)
-	_zoom_goal = clampf(zoom, Steering.ZOOM_LIMITS.x, Steering.ZOOM_LIMITS.y)
+	_zoom_goal = clampf(zoom_scale, Steering.ZOOM_LIMITS.x, Steering.ZOOM_LIMITS.y)
 	if pan_fraction >= 0.0:
 		_pan_goal = pan_fraction
 	_t = 0.0
