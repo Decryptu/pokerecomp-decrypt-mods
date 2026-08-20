@@ -25,6 +25,12 @@ const SURFING: StringName = &"surfing"
 
 const OFF_ON: Array = [0, 1]
 
+## Whether the follower picks up a hidden item it walks over. OFF, because the
+## cartridge hides them to be looked for and a Pokemon quietly emptying every
+## route is a different game from the one on the box. On, it is the Itemfinder
+## walking behind you.
+const PICKUP: StringName = &"pickup"
+
 ## Puts the follower away and calls it back. A control rather than a setting: it
 ## is pressed while walking around, and the settings menu is not where a player
 ## reaches for it. Registered as well as bound, so it exists before anyone opens
@@ -46,6 +52,10 @@ static func register(host: Gen2ModHost, id: StringName) -> void:
 		"key": SURFING, "label": "ON WATER",
 		"values": OFF_ON, "labels": ["OFF", "ON"], "default": 0,
 	})
+	host.register_option(id, {
+		"key": PICKUP, "label": "FINDS ITEMS",
+		"values": OFF_ON, "labels": ["OFF", "ON"], "default": 0,
+	})
 	host.register_action(id, {
 		"key": RECALL, "label": "Recall the follower",
 		"default": [{"kind": "key", "code": KEY_F}],
@@ -55,12 +65,12 @@ static func register(host: Gen2ModHost, id: StringName) -> void:
 ## What the player chose. A mod loaded by a probe or a tool registered nothing,
 ## so a missing host answers the defaults rather than nothing.
 static func settings(host: Gen2ModHost) -> Dictionary:
-	var chosen: Dictionary = {SLOT: 1, CYCLING: false, SURFING: false}
+	var chosen: Dictionary = {SLOT: 1, CYCLING: false, SURFING: false, PICKUP: false}
 	if host == null:
 		return chosen
 	var slot: Variant = host.option(MOD_ID, SLOT)
 	chosen[SLOT] = 1 if slot == null else clampi(int(slot), 1, SLOT_VALUES.size())
-	for key: StringName in [CYCLING, SURFING]:
+	for key: StringName in [CYCLING, SURFING, PICKUP]:
 		var value: Variant = host.option(MOD_ID, key)
 		chosen[key] = false if value == null else int(value) != 0
 	return chosen
@@ -69,4 +79,4 @@ static func settings(host: Gen2ModHost) -> Dictionary:
 ## Whether [param key] is one this mod registered, for a change handler that is
 ## handed every mod's settings.
 static func owns(key: StringName) -> bool:
-	return key in [SLOT, CYCLING, SURFING]
+	return key in [SLOT, CYCLING, SURFING, PICKUP]

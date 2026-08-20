@@ -59,7 +59,11 @@ func _initialize() -> void:
 		.get_base_dir().path_join("mods/follower")
 	var trail_script: GDScript = load("%s/trail.gd" % mod)
 	var party: GDScript = load("%s/party.gd" % mod)
-	if trail_script == null or party == null:
+	var finder: GDScript = load("%s/finder.gd" % mod)
+	var actor_script: GDScript = load("%s/actor.gd" % mod)
+	var options: GDScript = load("%s/options.gd" % mod)
+	if trail_script == null or party == null or finder == null \
+		or actor_script == null or options == null:
 		print("no mod scripts under %s" % mod)
 		quit(1)
 		return
@@ -79,6 +83,9 @@ func _initialize() -> void:
 	failures += 0 if _report("one route twice is one walk", walked == again) else 1
 	failures += 0 if _report("two routes are two walks", walked != elsewhere) else 1
 	failures += _rules(trail_script)
+	failures += _petting(trail_script)
+	failures += _finding(finder)
+	failures += _picking_up(actor_script, options, data)
 	quit(1 if failures > 0 else 0)
 
 
@@ -254,3 +261,198 @@ func _at(cell: Vector2i, offset: Vector2) -> String:
 func _report(what: String, passed: bool) -> bool:
 	print("%s  %s" % ["ok  " if passed else "FAIL", what])
 	return passed
+
+
+## Being petted turns the follower to look back and changes nothing else. The
+## player is facing it, so it faces the way they came from.
+func _petting(trail_script: GDScript) -> int:
+	var failures: int = 0
+	for pair: Array in [
+		["down", Gen2WorldSprite.FACING_DOWN, Gen2WorldSprite.FACING_UP],
+		["up", Gen2WorldSprite.FACING_UP, Gen2WorldSprite.FACING_DOWN],
+		["left", Gen2WorldSprite.FACING_LEFT, Gen2WorldSprite.FACING_RIGHT],
+		["right", Gen2WorldSprite.FACING_RIGHT, Gen2WorldSprite.FACING_LEFT],
+	]:
+		var trail: RefCounted = trail_script.new()
+		var before: Dictionary = {}
+		for observation: Dictionary in _observations(["right", "right"]):
+			before = trail.observe(observation)
+		trail.face_back(int(pair[1]))
+		if not _report(
+			"petted while the player looks %s, it looks back" % pair[0],
+			trail.facing() == int(pair[2])
+		):
+			failures += 1
+		## The same frame again: a turn is a pose and moves neither the cell it
+		## committed to nor the step it is drawing.
+		var after: Dictionary = trail.observe(_observation(
+			HOME, (before["cell"] as Vector2i) + Vector2i.RIGHT,
+			Gen2WorldSprite.FACING_RIGHT, Vector2.ZERO
+		))
+		if not _report(
+			"petting moves nothing but the facing (%s)" % pair[0],
+			(after["cell"] as Vector2i) == (before["cell"] as Vector2i)
+		):
+			failures += 1
+	return failures
+
+
+## What the follower reaches, asked of a made-up map rather than of a route: the
+## cell it stands on first, then one step into what it could not have walked
+## into, and never a record already taken.
+func _finding(finder: GDScript) -> int:
+	var here: Vector2i = Vector2i(10, 10)
+	var wall: Vector2i = here + Vector2i.LEFT
+	var open_floor: Vector2i = here + Vector2i.RIGHT
+	## Everything is walkable but the one cell standing in for a rock.
+	var walkable: Callable = func(cell: Vector2i, _direction: Vector2i) -> bool:
+		return cell != wall
+	var under: Dictionary = _record(here, 1)
+	var behind: Dictionary = _record(wall, 2)
+	var beside: Dictionary = _record(open_floor, 3)
+	var taken: Dictionary = _record(here, 4)
+	taken["taken"] = true
+	var checks: Array = [
+		["it takes what it is standing on", [under, behind], 1],
+		["it reaches into what it could not walk into", [behind], 2],
+		["it leaves what it could have walked over itself", [beside], 0],
+		["its own cell comes before the one beside it", [behind, under], 1],
+		["a taken record is not asked for twice", [taken], 0],
+		["an empty map reaches nothing", [], 0],
+	]
+	var failures: int = 0
+	for check: Array in checks:
+		var answer: Dictionary = finder.reach(check[1], here, walkable)
+		var item: int = 0 if answer.is_empty() else int(answer["item"])
+		if not _report("%s (item %d)" % [check[0], item], item == int(check[2])):
+			failures += 1
+	## A cell two steps out is not reached whatever is on it, which is the whole
+	## difference between a follower and a map-wide sweep.
+	var far: Dictionary = finder.reach(
+		[_record(here + Vector2i.LEFT * 2, 5)], here, walkable
+	)
+	failures += 0 if _report("it reaches exactly one cell", far.is_empty()) else 1
+	return failures
+
+
+## One row of `Gen2WorldAPI.hidden_items()`, which is all `finder.gd` reads.
+func _record(cell: Vector2i, item: int) -> Dictionary:
+	return {"cell": cell, "item": item, "flag": item, "taken": false}
+
+
+## The pickup, end to end against the cartridge's own maps: a real world is
+## opened on the first map carrying a hidden item, the follower is walked onto
+## its cell, and what the mod asked for is read back off the host.
+##
+## The mod's half is the ask, and it is the only half it has. The take is asked
+## of the world here for the reason the picture is taken in `follower_shot.gd`:
+## the two halves are only right together.
+func _picking_up(actor_script: GDScript, options: GDScript, data: GameData) -> int:
+	var site: Dictionary = _a_hidden_item(data)
+	if site.is_empty():
+		_report("a map carrying a hidden item was found", false)
+		return 1
+	var world: Gen2WorldAPI = site["world"]
+	var cell: Vector2i = site["cell"]
+	print("hidden     map %d,%-3d cell %s item %d (%s)" % [
+		world.current_map.group, world.current_map.number, str(cell), int(site["item"]),
+		String(data.item(int(site["item"])).get("name", "?")),
+	])
+
+	var host: Gen2ModHost = Gen2ModHost.instance()
+	options.register(host, options.MOD_ID)
+	## The world screen mirrors a save into this; a probe hands it the same shape,
+	## since all the follower reads of a party is a species on its feet.
+	world.set_party_summary(1, false, PARTY.slice(0, 1), [], ["CYNDA"], [false], {}, [false])
+	var actor: RefCounted = actor_script.new()
+	actor.configure(host, options.MOD_ID)
+	actor.set_world(world)
+
+	var failures: int = 0
+	host.set_option(options.MOD_ID, options.PICKUP, 0)
+	failures += 0 if _report(
+		"off, it asks for nothing", _walk_onto(actor, world, cell, host).is_empty()
+	) else 1
+
+	host.set_option(options.MOD_ID, options.PICKUP, 1)
+	var asked: Array = _walk_onto(actor, world, cell, host)
+	failures += 0 if _report(
+		"on, it asks for the cell it stands on (%s)" % str(asked), asked == [cell]
+	) else 1
+
+	## Asking is all the mod does. The bag, the flag and the site's own script
+	## are the host's, and this is where that is shown to be true.
+	var before: int = world.inventory.item_quantity(int(site["item"]))
+	var results: Array = world.take_hidden_item(cell)
+	## `verbosegiveitem` prints and waits on a press, which a screen spends and a
+	## probe has to spend by hand, or the script stops before its own `end` and
+	## the flag it sets is never reached.
+	for _press: int in 64:
+		if not world.script_busy():
+			break
+		world.finish_script_waits()
+		world.run_event_queue(true)
+	var after: int = world.inventory.item_quantity(int(site["item"]))
+	failures += 0 if _report(
+		"the host runs the map's own script", not results.is_empty()
+	) else 1
+	failures += 0 if _report(
+		"the site's flag is set", world.event_flag_active(int(site["flag"]))
+	) else 1
+	failures += 0 if _report(
+		"the item is in the bag (%d -> %d)" % [before, after], after > before
+	) else 1
+	failures += 0 if _report(
+		"a taken site is not offered again", _is_taken(world.hidden_items(), cell)
+	) else 1
+	return failures
+
+
+## Walks the follower onto [param cell] and answers what the mod asked the host
+## for. The player stands on the cell and steps off it, which is exactly how a
+## follower comes to be standing there.
+func _walk_onto(
+	actor: RefCounted, world: Gen2WorldAPI, cell: Vector2i, host: Gen2ModHost
+) -> Array:
+	host.take_hidden_item_requests()
+	world.player_cell = cell
+	actor.advance_frame()
+	for direction: Vector2i in [Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT]:
+		if not world.can_walk_to(cell + direction, direction):
+			continue
+		world.move(direction)
+		while world.player_step_in_progress():
+			world.advance_player_step_frame()
+			actor.advance_frame()
+		actor.advance_frame()
+		break
+	return host.take_hidden_item_requests()
+
+
+## The first map carrying a hidden item nobody has taken, and the world it was
+## found on, so nothing here names a cell a cartridge might move.
+func _a_hidden_item(data: GameData) -> Dictionary:
+	for group: int in range(1, 27):
+		for number: int in range(1, 40):
+			var map: Gen2WorldMap = data.world_map(group, number)
+			if map == null:
+				continue
+			var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
+			if tileset == null:
+				continue
+			var world := Gen2WorldAPI.new(data, map, tileset)
+			for record: Dictionary in world.hidden_items():
+				if bool(record["taken"]):
+					continue
+				return {
+					"world": world, "cell": record["cell"],
+					"item": record["item"], "flag": record["flag"],
+				}
+	return {}
+
+
+func _is_taken(records: Array, cell: Vector2i) -> bool:
+	for record: Dictionary in records:
+		if (record["cell"] as Vector2i) == cell:
+			return bool(record["taken"])
+	return false

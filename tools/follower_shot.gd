@@ -13,10 +13,11 @@ extends SceneTree
 ##
 ## A seventh argument is the view: the host's own `gen2` by default, or a
 ## registered renderer's id, which is how the same walk is photographed in the
-## diorama.
+## diorama. An eighth, `pet`, turns the player around at the end of the walk and
+## presses A, which is the picture the heart is only ever in.
 ##
 ##   Godot --path <pokerecomp> --mods -s tools/follower_shot.gd -- \
-##       crystal 26 1 <out.png> [species] [steps] [renderer id]
+##       crystal 26 1 <out.png> [species] [steps] [renderer id] [pet]
 
 const WINDOW_SIZE := Vector2i(1152, 648)
 ## Hardware frames one plain step is drawn over, which is the host's own count.
@@ -27,14 +28,26 @@ const CAUGHT_AT: int = 4
 ## Frames spent before anything is asked of the screen, so a map's own entry
 ## script has run and the player can be walked.
 const SETTLE_FRAMES: int = 60
+## A press in a direction the player is not already facing turns them and spends
+## nothing else, which is the host's own STEP_FRAMES_TURN. It is the whole reason
+## a trailing follower can be faced at all: a second press would step onto it.
+const TURN_FRAMES: int = 4
 ## The real frame the picture is taken on, well past the one the walk was staged
 ## on. Long enough for a renderer that builds its view over several frames
 ## rather than in one, which the diorama does on purpose.
 const CAPTURE_ON: int = 150
+## Real frames between the press and the picture. THE PRESS IS STAGED LAST, not
+## with the walk: a heart is up for sixty WORLD frames and this tool spends world
+## frames by hand, so a press staged beside the walk is a hundred and forty real
+## frames from the capture and what is photographed is whatever was painted
+## last. Six frames is a settled renderer and a bubble that is certainly still
+## up, and it makes the capture byte-identical run to run.
+const PET_LEAD: int = 6
 
 var _screen: Gen2WorldScreen = null
 var _output_path: String = ""
 var _steps: int = 2
+var _pet: bool = false
 var _frames: int = 0
 
 
@@ -52,6 +65,7 @@ func _initialize() -> void:
 	_output_path = args[3]
 	var species: int = int(args[4]) if args.size() > 4 else 155
 	_steps = int(args[5]) if args.size() > 5 else 2
+	_pet = args.size() > 7 and args[7] == "pet"
 
 	# The screen collects the registered actors as it enters the tree, so the
 	# mods have to be loaded before it is built. A tool run loads none by
@@ -63,8 +77,10 @@ func _initialize() -> void:
 	print("actors     %s, failures %s" % [
 		str(host.world_actor_ids()), str(host.failures())
 	])
+	## R24 folded the two per-surface selectors into one view id, so this is
+	## `select_view` and not the `select_world_renderer` that is gone.
 	if args.size() > 6:
-		print("view       %s" % str(host.select_world_renderer(StringName(args[6]))))
+		print("view       %s" % str(host.select_view(StringName(args[6]))))
 
 	root.set_content_scale_size(WINDOW_SIZE)
 	root.size = WINDOW_SIZE
@@ -110,6 +126,8 @@ func _process(_delta: float) -> bool:
 		# screen's own frames are hardware frames and are spent by hand; these
 		# are the real ones, and capturing before they are drawn photographs the
 		# picture from before the walk.
+		if _pet and _frames == CAPTURE_ON - PET_LEAD:
+			_pet_the_follower()
 		if _frames < CAPTURE_ON:
 			return false
 		return _capture()
@@ -120,11 +138,26 @@ func _process(_delta: float) -> bool:
 	# apart, so a picture of a standing player is a picture of nothing.
 	for step: int in _steps:
 		_screen.move_down()
-		_screen.advance_frames(STEP_FRAMES if step < _steps - 1 else CAUGHT_AT)
+		var last: bool = step == _steps - 1
+		_screen.advance_frames(STEP_FRAMES if _pet or not last else CAUGHT_AT)
 		print("step %d    player cell %s" % [
 			step + 1, str((_screen.world_snapshot() as Dictionary).get("player_cell")),
 		])
 	return false
+
+
+## The two presses petting is: one that turns the player to face the cell they
+## just left, which is where the follower is standing, and one on A.
+##
+## The turn is what makes this reachable at all. A follower stands on a cell the
+## player can always walk into, so a second press in that direction would step
+## onto it rather than face it; `player_input_move`'s own turn branch spends four
+## frames and a facing and nothing else.
+func _pet_the_follower() -> void:
+	_screen.move_up()
+	_screen.advance_frames(TURN_FRAMES)
+	print("petted    %s" % ("yes" if _screen.interact() else "NO, nothing answered"))
+	_screen.advance_frames(CAUGHT_AT)
 
 
 func _capture() -> bool:
