@@ -94,6 +94,24 @@ func _step_toward(target: Vector2i, player_facing: int) -> void:
 	_direction = Vector2i.ZERO
 
 
+## Turns the follower to look back at the player, which is what being petted
+## asks of it. The player is facing the follower, so the follower faces the way
+## they came from; a pose and nothing else, so the cell and the step it is
+## drawing are both left where they are.
+##
+## The mirror of a facing rather than a table of its own: DOWN and UP are 0 and
+## 1, LEFT and RIGHT are 2 and 3, so the opposite of any of the four is its own
+## index with the low bit flipped.
+func face_back(player_facing: int) -> void:
+	_facing = clampi(player_facing, Gen2WorldSprite.FACING_DOWN, Gen2WorldSprite.FACING_RIGHT) ^ 1
+
+
+## The facing the next pose will carry, for a caller that has just turned it and
+## is answering a read taken on the same frame.
+func facing() -> int:
+	return _facing
+
+
 ## Puts the follower back under the player on the next frame, which is what a
 ## recall and a party change both want: it walks out again rather than sliding
 ## across the map from wherever it was standing.

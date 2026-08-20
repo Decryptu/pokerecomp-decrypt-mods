@@ -1,9 +1,9 @@
 {
 	"id": "follower",
 	"name": "Follower",
-	"version": "0.2.0",
-	"api_version": 2,
+	"version": "0.3.0",
+	"api_version": 7,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
-	"description": "A Pokemon out of its ball and walking one cell behind you, drawn with the cartridge's own party icon for its species. Pick which slot comes out, whether it stays out on a bike and on the water, and put it away with one press."
+	"description": "A Pokemon out of its ball and walking one cell behind you, drawn with the cartridge's own party icon for its species. Pick which slot comes out, whether it stays out on a bike and on the water, and put it away with one press. Face it and press A to pet it: it looks back, cries and wears the cartridge's own heart. It can find hidden items for you too, if you turn that on."
 }
