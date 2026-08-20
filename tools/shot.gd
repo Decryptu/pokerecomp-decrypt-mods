@@ -121,6 +121,7 @@ func _initialize() -> void:
 	_stage.set_water(mesher.take_water())
 	_stage.set_tufts(mesher.take_tufts())
 	_stage.set_models(mesher.take_models())
+	_actors(data, map, mesher, time_of_day)
 
 	var focus := Vector3((float(args[3]) + 0.5) * TILE, 0.0, (float(args[4]) + 0.5) * TILE)
 	_hold = maxi(int(args[10]) if args.size() > 10 else 6, 1)
@@ -152,3 +153,52 @@ func _process(_delta: float) -> bool:
 	_frame.get_texture().get_image().save_png(_out)
 	print(_out)
 	return true
+
+
+## THE MAP'S OWN OBJECTS, standing where the renderer stands them.
+##
+## Everything else this tool draws is geometry, and for one round that was the
+## whole of what could be checked here: the Pokeballs on Elm's bench are actors,
+## the fault reported against them was that they stood in the wrong place, and no
+## picture taken here could show it. They are cards on `surface_height_at_position`
+## in the renderer and they are cards on it here, off the map's own event rows,
+## since this tool has no world to ask for live poses.
+func _actors(
+	data: GameData, map: Gen2WorldMap, mesher: RefCounted, time_of_day: int
+) -> void:
+	_stage.begin_cards()
+	_stage.begin_shadow_casters()
+	for event: Dictionary in (map.events.get("objects", []) as Array):
+		var number: int = int(event.get("sprite", 0))
+		# A mon-icon row and an OverworldSprites row are numbered separately, which
+		# is the same distinction `renderer.gd:_actor_texture` keys its cache on.
+		var icon: int = Gen2WorldSprite.mon_icon_for_sprite(number)
+		var sprite: Gen2WorldSprite = data.overworld_icon(icon) if icon > 0 \
+			else data.overworld_sprite(number)
+		if sprite == null:
+			continue
+		var image: Image = Gen2WorldSprite.image_for(
+			sprite,
+			data.overworld_icon_indices(sprite.icon_number) \
+				if sprite.sprite_type == Gen2WorldSprite.TYPE_MON_ICON \
+				else data.overworld_sprite_indices(sprite.number),
+			data.overworld_sprite_palette(
+				int(event.get("palette", 0)) if int(event.get("palette", 0)) != 0
+				else sprite.default_palette,
+				time_of_day
+			),
+			Gen2WorldSprite.FACING_DOWN,
+			0,
+		)
+		if image == null:
+			continue
+		var at := Vector3(
+			(float(event.get("x", 0)) + 0.5) * TILE * 2.0, 0.0,
+			(float(event.get("y", 0)) + 0.5) * TILE * 2.0
+		)
+		at.y = float(mesher.surface_height_at_position(at))
+		var texture: Texture2D = ImageTexture.create_from_image(image)
+		_stage.add_standing_card(texture, at)
+		_stage.add_shadow_caster(texture, at, 1.0)
+	_stage.end_cards()
+	_stage.end_shadow_casters()

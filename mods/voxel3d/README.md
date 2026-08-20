@@ -469,6 +469,20 @@ How TALL a thing is, though, is not the drawing's to say. A chair's twelve drawn
 rows stood up as twelve pixels is a cabinet beside a desk half its height. What a
 face-on drawing states honestly is its width.
 
+WHERE it stands is the collision's to say, and the drawing and the collision
+disagree. A drawing puts its front-bottom corner at its own bottom row, so
+everything else stands behind it; the cartridge draws a free-standing bench's
+apron on the walk cell IN FRONT of the one the bench blocks. Read at its word the
+box came out half a cell into open floor, which is a player walking into the
+front of a desk and the starters' Pokeballs left off the back edge of Elm's
+bench, floating behind it rather than standing on it. So a box that stands on
+floor a body can stand on is pulled back to the near edge of the last cell the
+drawing covers that is blocked the whole way across, and the move is kept only
+where it clears the box entirely. Over the whole game fourteen placements move,
+by six to sixteen pixels, and the ship does not: no placement of a hull ringed in
+sea stands on rock alone. A chair, a stool and a ladder stand on cells the
+cartridge lets you walk onto, which is its answer and not a placement to correct.
+
 An object may also be TURNED rather than stood up, because a drawing that is
 round wants the model below rather than a slab: the park's tiered stone fountain
 is 18 px wide across three tiles and centred on the seam between two of them, so
