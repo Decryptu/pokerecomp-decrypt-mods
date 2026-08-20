@@ -1,0 +1,9 @@
+{
+	"id": "hidden_stats",
+	"name": "Hidden Stats",
+	"version": "0.1.0",
+	"api_version": 8,
+	"entry": "mod.gd",
+	"games": ["gold", "silver", "crystal"],
+	"description": "A fourth page on a Pokemon's stats screen, in the cartridge's own two-column shape: the four DVs the species was born with, HP's own derived from them, and the stat experience each of the five has trained."
+}
