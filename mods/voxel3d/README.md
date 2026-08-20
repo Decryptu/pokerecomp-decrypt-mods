@@ -333,6 +333,15 @@ carrying a floor out of a house would lay its lino across the void it is drawn
 against. `Gen2WorldPhoneHost.is_outside_environment` is the host's own answer to
 which a map is.
 
+Indoors the ring is a ROOM instead. A Game Boy camera never stands outside a
+room, so the cartridge draws the one wall the player looks at and leaves the
+other three sides undrawn; from any bearing but due north that read as a floor
+with furniture on it and no room around it. So the map is ringed one cell deep
+and two cells tall with the blank course that tileset's own walls are drawn
+with, and the wall the cartridge does draw is raised to meet it. Twelve tilesets
+name that course, which is 147 of the game's interiors; a tileset that names
+none is drawn exactly as it was.
+
 At any draw distance short of FULL the window clips most of it. At FULL it is
 paid for whole, and on a large route that is about as much geometry again as the
 map itself.
