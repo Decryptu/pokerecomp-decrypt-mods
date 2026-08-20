@@ -24,6 +24,16 @@ const Steering: GDScript = preload("../steering.gd")
 const Frost: GDScript = preload("panel.gd")
 const Anim: GDScript = preload("anim.gd")
 
+## Preloaded for the reason `world/renderer.gd` gives: nothing holds the shape
+## tree between two battles, so loading it per fight re-parsed it per fight.
+const Profile: GDScript = preload("../shape/profile.gd")
+const TileShapeScript: GDScript = preload("../shape/tile_shape.gd")
+const MapSourceScript: GDScript = preload("../shape/map_source.gd")
+const AtlasScript: GDScript = preload("../shape/atlas.gd")
+const MesherScript: GDScript = preload("../shape/mesher.gd")
+const ArenaScript: GDScript = preload("arena.gd")
+const DioramaScript: GDScript = preload("../world/diorama.gd")
+
 const CELL: float = 16.0
 
 ## How opaque the screen draws the FIELD of its own text box over this view, and
@@ -249,18 +259,13 @@ func _process(delta: float) -> void:
 	_follow_anim_drift()
 
 
-func _root() -> String:
-	return (get_script() as Script).resource_path.get_base_dir().get_base_dir()
-
-
 func _load_modules() -> Dictionary:
-	var root: String = _root()
-	_profile = load("%s/shape/profile.gd" % root)
-	_tile_shape_script = load("%s/shape/tile_shape.gd" % root)
-	_map_source_script = load("%s/shape/map_source.gd" % root)
-	_atlas = (load("%s/shape/atlas.gd" % root) as GDScript).new()
-	_arena = (load("%s/battle/arena.gd" % root) as GDScript).new()
-	return {"diorama": load("%s/world/diorama.gd" % root)}
+	_profile = Profile
+	_tile_shape_script = TileShapeScript
+	_map_source_script = MapSourceScript
+	_atlas = AtlasScript.new()
+	_arena = ArenaScript.new()
+	return {"diorama": DioramaScript}
 
 
 ## The map the battle started on, rebuilt from its records.
@@ -337,7 +342,7 @@ func _resolved_for(
 	var key: String = "%d,%d,%d" % [map.group, map.number, tileset.number]
 	if _resolved.has(key):
 		return _resolved[key]
-	var mesher: RefCounted = (load("%s/shape/mesher.gd" % _root()) as GDScript).new()
+	var mesher: RefCounted = MesherScript.new()
 	mesher.resolve(source, _tile_shape_script.new(_profile, tileset.number))
 	if _resolved.size() >= RESOLVED_KEPT:
 		_resolved.erase(_resolved.keys()[0])

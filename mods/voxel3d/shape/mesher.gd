@@ -185,6 +185,43 @@ var _on_furniture := PackedByteArray()
 var _klass := PackedInt32Array()
 var _class_ids: Dictionary = {}
 
+## What one tile in one kind of cell comes to, kept for the length of a resolve.
+## See the tile loop in `resolve` and `_tile_fact`; the names below are the
+## fields of one entry, in the order that function writes them.
+var _facts: Dictionary = {}
+## A permission is a byte and -1 for the shell, so the key is the tile with the
+## permission plus one under it.
+const FACT_STRIDE: int = 258
+const FACT_ART: int = 0
+const FACT_DEPTH: int = 1
+const FACT_ROUND: int = 2
+const FACT_FILLED: int = 3
+const FACT_STEM: int = 4
+const FACT_STEM_RISE: int = 5
+const FACT_OUTLINED: int = 6
+const FACT_MODELLED: int = 7
+const FACT_SHRUB: int = 8
+const FACT_ROCK: int = 9
+const FACT_COLUMN: int = 10
+const FACT_STRETCH: int = 11
+const FACT_TUFTED: int = 12
+const FACT_LYING: int = 13
+const FACT_ON_FURNITURE: int = 14
+const FACT_SPAN_X: int = 15
+const FACT_SPAN_Y: int = 16
+const FACT_KLASS: int = 17
+const FACT_PART: int = 18
+const FACT_DROP: int = 19
+const FACT_SLOPE: int = 20
+const FACT_VOID: int = 21
+const FACT_MARGIN_LEFT: int = 22
+const FACT_MARGIN_RIGHT: int = 23
+const FACT_VOLUME: int = 24
+const FACT_CLIFF: int = 25
+const FACT_FRONT: int = 26
+const FACT_LIP: int = 27
+const FACT_HEIGHT: int = 28
+
 ## THE OBJECTS, which are the one thing here that is not resolved per tile. See
 ## `_measure_objects` and `profile.gd:OBJECTS`. Per tile: whether an object covers
 ## it, so the tile itself extrudes nothing; and which objects those are, since a
@@ -571,12 +608,85 @@ func _margin_cells() -> Vector2i:
 ## the four tiles of a cell all see the same permission and only a pin can split
 ## them. The second measures each unpinned volume column, because how tall a
 ## thing is drawn is not a property of one tile.
+## Everything the tile loop in [method resolve] can work out about one tile in a
+## cell of one permission. The two registries it appends to, `_stem_shapes` and
+## `_class_ids`, are the reason this is a function and not an expression: both
+## hand back an index that has to be the same one every time the same drawing
+## comes round, so the index is what is kept rather than the lookup.
+func _tile_fact(shape: RefCounted, tile: int, permission: int) -> Array:
+	var shape_class: StringName = shape.at(tile, permission)
+	var art: StringName = shape.art(shape_class)
+	var stem: Array = shape.stem_rows(shape_class)
+	var stem_index: int = 0
+	var stem_rise: int = 0
+	if not stem.is_empty():
+		var found: int = _stem_shapes.find(stem)
+		if found < 0:
+			found = _stem_shapes.size()
+			_stem_shapes.append(stem)
+		stem_index = found + 1
+		stem_rise = clampi(stem.size(), 0, 32)
+	if not _class_ids.has(shape_class):
+		_class_ids[shape_class] = _class_ids.size()
+	var part: int = PART_NONE
+	match shape.building_part(shape_class):
+		&"wall":
+			part = PART_WALL
+		&"roof":
+			part = PART_ROOF
+	# How much of this tile is the ground beside the house rather than the house.
+	# Nearly always nothing, which is why it is stored per tile and read at emit
+	# rather than being another pass.
+	var margin: Vector2i = shape.facade_margin(tile) if part == PART_WALL \
+		else Vector2i.ZERO
+	var is_volume: bool = art == &"upright"
+	var cliff: int = 1 if is_volume and shape.is_cliff(tile) else 0
+	var span: Vector2i = shape.span_cells(shape_class)
+	var fact: Array = []
+	fact.resize(FACT_HEIGHT + 1)
+	fact[FACT_ART] = _art_mode(art)
+	fact[FACT_DEPTH] = clampi(shape.depth(shape_class), 1, 16)
+	fact[FACT_ROUND] = 1 if shape.is_round(shape_class) else 0
+	fact[FACT_FILLED] = 1 if shape.is_filled(shape_class) else 0
+	fact[FACT_STEM] = stem_index
+	fact[FACT_STEM_RISE] = stem_rise
+	fact[FACT_OUTLINED] = shape.outline_shades(shape_class)
+	fact[FACT_MODELLED] = 1 if shape.is_model(shape_class) else 0
+	fact[FACT_SHRUB] = 1 if shape.is_shrub(shape_class) else 0
+	fact[FACT_ROCK] = 1 if shape.is_rock(shape_class) else 0
+	fact[FACT_COLUMN] = 1 if shape.is_column(shape_class) else 0
+	fact[FACT_STRETCH] = shape.model_stretch(shape_class)
+	fact[FACT_TUFTED] = 1 if shape.is_tufted(shape_class) else 0
+	fact[FACT_LYING] = 1 if shape.is_lying(shape_class) else 0
+	fact[FACT_ON_FURNITURE] = 1 if shape_class == &"on_furniture" else 0
+	fact[FACT_SPAN_X] = maxi(span.x, 1)
+	fact[FACT_SPAN_Y] = maxi(span.y, 1)
+	fact[FACT_KLASS] = int(_class_ids[shape_class])
+	fact[FACT_PART] = part
+	fact[FACT_DROP] = shape.roof_drop(shape_class)
+	fact[FACT_SLOPE] = 1 if part == PART_WALL and shape.is_facade_slope(tile) else 0
+	fact[FACT_VOID] = 1 if shape_class == &"void" else 0
+	fact[FACT_MARGIN_LEFT] = margin.x
+	fact[FACT_MARGIN_RIGHT] = margin.y
+	fact[FACT_VOLUME] = 1 if is_volume else 0
+	fact[FACT_CLIFF] = cliff
+	fact[FACT_FRONT] = 1 if cliff == 1 and shape.is_cliff_front(tile) else 0
+	fact[FACT_LIP] = 1 if not is_volume and shape.is_cliff_lip(tile) else 0
+	# A pin is authority: it names the height too, and the column measurement
+	# leaves it alone.
+	fact[FACT_HEIGHT] = -1 if is_volume and not shape.is_pinned(tile) \
+		else shape.height(shape_class)
+	return fact
+
+
 func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_size = Vector2i.ZERO
 	# Both are keyed by tile id, which means nothing without the tileset it came
 	# from, so a warp to a map on another tileset has to drop them.
 	_masks.clear()
 	_hulls.clear()
+	# Keyed on tile ids too, and on the tileset behind them: see `_tile_fact`.
+	_facts.clear()
 	_border.clear()
 	_edge_floor = Vector2i(-2, 0)
 	_ground_table = {}
@@ -680,28 +790,28 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			var permission: int = -1 if shell else source.permission_at(
 				Vector2i((tx - _margin.x) >> 1, cell_y)
 			)
-			var shape_class: StringName = shape.at(tile, permission)
-			var art: StringName = shape.art(shape_class)
-			_art[at] = _art_mode(art)
-			_depths[at] = clampi(shape.depth(shape_class), 1, 16)
-			_round[at] = 1 if shape.is_round(shape_class) else 0
-			_filled[at] = 1 if shape.is_filled(shape_class) else 0
-			var stem: Array = shape.stem_rows(shape_class)
-			_stem[at] = 0
-			_stem_rise[at] = 0
-			if not stem.is_empty():
-				var found: int = _stem_shapes.find(stem)
-				if found < 0:
-					found = _stem_shapes.size()
-					_stem_shapes.append(stem)
-				_stem[at] = found + 1
-				_stem_rise[at] = clampi(stem.size(), 0, 32)
-			_outlined[at] = shape.outline_shades(shape_class)
-			_modelled[at] = 1 if shape.is_model(shape_class) else 0
-			_shrub[at] = 1 if shape.is_shrub(shape_class) else 0
-			_rock[at] = 1 if shape.is_rock(shape_class) else 0
-			_column[at] = 1 if shape.is_column(shape_class) else 0
-			_stretch[at] = shape.model_stretch(shape_class)
+			# ONE TILE IS ASKED ONCE. Everything below follows from the tile id
+			# and the cell's permission and from nothing else, and a map is a few
+			# thousand cells drawn out of a hundred tiles: asking the profile per
+			# cell was 120 ms of the resolve on a route, and asking it per
+			# distinct pair is a dictionary hit for all but a hundred of them.
+			# The grass code below is per CELL and stays out of this.
+			var fact: Array = _facts.get(tile * FACT_STRIDE + permission + 1, [])
+			if fact.is_empty():
+				fact = _tile_fact(shape, tile, permission)
+				_facts[tile * FACT_STRIDE + permission + 1] = fact
+			_art[at] = fact[FACT_ART]
+			_depths[at] = fact[FACT_DEPTH]
+			_round[at] = fact[FACT_ROUND]
+			_filled[at] = fact[FACT_FILLED]
+			_stem[at] = fact[FACT_STEM]
+			_stem_rise[at] = fact[FACT_STEM_RISE]
+			_outlined[at] = fact[FACT_OUTLINED]
+			_modelled[at] = fact[FACT_MODELLED]
+			_shrub[at] = fact[FACT_SHRUB]
+			_rock[at] = fact[FACT_ROCK]
+			_column[at] = fact[FACT_COLUMN]
+			_stretch[at] = fact[FACT_STRETCH]
 			# WHICH CELLS ARE GRASS IS THE CARTRIDGE'S OWN ANSWER, and it is in
 			# the collision byte rather than in the drawing. `grass_kind` is the
 			# host's decode of SetTallGrassFlags, so this covers every map in the
@@ -711,50 +821,29 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			var grass_code: int = source.code_at(
 				Vector2i((tx - _margin.x) >> 1, cell_y)
 			)
-			_tufted[at] = 1 if shape.is_tufted(shape_class) \
+			_tufted[at] = 1 if fact[FACT_TUFTED] == 1 \
 				or Gen2WorldCollision.is_grass(grass_code) else 0
 			# LONG grass is the cartridge's own distinction and it draws its own
 			# tile for it: taller, denser and with a ground line under it, where
 			# tall grass is a sparse tuft. See `_tufts`.
 			_long_grass[at] = 1 if Gen2WorldCollision.is_long_grass(grass_code) else 0
-			_lying[at] = 1 if shape.is_lying(shape_class) else 0
-			_on_furniture[at] = 1 if shape_class == &"on_furniture" else 0
-			var span: Vector2i = shape.span_cells(shape_class)
-			_span_x[at] = maxi(span.x, 1)
-			_span_y[at] = maxi(span.y, 1)
+			_lying[at] = fact[FACT_LYING]
+			_on_furniture[at] = fact[FACT_ON_FURNITURE]
+			_span_x[at] = fact[FACT_SPAN_X]
+			_span_y[at] = fact[FACT_SPAN_Y]
 			_span_cut[at] = 0
-			if not _class_ids.has(shape_class):
-				_class_ids[shape_class] = _class_ids.size()
-			_klass[at] = int(_class_ids[shape_class])
-			match shape.building_part(shape_class):
-				&"wall":
-					_part[at] = PART_WALL
-				&"roof":
-					_part[at] = PART_ROOF
-				_:
-					_part[at] = PART_NONE
-			_drop[at] = shape.roof_drop(shape_class)
-			_slope[at] = 1 if _part[at] == PART_WALL and shape.is_facade_slope(tile) \
-				else 0
-			_void[at] = 1 if shape_class == &"void" else 0
-			# How much of this tile is the ground beside the house rather than the
-			# house. Nearly always nothing, which is why it is stored per tile and
-			# read at emit rather than being another pass.
-			var margin: Vector2i = shape.facade_margin(tile) \
-				if _part[at] == PART_WALL else Vector2i.ZERO
-			_margin_left[at] = margin.x
-			_margin_right[at] = margin.y
-			var is_volume: bool = art == &"upright"
-			_volume[at] = 1 if is_volume else 0
-			_cliff[at] = 1 if is_volume and shape.is_cliff(tile) else 0
-			_front[at] = 1 if _cliff[at] == 1 and shape.is_cliff_front(tile) else 0
-			_lip[at] = 1 if not is_volume and shape.is_cliff_lip(tile) else 0
-			# A pin is authority: it names the height too, and the column
-			# measurement below leaves it alone.
-			if is_volume and not shape.is_pinned(tile):
-				_heights[at] = -1
-			else:
-				_heights[at] = shape.height(shape_class)
+			_klass[at] = fact[FACT_KLASS]
+			_part[at] = fact[FACT_PART]
+			_drop[at] = fact[FACT_DROP]
+			_slope[at] = fact[FACT_SLOPE]
+			_void[at] = fact[FACT_VOID]
+			_margin_left[at] = fact[FACT_MARGIN_LEFT]
+			_margin_right[at] = fact[FACT_MARGIN_RIGHT]
+			_volume[at] = fact[FACT_VOLUME]
+			_cliff[at] = fact[FACT_CLIFF]
+			_front[at] = fact[FACT_FRONT]
+			_lip[at] = fact[FACT_LIP]
+			_heights[at] = fact[FACT_HEIGHT]
 
 	# Before every measurement, because a painting corrects what a tile IS: the
 	# passes below then read a painted door as the wall it is drawn on, exactly as
@@ -887,70 +976,92 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 	painted.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return (a["tiles"] as Array).size() * ((a["tiles"][0] as Array).size()) \
 			> (b["tiles"] as Array).size() * ((b["tiles"][0] as Array).size()))
+	# WHERE EACH TILE ID ACTUALLY IS, once, so a drawing is offered the handful of
+	# places its first named tile occurs instead of every position on the map.
+	# Thirty-six paintings over a route was 80 ms of `_pattern_at` returning false
+	# on its first comparison; the index costs one walk of the grid and the walk
+	# below keeps the same row-major order, so first claim still wins the same
+	# rectangle.
+	# An Array and not a PackedInt32Array: a packed array is a value and appending
+	# to one read out of a dictionary appends to a copy of it, which indexed
+	# nothing and quietly cost sixty maps their painted houses.
+	var where: Dictionary = {}
+	for at: int in count:
+		var tile: int = maxi(_tiles[at], 0)
+		if not where.has(tile):
+			where[tile] = []
+		(where[tile] as Array).append(at)
 	for house: Dictionary in painted:
 		var pattern: Array = house["tiles"]
 		var paint: Array = house["paint"]
 		var across := Vector2i((pattern[0] as Array).size(), pattern.size())
 		if across.x > _size.x or across.y > _size.y:
 			continue
-		for ty: int in _size.y - across.y + 1:
-			for tx: int in _size.x - across.x + 1:
-				if not _pattern_at(pattern, across, tx, ty):
-					continue
-				# A BUILT DRAWING IS NOT RESOLVED A TILE AT A TIME. Everything
-				# about it waits for `_measure_house_boxes`, which runs late enough
-				# to know what floor each of its cells stands on.
-				#
-				# A painting the plan finds NO BUILDING IN is left to the passes
-				# below, and that is the safety on doing this to every drawing: a
-				# rectangle with no wall in it is a roof cut off by a map edge or a
-				# scrap the page flooded on its own, and claiming it would hand its
-				# tiles to the floor with nothing left standing on them.
-				#
-				# THE CLAIM IS PER BUILDING, NOT PER RECTANGLE, and that is what
-				# lets two paintings of the same street coexist. The page flooded
-				# overlapping rectangles: Goldenrod's Pokemon Centre sits in #96,
-				# and #99 is bigger, overlaps its top four tile rows and holds no
-				# building there at all. Refusing #96 for the collision left that
-				# building to the passes below, which cut the door out of its face
-				# as a hole and stood its roof halfway down the wall. Marking only
-				# what a building actually stands on, and testing the same, lets
-				# #96 take the part #99 never used.
-				var plans: Array = _house_plan(house)
-				if not plans.is_empty():
-					var mine := PackedInt32Array()
-					for index: int in plans.size():
-						var rect: Rect2i = _house_tile_rect(plans[index], across)
-						rect.position += Vector2i(tx, ty)
-						if _house_claimed(rect):
+		var anchor: Vector3i = _pattern_anchor(pattern, across)
+		for spot: int in where.get(anchor.z, []) as Array:
+			@warning_ignore("integer_division")
+			var tx: int = spot % _size.x - anchor.x
+			@warning_ignore("integer_division")
+			var ty: int = spot / _size.x - anchor.y
+			if tx < 0 or ty < 0 \
+					or tx > _size.x - across.x or ty > _size.y - across.y:
+				continue
+			if not _pattern_at(pattern, across, tx, ty):
+				continue
+			# A BUILT DRAWING IS NOT RESOLVED A TILE AT A TIME. Everything
+			# about it waits for `_measure_house_boxes`, which runs late enough
+			# to know what floor each of its cells stands on.
+			#
+			# A painting the plan finds NO BUILDING IN is left to the passes
+			# below, and that is the safety on doing this to every drawing: a
+			# rectangle with no wall in it is a roof cut off by a map edge or a
+			# scrap the page flooded on its own, and claiming it would hand its
+			# tiles to the floor with nothing left standing on them.
+			#
+			# THE CLAIM IS PER BUILDING, NOT PER RECTANGLE, and that is what
+			# lets two paintings of the same street coexist. The page flooded
+			# overlapping rectangles: Goldenrod's Pokemon Centre sits in #96,
+			# and #99 is bigger, overlaps its top four tile rows and holds no
+			# building there at all. Refusing #96 for the collision left that
+			# building to the passes below, which cut the door out of its face
+			# as a hole and stood its roof halfway down the wall. Marking only
+			# what a building actually stands on, and testing the same, lets
+			# #96 take the part #99 never used.
+			var plans: Array = _house_plan(house)
+			if not plans.is_empty():
+				var mine := PackedInt32Array()
+				for index: int in plans.size():
+					var rect: Rect2i = _house_tile_rect(plans[index], across)
+					rect.position += Vector2i(tx, ty)
+					if _house_claimed(rect):
+						continue
+					mine.append(index)
+					for row: int in rect.size.y:
+						for column: int in rect.size.x:
+							_house[(rect.position.y + row) * _size.x
+								+ rect.position.x + column] = HOUSE_WALL
+				if not mine.is_empty():
+					_houses.append([house, Vector2i(tx, ty), across, [], mine])
+				continue
+			for row: int in across.y:
+				for column: int in across.x:
+					var at: int = (ty + row) * _size.x + tx + column
+					var stroke: String = _house_word(paint, row, column)
+					if stroke == "":
+						continue
+					if stroke == Houses.NONE:
+						# NOT THE HOUSE only takes a tile the pass had called
+						# one. The rectangle holds the pavement, the shadow and
+						# whatever tree stands beside the door, and flattening
+						# those would be a painting nobody made.
+						if _part[at] == PART_NONE:
 							continue
-						mine.append(index)
-						for row: int in rect.size.y:
-							for column: int in rect.size.x:
-								_house[(rect.position.y + row) * _size.x
-									+ rect.position.x + column] = HOUSE_WALL
-					if not mine.is_empty():
-						_houses.append([house, Vector2i(tx, ty), across, [], mine])
-					continue
-				for row: int in across.y:
-					for column: int in across.x:
-						var at: int = (ty + row) * _size.x + tx + column
-						var stroke: String = _house_word(paint, row, column)
-						if stroke == "":
-							continue
-						if stroke == Houses.NONE:
-							# NOT THE HOUSE only takes a tile the pass had called
-							# one. The rectangle holds the pavement, the shadow and
-							# whatever tree stands beside the door, and flattening
-							# those would be a painting nobody made.
-							if _part[at] == PART_NONE:
-								continue
-							_house[at] = HOUSE_GROUND
-						elif stroke == Houses.ROOF:
-							_house[at] = HOUSE_ROOF
-						else:
-							_house[at] = HOUSE_WALL
-						_house_tile(shape, at, stroke)
+						_house[at] = HOUSE_GROUND
+					elif stroke == Houses.ROOF:
+						_house[at] = HOUSE_ROOF
+					else:
+						_house[at] = HOUSE_WALL
+					_house_tile(shape, at, stroke)
 
 
 ## The one word a whole tile is painted, or "" where the painting cuts it.
@@ -2634,6 +2745,19 @@ func _repeats(start: Vector2i, span: Vector2i) -> bool:
 ## Whether the tile ids at [param tx],[param ty] are the arrangement
 ## [param pattern] draws. A -1 in the pattern is a tile the object covers and has
 ## no opinion about.
+## The first cell of [param pattern] that names a tile, as its offset and that
+## tile id. A painting with no named tile at all answers the top-left corner and
+## tile 0, which is what the whole-grid walk did for every painting.
+func _pattern_anchor(pattern: Array, across: Vector2i) -> Vector3i:
+	for row: int in across.y:
+		var line: Array = pattern[row]
+		for column: int in across.x:
+			var want: int = int(line[column])
+			if want >= 0:
+				return Vector3i(column, row, want)
+	return Vector3i(0, 0, 0)
+
+
 func _pattern_at(pattern: Array, across: Vector2i, tx: int, ty: int) -> bool:
 	for row: int in across.y:
 		var line: Array = pattern[row]

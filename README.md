@@ -8,7 +8,7 @@ Silver and Crystal recompilation. Each one is interpreted GDScript under
 
 | Mod | Version | What it does |
 | --- | --- | --- |
-| [`voxel3d`](mods/voxel3d/) | 0.3.9 | The overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and the fight staged on the map it started on with a steerable over-the-shoulder camera. `V` switches views. |
+| [`voxel3d`](mods/voxel3d/) | 0.3.10 | The overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and the fight staged on the map it started on with a steerable over-the-shoulder camera. One switch on its page turns it on for both. |
 | [`randomizer`](mods/randomizer/) | 0.3.0 | A save-bound run generated from a four-digit seed: Pokemon, wild sources, items, badges, shops, species, moves and trainer teams, with host-validated critical placements. |
 | [`follower`](mods/follower/) | 0.2.0 | One of your Pokemon out of its ball, walking one cell behind you. Choose it directly from that Pokemon's party menu, configure cycling and surfing, and put it away with one press. |
 | [`overworld_encounters`](mods/overworld_encounters/) | 0.1.2 | A bounded population of wild Pokemon roaming where random grass, cave and surf encounters used to be. Shiny Pokemon are visible before battle and announce themselves with the cartridge's own animation and sound. |

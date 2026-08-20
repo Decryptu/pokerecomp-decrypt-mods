@@ -21,6 +21,20 @@ extends Control
 const Options: GDScript = preload("../options.gd")
 const Steering: GDScript = preload("../steering.gd")
 
+## PRELOADED, NOT LOADED ON THE PRESS. Nothing holds these between two views, so
+## a `load()` in `_init` re-parsed the whole shape tree every time the player
+## switched to this one: 200 ms of parsing on the frame `V` was pressed, and
+## again on the next press. The host holds this script from registration to
+## shutdown, and a preload is held with it, so the parsing happens once at load
+## and a switch pays for none of it.
+const Profile: GDScript = preload("../shape/profile.gd")
+const TileShapeScript: GDScript = preload("../shape/tile_shape.gd")
+const MapSourceScript: GDScript = preload("../shape/map_source.gd")
+const AtlasScript: GDScript = preload("../shape/atlas.gd")
+const MesherScript: GDScript = preload("../shape/mesher.gd")
+const CameraRigScript: GDScript = preload("camera_rig.gd")
+const DioramaScript: GDScript = preload("diorama.gd")
+
 const CELL: float = 16.0
 
 ## How opaque the screen draws the FIELD of its own text box over this view.
@@ -78,6 +92,12 @@ var _outside: bool = true
 ## while it runs, so the cost of slicing is that the new map arrives a moment
 ## late rather than that anything flickers.
 const BUILD_BUDGET_USEC: int = 4000
+## And what it may take while there is NOTHING on screen yet, which is the frame
+## `V` was pressed on and the first frames of a warp. The budget protects a
+## picture that is already being drawn; where there is none, a smooth frame rate
+## over an empty stage is worth nothing and the map arriving three times sooner
+## is worth the whole of it.
+const FIRST_BUILD_BUDGET_USEC: int = 12000
 ## Whether a slice is in flight, the chunks it has finished so far, and whether
 ## anything at all is on screen to keep drawing meanwhile. A warp has nothing, so
 ## a warp shows each chunk as it lands and the map fills in rather than showing a
@@ -247,14 +267,13 @@ func _glide(delta: float) -> void:
 
 
 func _load_modules() -> Dictionary:
-	var root: String = (get_script() as Script).resource_path.get_base_dir().get_base_dir()
-	_profile = load("%s/shape/profile.gd" % root)
-	_tile_shape_script = load("%s/shape/tile_shape.gd" % root)
-	_map_source_script = load("%s/shape/map_source.gd" % root)
-	_atlas = (load("%s/shape/atlas.gd" % root) as GDScript).new()
-	_mesher = (load("%s/shape/mesher.gd" % root) as GDScript).new()
-	_rig = (load("%s/world/camera_rig.gd" % root) as GDScript).new()
-	return {"diorama": load("%s/world/diorama.gd" % root)}
+	_profile = Profile
+	_tile_shape_script = TileShapeScript
+	_map_source_script = MapSourceScript
+	_atlas = AtlasScript.new()
+	_mesher = MesherScript.new()
+	_rig = CameraRigScript.new()
+	return {"diorama": DioramaScript}
 
 
 func _build_atlas() -> bool:
@@ -357,7 +376,9 @@ func _begin_terrain(window: Rect2i) -> void:
 func _advance_build() -> void:
 	if not _building:
 		return
-	var done: bool = _mesher.emit_step(BUILD_BUDGET_USEC)
+	var done: bool = _mesher.emit_step(
+		BUILD_BUDGET_USEC if _standing else FIRST_BUILD_BUDGET_USEC
+	)
 	_chunks.append_array(_mesher.take_chunks())
 	_water.append_array(_mesher.take_water())
 	_tufts.append_array(_mesher.take_tufts())

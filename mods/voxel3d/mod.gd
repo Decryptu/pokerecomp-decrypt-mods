@@ -3,8 +3,9 @@ extends RefCounted
 ## Registers the two renderers and returns. The host decides when to build one,
 ## so nothing here is a scene node and nothing here reads world or battle state.
 ##
-## Each renderer locates its own siblings off its `resource_path`, which is why
-## only the two entry scripts are named here.
+## Each renderer preloads its own siblings, which is why only the two entry
+## scripts are named here: registering one parses the tree behind it, so
+## switching to that view costs no parsing at all.
 
 
 func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
