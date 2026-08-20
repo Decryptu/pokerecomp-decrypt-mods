@@ -2165,6 +2165,32 @@ const ROOM_WALL: Dictionary = {
 	# every wall it has is shelves, and the two tiles between the counter and the
 	# door are the whole of the plaster the cartridge shows.
 	12: [[17]],
+	# THE GYM AND CLUB TILESET, 57 indoor maps and the most of any in the game.
+	# 0 is the blue panelling, blank but for the stripe it is ruled with, and it
+	# stands both courses on its own: over every map on the tileset it is the pair
+	# above a standing tile 264 times, more than twice the window beside it.
+	5: [[0]],
+	# THE DEPARTMENT STORE AND THE OFFICES ABOVE IT. The blue counter band, 92 and
+	# 93 over 16, is every blank wall the cartridge draws on the tileset: 470
+	# placements, five times the lockers beside it.
+	8: [[92, 93], [16, 16]],
+	# THE GYM. 17 over 33 is the gold panelling every gym in Johto is walled with,
+	# 278 placements against 38 for the next.
+	23: [[17], [33]],
+	# THE TOWER. Grey masonry with a two-tile period, the pair mirrored either
+	# side of a joint, which is why 37,39/53,55 and 39,38/55,54 come back level at
+	# 66 each: they are the same wall read off its two alignments.
+	15: [[37, 39], [53, 55]],
+	# THE TRADITIONAL HOUSE, whose plaster repeats on one tile the way the ordinary
+	# house's does.
+	16: [[17]],
+	# THE LIGHTHOUSE, 4 over 20 and 144 placements.
+	28: [[4], [20]],
+	# THE SHIP.
+	11: [[65], [77]],
+	# THE LABORATORY AND THE ROOMS THAT SHARE IT: 2 stands both courses alone, 80
+	# placements against 12.
+	14: [[2]],
 }
 
 
