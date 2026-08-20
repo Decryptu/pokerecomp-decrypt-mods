@@ -12,6 +12,7 @@ Silver and Crystal recompilation. Each one is interpreted GDScript under
 | [`randomizer`](mods/randomizer/) | 0.3.0 | A save-bound run generated from a four-digit seed: Pokemon, wild sources, items, badges, shops, species, moves and trainer teams, with host-validated critical placements. |
 | [`follower`](mods/follower/) | 0.3.0 | One of your Pokemon out of its ball, walking one cell behind you. Choose it directly from that Pokemon's party menu, configure cycling and surfing, and put it away with one press. Face it and press A to pet it, and let it find hidden items if you want it to. |
 | [`overworld_encounters`](mods/overworld_encounters/) | 0.1.3 | A bounded population of wild Pokemon roaming where random grass, cave and surf encounters used to be. Shiny Pokemon are visible before battle and announce themselves with the cartridge's own animation and sound. |
+| [`hidden_stats`](mods/hidden_stats/) | 0.1.0 | A fourth page on a Pokemon's stats screen, in the cartridge's own two-column shape: the DVs it was born with and the stat experience each stat has trained. |
 
 ## Installing
 
