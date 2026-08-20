@@ -183,8 +183,8 @@ func _init() -> void:
 	set_time_of_day(_time_of_day)
 
 
-func set_time_of_day(time_of_day: int) -> void:
-	_time_of_day = clampi(time_of_day, 0, DAY_LIGHT.size() - 1)
+func set_time_of_day(row: int) -> void:
+	_time_of_day = clampi(row, 0, DAY_LIGHT.size() - 1)
 	_light.light_color = DAY_LIGHT[_time_of_day]
 	_light.light_energy = DAY_ENERGY[_time_of_day]
 	_light.rotation_degrees = SUN_ROTATION[_time_of_day]
