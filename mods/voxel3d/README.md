@@ -20,8 +20,10 @@ on-screen pad. The defaults:
 | Push in / pull back | `=` / `-` | | Overworld: move the eye |
 | Recentre | `O` | right stick press | Back to the framing the view opened at |
 
-`V` switches between this and the Game Boy Color view; the host owns that one, in
-the overworld and in a battle alike.
+Turning this view on is one choice and the host owns it: the mod's own page in
+the launcher carries a View switch, and choosing this mod there draws the
+overworld and the fight alike, since both renderers are registered under the one
+id. `V` does the same thing live where the game's development keys are enabled.
 
 TAP FOR A NOTCH, HOLD TO GLIDE. A press moves the shot one rung and eases to it,
 which is what a key wants; a stick is not a press, and stepping it a rung per
@@ -102,10 +104,13 @@ second fight on the same route pays for the geometry alone.
 
 Over this view the screen's own text box is drawn with its FIELD at 0.75 and its
 frame and glyphs solid, so a prompt reads exactly as well and the map is still
-there behind it. The overworld also pans the shot up by half of what the box
-covers, so the player stands in the middle of what is left rather than behind it.
-The battle does not: each battler is pinned to its own hardware picture slot,
-which is what makes a collision with the box impossible in the first place.
+there behind it. The overworld pans the shot up only where a box would actually
+cover the player, who stands at the middle of the frame: the cartridge's own box
+is the bottom third and reaches nowhere near, so an ordinary conversation moves
+the camera not at all, and a box that does reach past the middle pushes the shot
+just far enough to clear it. The battle never pans: each battler is pinned to its
+own hardware picture slot, which is what makes a collision with the box
+impossible in the first place.
 
 ## The battle
 

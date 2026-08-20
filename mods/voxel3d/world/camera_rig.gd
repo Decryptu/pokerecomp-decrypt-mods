@@ -33,6 +33,11 @@ const DISTANCE_DEFAULT: float = 190.0
 ## the zoom was a lens rather than a dolly.
 const FOV_DEFAULT: float = 42.0
 
+## How far above a text box the player is kept when one does reach the middle of
+## the frame, in hardware pixels. Two rows of the box's own frame. See
+## [method pan_for_text_box].
+const BOX_CLEARANCE: int = 16
+
 var _pitch: float = PITCH_DEFAULT
 var _distance: float = DISTANCE_DEFAULT
 var _zoom: float = 1.0
@@ -183,9 +188,16 @@ func fov() -> float:
 
 
 ## How much of the frame the text box takes, turned into where the shot has to
-## sit: the box covers everything below [param box_top], so the picture worth
-## looking at is the band above it and the player belongs in the MIDDLE of that
-## band rather than behind the box.
+## sit: the box covers everything below [param box_top], and the player must not
+## be behind it.
+##
+## ONLY WHAT THE BOX ACTUALLY COVERS. The eye is aimed at the player's own feet,
+## so the player stands at the middle of the frame whatever the pitch, and the
+## cartridge's own box is the bottom third: it hides nothing, and panning for it
+## anyway swung the camera down and back up again on every line of every
+## conversation and on every message a menu left behind. A box that does reach
+## past the middle still pushes the shot exactly far enough to clear it, plus
+## [constant BOX_CLEARANCE] so the player is not stood on its frame.
 ##
 ## [param box_top] and [param screen_height] are hardware pixels, and an empty
 ## box is a zero pan back to centre. The value is a fraction of the frame's own
@@ -193,7 +205,9 @@ func fov() -> float:
 func pan_for_text_box(box_top: int, screen_height: int) -> void:
 	var wanted: float = 0.0
 	if box_top > 0 and box_top < screen_height:
-		wanted = float(screen_height - box_top) / float(2 * screen_height)
+		wanted = maxf(
+			0.0, 0.5 - float(box_top - BOX_CLEARANCE) / float(screen_height)
+		)
 	if is_equal_approx(wanted, _pan_goal):
 		return
 	_aim(_pitch_goal, _distance_goal, _zoom_goal, wanted)
