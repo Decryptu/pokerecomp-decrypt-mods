@@ -73,10 +73,19 @@ func _maximum() -> int:
 	return 6 if value == null else clampi(int(value), 2, 8)
 
 
+## One step each, into a cell that is eligible and empty.
+##
+## WHO IS STANDING WHERE IS THE HOST'S ANSWER and refusing them is this file's:
+## `occupied` holds the map's own objects, NPCs and item balls alike, both cells
+## of one mid-step and all four of a big one. Without it a roamer walked onto an
+## NPC and stood inside them, which is what this reads. A wild an NPC walks onto
+## is left where it is rather than moved or dropped: the host keeps drawing it,
+## and it steps off on its own at the next move.
 func _roam() -> void:
 	var eligible: Dictionary = _context.get("eligible", {})
 	var player: Dictionary = _context.get("player", {})
 	var player_cell: Vector2i = Vector2i(player.get("cell", Vector2i(-1, -1)))
+	var occupied: PackedVector2Array = _context.get("occupied", PackedVector2Array())
 	for index: int in _entries.size():
 		var entry: Dictionary = _entries[index]
 		var method: StringName = StringName(entry.get("method", &""))
@@ -87,7 +96,8 @@ func _roam() -> void:
 		var choices: Array[Vector2i] = []
 		for delta: Vector2i in [Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT]:
 			var next: Vector2i = here + delta
-			if next != player_cell and cells.has(next) and not _occupied(next):
+			if next != player_cell and cells.has(next) \
+					and not occupied.has(Vector2(next)) and not _standing_at(next):
 				choices.append(next)
 		if choices.is_empty():
 			continue
@@ -96,7 +106,9 @@ func _roam() -> void:
 		entry["facing"] = _facing(choices[pick] - here)
 
 
-func _occupied(cell: Vector2i) -> bool:
+## Whether one of this provider's own wilds is already there. The map's objects
+## are the host's answer and arrive in the context; see `_roam`.
+func _standing_at(cell: Vector2i) -> bool:
 	for entry: Dictionary in _entries:
 		if Vector2i(entry["cell"]) == cell:
 			return true

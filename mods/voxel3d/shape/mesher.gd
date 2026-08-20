@@ -875,7 +875,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# After the cutouts, because an object overrides whatever class its tiles were
 	# given, and after the heights, because every tile it covers goes back to
 	# standing at the floor of its own cell.
-	_measure_objects(shape)
+	_measure_objects(shape, source)
 	# After them, because what it repairs is what they take away.
 	_measure_room_behind()
 	# With the objects, and for the same reason: a boxed house covers its tiles
@@ -1837,9 +1837,15 @@ func _commonest_water() -> int:
 ## renderer stood it at y 0 where the bench then hid it. The reviewer's words are
 ## that the balls appear behind the desk instead of above it.
 ##
-## So the object's own top is recorded per covered tile, which is the same
-## `base + height` its body is built from, and `surface_height_at_position` hands
-## the larger of that and the column to whoever is standing there.
+## So the object's own top is recorded, which is the same `base + height` its
+## body is built from, and `surface_height_at_position` hands the larger of that
+## and the column to whoever is standing there.
+##
+## OVER THE BOX AND NOT OVER THE DRAWING. A drawing reaches further than the
+## thing it draws: a bench's apron is drawn on the cell in front of the one the
+## bench stands in, and recorded there it lifts the player eight pixels for the
+## half cell of a step taken away from the bench. The box is what is built and it
+## is what a thing stands on. See `_object_front`.
 ##
 ## AFTER every pass that can still move a height, since `_ground_art` reads them.
 func _measure_surfaces() -> void:
@@ -1849,18 +1855,43 @@ func _measure_surfaces() -> void:
 		var object: Dictionary = entry[0]
 		var start: Vector2i = entry[1]
 		var across: Vector2i = entry[2]
+		var front: float = entry[3]
 		var base: int = _ground_art(start.x, start.y + across.y - 1).y
 		var top: int = base + int(object.get(&"rise", 0)) + int(object.get(&"height", 0))
 		if top <= 0:
 			continue
-		for row: int in across.y:
-			for column: int in across.x:
-				var to := Vector2i(start.x + column, start.y + row)
-				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+		# A TURNED object states no depth: it is as deep as its drawing is wide and
+		# `_object_model` centres it on its own bounds, so the tiles it covers are
+		# the only footprint there is to record. See `_object_model`.
+		if not object.has(&"depth"):
+			for row: int in across.y:
+				for column: int in across.x:
+					var to := Vector2i(start.x + column, start.y + row)
+					if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+						continue
+					var covered: int = to.y * _size.x + to.x
+					if _object_covered[covered] == 1:
+						_surface[covered] = maxi(_surface[covered], top)
+			continue
+		var window: Rect2i = object[&"window"]
+		var left: float = _world_x(start.x) + float(window.position.x)
+		var box := Rect2(
+			left, front - float(object[&"depth"]), float(window.size.x), float(object[&"depth"])
+		)
+		for ty: int in range(
+			floori(box.position.y / TILE) + _margin.y,
+			ceili(box.end.y / TILE) + _margin.y
+		):
+			if ty < 0 or ty >= _size.y:
+				continue
+			for tx: int in range(
+				floori(box.position.x / TILE) + _margin.x,
+				ceili(box.end.x / TILE) + _margin.x
+			):
+				if tx < 0 or tx >= _size.x:
 					continue
-				var at: int = to.y * _size.x + to.x
-				if _object_covered[at] == 1:
-					_surface[at] = maxi(_surface[at], top)
+				var at: int = ty * _size.x + tx
+				_surface[at] = maxi(_surface[at], top)
 
 
 ## The top of whatever is drawn at a world position: the resolved column, or the
@@ -2768,6 +2799,71 @@ func _pattern_at(pattern: Array, across: Vector2i, tx: int, ty: int) -> bool:
 	return true
 
 
+## THE NEAR FACE OF A THING IS THE NEAR EDGE OF THE CELL IT BLOCKS.
+##
+## A 2.5D drawing states its own depth and `_emit_object_body` reads it at its
+## word: the bottom row is where the thing meets the floor, so it is the box's
+## near edge and everything else stands behind it. That is true of the DRAWING
+## and false of the world the cartridge walks in, because the apron of a
+## free-standing bench is drawn on the walk cell IN FRONT of the one the bench
+## blocks. Built at its own word the bench reaches half a cell into open floor,
+## and both halves of that came back from one picture: the player walks into the
+## front of the desk, and the three Pokeballs standing on the cell the bench
+## blocks are left off its back edge, which reads as floating behind it.
+##
+## So a box that stands on floor the player can stand on is pulled back to the
+## near edge of the southernmost walk cell the drawing covers that is blocked
+## across the object's whole width, and the move is kept ONLY if it clears the
+## box of standable floor entirely. It can never move the face forward, it never
+## touches a box that was already clear, and where no move is clean the drawing
+## keeps its own word: the ship's rectangle is a hull with open sea at its
+## corners, and no placement of it stands on rock alone.
+##
+## Measured over every map: fourteen placements move, the two lab benches, the
+## four school desks, the four tables, the Bell Tower and the Sprout Tower, by
+## six to sixteen pixels, and the standable floor with a box on it goes from 3584
+## world pixels to none. The ship, the chairs, the stools and the ladders are
+## left where they were: a chair stands on a cell the cartridge lets you walk
+## onto, which is the cartridge's own answer and not a placement to correct.
+func _object_front(
+	source: RefCounted, object: Dictionary, start: Vector2i, across: Vector2i
+) -> float:
+	var window: Rect2i = object[&"window"]
+	var front: float = _world_z(start.y) + float(window.position.y + window.size.y)
+	if source == null or not object.has(&"depth"):
+		return front
+	var deep: float = float(object[&"depth"])
+	var left: float = _world_x(start.x) + float(window.position.x)
+	var right: float = left + float(window.size.x)
+	if not _stands_on_floor(source, left, right, front - deep, front):
+		return front
+	var cell: float = float(CELL_TILES) * TILE
+	# The southernmost cell row the drawing covers that is blocked the whole way
+	# across, which is the last row of it that is the thing rather than its face.
+	var edge: float = -1.0
+	for row: int in across.y:
+		var at: float = _world_z(start.y + row)
+		if not _stands_on_floor(source, left, right, at, at + TILE):
+			edge = maxf(edge, floorf(at / cell + 1.0) * cell)
+	if edge < 0.0 or edge >= front \
+			or _stands_on_floor(source, left, right, edge - deep, edge):
+		return front
+	return edge
+
+
+## Whether any walk cell under the world-pixel box is one a body can be on. Water
+## counts: a surfing player is standing on it. See `_object_front`.
+func _stands_on_floor(
+	source: RefCounted, left: float, right: float, back: float, front: float
+) -> bool:
+	var cell: float = float(CELL_TILES) * TILE
+	for cell_y: int in range(floori(back / cell), ceili(front / cell)):
+		for cell_x: int in range(floori(left / cell), ceili(right / cell)):
+			if source.permission_at(Vector2i(cell_x, cell_y)) != Gen2WorldCollision.WALL_TILE:
+				return true
+	return false
+
+
 ## AN OBJECT IS NOT A TILE, and this is what finds one.
 ##
 ## Every other pass here resolves a tile and stands it up where that tile sits,
@@ -2799,7 +2895,7 @@ func _pattern_at(pattern: Array, across: Vector2i, tx: int, ty: int) -> bool:
 ## were. They stay in the rectangle the MASK is cut over, which is what makes
 ## them worth naming rather than cropping away: a border flood needs a border of
 ## open water to read, and the ship reaches the edge of its own hull.
-func _measure_objects(shape: RefCounted) -> void:
+func _measure_objects(shape: RefCounted, source: RefCounted) -> void:
 	_object_covered.resize(_size.x * _size.y)
 	_object_covered.fill(0)
 	_object_over.clear()
@@ -2814,7 +2910,10 @@ func _measure_objects(shape: RefCounted) -> void:
 				if not _pattern_at(pattern, across, tx, ty):
 					continue
 				var index: int = _objects.size()
-				_objects.append([object, Vector2i(tx, ty), across])
+				_objects.append([
+					object, Vector2i(tx, ty), across,
+					_object_front(source, object, Vector2i(tx, ty), across),
+				])
 				# EVERY FLOOR IS READ BEFORE ANY TILE IS MARKED. `_cell_floor` takes
 				# the highest FLAT tile in the cell, and marking a tile a cutout takes
 				# it out of that answer, so reading and writing in one pass lets the
@@ -4000,6 +4099,7 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 	var object: Dictionary = entry[0]
 	var start: Vector2i = entry[1]
 	var across: Vector2i = entry[2]
+	var front: float = entry[3]
 	var tiles: Array = []
 	# PAINTED WITH TILES OTHER THAN ITS OWN, which is what `art` is and the shop
 	# counter is the whole of why it exists: the cartridge draws the counter where
@@ -4037,10 +4137,10 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 		_object_model(object, start, across, tiles, mask, span, window, atlas)
 		return
 	if bool(object.get(&"bin", false)):
-		_object_bin(object, start, across, tiles, mask, span, window, atlas)
+		_object_bin(object, start, across, front, tiles, mask, span, window, atlas)
 		return
 	if bool(object.get(&"stool", false)):
-		_object_stool(object, start, across, tiles, window, atlas)
+		_object_stool(object, start, across, front, tiles, window, atlas)
 		return
 	var top_rows: int = clampi(int(object.get(&"top", 0)), 0, window.size.y)
 	var face_rows: int = window.size.y - top_rows
@@ -4067,10 +4167,8 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 	# the floor, and nothing in a drawing seen from above says how high the thing
 	# under it is: the object that IS the bench says, and this is where it is spent.
 	base += float(object.get(&"rise", 0))
-	# The drawing's bottom row is where the thing meets the floor, so it is also
-	# its NEAR edge in plan: a 2.5D drawing puts the front-bottom corner there and
-	# everything else behind it.
-	var front: float = _world_z(start.y) + float(window.position.y + window.size.y)
+	# The near edge in plan, which is the drawing's own bottom row held back to the
+	# cell the thing blocks. See `_object_front`.
 	var back: float = front - deep
 	var left: float = _world_x(start.x) + float(window.position.x)
 	var right: float = left + float(window.size.x)
@@ -4232,7 +4330,7 @@ const BIN_FLOOR: float = 2.0
 
 
 func _object_bin(
-	object: Dictionary, start: Vector2i, across: Vector2i, tiles: Array,
+	object: Dictionary, start: Vector2i, across: Vector2i, front: float, tiles: Array,
 	mask: PackedByteArray, span: Vector2i, window: Rect2i, atlas: RefCounted
 ) -> void:
 	var top_rows: int = clampi(int(object.get(&"top", 0)), 0, window.size.y)
@@ -4244,7 +4342,6 @@ func _object_bin(
 	# Round in plan, so it is as deep as it is wide and its near edge is where the
 	# drawing's own foot meets the floor.
 	var wide: float = float(window.size.x)
-	var front: float = _world_z(start.y) + float(window.position.y + window.size.y)
 	var centre := Vector2(
 		_world_x(start.x) + float(window.position.x) + wide * 0.5, front - wide * 0.5
 	)
@@ -4403,12 +4500,11 @@ const SQRT_HALF: float = 0.70710678
 
 
 func _object_stool(
-	_object: Dictionary, start: Vector2i, across: Vector2i, tiles: Array,
+	_object: Dictionary, start: Vector2i, across: Vector2i, front: float, tiles: Array,
 	window: Rect2i, atlas: RefCounted
 ) -> void:
 	var base: float = float(_ground_art(start.x, start.y + across.y - 1).y)
 	var wide: float = float(window.size.x)
-	var front: float = _world_z(start.y) + float(window.position.y + window.size.y)
 	var centre := Vector2(
 		_world_x(start.x) + float(window.position.x) + wide * 0.5, front - wide * 0.5
 	)

@@ -52,17 +52,22 @@ static func is_shiny(dvs: int) -> bool:
 	return defense == 10 and speed == 10 and special == 10 and attack in SHINY_ATTACK
 
 
+## Where a wild may be PUT, which is every eligible cell with nobody in it. The
+## host answers who is standing where in `occupied` and leaves the refusal here,
+## since a population is the provider's to place: see `docs/MODS.md`.
 static func _candidates(context: Dictionary) -> Array:
 	var out: Array = []
 	var eligible: Dictionary = context.get("eligible", {})
 	var player: Dictionary = context.get("player", {})
 	var player_cell: Vector2i = Vector2i(player.get("cell", Vector2i(-1, -1)))
+	var occupied: PackedVector2Array = context.get("occupied", PackedVector2Array())
 	var methods: Array = eligible.keys()
 	methods.sort()
 	for method: Variant in methods:
 		for cell: Variant in eligible[method]:
-			if Vector2i(cell) != player_cell:
-				out.append({"method": StringName(method), "cell": Vector2i(cell)})
+			if Vector2i(cell) == player_cell or occupied.has(Vector2(cell)):
+				continue
+			out.append({"method": StringName(method), "cell": Vector2i(cell)})
 	return out
 
 

@@ -5,6 +5,8 @@ extends SceneTree
 
 const DEFAULT_SEED: int = 1234
 const OTHER_SEED: int = 5678
+## How many moves to walk the population through when testing the refusal.
+const ROAM_STEPS: int = 40
 
 
 func _initialize() -> void:
@@ -44,6 +46,23 @@ func _initialize() -> void:
 	moved["player"] = {"cell": Vector2i(1, 1), "facing": 2}
 	provider.set_context(moved)
 	var after_pose: String = JSON.stringify(provider.encounters())
+	# NOBODY STANDS ON AN NPC. `occupied` is the host's answer and the refusal is
+	# this mod's, on spawn and on every move, so both are walked here: the
+	# population is rebuilt on a context that holds the taken cells, then roamed
+	# for as many moves as the map has room for.
+	var taken: PackedVector2Array = _taken(context)
+	var busy: Dictionary = context.duplicate(true)
+	busy["occupied"] = taken
+	busy["generation"] = 2
+	var crowd: RefCounted = provider_script.new()
+	crowd.set_context(busy)
+	var clear_spawn: bool = _clear_of(crowd.encounters(), taken)
+	var clear_roam: bool = true
+	for step: int in ROAM_STEPS * int(provider_script.MOVE_FRAMES):
+		crowd.advance_frame()
+		if not _clear_of(crowd.encounters(), taken):
+			clear_roam = false
+			break
 	print("map %d,%d: %d eligible cells, %d visible" % [
 		map.group, map.number, _eligible_count(context), first.size(),
 	])
@@ -56,13 +75,36 @@ func _initialize() -> void:
 	print("pose refresh preserves the population: %s" % (
 		"yes" if before_pose == after_pose else "NO"
 	))
+	print("%d cells taken by an object: spawns clear %s, %d moves clear %s" % [
+		taken.size(), "yes" if clear_spawn else "NO",
+		ROAM_STEPS, "yes" if clear_roam else "NO",
+	])
 	for entry: Dictionary in first:
 		print("  id %s cell %s species %d level %d dvs %04x%s" % [
 			String(entry["id"]), entry["cell"], int(entry["species"]), int(entry["level"]),
 			int(entry["dvs"]), " shiny" if plan.is_shiny(int(entry["dvs"])) else "",
 		])
 	quit(0 if first_text == again_text and first_text != other_text \
-		and before_pose == after_pose else 1)
+		and before_pose == after_pose and clear_spawn and clear_roam else 1)
+
+
+## Cells an object is standing on, made out of the eligible list so the refusal
+## is tested against cells a wild would otherwise be put on. A quarter of them,
+## since taking all of them leaves nowhere to stand and proves nothing.
+func _taken(context: Dictionary) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for cells: PackedVector2Array in (context["eligible"] as Dictionary).values():
+		for index: int in cells.size():
+			if index % 4 == 0:
+				out.append(cells[index])
+	return out
+
+
+func _clear_of(entries: Array, taken: PackedVector2Array) -> bool:
+	for entry: Dictionary in entries:
+		if taken.has(Vector2(entry["cell"])):
+			return false
+	return true
 
 
 func _first_map(data: GameData) -> Gen2WorldMap:

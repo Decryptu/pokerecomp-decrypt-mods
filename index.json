@@ -5,9 +5,9 @@
 		{
 			"id": "voxel3d",
 			"name": "Voxel 3D",
-			"version": "0.3.11",
+			"version": "0.3.12",
 			"description": "Rebuilds the overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, stages a battle on the map it was started on, and stands the opposing trainer behind their Pokemon. Choose it on this page to draw the overworld and the fight alike. Q and E or the wheel zoom, I and K raise and lower the camera.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.3.11/voxel3d-0.3.11.zip"
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.3.12/voxel3d-0.3.12.zip"
 		},
 		{
 			"id": "randomizer",
@@ -26,9 +26,9 @@
 		{
 			"id": "overworld_encounters",
 			"name": "Overworld Encounters",
-			"version": "0.1.2",
+			"version": "0.1.3",
 			"description": "Replaces random steps with a bounded population of visible roaming wild Pokemon drawn from each map's own encounter tables, with visible shiny Pokemon.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.1.2/overworld_encounters-0.1.2.zip"
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.1.3/overworld_encounters-0.1.3.zip"
 		}
 	]
 }
