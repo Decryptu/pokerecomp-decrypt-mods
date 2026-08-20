@@ -338,9 +338,15 @@ room, so the cartridge draws the one wall the player looks at and leaves the
 other three sides undrawn; from any bearing but due north that read as a floor
 with furniture on it and no room around it. So the map is ringed one cell deep
 and two cells tall with the blank course that tileset's own walls are drawn
-with, and the wall the cartridge does draw is raised to meet it. Twelve tilesets
-name that course, which is 147 of the game's interiors; a tileset that names
-none is drawn exactly as it was.
+with, and the wall the cartridge does draw is raised to meet it. Twenty-nine
+tilesets name that course, which is 308 of the game's 311 interiors.
+
+A CAVERN TAKES ONE TOO, and for the same reason: its edge is rock everywhere the
+map draws rock and nothing at all where it does not, so the ring is cut from the
+same rock face and a cave ends in stone rather than in air. The three interiors
+with no shell are the ones that must not have one: a gym whose perimeter the
+cartridge really does draw, and two maps the game files as caves and paints as
+forest.
 
 At any draw distance short of FULL the window clips most of it. At FULL it is
 paid for whole, and on a large route that is about as much geometry again as the
