@@ -1,0 +1,9 @@
+{
+	"id": "linking_cord",
+	"name": "Linking Cord",
+	"version": "0.1.0",
+	"api_version": 9,
+	"entry": "mod.gd",
+	"games": ["gold", "silver", "crystal"],
+	"description": "The item the later games sell instead of asking for a friend: use it on a Pokemon that only evolves by being traded and it evolves where it stands, cord and all."
+}

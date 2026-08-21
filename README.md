@@ -13,6 +13,7 @@ Silver and Crystal recompilation. Each one is interpreted GDScript under
 | [`follower`](mods/follower/) | 0.3.0 | One of your Pokemon out of its ball, walking one cell behind you. Choose it directly from that Pokemon's party menu, configure cycling and surfing, and put it away with one press. Face it and press A to pet it, and let it find hidden items if you want it to. |
 | [`overworld_encounters`](mods/overworld_encounters/) | 0.1.3 | A bounded population of wild Pokemon roaming where random grass, cave and surf encounters used to be. Shiny Pokemon are visible before battle and announce themselves with the cartridge's own animation and sound. |
 | [`hidden_stats`](mods/hidden_stats/) | 0.1.0 | A fourth page on a Pokemon's stats screen, in the cartridge's own two-column shape: the DVs it was born with and the stat experience each stat has trained. |
+| [`linking_cord`](mods/linking_cord/) | 0.1.0 | An item that evolves a Pokemon which otherwise only evolves by being traded. Buy it on Goldenrod Dept Store's second floor, use it from the pack, pick who it is for. |
 
 ## Installing
 

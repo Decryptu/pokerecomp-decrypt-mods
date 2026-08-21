@@ -36,6 +36,13 @@
 			"version": "0.1.0",
 			"description": "A fourth page on a Pokemon's stats screen, in the cartridge's own two-column shape: the four DVs the species was born with, HP's own derived from them, and the stat experience each of the five has trained.",
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/hidden_stats-0.1.0/hidden_stats-0.1.0.zip"
+		},
+		{
+			"id": "linking_cord",
+			"name": "Linking Cord",
+			"version": "0.1.0",
+			"description": "The item the later games sell instead of asking for a friend: use it on a Pokemon that only evolves by being traded and it evolves where it stands. Sold on Goldenrod Dept Store's second floor, and spent by the evolution it causes.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/linking_cord-0.1.0/linking_cord-0.1.0.zip"
 		}
 	]
 }
