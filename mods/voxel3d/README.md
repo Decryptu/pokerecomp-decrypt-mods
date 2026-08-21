@@ -262,6 +262,14 @@ before it is asked how high it reaches. A run of facade rows folds face-on as on
 wall, lifted by whatever is under it. A roof row lies flat at the height its own
 row agrees on and passes that height up to whatever stands on it.
 
+A BUILDING IS NO DEEPER THAN IT IS WIDE. The fold reads a drawing's height as
+depth, which is a house for a drawing eight tiles wide and six tall and a slab
+for a tower eight wide and twenty-eight. The drawn height is a fact about the
+facade, nothing in the cartridge says how deep a building is, and the other
+measurement the drawing gives is its width. Only the body is shortened: the
+height does not move, and the rows behind it keep their tiles and come out as the
+ground the building stands in, taken from the map beside their own row.
+
 The row agrees, not the column, because the columns carrying a gable have no wall
 under them at all: the flat section is what knows how high the roof is, and a
 sloped tile is that height less the band or two its drawing has fallen. A run
