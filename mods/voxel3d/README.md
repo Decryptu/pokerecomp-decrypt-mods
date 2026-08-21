@@ -537,6 +537,14 @@ bank and sloped it down into the pool. A field ringed by a kerb then stands ON
 it, which is what makes a raised bed raised, and water ringed by one comes up to
 meet the ground outside, which is what makes a fountain a fountain.
 
+A SEA ROCK is the case where a class is neither: stone drawn IN the water rather
+than standing on it, so the tile stays flat water, ripples and takes the shore
+rule, and the stone stands up out of it. Anything read as a boulder instead goes
+looking for a floor and always finds one, since a drawing with no ground beside
+it falls back to the floor its tileset is commonest on: the Ruins of Alph's stone
+then stood on brick doilies out in the open sea, and on the paving and the dirt
+wherever the causeway ran past it.
+
 The largest of them is the ship at the port, fifteen tiles by six, and it added
 the one rule the smaller ones did not need: a bounding box is not a footprint. The
 box around something that is not rectangular holds tiles that are not the object,
