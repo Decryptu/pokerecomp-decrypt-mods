@@ -2301,6 +2301,13 @@ func _measure_shores() -> void:
 	for at: int in count:
 		if _ramp[at] == 1 or not _is_water(at) or _tiles[at] == open_water:
 			continue
+		# AND NOT A TILE THAT DRAWS SOMETHING STANDING IN THE WATER. The rule reads
+		# "not the commonest water tile" as "draws a bank", which was true while the
+		# only other water a tileset had was its shore. The sea rock is water with
+		# stones on it, so it tilted the chain up the ledge as a blue slope with the
+		# pebbles smeared down it. What stands on the water says it is not a bank.
+		if _modelled[at] == 1:
+			continue
 		var tx: int = at % _size.x
 		@warning_ignore("integer_division")
 		var ty: int = at / _size.x
@@ -4039,7 +4046,13 @@ var _model_bodies: Dictionary = {}
 var _built_model: bool = false
 
 
-func _place_model(tx: int, ty: int, atlas: RefCounted) -> void:
+## [param base] is the floor to stand the model on, for the callers that already
+## know it. `_ground_art` answers for a CUTOUT, whose own tile is the drawing and
+## whose floor is therefore the flat ground beside it, and it deliberately refuses
+## anything below zero: a tree never stands in the sea. A model standing on a FLAT
+## tile is the other case, and there the tile's own height is the floor, water's
+## recess included. See the flat branch of `_emit`.
+func _place_model(tx: int, ty: int, atlas: RefCounted, base: float = INF) -> void:
 	var at: int = ty * _size.x + tx
 	var box: Rect2i = _span_box(at, tx, ty)
 	var across: Vector2i = box.size
@@ -4048,7 +4061,7 @@ func _place_model(tx: int, ty: int, atlas: RefCounted) -> void:
 	for row: int in across.y:
 		for column: int in across.x:
 			tiles.append(_tile_at(start.x + column, start.y + row))
-	var ground: float = float(_ground_art(tx, ty).y)
+	var ground: float = base if is_finite(base) else float(_ground_art(tx, ty).y)
 	for body: Array in _model_bodies_of(tiles, across, at, atlas):
 		var key: String = body[0]
 		var middle: Vector2 = body[1]
@@ -7277,6 +7290,13 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	_roof_side(tx, ty, tilted, here, Vector2i(-1, 0), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 	if _tufted[at] == 1:
 		_tufts(tx, ty, float(here), atlas, _long_grass[at] == 1)
+	# A MODEL STANDING ON A FLOOR THAT IS STILL A FLOOR, which is tall grass's own
+	# arrangement and the sea rock's: the tile keeps its quad, its surface and its
+	# sink, and the thing drawn on it stands up out of it. Every other modelled
+	# class is a cutout and reaches `_place_model` through the branch above, so
+	# this line places nothing until a class is both flat and modelled.
+	if _modelled[at] == 1:
+		_place_model(tx, ty, atlas, float(here))
 	# The flight standing in the cell whose floor this is. Asked for from every one
 	# of its four tiles and built by whichever asks first, as an object is.
 	if _stair_at[at] >= 0 and not _stair_done.has(_stair_at[at]):
