@@ -5587,6 +5587,49 @@ func _house_cap(
 		column += run
 
 
+## THE FLAT LID OVER A BUILDING THE PAINTING GIVES NO ROOF.
+##
+## The wall's own footprint, at the wall's own top line, wearing the row of art
+## the wall ends in: a parapet or a cornice reads as a plausible flat roof and it
+## is the only art the drawing has that belongs to the top of this building.
+## Emitted per tile column and whole across the depth, since one band of the
+## drawing stretched is the same picture as a strip per pixel.
+func _house_lid(
+	tiles: Array, across: Vector2i, plan: Dictionary, origin_x: float,
+	base: float, near: float, far: float, atlas: RefCounted
+) -> void:
+	var tops: PackedInt32Array = plan["tops"]
+	var left: int = int(plan["left"])
+	var right: int = int(plan["right"])
+	var column: int = left
+	while column <= right:
+		var top: int = tops[column]
+		if top < 0:
+			column += 1
+			continue
+		var run: int = 1
+		while column + run <= right:
+			if (column + run) / TILE_PX != column / TILE_PX \
+					or tops[column + run] != top:
+				break
+			run += 1
+		@warning_ignore("integer_division")
+		var tile: int = int(tiles[(top / TILE_PX) * across.x + column / TILE_PX])
+		var uv: Rect2 = atlas.uv_box(
+			tile, Rect2i(column % TILE_PX, top % TILE_PX, run, 1)
+		)
+		var y_west: float = base + _house_rise(plan, float(column))
+		var y_east: float = base + _house_rise(plan, float(column + run))
+		var x0: float = origin_x + float(column)
+		var x1: float = origin_x + float(column + run)
+		_quad(
+			Vector3(x0, y_west, near), Vector3(x1, y_east, near),
+			Vector3(x1, y_east, far), Vector3(x0, y_west, far),
+			Vector3.UP, uv, SHADE_TOP_FLAT
+		)
+		column += run
+
+
 ## ONE PAINTED HOUSE, STOOD UP. The reviewer's own reading, taken in round
 ## twenty-one over drawings 1 and 4, and every number in it is measured off the
 ## painting.
@@ -5707,6 +5750,15 @@ func _emit_house_body(
 		Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas
 	)
 	if thick <= 0.0:
+		# A BUILDING WITH NO ROOF PAINTED IS STILL CLOSED. Saffron's radio tower
+		# and the wing beside it are drawn face-on and the cartridge never shows
+		# their tops, so the painting has no `roof` in it and the slab machinery
+		# below has nothing to build: what stood was four walls round a hole you
+		# could see the sky through from above. A lid over the wall's own
+		# footprint, at the wall's own top line, in the wall's own topmost row of
+		# art. It follows `_house_rise` exactly as the walls do, so the edges meet
+		# whatever the roof line does.
+		_house_lid(tiles, across, plan, origin_x, base, south, north, atlas)
 		return
 
 	# THE ROOF STANDS OUT PAST THE WALL, by exactly what the drawing puts either
