@@ -50,6 +50,18 @@ const BAND: int = 8
 ## front rather than a floor lifted behind it.
 const PLATEAU_FLOOR: int = BAND * 2
 
+## How large a region a face SHORTER than a walk cell may lift, in tiles.
+##
+## The paragraph above is why a short face seeds nothing, and it is about a kerb
+## running the length of a city. It is not about a rock standing on its own in
+## the sea, which draws the same nine-patch the routes do and is one band tall
+## because there is nothing under it to be two: Saffron's came out as craters, a
+## ring 8 px up round a square of walkable rock left at the water. So a short
+## face speaks, and only for a POCKET. Sixteen tiles is four walk cells, which
+## holds the top of a six-by-six patch and is three orders off the paving of a
+## town.
+const PATCH_TILES: int = 16
+
 ## Volume height cap, in walk cells. Three is 48 world pixels: tall enough for a
 ## house drawn three cells deep, short enough that nothing measured wrong can
 ## become a tower.
@@ -2350,7 +2362,8 @@ func _cliff_base(at: int) -> int:
 func _measure_plateaus() -> void:
 	var seeds: Dictionary = {}
 	var fronts: Dictionary = {}
-	if not _cliff_evidence(seeds, fronts):
+	var patches: Dictionary = {}
+	if not _cliff_evidence(seeds, fronts, patches):
 		return
 
 	var region := PackedInt32Array()
@@ -2359,6 +2372,9 @@ func _measure_plateaus() -> void:
 	# Per region: the lowest height the evidence above it agrees on, and whether
 	# any of its tiles is ground the cliff stands ON.
 	var lift: Dictionary = {}
+	# The same, from faces one band tall, kept apart because a short face only
+	# speaks for a POCKET. See `PATCH_TILES`.
+	var patch: Dictionary = {}
 	var blocked: Dictionary = {}
 	var next: int = 0
 	var stack: Array[int] = []
@@ -2374,6 +2390,9 @@ func _measure_plateaus() -> void:
 			if seeds.has(at):
 				var height: int = int(seeds[at])
 				lift[next] = mini(int(lift.get(next, height)), height)
+			if patches.has(at):
+				var height: int = int(patches[at])
+				patch[next] = mini(int(patch.get(next, height)), height)
 			if fronts.has(at):
 				blocked[next] = true
 			var tx: int = at % _size.x
@@ -2390,10 +2409,15 @@ func _measure_plateaus() -> void:
 					continue
 				region[index] = next
 				stack.append(index)
+		var raise: int = -1
 		if not blocked.has(next) and lift.has(next):
-			var height: int = int(lift[next])
+			raise = int(lift[next])
+		elif not blocked.has(next) and patch.has(next) \
+				and members.size() <= PATCH_TILES:
+			raise = int(patch[next])
+		if raise >= 0:
 			for at: int in members:
-				_heights[at] = height
+				_heights[at] = raise
 				_shelf[at] = 1
 		next += 1
 	_settle_lips()
@@ -2493,7 +2517,9 @@ func _is_water(at: int) -> bool:
 ## either answer mean anything: the west rim of the same cliff has the plateau on
 ## one side of it and the low ground on the other, and reading it as a front
 ## calls the plateau the ground the wall stands on.
-func _cliff_evidence(seeds: Dictionary, fronts: Dictionary) -> bool:
+func _cliff_evidence(
+	seeds: Dictionary, fronts: Dictionary, patches: Dictionary
+) -> bool:
 	var any: bool = false
 	for tx: int in _size.x:
 		var ty: int = 0
@@ -2511,9 +2537,11 @@ func _cliff_evidence(seeds: Dictionary, fronts: Dictionary) -> bool:
 				var above: int = ty - 1
 				if above >= 0 and _is_plateau_floor(above * _size.x + tx):
 					var height: int = _cliff_height(tx, ty)
+					var index: int = above * _size.x + tx
 					if height >= PLATEAU_FLOOR:
-						var index: int = above * _size.x + tx
 						seeds[index] = mini(int(seeds.get(index, height)), height)
+					elif height > 0:
+						patches[index] = mini(int(patches.get(index, height)), height)
 				var below: int = ty + run
 				if below < _size.y and _is_plateau_floor(below * _size.x + tx):
 					fronts[below * _size.x + tx] = true
