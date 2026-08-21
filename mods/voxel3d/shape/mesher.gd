@@ -7537,6 +7537,9 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 	# hung a band over the grass with a trunk under it. A direction a ramp was
 	# refused in is closed for the far ring too.
 	var blocked: Dictionary = {}
+	# The nearest WATER found on the way, for a drawing that has no land to stand
+	# on at all. See below.
+	var wet := Vector2i(-1, 0)
 	for ring: int in [1, 2]:
 		for way: Vector2i in [
 			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
@@ -7551,8 +7554,23 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 			if _stair_at[index] >= 0 or _ramp[index] == 1:
 				blocked[way] = true
 				continue
-			if _art[index] == ART_FLAT and _heights[index] >= 0:
+			if _art[index] != ART_FLAT:
+				continue
+			if _heights[index] >= 0:
 				return Vector2i(maxi(_tiles[index], 0), _heights[index])
+			if wet.x < 0:
+				wet = Vector2i(maxi(_tiles[index], 0), _heights[index])
+	# A THING WITH NO LAND WITHIN TWO TILES AND WATER BESIDE IT IS IN THE WATER.
+	#
+	# Land wins wherever there is any, which is what keeps this off a bank: a tree
+	# on the towpath has grass on one side and a canal on the other and is standing
+	# on the grass. This is for the drawing that has neither, the Ruins of Alph's
+	# stone out in the open sea, which found nothing flat it would accept and fell
+	# through to the tileset's own named ground. That ground is BRICK here, so
+	# every rock in the water stood on a brick doily, and `_settle_islets` sinking
+	# it to the water's own height only moved the doily down with it.
+	if wet.x >= 0:
+		return wet
 	# NOTHING FLAT WITHIN TWO TILES, which is a wood, a hedge or a border ring, and
 	# is four in five of the game's modelled tiles. The tileset's own ground stands
 	# in, because a thing never stands on a picture of itself: this answered the
@@ -7573,11 +7591,13 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	if _art[at] == ART_CUTOUT or _art[at] == ART_RAILING or _art[at] == ART_FENCE \
 			or _art[at] == ART_BALL:
 		var ground: Vector2i = _ground_art(tx, ty)
-		# A RELEASED TILE STANDING IN WATER REACHES THE WATER'S OWN MATERIAL, the
-		# way the skirt's does: the recess is what says it is water, and a quad
-		# left on the terrain mesh is a still blue square in the middle of a
-		# rippling canal. Only the surface; the faces below are the bank.
-		if ground.y < 0 and _house_ground.has(at):
+		# A TILE STANDING IN WATER REACHES THE WATER'S OWN MATERIAL, the way the
+		# skirt's does: the recess is what says it is water, and a quad left on the
+		# terrain mesh is a still blue square in the middle of a rippling canal.
+		# Only the surface; the faces below are the bank. Asked of a house's
+		# released tile alone until the Ruins of Alph, whose stone stands in the
+		# open sea and gets its floor the same way.
+		if ground.y < 0:
 			_sink = SINK_WATER
 		_face_top(tx, ty, float(ground.y), atlas.uv(ground.x), SHADE_TOP_FLAT)
 		_sink = SINK_TERRAIN
