@@ -28,6 +28,10 @@ const HEIGHTS: Dictionary = {
 	&"ground": 0,
 	# Water recesses so a shoreline shows a lip rather than a painted seam.
 	&"water": -8,
+	# THE SEA ROCK LIES AT THE WATER'S OWN LEVEL, because it lies IN the water. It
+	# is the one class that is flat terrain and a model at once: the tile stays
+	# water, ripples and takes the shore rule, and the pebbles stand up out of it.
+	&"sea_rock": -8,
 	&"void": 0,
 	&"ledge": 8,
 	&"wall": 16,
@@ -139,6 +143,8 @@ const DEPTHS: Dictionary = {
 	# A boulder is a turned model and carves nothing; this is only what one falls
 	# back to, and a rock is as deep as it is wide.
 	&"boulder": 16,
+	# The pebble is one 8px drawing and round in plan. Fallback only: it is turned.
+	&"sea_rock": 8,
 	# A stool is round in plan and its drawing is one walk cell, so it is as deep
 	# as it is wide. Only the fallback: it is turned.
 	&"stool": 16,
@@ -314,6 +320,7 @@ const ROUND: Dictionary = {
 	&"lie": true,
 	&"canopy": true,
 	&"boulder": true,
+	&"sea_rock": true,
 	&"stool": true,
 }
 
@@ -350,6 +357,8 @@ const OUTLINE: Dictionary = {
 	# cave floor in the floor's own golds, so the ground rule has nothing to cut
 	# on. Every one of them is drawn inside a dark ring.
 	&"boulder": 1,
+	# The pebble is drawn against open water and ringed the same way.
+	&"sea_rock": 1,
 	# A BOLLARD'S TOP FACE IS DRAWN IN THE PAVING'S OWN INDEX, which is what put
 	# the holes in it: the cap is index 0 and so is the pavement it stands on, so
 	# the ground rule cut the middle out of every one of them and left a ring. The
@@ -421,6 +430,7 @@ const MODEL: Dictionary = {
 	# and the sky all visible straight through it.
 	&"sapling": true,
 	&"boulder": true,
+	&"sea_rock": true,
 	&"stool": true,
 	# THE CONCRETE BOLLARD, which the carved path revolved per row into a ribbed
 	# drum with the paving showing THROUGH it. See `COLUMN` for the shape and
@@ -438,6 +448,7 @@ const MODEL: Dictionary = {
 const SHRUB: Dictionary = {
 	&"bush": true,
 	&"boulder": true,
+	&"sea_rock": true,
 	&"stool": true,
 	&"post": true,
 }
@@ -472,6 +483,12 @@ const SHRUB: Dictionary = {
 ## drawn 32 px in round twenty-four.
 const STRETCH: Dictionary = {
 	&"stool": 0.6,
+	# A PEBBLE IN WATER IS MOSTLY UNDER IT. Its drawing is a whole 8px oval because
+	# the cartridge has no way to draw a half-sunk one, so read at 1.0 it stands
+	# its full width proud of the sea and comes out a row of little bollards. Half
+	# is the waterline: what shows is a cap of stone breaking the surface, which is
+	# what the drawing means rather than what it measures.
+	&"sea_rock": 0.5,
 	# A CUT TREE IS NOT FORESHORTENED, which is the whole reason it takes a number
 	# here. `tree`'s own 1.3 corrects a sprite that draws its trunk BEHIND its
 	# crown and so states no height at all; this drawing states all of it, a
@@ -491,6 +508,7 @@ const STRETCH: Dictionary = {
 
 const ROCK: Dictionary = {
 	&"boulder": true,
+	&"sea_rock": true,
 	# A STOOL IS FURNITURE AND READS THE SAME WAY A STONE DOES, which is the whole
 	# reason it takes this and not the plant's reading. It is small, so one world
 	# pixel per voxel rather than the tree's two, or a 16px seat comes out six
@@ -2232,9 +2250,12 @@ const ROOM_WALL: Dictionary = {
 	18: [[70, 71], [86, 87]],
 	# THE TRAIN CARRIAGE.
 	20: [[2]],
-	# THE ELITE FOUR'S ROOMS, whose wall alternates two ids across and comes back
-	# level at 20 placements on both of its alignments.
-	21: [[131, 2], [2, 138]],
+	# THE GOLDENROD UNDERGROUND WAREHOUSE, which is the tileset's ONE map. 2 is the
+	# blue panelling and it repeats on its own; the count's own winner pairs it
+	# with 131 and 138, which are a WINDOW'S two corners, so every room on the
+	# tileset was ringed in the top left of a window. `tools/room_wall.gd` is the
+	# count, with the picture beside it that says which candidate is blank.
+	21: [[2]],
 	# THE BATTLE TOWER'S CAVERN, one map and the same rock face repeated.
 	1: [[61]],
 	# THE FOUR CHAMBERS OF THE RUINS, one map each and one tileset each, drawing
@@ -2348,6 +2369,8 @@ const FACADE_SLOPE: Dictionary = {
 const ART: Dictionary = {
 	&"ground": &"flat",
 	&"water": &"flat",
+	# Flat, and modelled with it. See `HEIGHTS` and `mesher.gd:_emit`.
+	&"sea_rock": &"flat",
 	&"void": &"flat",
 	&"ledge": &"top",
 	&"roof": &"top",
@@ -2531,11 +2554,13 @@ const TILESETS: Dictionary = {
 		# measured themselves: a plate on posts, cut on its own outline and standing
 		# as many pixels as it is drawn.
 		&"sign_post": [78, 79, 94, 95],
-		# THE SEA ROCK, one 8px tile drawn as a small oval stone and laid in
-		# diagonal chains across the water: 802 cells of it, every one drawing the
-		# tile four times, so a cell is four separate stones and the model is placed
-		# per BODY rather than per cell.
-		&"boulder": [88],
+		# THE SEA ROCK, and it is WATER with stones in it rather than a stone
+		# standing on the floor. Pinned `boulder` it stood at 0 while the sea lay at
+		# -8, so 802 cells of chained 8px pebbles came out as a run of pale slabs
+		# eight pixels proud of the water: the reviewer's own words are stuff going
+		# out of the water, in blue, above rocks. `sea_rock` keeps the tile flat
+		# water, ripple and shore rule included, and stands the pebbles on it.
+		&"sea_rock": [88],
 		# THE CONIFER, and tileset 1 is 29 maps: more of the game's outdoors than
 		# any other. Six tiles, drawn as a pointed top over an optional middle over
 		# a foot, and the middle is what makes a tall one: 3696 cells carry
@@ -2555,7 +2580,8 @@ const TILESETS: Dictionary = {
 		&"ground": [91],
 		&"tall_grass": [4],
 		&"tree": [30, 31, 19, 21, 62, 63],
-		&"boulder": [88],
+		# The same sea rock tileset 1 draws, at the same id.
+		&"sea_rock": [88],
 		# THE SAME METAL RAILING TILESET 1 DRAWS, at the same three ids, dividing
 		# pavement from grass instead of enclosing a yard. The full pass read both
 		# tilesets and gave the same three roles: 90 the round post tops and the top
