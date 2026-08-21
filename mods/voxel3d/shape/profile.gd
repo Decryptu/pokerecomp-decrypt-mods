@@ -2250,9 +2250,12 @@ const ROOM_WALL: Dictionary = {
 	18: [[70, 71], [86, 87]],
 	# THE TRAIN CARRIAGE.
 	20: [[2]],
-	# THE ELITE FOUR'S ROOMS, whose wall alternates two ids across and comes back
-	# level at 20 placements on both of its alignments.
-	21: [[131, 2], [2, 138]],
+	# THE GOLDENROD UNDERGROUND WAREHOUSE, which is the tileset's ONE map. 2 is the
+	# blue panelling and it repeats on its own; the count's own winner pairs it
+	# with 131 and 138, which are a WINDOW'S two corners, so every room on the
+	# tileset was ringed in the top left of a window. `tools/room_wall.gd` is the
+	# count, with the picture beside it that says which candidate is blank.
+	21: [[2]],
 	# THE BATTLE TOWER'S CAVERN, one map and the same rock face repeated.
 	1: [[61]],
 	# THE FOUR CHAMBERS OF THE RUINS, one map each and one tileset each, drawing
