@@ -658,7 +658,15 @@ func _tile_fact(shape: RefCounted, tile: int, permission: int) -> Array:
 	var margin: Vector2i = shape.facade_margin(tile) if part == PART_WALL \
 		else Vector2i.ZERO
 	var is_volume: bool = art == &"upright"
-	var cliff: int = 1 if is_volume and shape.is_cliff(tile) else 0
+	# A RIM DRAWN FROM ABOVE IS STILL THE ROCK. The gate was `is_volume` alone,
+	# which is the face seen face-on, and it left every tile of a patch that the
+	# cartridge draws looking DOWN onto out of the structure: those stood the flat
+	# 8 px band their class gives, beside a rim that ramps, so a rock came out a
+	# frustum with a cube at each corner and a triangle of nothing down each seam.
+	# `top` is the same rock from the other angle and belongs to the same
+	# structure; it keeps its own art either way.
+	var cliff: int = 1 if shape.is_cliff(tile) and (is_volume or art == &"top") \
+		else 0
 	var span: Vector2i = shape.span_cells(shape_class)
 	var fact: Array = []
 	fact.resize(FACT_HEIGHT + 1)
