@@ -4,8 +4,15 @@ extends SceneTree
 ## renderer. This exercises the production palette and pulse paths on a real
 ## cartridge without waiting for a natural shiny roll.
 ##
+## A ninth argument is comma-separated options: `clean` photographs the
+## cartridge screen alone rather than the development harness around it, `x4`
+## enlarges it by whole pixels, and `natural` leaves the population to the mod
+## instead of forcing the shiny preview, which is the only way to see the map as
+## a player meets it.
+##
 ##   Godot --path <pokerecomp> --mods -s tools/overworld_encounters_shot.gd -- \
-##       crystal 24 3 <out.png> [gen2|voxel3d] [cell x] [cell y] [pulse frames]
+##       crystal 24 3 <out.png> [gen2|voxel3d] [cell x] [cell y] [pulse frames] \
+##       [clean,x4,natural]
 
 const WINDOW_SIZE := Vector2i(1152, 648)
 const SETTLE_FRAMES: int = 60
@@ -14,6 +21,9 @@ const CAPTURE_ON: int = 120
 var _screen: Gen2WorldScreen = null
 var _output_path: String = ""
 var _frames: int = 0
+var _clean: bool = false
+var _scale: int = 1
+var _natural: bool = false
 
 
 func _initialize() -> void:
@@ -52,6 +62,13 @@ func _initialize() -> void:
 	root.add_child(_screen)
 	current_scene = _screen
 	_screen.set_process(false)
+	var options: PackedStringArray = args[8].split(",", false) if args.size() > 8 \
+		else PackedStringArray()
+	_clean = options.has("clean")
+	_natural = options.has("natural")
+	for option: String in options:
+		if option.begins_with("x"):
+			_scale = maxi(int(option.substr(1)), 1)
 
 
 func _process(_delta: float) -> bool:
@@ -60,7 +77,8 @@ func _process(_delta: float) -> bool:
 	_frames += 1
 	if _frames == 2:
 		_screen.advance_frames(SETTLE_FRAMES)
-		_screen.preview_visible_encounter()
+		if not _natural:
+			_screen.preview_visible_encounter()
 		var args: PackedStringArray = OS.get_cmdline_user_args()
 		var pulse_frames: int = int(args[7]) if args.size() > 7 else 0
 		for pulse_frame: int in pulse_frames:
@@ -72,7 +90,9 @@ func _process(_delta: float) -> bool:
 				])
 	if _frames < CAPTURE_ON:
 		return false
-	var image: Image = root.get_texture().get_image()
+	var image: Image = _chrome().capture(_screen, _scale) if _clean else null
+	if image == null:
+		image = root.get_texture().get_image()
 	var error: Error = image.save_png(_output_path)
 	if error != OK:
 		print("could not write %s (error %d)" % [_output_path, error])
@@ -81,3 +101,9 @@ func _process(_delta: float) -> bool:
 	print("wrote %s (%dx%d)" % [_output_path, image.get_width(), image.get_height()])
 	quit(0)
 	return true
+
+
+## The sibling helper, loaded by this script's own directory rather than by an
+## absolute path, since no path from one machine belongs in a tracked file.
+func _chrome() -> GDScript:
+	return load("%s/clean_frame.gd" % (get_script() as Script).resource_path.get_base_dir())
