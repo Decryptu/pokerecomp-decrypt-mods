@@ -1678,6 +1678,46 @@ const OBJECTS: Dictionary = {
 			&"height": 8,
 		},
 	],
+	# THE SAME KITCHEN, DRAWN AGAIN. Tileset 5 seats four of the round stools
+	# round a square table exactly as tileset 6 does, out of its own tile ids,
+	# and neither was declared here: the table fell to `table` as a bare 8 px
+	# slab and every stool to `surface`, which stood a whole walk cell of the
+	# chequered floor up on end with the seat painted on its lid. Four pink
+	# boxes taller than the table they sit at.
+	5: [
+		# 6,6 to 9,8 is the top seen from above, three tile rows of it, and 6,9 is
+		# the apron with a leg at each end and the shadow between them. So the top
+		# is 24 px deep and the table stands the one row the drawing gives it.
+		# Wrapped, since it stands clear of every wall and shows all four sides.
+		{
+			&"name": &"table",
+			&"tiles": [
+				[38, 39, 39, 41],
+				[54, 47, 47, 57],
+				[5, 47, 47, 21],
+				[60, 58, 58, 59],
+			],
+			&"window": Rect2i(0, 0, 32, 32),
+			&"top": 24,
+			&"depth": 24,
+			&"height": 8,
+			&"wrap": true,
+			&"foot": true,
+		},
+		# THE STOOL, and it is tileset 6's tile for tile: the same four ids, the
+		# same seat seen from above over the same splayed legs. Built from a
+		# section, so the window is the twelve pixels the drawing occupies rather
+		# than the sixteen it is declared over. See `mesher.gd:_object_stool`.
+		{
+			&"name": &"stool",
+			&"tiles": [[2, 3], [18, 19]],
+			&"window": Rect2i(2, 2, 12, 12),
+			&"top": 0,
+			&"depth": 12,
+			&"height": 8,
+			&"stool": true,
+		},
+	],
 }
 
 ## THE STAIRCASES, per tileset number, found the same way an object is.
