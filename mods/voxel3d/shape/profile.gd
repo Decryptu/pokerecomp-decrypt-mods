@@ -2146,6 +2146,13 @@ const FENCES: Dictionary = {
 	# Goldenrod's street railing, the same drawing at the same two ids on the city
 	# tileset: 178 tiles of it on three maps.
 	2: [[90], [89]],
+	# The same railing again on the third tileset that draws it, at the same two
+	# ids. THE CLASS PIN IS HALF THE ANSWER and this is the other half: pinned
+	# `fence` with no row here, `fence_face` answers empty, `_fence` has no
+	# drawing to read a profile off and builds nothing at all, so map 22,16's run
+	# went from a solid kerb to open pavement. A tileset belongs in both tables
+	# or in neither.
+	4: [[90], [89]],
 	# THE NATIONAL PARK'S WOODEN FENCE, and it is the drawing the two-tile period
 	# exists for: an arched top over a solid rail, drawn as a 16 px pair with the
 	# arch's apex on the tile seam. 35 and 36 are the arch, 51 and 52 the rail.
@@ -2597,6 +2604,13 @@ const TILESETS: Dictionary = {
 		# instead of on grass. One placement on one map, and it is here so the two
 		# tilesets cannot drift apart: the conifer went the same way.
 		&"sign_post": [78, 79, 94, 95],
+		# AND THE SAME RAILING AGAIN, at the same three ids, which is the third
+		# tileset to draw it and the one that was left out. `mask_print` reads
+		# 74, 89 and 90 here pixel for pixel identical to tileset 1's, so a run
+		# that stands as posts and a rail beside Ecruteak's yards came out on map
+		# 22,16 as a plain kerb: unpinned, the tile is terrain and terrain is a
+		# box. Nothing is authored here that tilesets 1 and 2 have not said.
+		&"fence": [74, 89, 90],
 	},
 	# EVERY BOULDER IN THE GAME, and each of these is one walk cell drawn as a
 	# 2x2-tile stone: 268 of them standing in the sea off Olivine, 775 on the cave
