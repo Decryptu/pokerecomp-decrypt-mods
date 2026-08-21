@@ -2222,8 +2222,9 @@ func _measure_doors(shape: RefCounted) -> void:
 ## BEFORE `_measure_ramps`, which is what the corners and the rim both want: the
 ## mouth stands at the wall's height before anything measures a slope, so the rim
 ## beside it has nothing to come down to and the entrance is not at the point of
-## a funnel. Nothing here writes a corner for the same reason: the ramp pass
-## fills them from the heights it finds.
+## a funnel, and it then slopes with that rim rather than against it. Nothing
+## here writes a corner for the same reason: the ramp pass fills them from the
+## heights it finds.
 ##
 ## THE CLIFF IS WHAT IT TAKES ITS HEIGHT FROM, not any neighbour, and that is
 ## what keeps `_settle_void`'s pits alone: a hole in a floor has floor all round
@@ -2251,6 +2252,13 @@ func _measure_mouths() -> void:
 		if high <= 0:
 			continue
 		_heights[at] = high
+		# AND IT IS THE SAME SURFACE AS THE WALL, which is what puts it in the
+		# shelf: the rim beside it comes down at 45 degrees over its own two tiles
+		# and the mouth left flat at the top of that slope is a cube standing in
+		# it, with a triangle of nothing down each side where the corners they
+		# share disagree by a band. Marked shelf it ramps with the rest, off the
+		# same pass and the same corners, so the two meet exactly.
+		_shelf[at] = 1
 
 
 ## THE SHORE, eased from the land down to the water instead of dropping to it.
