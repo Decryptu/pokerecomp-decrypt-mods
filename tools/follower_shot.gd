@@ -16,8 +16,13 @@ extends SceneTree
 ## diorama. An eighth, `pet`, turns the player around at the end of the walk and
 ## presses A, which is the picture the heart is only ever in.
 ##
+## The eighth is comma-separated: `clean` photographs the cartridge screen alone
+## rather than the development harness around it, which is what a picture meant
+## to be looked at rather than debugged wants, and `x4` enlarges it by whole
+## pixels.
+##
 ##   Godot --path <pokerecomp> --mods -s tools/follower_shot.gd -- \
-##       crystal 26 1 <out.png> [species] [steps] [renderer id] [pet]
+##       crystal 26 1 <out.png> [species] [steps] [renderer id] [pet,clean,x4]
 
 const WINDOW_SIZE := Vector2i(1152, 648)
 ## Hardware frames one plain step is drawn over, which is the host's own count.
@@ -48,6 +53,11 @@ var _screen: Gen2WorldScreen = null
 var _output_path: String = ""
 var _steps: int = 2
 var _pet: bool = false
+## Chrome off and the capture cropped to the cartridge frame, which is what a
+## picture meant to be LOOKED AT wants and a debugging one does not.
+var _clean: bool = false
+## Whole-pixel enlargement of a clean capture, from an `x4` option.
+var _scale: int = 1
 var _frames: int = 0
 
 
@@ -65,7 +75,14 @@ func _initialize() -> void:
 	_output_path = args[3]
 	var species: int = int(args[4]) if args.size() > 4 else 155
 	_steps = int(args[5]) if args.size() > 5 else 2
-	_pet = args.size() > 7 and args[7] == "pet"
+	# Comma-separated, so `pet` alone still means what it always did.
+	var options: PackedStringArray = args[7].split(",", false) if args.size() > 7 \
+		else PackedStringArray()
+	_pet = options.has("pet")
+	_clean = options.has("clean")
+	for option: String in options:
+		if option.begins_with("x"):
+			_scale = maxi(int(option.substr(1)), 1)
 
 	# The screen collects the registered actors as it enters the tree, so the
 	# mods have to be loaded before it is built. A tool run loads none by
@@ -161,7 +178,9 @@ func _pet_the_follower() -> void:
 
 
 func _capture() -> bool:
-	var image: Image = root.get_texture().get_image()
+	var image: Image = _chrome().capture(_screen, _scale) if _clean else null
+	if image == null:
+		image = root.get_texture().get_image()
 	var error: Error = image.save_png(_output_path)
 	if error != OK:
 		print("could not write %s (error %d)" % [_output_path, error])
@@ -170,3 +189,9 @@ func _capture() -> bool:
 	print("wrote %s (%dx%d)" % [_output_path, image.get_width(), image.get_height()])
 	quit(0)
 	return true
+
+
+## The sibling helper, loaded by this script's own directory rather than by an
+## absolute path, since no path from one machine belongs in a tracked file.
+func _chrome() -> GDScript:
+	return load("%s/clean_frame.gd" % (get_script() as Script).resource_path.get_base_dir())
