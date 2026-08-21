@@ -9,7 +9,7 @@
 # every round, and the aim point is the one thing easy to get wrong: it is the
 # map's own centre and `tools/maps.gd` prints it.
 #
-#   tools/pack.sh <out dir> [selection] [pitch] [back] [time] [bearing]
+#   tools/pack.sh <out dir> [selection...] [pitch] [back] [time] [bearing]
 #
 # SELECTION is anything `tools/maps.gd` takes, `all`, `towns`, `outside`,
 # `inside`, `ts<number>`, or an explicit list of `group,number` separated by
@@ -40,12 +40,26 @@ CACHE="${CACHE:-user://rom_cache/crystal_f2f52230}"
 
 OUT="${1:-}"
 if [ -z "$OUT" ]; then
-	echo "usage: tools/pack.sh <out dir> [selection] [pitch] [back] [time] [bearing]" >&2
+	echo "usage: tools/pack.sh <out dir> [selection...] [pitch] [back] [time] [bearing]" >&2
 	exit 2
 fi
 shift
 SELECT="${1:-towns}"
 [ $# -gt 0 ] && shift
+# AN EXPLICIT LIST MAY BE GIVEN AS SEPARATE WORDS, so keep taking map pairs
+# before reading the options: the options are all plain numbers and none of
+# them holds a comma, so the first word without one ends the list. Without
+# this the pitch, the distance, the hour and the bearing each swallowed a map
+# and the pack came back shot at midnight with three maps missing.
+while [ $# -gt 0 ]; do
+	case "$1" in
+		[0-9]*,[0-9]*)
+			SELECT="$SELECT $1"
+			shift
+			;;
+		*) break ;;
+	esac
+done
 PITCH="${1:-34}"
 [ $# -gt 0 ] && shift
 BACK="${1:-auto}"
@@ -94,7 +108,7 @@ case "$SELECT" in
 		# before the first frame.
 		table=$("$GODOT" --headless --path "$HOST" -s "$HERE/tools/maps.gd" \
 			-- "$CACHE" all 2>/dev/null)
-		for pair in $SELECT "$@"; do
+		for pair in $SELECT; do
 			case "$pair" in
 				*,*) ;;
 				*) continue ;;

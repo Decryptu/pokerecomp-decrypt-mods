@@ -887,6 +887,14 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# to work out and its flood would only fight the answer.
 	_apply_levels(source)
 	_measure_plateaus()
+	# AND THE PONDS AFTER THEM, from out here rather than from the tail of the
+	# plateau pass, which is where this was called and where it could not run: a
+	# map with no cliff on it leaves that pass at its first line, so every pond
+	# on a FLAT map went unsettled. The park's fountain is the case that showed
+	# it. Ordering is unchanged, since a pond takes the height of the ground that
+	# rings it and the plateaus are what settle that ground.
+	_settle_ponds()
+	_settle_beds()
 	_measure_buildings()
 	# After the buildings, which is the one pass that can put a floor below the
 	# ground plane and so the only one the void has anything to follow.
@@ -2625,7 +2633,6 @@ func _measure_plateaus() -> void:
 				_shelf[at] = 1
 		next += 1
 	_settle_lips()
-	_settle_ponds()
 
 
 ## The plateau's far edge belongs to the plateau, so it takes the height of the
@@ -2700,6 +2707,78 @@ func _settle_ponds() -> void:
 		if shore > 0:
 			for at: int in members:
 				_heights[at] += shore
+
+
+## A FIELD RINGED BY A KERB STANDS ON IT, which is what makes a raised bed
+## raised. The pond pass says the same thing about water and this says it about
+## ground: the park's flower bed is one course of brick round grass and flowers,
+## and left alone the brick stood up while what it holds stayed on the pavement,
+## so the bed was a wall with the bed behind it rather than inside it.
+##
+## ONLY A FIELD EVERY ONE OF WHOSE NEIGHBOURS IS THE SAME KERB. A region that
+## touches the open map, or a kerb at one height on one side and another on the
+## other, is not a bed and is left where it is. That is the rule that keeps this
+## off the paving, which touches a kerb too and reaches half the map.
+func _settle_beds() -> void:
+	if not _class_ids.has(&"kerb"):
+		return
+	var kerb_id: int = int(_class_ids[&"kerb"])
+	_bed_kerb = kerb_id
+	var seen := PackedByteArray()
+	seen.resize(_size.x * _size.y)
+	var stack: Array[int] = []
+	for start: int in seen.size():
+		if seen[start] == 1 or not _is_bed_floor(start):
+			continue
+		seen[start] = 1
+		stack.append(start)
+		var members := PackedInt32Array()
+		var kerb: int = 0
+		while not stack.is_empty():
+			var at: int = stack.pop_back()
+			members.append(at)
+			var tx: int = at % _size.x
+			@warning_ignore("integer_division")
+			var ty: int = at / _size.x
+			for step: Vector2i in [
+				Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
+			]:
+				var to := Vector2i(tx + step.x, ty + step.y)
+				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+					kerb = -1
+					continue
+				var index: int = to.y * _size.x + to.x
+				if _is_bed_floor(index):
+					if seen[index] == 0:
+						seen[index] = 1
+						stack.append(index)
+					continue
+				if _klass[index] != kerb_id or _heights[index] <= 0:
+					kerb = -1
+					continue
+				if kerb == 0:
+					kerb = _heights[index]
+				elif kerb != _heights[index]:
+					kerb = -1
+		if kerb > 0:
+			for at: int in members:
+				_heights[at] = kerb
+
+
+## What a bed can be made of: anything standing on the ground rather than raised
+## off it, the kerb itself excepted.
+##
+## NOT ART_FLAT, which is what this asked first and what left every bed on the
+## pavement. A flower is a CUTOUT, and the park's bed alternates one with grass
+## the whole way along, so a test for flat ground found single tiles of grass
+## walled in by flowers and nothing enclosed by kerb at all. What is inside a bed
+## is whatever is drawn there; the height is what says it is inside.
+func _is_bed_floor(at: int) -> bool:
+	return _tiles[at] >= 0 and _heights[at] == 0 and _klass[at] != _bed_kerb
+
+
+## The kerb's own class id for the resolve being settled. See `_settle_beds`.
+var _bed_kerb: int = -1
 
 
 func _is_water(at: int) -> bool:
@@ -4438,6 +4517,9 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 	if bool(object.get(&"stool", false)):
 		_object_stool(object, start, across, front, tiles, window, atlas)
 		return
+	if bool(object.get(&"seat", false)):
+		_object_seat(object, start, across, front, tiles, mask, span, window, atlas)
+		return
 	var top_rows: int = clampi(int(object.get(&"top", 0)), 0, window.size.y)
 	var face_rows: int = window.size.y - top_rows
 	# A DRAWING'S LAST ROWS ARE NOT ALWAYS DRAWN. The face band is authored as
@@ -4856,6 +4938,88 @@ func _object_stool(
 		)
 		_box(
 			at.x - half, at.x + half, base, low, at.y - half, at.y + half, dark
+		)
+
+
+## THE PARK BENCH, AND IT IS THE ONE THING HERE WITH A BACK.
+##
+## The reviewer read it out row by row and the rows are the model: the top tile
+## row is the back you lean on, the middle one is the seat you sit on, and the
+## bottom one is a leg at each end with the bench's own shadow between them. No
+## other object in this file is drawn that way, which is why none of them could
+## build it: `top` splits a drawing into a surface seen from above and a face
+## seen face-on, and a bench with a back is a face, a surface and a second face
+## stacked. Left to the resolver its two upper rows were a `wall` over a
+## `surface` and it stood as a slatted slab a whole cell tall.
+##
+## THE THREE BANDS COLOUR THEIR OWN PIECES. The back wears the texel drawn in the
+## back's rows, the seat the seat's, and the legs the darkest shade the drawing
+## holds, which is what the drawing paints them. Nothing is sampled from a row
+## that draws something else.
+##
+## WHAT IS AUTHORED IS THE DEPTH AND THE THREE HEIGHTS, because a drawing seen
+## face-on states none of them: it has no top band to give a depth and its own
+## row count is the whole bench, back included. Half a cell to the seat is the
+## same number the benches in the labs stand at.
+const SEAT_HIGH: float = 8.0
+const SEAT_SLAB: float = 2.0
+const SEAT_BACK: float = 9.0
+const SEAT_BACK_THICK: float = 2.0
+const SEAT_LEG_THICK: float = 3.0
+
+
+func _object_seat(
+	object: Dictionary, start: Vector2i, across: Vector2i, front: float, tiles: Array,
+	mask: PackedByteArray, span: Vector2i, window: Rect2i, atlas: RefCounted
+) -> void:
+	var base: float = float(_ground_art(start.x, start.y + across.y - 1).y)
+	var left: float = _world_x(start.x) + float(window.position.x)
+	var right: float = left + float(window.size.x)
+	var deep: float = float(object.get(&"depth", 13))
+	var near: float = front
+	var far: float = front - deep
+	# The three bands, in the drawing's own rows: a tile row each for the back and
+	# the seat, and whatever is left below them for the legs.
+	var top: int = window.position.y
+	var back_uv: Rect2 = _object_texel(
+		atlas, tiles, across, mask, span, window, top, top + int(TILE)
+	)
+	var seat_uv: Rect2 = _object_texel(
+		atlas, tiles, across, mask, span, window, top + int(TILE), top + int(TILE) * 2
+	)
+	var leg_uv: Rect2 = _shade_texel(atlas, int(tiles[0]), 0)
+
+	# The seat, and its top face, which is the one face of it anybody looks at.
+	var seat_top: float = base + SEAT_HIGH
+	var seat_low: float = seat_top - SEAT_SLAB
+	_box(left, right, seat_low, seat_top, far, near, seat_uv)
+	_quad(
+		Vector3(left, seat_top, near), Vector3(right, seat_top, near),
+		Vector3(right, seat_top, far), Vector3(left, seat_top, far),
+		Vector3.UP, seat_uv, SHADE_TOP_FLAT
+	)
+
+	# The back, standing on the seat at its FAR edge, which is what makes it a
+	# back rather than a rail: a bench is sat on from the near side.
+	var back_top: float = seat_top + SEAT_BACK
+	_box(left, right, seat_top, back_top, far, far + SEAT_BACK_THICK, back_uv)
+	_quad(
+		Vector3(left, back_top, far + SEAT_BACK_THICK),
+		Vector3(right, back_top, far + SEAT_BACK_THICK),
+		Vector3(right, back_top, far), Vector3(left, back_top, far),
+		Vector3.UP, back_uv, SHADE_TOP_FLAT
+	)
+
+	# A leg under each end, which is where the drawing puts them, and nothing
+	# between them, which is where it puts the shadow.
+	for edge: float in [left, right - SEAT_LEG_THICK]:
+		_box(
+			edge, edge + SEAT_LEG_THICK, base, seat_low,
+			far, far + SEAT_LEG_THICK, leg_uv
+		)
+		_box(
+			edge, edge + SEAT_LEG_THICK, base, seat_low,
+			near - SEAT_LEG_THICK, near, leg_uv
 		)
 
 

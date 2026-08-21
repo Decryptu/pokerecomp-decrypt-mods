@@ -36,6 +36,11 @@ const HEIGHTS: Dictionary = {
 	&"ledge": 8,
 	&"wall": 16,
 	&"fence": 8,
+	# A KERB: masonry drawn one course tall and standing half a cell, which is
+	# what rings a flower bed and what holds the water in a fountain. `wall` is a
+	# whole cell and `ledge` is a lip you step down off; this is neither, and the
+	# two drawings that wanted it were each coming out as something else entirely.
+	&"kerb": 8,
 	&"sign": 16,
 	&"roof": 24,
 	# Masonry drawn two courses tall: a gate, a plateau rim. Same fold as
@@ -1106,6 +1111,43 @@ const OBJECTS: Dictionary = {
 			&"model": true,
 			&"outline": 2,
 		},
+		# THE PARK BENCH, four tiles wide and three tall, five of them on this map
+		# and the reviewer's own reading of the rows: the top one is the back, the
+		# middle one the seat, the bottom one a leg at each end with the shadow
+		# between them. See `mesher.gd:_object_seat`, which is the builder those
+		# three rows needed and the only object here with a back.
+		#
+		# NO PIN COULD REACH IT EITHER. Its rows resolved `wall` over `surface`,
+		# so the bench stood as one slatted slab a whole walk cell tall and the
+		# people sat in front of it rather than on it.
+		{
+			&"name": &"bench",
+			&"tiles": [[7, 8, 9, 10], [23, 24, 25, 26], [39, 40, 41, 42]],
+			&"window": Rect2i(0, 0, 32, 21),
+			&"top": 0,
+			&"depth": 13,
+			&"height": 17,
+			&"seat": true,
+		},
+		# THE BIN, AND IT IS OPEN. It was pinned `boulder` and read exactly as a
+		# rock is, which put a solid grey lump on the paving: the one thing a
+		# drawing seen from in front cannot say is that its mouth is a hole, and
+		# the drawing does say it, in the dark ring it paints across its top rows.
+		# `bin` is the builder that already knows what to do with that and it was
+		# written for the same vessel on another tileset. See `mesher.gd:_object_bin`.
+		{
+			&"name": &"bin",
+			&"tiles": [[90, 91], [19, 130]],
+			# THE WINDOW IS THE VESSEL AND NOT ITS SHADOW. Cut over the whole
+			# 14 px the mask reaches, the can came out wider than it is tall and
+			# read as a barrel; the outermost column either side is the shading
+			# the cartridge lays on the paving under it.
+			&"window": Rect2i(2, 1, 11, 14),
+			&"top": 8,
+			&"depth": 11,
+			&"height": 10,
+			&"bin": true,
+		},
 	],
 	29: [
 		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
@@ -2146,6 +2188,13 @@ const FENCES: Dictionary = {
 	# Goldenrod's street railing, the same drawing at the same two ids on the city
 	# tileset: 178 tiles of it on three maps.
 	2: [[90], [89]],
+	# The same railing again on the third tileset that draws it, at the same two
+	# ids. THE CLASS PIN IS HALF THE ANSWER and this is the other half: pinned
+	# `fence` with no row here, `fence_face` answers empty, `_fence` has no
+	# drawing to read a profile off and builds nothing at all, so map 22,16's run
+	# went from a solid kerb to open pavement. A tileset belongs in both tables
+	# or in neither.
+	4: [[90], [89]],
 	# THE NATIONAL PARK'S WOODEN FENCE, and it is the drawing the two-tile period
 	# exists for: an arched top over a solid rail, drawn as a 16 px pair with the
 	# arch's apex on the tile seam. 35 and 36 are the arch, 51 and 52 the rail.
@@ -2383,6 +2432,7 @@ const ART: Dictionary = {
 	&"sign": &"upright",
 	&"cliff": &"upright",
 	&"counter": &"upright",
+	&"kerb": &"upright",
 	&"table": &"upright",
 	&"desk": &"upright",
 	&"bookcase": &"upright",
@@ -2597,6 +2647,13 @@ const TILESETS: Dictionary = {
 		# instead of on grass. One placement on one map, and it is here so the two
 		# tilesets cannot drift apart: the conifer went the same way.
 		&"sign_post": [78, 79, 94, 95],
+		# AND THE SAME RAILING AGAIN, at the same three ids, which is the third
+		# tileset to draw it and the one that was left out. `mask_print` reads
+		# 74, 89 and 90 here pixel for pixel identical to tileset 1's, so a run
+		# that stands as posts and a rail beside Ecruteak's yards came out on map
+		# 22,16 as a plain kerb: unpinned, the tile is terrain and terrain is a
+		# box. Nothing is authored here that tilesets 1 and 2 have not said.
+		&"fence": [74, 89, 90],
 	},
 	# EVERY BOULDER IN THE GAME, and each of these is one walk cell drawn as a
 	# 2x2-tile stone: 268 of them standing in the sea off Olivine, 775 on the cave
@@ -2658,19 +2715,29 @@ const TILESETS: Dictionary = {
 		# the run going AWAY, drawn from above, and 43 is the beam where the two
 		# meet at a corner.
 		&"fence": [5, 27, 35, 36, 37, 38, 43, 51, 52, 53, 54, 67, 83],
-		# THE NATIONAL PARK'S BIN, and it was drawn NOWHERE AT ALL. A round grey
-		# vessel with a dark hollow in its top, one walk cell over four tiles,
-		# standing on the paving beside the benches; five placements on three maps.
-		# Photographed where the cartridge puts it, the paving is bare.
-		#
-		# The paving is dithered in the same greys the bin is drawn in, which is the
-		# case `OUTLINE` exists for and the reason nothing stood: the ground flood
-		# walks straight through the flanks. `boulder` answers all of it, because a
-		# bin is read exactly as a rock is: cut on its own dark ring, FILLED so an
-		# open rim cannot starve it, turned rather than carved, one world pixel per
-		# voxel, no sway, and coloured BY BAND, which is what a thing drawn pale on
-		# top and dark down its side wants.
-		&"boulder": [90, 91, 19, 130],
+		# THE RAISED FLOWER BED, and it is a brick kerb round a bed of flowers.
+		# Read as a `planter` every tile of the rim stood up as a potted plant a
+		# cell and a half tall, so a bed 32 tiles long came out as a row of pink
+		# and brown boxes at a dozen different heights with the flowers lost in
+		# them. It is one course of brick: 55, 56 and 57 the top run with its two
+		# corners, 71 and 73 the two sides, 87, 88 and 89 the bottom run. What is
+		# inside it is already answered, since tile 3 is the meadow flower and
+		# tile 1 is grass.
+
+		# THE FOUNTAIN'S BASIN WALL, which is the same course of masonry doing the
+		# same job round water instead of round flowers. Tile 20 is the pool and
+		# tile 21 is the wall that holds it, and BOTH resolved `water`: the shore
+		# pass then read the wall as a bank and ramped it DOWN into the pool, so
+		# the one thing keeping the water in was built as the slope it would have
+		# run out over. It is a wall, so it stands as one, and `mesher.gd`'s pond
+		# pass then lifts the water it encloses to the height of what rings it,
+		# which is the paving. See `_settle_ponds`.
+		&"kerb": [21, 55, 56, 57, 71, 73, 87, 88, 89],
+		# THE NATIONAL PARK'S BIN is an OBJECT and not a pin: it is drawn nowhere
+		# at all, because the paving is dithered in the same greys the bin is, so
+		# the ground flood walks straight through its flanks. It stood as a rock
+		# for a round on that reading; the mouth is a hole and `_object_bin` is
+		# what builds one. See the declaration in `OBJECTS`.
 		# THE NOTICE CABINET BESIDE IT, and it was drawn nowhere for the same
 		# reason: a glazed case in a dark frame standing on two posts, one walk
 		# cell over four tiles, six placements on two maps. The pass split it

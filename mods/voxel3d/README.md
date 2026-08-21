@@ -513,11 +513,29 @@ nothing keyed to the cell grid reaches it at all. Its window is what keeps the
 paving either side of it out of the profile the turn is read from, and how tall
 it stands is the declaration's, since a turned body is as deep as it is wide.
 
-Fourteen things are declared this way: a desk, five chairs, a ship, a stone
+Sixteen things are declared this way: a desk, five chairs, a ship, a stone
 vessel, a ticket gate, a fountain, the ridge along a great roof, a parked
-bicycle, a television and a low padded seat. The last three are what a fallback
-that REVOLVES a drawing cannot do: a bicycle drawn side-on is a portrait three
-tiles wide, and turned it came out as a row of bollards.
+bicycle, a television, a low padded seat, an open bin and a park bench. Three of
+them are what a fallback that REVOLVES a drawing cannot do: a bicycle drawn
+side-on is a portrait three tiles wide, and turned it came out as a row of
+bollards.
+
+The bench is the one with a BACK, and it is why an object has a builder of its
+own at all. Everything else here is a surface seen from above over a face seen
+face-on, which is what a 2.5D drawing is; a park bench is a face, a surface and a
+second face stacked, so its three drawn rows are the back, the seat, and a leg at
+each end with the bench's own shadow between them. Each piece wears the row it is
+drawn in. What is authored is the depth and the three heights, since a drawing
+seen face-on states none of them.
+
+A KERB is the other thing the park needed and it is terrain rather than an
+object: one course of masonry standing half a cell, which is what rings a flower
+bed and what holds the water in a fountain. Both had been read as something else
+entirely, and the fountain's was the worse of the two, pinned as water along with
+the pool it holds, so the shore rule read the one thing keeping the water in as a
+bank and sloped it down into the pool. A field ringed by a kerb then stands ON
+it, which is what makes a raised bed raised, and water ringed by one comes up to
+meet the ground outside, which is what makes a fountain a fountain.
 
 The largest of them is the ship at the port, fifteen tiles by six, and it added
 the one rule the smaller ones did not need: a bounding box is not a footprint. The
@@ -622,13 +640,16 @@ rather than two, because a 16px stone six voxels across is a pillow; it does not
 sway; and its colour is read in horizontal BANDS off the drawing, since a stone
 is drawn pale where the sky reaches it and dark underneath.
 
-The stone's reading is also what puts a drawing back that was not being built at
+The stone's reading is also what put a drawing back that was not being built at
 all. The National Park's bin stands on paving dithered in the same greys the bin
 itself is drawn in, so the rule that cuts a drawing out of the ground around it
 had nothing to cut on and the flood ate the whole thing: on that paving the mod
-drew no bin. Read as a stone it is cut on its own dark outline instead, and one
-of the few things in this game that costs more than leaving it wrong, since
-nothing at all is cheap.
+drew no bin. Cut on its own dark outline instead, it came back, and it came back
+solid, which is the one thing a bin is not. It is declared as an object now and
+built HOLLOW: an empty cylinder narrowing to its foot, with a band round it and a
+darker inside. The taper is the drawing's own width at each row and the shades
+are the drawing's; what a picture seen from in front cannot say is that the mouth
+is open at all, and that is the whole of what the model adds.
 
 The notice cabinet beside it is the same fault answered the other way. It is flat
 and face-on rather than round, so it is carved rather than turned: a board in a
