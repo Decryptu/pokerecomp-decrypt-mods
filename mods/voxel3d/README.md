@@ -356,6 +356,19 @@ with no shell are the ones that must not have one: a gym whose perimeter the
 cartridge really does draw, and two maps the game files as caves and paints as
 forest.
 
+The floor out there is a SOLID and not a lid. It is read per column, so two
+columns of one edge answer at two heights wherever the map's perimeter steps, and
+a surface with no sides at a step is an open crack the height of the step. Each
+skirt tile closes down to whatever stands beside it, another skirt tile or the
+ring, in the floor's own drawing.
+
+AND THE RING IS NOT A CLIFF EDGE. A rock rim is cut where a shelf meets ground
+that stands lower, and the world past the grid is not lower: it is the skirt,
+carrying this map's own floor out at this map's own height. Reading it as ground
+cut the outermost ring of every raised map into a rim that dropped sixteen pixels
+in one tile, which left a trench between the ring and the skirt, open on both
+sides, running the whole perimeter of the map.
+
 At any draw distance short of FULL the window clips most of it. At FULL it is
 paid for whole, and on a large route that is about as much geometry again as the
 map itself.
@@ -735,6 +748,13 @@ The plateau's far edge is one flat row with the seam drawn inside it and the low
 ground carrying on immediately above; it ends the region and then takes the
 height of what is south of it. A pool with nothing but raised floor around it
 rises with the floor and keeps its recess.
+
+WHAT STANDS BESIDE A TILE IS READ AT THE EDGE THE TWO SHARE. A box is one height
+and a rim is four, one per corner, so the single height a rim was measured at is
+not the height it has where it meets its neighbour. A face closed against that
+number is closed against nothing, and the crack is at every corner where a rim
+runs into a step: the lower of the two shared corners is what a face reaches down
+to, which can only ever add face and never take one away.
 
 ## Surveying a tileset
 
