@@ -11,6 +11,7 @@ mods/<id>/            one installable mod; the archive root
 index.json            the published feed; one row per mod
 tools/package.sh      mods/<id>/ -> dist/<id>-<version>.zip
 tools/mod_icons.sh    repaints every icon from one cartridge; see icon_art.gd
+docs/icons/<id>.png   the same icon at 4x, for the README table only
 ```
 
 `mods/<id>/` is copied verbatim into `user://mods/<id>/`, so nothing outside it
@@ -35,6 +36,12 @@ accepted and drawn without stretching; past that it is ignored.
 `tools/mod_icons.sh` paints the icons in this repository out of the cartridge's
 own frame, font and sprites. It is one way to make one, not a requirement: an
 icon can be any square picture.
+
+`docs/icons/` holds each icon again at 4x, drawn at 64 in the README table.
+GitHub honours an `<img>` width but strips the `image-rendering` that would keep
+a browser from smoothing the upscale, so the sharp copy is a file rather than a
+style. They live outside `mods/` so they stay out of the archives: nothing
+installs them and nothing reads them but this repository's own README.
 
 A row in `index.json` carries `icon` and `thumbnail` as https URLs, which is how
 the launcher gives a mod a face before it is installed and how the website finds
