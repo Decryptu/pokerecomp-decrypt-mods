@@ -6,14 +6,14 @@ Silver and Crystal recompilation. Each one is interpreted GDScript under
 
 ## The mods
 
-| Mod | Version | What it does |
-| --- | --- | --- |
-| [`voxel3d`](mods/voxel3d/) | 0.3.14 | The overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and the fight staged on the map it started on with a steerable over-the-shoulder camera. One switch on its page turns it on for both. |
-| [`randomizer`](mods/randomizer/) | 0.3.0 | A save-bound run generated from a four-digit seed: Pokemon, wild sources, items, badges, shops, species, moves and trainer teams, with host-validated critical placements. |
-| [`follower`](mods/follower/) | 0.3.0 | One of your Pokemon out of its ball, walking one cell behind you. Choose it directly from that Pokemon's party menu, configure cycling and surfing, and put it away with one press. Face it and press A to pet it, and let it find hidden items if you want it to. |
-| [`overworld_encounters`](mods/overworld_encounters/) | 0.1.3 | A bounded population of wild Pokemon roaming where random grass, cave and surf encounters used to be. Shiny Pokemon are visible before battle and announce themselves with the cartridge's own animation and sound. |
-| [`hidden_stats`](mods/hidden_stats/) | 0.1.0 | A fourth page on a Pokemon's stats screen, in the cartridge's own two-column shape: the DVs it was born with and the stat experience each stat has trained. |
-| [`linking_cord`](mods/linking_cord/) | 0.1.0 | An item that evolves a Pokemon which otherwise only evolves by being traded. Buy it on Goldenrod Dept Store's second floor, use it from the pack, pick who it is for. |
+| | Mod | Version | What it does |
+| --- | --- | --- | --- |
+| <img src="mods/voxel3d/icon.png" alt="" width="32" height="32"> | [`voxel3d`](mods/voxel3d/) | 0.3.14 | The overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and the fight staged on the map it started on with a steerable over-the-shoulder camera. One switch on its page turns it on for both. |
+| <img src="mods/randomizer/icon.png" alt="" width="32" height="32"> | [`randomizer`](mods/randomizer/) | 0.3.0 | A save-bound run generated from a four-digit seed: Pokemon, wild sources, items, badges, shops, species, moves and trainer teams, with host-validated critical placements. |
+| <img src="mods/follower/icon.png" alt="" width="32" height="32"> | [`follower`](mods/follower/) | 0.3.0 | One of your Pokemon out of its ball, walking one cell behind you. Choose it directly from that Pokemon's party menu, configure cycling and surfing, and put it away with one press. Face it and press A to pet it, and let it find hidden items if you want it to. |
+| <img src="mods/overworld_encounters/icon.png" alt="" width="32" height="32"> | [`overworld_encounters`](mods/overworld_encounters/) | 0.1.3 | A bounded population of wild Pokemon roaming where random grass, cave and surf encounters used to be. Shiny Pokemon are visible before battle and announce themselves with the cartridge's own animation and sound. |
+| <img src="mods/hidden_stats/icon.png" alt="" width="32" height="32"> | [`hidden_stats`](mods/hidden_stats/) | 0.1.0 | A fourth page on a Pokemon's stats screen, in the cartridge's own two-column shape: the DVs it was born with and the stat experience each stat has trained. |
+| <img src="mods/linking_cord/icon.png" alt="" width="32" height="32"> | [`linking_cord`](mods/linking_cord/) | 0.1.0 | An item that evolves a Pokemon which otherwise only evolves by being traded. Buy it on Goldenrod Dept Store's second floor, use it from the pack, pick who it is for. |
 
 ## Installing
 
