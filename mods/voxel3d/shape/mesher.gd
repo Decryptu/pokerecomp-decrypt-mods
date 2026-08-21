@@ -896,6 +896,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# After every pass that moves a height, since the shell's is not measured off
 	# anything: it is two cells because a room is two cells high.
 	_measure_room()
+	_measure_room_fill()
 	_measure_furniture()
 	_measure_cutouts()
 	# After the cutouts, because an object overrides whatever class its tiles were
@@ -3698,7 +3699,7 @@ func _band_tile(tx: int, ty: int, band: int) -> int:
 	# whose drawing is not on the map, so it answers for itself.
 	if not _room.is_empty():
 		var mark: int = _room[ty * _size.x + tx]
-		if mark == ROOM_SHELL:
+		if mark == ROOM_SHELL or mark == ROOM_FILL:
 			return _tiles[ty * _size.x + tx]
 		if mark == ROOM_BEHIND:
 			return _room_wall_tile(tx, ty)
@@ -4653,6 +4654,14 @@ func _room_faces(tx: int, ty: int, normal: Vector3) -> bool:
 		return true
 	if here == ROOM_DRAWN or here == ROOM_BEHIND:
 		return normal.z > 0.0
+	# THE FILL NEEDS NO RULE AND THAT IS THE POINT OF BUILDING IT AS A MASS. The
+	# shell is a hollow ring and has to be told which of its two sides looks into
+	# the room; every face the fill has is one, because a face is only ever built
+	# where the neighbour is LOWER and everything at the fill's own height is more
+	# fill or the shell. So the block south of a room draws its north face alone,
+	# which points away from a camera to the south and is culled for nothing.
+	if here == ROOM_FILL:
+		return true
 	if normal.x > 0.0:
 		return tx < _margin.x
 	if normal.x < 0.0:
@@ -7703,6 +7712,9 @@ const ROOM_DRAWN: int = 2
 ## id is left alone: the object samples the map at emit, so writing plaster into
 ## `_tiles` puts plaster on the bookcase's top row and its first shelf instead.
 const ROOM_BEHIND: int = 3
+## And the FILLER the cartridge pads an interior out to its rectangle with, stood
+## up as the mass the rooms are cut out of. See `_measure_room_fill`.
+const ROOM_FILL: int = 4
 var _room := PackedByteArray()
 ## The arrangement this map's shell is drawn with, empty where it has none.
 var _room_wall: Array = []
@@ -7824,6 +7836,88 @@ func _measure_room() -> void:
 			_heights[at] = tall
 			_bases[at] = base
 			_room[at] = ROOM_DRAWN
+
+
+## THE FILLER AN INTERIOR IS PADDED OUT TO ITS RECTANGLE WITH, STOOD UP.
+##
+## A Generation II interior is a room in the corner of a larger rectangle and the
+## cartridge fills the rest with a black block: map 11,21 is a 64x64 whose rooms
+## take a third of it, and 22840 tiles over 77 maps resolve to `void`. The game
+## clamps its camera to the room, so a player never sees it. This view holds a
+## whole map at once and shows it, as a black plate lying level with the floor
+## with the rooms furnished on top of it.
+##
+## A ROOM IS CUT OUT OF A MASS, so the filler is that mass: the same two cells the
+## shell stands, in the same plaster, which closes the outside of every wall and
+## gives the rooms whose cartridge wall runs along one edge only a face on the
+## other three. `_room_faces` says why nothing has to be culled.
+##
+## ONLY THE FIELD THAT REACHES THE MAP'S OWN EDGE. A void region enclosed by floor
+## is a hole in that floor, and standing one up puts a plaster pillar in the
+## middle of a room; the padding is the region that runs out to the rectangle.
+##
+## ONLY INDOORS, through `_room_wall`, which `resolve` leaves empty for an outside
+## map and for a tileset the survey has named no blank wall on. Outdoor void is
+## the ground past the border ring and stays exactly where `_settle_void` put it.
+func _measure_room_fill() -> void:
+	if _room_wall.is_empty():
+		return
+	var count: int = _size.x * _size.y
+	var seen := PackedByteArray()
+	seen.resize(count)
+	var region := PackedInt32Array()
+	var tall: int = ROOM_CELLS * CELL_TILES * BAND
+	for start: int in count:
+		if _void[start] == 0 or seen[start] == 1:
+			continue
+		region.clear()
+		region.append(start)
+		seen[start] = 1
+		var at_edge: bool = false
+		var head: int = 0
+		while head < region.size():
+			var at: int = region[head]
+			head += 1
+			var tx: int = at % _size.x
+			@warning_ignore("integer_division")
+			var ty: int = at / _size.x
+			if tx <= _margin.x or ty <= _margin.y \
+					or tx >= _size.x - _margin.x - 1 \
+					or ty >= _size.y - _margin.y - 1:
+				at_edge = true
+			for step: Vector2i in [
+				Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
+			]:
+				var to := Vector2i(tx + step.x, ty + step.y)
+				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+					continue
+				var index: int = to.y * _size.x + to.x
+				if _void[index] == 1 and seen[index] == 0:
+					seen[index] = 1
+					region.append(index)
+		if not at_edge:
+			continue
+		for at: int in region:
+			var tx: int = at % _size.x
+			@warning_ignore("integer_division")
+			var ty: int = at / _size.x
+			# Its OWN row is the base, as the shell's side strips are: every row of
+			# a raised field is plaster, so there is no floor to fold up it.
+			_room[at] = ROOM_FILL
+			_tiles[at] = _room_wall_tile(tx, ty)
+			_heights[at] = tall
+			_bases[at] = ty
+			_art[at] = ART_UPRIGHT
+			_volume[at] = 1
+			_void[at] = 0
+			_modelled[at] = 0
+			_tufted[at] = 0
+			_cliff[at] = 0
+			_front[at] = 0
+			_lip[at] = 0
+			_pitched[at] = 0
+			_margin_left[at] = 0
+			_margin_right[at] = 0
 
 
 ## The floor carried out past the ring, as one flat quad per tile.
