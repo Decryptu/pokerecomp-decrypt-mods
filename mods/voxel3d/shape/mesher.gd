@@ -266,6 +266,12 @@ const HOUSE_NONE: int = 0
 const HOUSE_GROUND: int = 1
 const HOUSE_WALL: int = 2
 const HOUSE_ROOF: int = 3
+## How much of one painted building has to lie inside a LARGER one before it is
+## read as a fragment of it rather than as a building of its own. Per cent of the
+## small one's own tiles. Ninety, so that a body cut off by a neighbouring
+## drawing's rectangle edge is caught whichever side of the edge the door fell,
+## and two buildings that merely share a wall are not.
+const FRAGMENT_OF: int = 90
 var _house := PackedByteArray()
 ## One entry per placement of a built drawing: the drawing, the tile it starts
 ## at, how many tiles it runs, and the pixel columns its DOORS occupy.
@@ -985,6 +991,13 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 	# An Array and not a PackedInt32Array: a packed array is a value and appending
 	# to one read out of a dictionary appends to a copy of it, which indexed
 	# nothing and quietly cost sixty maps their painted houses.
+	# WHICH DRAWING SITS WHERE IS ANSWERED BEFORE ANY OF THEM CLAIMS, so that a
+	# building can be weighed against the ones it overlaps rather than only
+	# against the ones found before it. The second loop is the claim, in the
+	# order the first loop found them, which is the order it always was. See the
+	# fragment rule between the two.
+	var found: Array = []
+	var offered: Array = []
 	var where: Dictionary = {}
 	for at: int in count:
 		var tile: int = maxi(_tiles[at], 0)
@@ -1028,40 +1041,78 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 			# what a building actually stands on, and testing the same, lets
 			# #96 take the part #99 never used.
 			var plans: Array = _house_plan(house)
-			if not plans.is_empty():
-				var mine := PackedInt32Array()
-				for index: int in plans.size():
-					var rect: Rect2i = _house_tile_rect(plans[index], across)
-					rect.position += Vector2i(tx, ty)
-					if _house_claimed(rect):
-						continue
-					mine.append(index)
-					for row: int in rect.size.y:
-						for column: int in rect.size.x:
-							_house[(rect.position.y + row) * _size.x
-								+ rect.position.x + column] = HOUSE_WALL
-				if not mine.is_empty():
-					_houses.append([house, Vector2i(tx, ty), across, [], mine])
+			found.append([house, Vector2i(tx, ty), across, plans])
+			for index: int in plans.size():
+				var rect: Rect2i = _house_tile_rect(plans[index], across)
+				rect.position += Vector2i(tx, ty)
+				offered.append([
+					rect.size.x * rect.size.y, found.size() - 1, index, rect, 0
+				])
+
+	# A FRAGMENT LOSES TO THE BUILDING IT IS A FRAGMENT OF.
+	#
+	# Ordering the whole claim by building size instead was tried and is wrong: on
+	# a street of overlapping paintings it lets the biggest body of each drawing
+	# win piecemeal and mixes two paintings over one row of houses, which took the
+	# walls off four of map 21,4's. What is wrong in Saffron is narrower than that.
+	# Drawing 97's rectangle overlaps the department store's right four columns and
+	# the flood cut that overlap off as a body of its own, so a 4x17 sliver stands
+	# wholly inside drawing 98's 12x16 body: not a second building but the same one
+	# seen through a smaller window. 97 is the larger DRAWING, so its sliver claimed
+	# first and the store was refused for the collision, which stood half a
+	# department store as a fin and left the other half to the fold. Where one
+	# offered body lies inside another, the small one is the fragment and it never
+	# claims; nothing else about the claim moves.
+	for offer: Array in offered:
+		for other: Array in offered:
+			if other[1] == offer[1] or other[0] <= offer[0]:
 				continue
-			for row: int in across.y:
-				for column: int in across.x:
-					var at: int = (ty + row) * _size.x + tx + column
-					var stroke: String = _house_word(paint, row, column)
-					if stroke == "":
+			if (offer[3] as Rect2i).intersection(other[3] as Rect2i).get_area() \
+					* 100 >= offer[0] * FRAGMENT_OF:
+				offer[4] = 1
+				break
+	var claims: Dictionary = {}
+	for offer: Array in offered:
+		if offer[4] == 1 or _house_claimed(offer[3] as Rect2i):
+			continue
+		var rect: Rect2i = offer[3]
+		var mine: PackedInt32Array = claims.get(offer[1], PackedInt32Array())
+		mine.append(offer[2])
+		claims[offer[1]] = mine
+		for row: int in rect.size.y:
+			for column: int in rect.size.x:
+				_house[(rect.position.y + row) * _size.x
+					+ rect.position.x + column] = HOUSE_WALL
+	for index: int in found.size():
+		var place: Array = found[index]
+		var house: Dictionary = place[0]
+		var start: Vector2i = place[1]
+		var across: Vector2i = place[2]
+		if not (place[3] as Array).is_empty():
+			# A PLACEMENT EVERY BUILDING OF WHICH WAS REFUSED IS NOT A PLACEMENT.
+			if claims.has(index):
+				_houses.append([house, start, across, [], claims[index]])
+			continue
+		var paint: Array = house["paint"]
+		for row: int in across.y:
+			for column: int in across.x:
+				var at: int = (start.y + row) * _size.x + start.x + column
+				var stroke: String = _house_word(paint, row, column)
+				if stroke == "":
+					continue
+				if stroke == Houses.NONE:
+					# NOT THE HOUSE only takes a tile the pass had called one.
+					# The rectangle holds the pavement, the shadow and whatever
+					# tree stands beside the door, and flattening those would be
+					# a painting nobody made.
+					if _part[at] == PART_NONE:
 						continue
-					if stroke == Houses.NONE:
-						# NOT THE HOUSE only takes a tile the pass had called
-						# one. The rectangle holds the pavement, the shadow and
-						# whatever tree stands beside the door, and flattening
-						# those would be a painting nobody made.
-						if _part[at] == PART_NONE:
-							continue
-						_house[at] = HOUSE_GROUND
-					elif stroke == Houses.ROOF:
-						_house[at] = HOUSE_ROOF
-					else:
-						_house[at] = HOUSE_WALL
-					_house_tile(shape, at, stroke)
+					_house[at] = HOUSE_GROUND
+				elif stroke == Houses.ROOF:
+					_house[at] = HOUSE_ROOF
+				else:
+					_house[at] = HOUSE_WALL
+				_house_tile(shape, at, stroke)
 
 
 ## The one word a whole tile is painted, or "" where the painting cuts it.
