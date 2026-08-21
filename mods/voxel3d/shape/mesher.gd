@@ -1958,8 +1958,14 @@ func _measure_ramps() -> void:
 				Vector2i(step.x, 0), Vector2i(0, step.y), step
 			]:
 				var to := Vector2i(tx + reach.x, ty + reach.y)
+				# AND PAST THE GRID IS NOT LOW GROUND EITHER, which is the same
+				# claim one ring further out and was the longest hole in the game:
+				# the skirt carries the map's own floor out at the map's own
+				# height, so a rim on the grid's edge has nothing to come down to.
+				# Read as ground, every such map dropped its outermost ring to
+				# zero in one tile and left a trench between the ring and the
+				# skirt, open on both sides, running the whole perimeter.
 				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-					near = 0
 					continue
 				# PAST THE SEAM IS NOT LOW GROUND. The margin holds the border
 				# block, or a neighbouring map's, and neither is this map's floor
@@ -2229,8 +2235,14 @@ func _measure_mounds(shape: RefCounted) -> void:
 			var near: int = maxi(distance[at], 0)
 			for reach: Vector2i in [Vector2i(step.x, 0), Vector2i(0, step.y), step]:
 				var to := Vector2i(tx + reach.x, ty + reach.y)
+				# AND PAST THE GRID IS NOT LOW GROUND EITHER, which is the same
+				# claim one ring further out and was the longest hole in the game:
+				# the skirt carries the map's own floor out at the map's own
+				# height, so a rim on the grid's edge has nothing to come down to.
+				# Read as ground, every such map dropped its outermost ring to
+				# zero in one tile and left a trench between the ring and the
+				# skirt, open on both sides, running the whole perimeter.
 				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-					near = 0
 					continue
 				# PAST THE SEAM IS NOT LOW GROUND. The margin holds the border
 				# block, or a neighbouring map's, and neither is this map's floor
@@ -3863,6 +3875,57 @@ func occlusion_height_at_position(position: Vector3) -> int:
 	if stretch <= 0.0:
 		stretch = 1.0 if _shrub[at] == 1 or _rock[at] == 1 else Model.CROWN_STRETCH
 	return top + ceili(float(box.size.y) * TILE * stretch)
+
+
+## WHAT ACTUALLY STANDS BESIDE A TILE, along the edge the two of them share.
+##
+## `_height_at` answers one number per tile, which is the truth for a box and is
+## not the truth for anything sloped: a rock rim and a ledge each carry FOUR
+## corner heights, and `_heights` holds the one the column was measured at. A
+## face closed against that number is closed against a height the neighbour does
+## not have where the two meet, so a rim dropping to the floor at the shared edge
+## is read as standing at the top of its own slope and the tile beside it emits
+## nothing. That is the crack at every corner where a rim runs into a step, and
+## it is the commonest hole in the game.
+##
+## The LOWER of the two shared corners, so the face reaches under the slope
+## rather than to the middle of it. It can only ever lower the neighbour, which
+## is to say it can only ever add face and never take one away.
+func _beside(tx: int, ty: int, step: Vector2i) -> int:
+	var to := Vector2i(tx + step.x, ty + step.y)
+	if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+		return 0
+	var index: int = to.y * _size.x + to.x
+	if _ramp[index] == 1:
+		var corners: Vector2i = _shared_corners(step)
+		return mini(_corners[index * 4 + corners.x], _corners[index * 4 + corners.y])
+	if _art[index] == ART_LEDGE:
+		var steps: Array[Vector2i] = _ledge_steps(_ledge[index])
+		var base: int = _heights[index]
+		# The neighbour's own two corners on the shared edge, in its own u and v.
+		var u: int = 1 if step.x < 0 else 0
+		var v: int = 1 if step.y < 0 else 0
+		if step.x == 0:
+			return int(minf(
+				_wedge_y(base, steps, 0, v), _wedge_y(base, steps, 1, v)
+			))
+		return int(minf(
+			_wedge_y(base, steps, u, 0), _wedge_y(base, steps, u, 1)
+		))
+	return _heights[index]
+
+
+## The two corners of the NEIGHBOUR that the shared edge runs between, as indices
+## into its four, for a step taken from this tile toward it. A tile's south
+## neighbour shares that neighbour's NORTH edge, and so on round.
+func _shared_corners(step: Vector2i) -> Vector2i:
+	if step.y > 0:
+		return Vector2i(0, 1)
+	if step.y < 0:
+		return Vector2i(2, 3)
+	if step.x > 0:
+		return Vector2i(0, 2)
+	return Vector2i(1, 3)
 
 
 func _height_at(tx: int, ty: int) -> int:
@@ -7512,13 +7575,13 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		# THE SIDES WEAR THE FLOOR TOO. What stands here is a model and its drawing
 		# is the model, so a face cut from the tile is the flat sprite smeared down
 		# the side of the ground it stands on.
-		_side(tx, ty, ground.y, _height_at(tx, ty + 1),
+		_side(tx, ty, ground.y, _beside(tx, ty, Vector2i(0, 1)),
 			Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas, ground.x)
-		_side(tx, ty, ground.y, _height_at(tx, ty - 1),
+		_side(tx, ty, ground.y, _beside(tx, ty, Vector2i(0, -1)),
 			Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas, ground.x)
-		_side(tx, ty, ground.y, _height_at(tx + 1, ty),
+		_side(tx, ty, ground.y, _beside(tx, ty, Vector2i(1, 0)),
 			Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas, ground.x)
-		_side(tx, ty, ground.y, _height_at(tx - 1, ty),
+		_side(tx, ty, ground.y, _beside(tx, ty, Vector2i(-1, 0)),
 			Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas, ground.x)
 		# The ground under it is drawn either way; what stands ON it is a whole
 		# OBJECT stood up beside its neighbours, the drawing carved out, an authored
@@ -7869,14 +7932,14 @@ func _wedge(tx: int, ty: int, atlas: RefCounted) -> void:
 	)
 	# The drop is the one side standing at the top of the ramp. The other three
 	# skirt from the foot down to whatever is beside them, as any tile does.
-	_side(tx, ty, top if (facings & LEDGE_SOUTH) != 0 else base, _height_at(tx, ty + 1),
-		Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
-	_side(tx, ty, top if (facings & LEDGE_NORTH) != 0 else base, _height_at(tx, ty - 1),
-		Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
-	_side(tx, ty, top if (facings & LEDGE_EAST) != 0 else base, _height_at(tx + 1, ty),
-		Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
-	_side(tx, ty, top if (facings & LEDGE_WEST) != 0 else base, _height_at(tx - 1, ty),
-		Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
+	_side(tx, ty, top if (facings & LEDGE_SOUTH) != 0 else base,
+		_beside(tx, ty, Vector2i(0, 1)), Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
+	_side(tx, ty, top if (facings & LEDGE_NORTH) != 0 else base,
+		_beside(tx, ty, Vector2i(0, -1)), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
+	_side(tx, ty, top if (facings & LEDGE_EAST) != 0 else base,
+		_beside(tx, ty, Vector2i(1, 0)), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
+	_side(tx, ty, top if (facings & LEDGE_WEST) != 0 else base,
+		_beside(tx, ty, Vector2i(-1, 0)), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 	# The slope's own profile closes the two ends of a run of them.
 	for step: Vector2i in steps:
 		var across := Vector2i(step.y, step.x)
@@ -8234,15 +8297,20 @@ func _measure_room_fill() -> void:
 			_margin_right[at] = 0
 
 
-## The floor carried out past the ring, as one flat quad per tile.
+## The floor carried out past the ring, as one flat quad per tile WITH SIDES.
+##
+## A SKIRT FLOOR IS READ PER COLUMN, `_skirt_floor` scanning inward from each
+## edge tile for something flat, so two columns of the same edge answer 0 and 16
+## wherever the map's own perimeter steps; and the ring the skirt is laid against
+## steps the same way. Emitted as a top quad alone that is not a surface but a
+## lid: every one of those steps is an open crack the height of the step, and a
+## crack shows the SKY. It is the length of the map, which is what makes it read
+## as a drawn line rather than as a hole.
 func _emit_skirt(tx: int, ty: int, atlas: RefCounted) -> void:
-	var edge := Vector2i(clampi(tx, 0, _size.x - 1), clampi(ty, 0, _size.y - 1))
-	var key: int = edge.y * _size.x + edge.x
-	if not _border.has(key):
-		_border[key] = _skirt_floor(edge)
-	var floor_at: Vector2i = _border[key]
+	var floor_at: Vector2i = _skirt_floor_at(tx, ty)
 	if floor_at.x < 0:
 		return
+	var edge := Vector2i(clampi(tx, 0, _size.x - 1), clampi(ty, 0, _size.y - 1))
 	# Twenty maps end in open sea, so most of the skirt in the game IS water and
 	# it has to reach the water's own material or a coast runs out as a flat blue
 	# floor beyond the last rippling tile. The recess is what says so, exactly as
@@ -8253,6 +8321,92 @@ func _emit_skirt(tx: int, ty: int, atlas: RefCounted) -> void:
 	# After the floor and with the sink back to terrain, since the fence is wood
 	# standing on it and not part of the surface.
 	_skirt_fence(tx, ty, edge, float(floor_at.y), atlas)
+	# The four sides, down to whatever stands beside this tile, so the step is
+	# closed whichever of the two is the taller. Water keeps the water sink, since
+	# a sea skirt's own lip is sea.
+	_sink = SINK_WATER if floor_at.y < 0 else SINK_TERRAIN
+	for step: Vector2i in [
+		Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
+	]:
+		_skirt_side(tx, ty, step, floor_at, atlas)
+	_sink = SINK_TERRAIN
+
+
+## The floor of any tile out in the skirt, cached per EDGE tile: one column of
+## the skirt is one answer, which is what carries a shore straight out.
+func _skirt_floor_at(tx: int, ty: int) -> Vector2i:
+	var edge := Vector2i(clampi(tx, 0, _size.x - 1), clampi(ty, 0, _size.y - 1))
+	var key: int = edge.y * _size.x + edge.x
+	if not _border.has(key):
+		_border[key] = _skirt_floor(edge)
+	return _border[key]
+
+
+## How far the skirt reaches out of the grid on every side, in tiles. Nothing is
+## emitted past it, so a tile out there is open air and not a floor.
+func _skirt_reach() -> int:
+	return maxi(BORDER_TILES - _margin.x, 0) if _outside else 0
+
+
+## What stands beside one skirt tile, as a height. The grid answers for itself;
+## another skirt tile answers with its own column's floor; and past the skirt
+## there is nothing at all, which is the ground plane, so the diorama's outermost
+## ring closes down to it rather than ending in a lid.
+func _skirt_beside(tx: int, ty: int) -> int:
+	if tx >= 0 and ty >= 0 and tx < _size.x and ty < _size.y:
+		return _heights[ty * _size.x + tx]
+	var reach: int = _skirt_reach()
+	if tx < -reach or ty < -reach \
+			or tx >= _size.x + reach or ty >= _size.y + reach:
+		return 0
+	var floor_at: Vector2i = _skirt_floor_at(tx, ty)
+	return 0 if floor_at.x < 0 else floor_at.y
+
+
+## One side of a skirt tile, in 8 px bands wearing the floor's own drawing, with
+## whatever is left over of a step that is not a whole band as a cropped band at
+## the top. A step of four pixels is half of what the shore sink makes and a band
+## loop that divides it away leaves exactly the crack this closes.
+func _skirt_side(
+	tx: int, ty: int, step: Vector2i, floor_at: Vector2i, atlas: RefCounted
+) -> void:
+	var here: int = floor_at.y
+	var neighbour: int = _skirt_beside(tx + step.x, ty + step.y)
+	if neighbour >= here:
+		return
+	var x0: float = _world_x(tx)
+	var x1: float = x0 + TILE
+	var z0: float = _world_z(ty)
+	var z1: float = z0 + TILE
+	var full: Rect2 = atlas.uv(floor_at.x)
+	var shade: Color = SHADE_SOUTH if step.y > 0 else (
+		SHADE_NORTH if step.y < 0 else SHADE_SIDE
+	)
+	var normal := Vector3(float(step.x), 0.0, float(step.y))
+	var low: float = float(neighbour)
+	while low < float(here):
+		var high: float = minf(low + TILE, float(here))
+		var uv: Rect2 = full
+		if high - low < TILE:
+			uv.size.y = full.size.y * (high - low) / TILE
+		var a := Vector3.ZERO
+		var b := Vector3.ZERO
+		if step.y > 0:
+			a = Vector3(x0, low, z1)
+			b = Vector3(x1, low, z1)
+		elif step.y < 0:
+			a = Vector3(x1, low, z0)
+			b = Vector3(x0, low, z0)
+		elif step.x > 0:
+			a = Vector3(x1, low, z1)
+			b = Vector3(x1, low, z0)
+		else:
+			a = Vector3(x0, low, z0)
+			b = Vector3(x0, low, z1)
+		_quad(
+			a, b, Vector3(b.x, high, b.z), Vector3(a.x, high, a.z), normal, uv, shade
+		)
+		low = high
 
 
 ## Per skirt walk cell, so the fence carried out of one edge cell is built once
@@ -8541,7 +8695,7 @@ func _roof_side(
 	if tilted and at.x >= 0 and at.y >= 0 and at.x < _size.x and at.y < _size.y \
 			and _tilted(at.y * _size.x + at.x):
 		return
-	_side(tx, ty, here, _height_at(at.x, at.y), normal, shade, atlas)
+	_side(tx, ty, here, _beside(tx, ty, step), normal, shade, atlas)
 
 
 ## A ROOF IS TILTED, NOT STEPPED, and the whole of it is one rule at the corners.
@@ -8649,12 +8803,18 @@ func _ramp_side(
 	normal: Vector3, shade: Color, uv: Rect2
 ) -> void:
 	var to := Vector2i(tx + step.x, ty + step.y)
+	# A RIM ON THE GRID'S OWN EDGE FACES THE SKIRT, and the skirt is out of the
+	# grid. Refusing the face there is what left a line of sky the length of every
+	# map that carries its border block raised: the ring's outermost row is rim,
+	# its top slopes down to the boundary, and nothing stood under that slope.
+	var floor_y: float = 0.0
 	if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-		return
-	var index: int = to.y * _size.x + to.x
-	if _shelf[index] == 1:
-		return
-	var floor_y: float = float(_heights[index])
+		floor_y = float(_skirt_beside(to.x, to.y))
+	else:
+		var index: int = to.y * _size.x + to.x
+		if _shelf[index] == 1:
+			return
+		floor_y = float(_heights[index])
 	if floor_y >= first and floor_y >= second:
 		return
 	var x0: float = _world_x(tx)
