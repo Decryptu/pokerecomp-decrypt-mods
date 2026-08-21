@@ -917,6 +917,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_fence_mask = PackedByteArray()
 	_measure_fences()
 	# After every one of them, since each can still move a height and a ramp is
+	# BEFORE THE RAMPS, or the rim slopes down into the mouth it stands beside and
+	# a cave entrance comes out at the point of a funnel.
+	_measure_mouths()
 	# cut from the heights as they finally stand.
 	_measure_ramps()
 	# After the ramps, which is what sizes and fills the corners they write into.
@@ -2206,6 +2209,50 @@ func _measure_doors(shape: RefCounted) -> void:
 			_corners[at * 4 + corner] = high
 
 
+## A HOLE IN A WALL STANDS IN THE WALL, whether or not the tileset has a `MOUNDS`
+## line to name its door with.
+##
+## `_measure_doors` is the same thought and it can only reach a tileset somebody
+## has pinned the cave mouth of, which is tileset 3 alone. The `void` class is
+## already that pin under another name: it says this tile is the black opening
+## and not a surface. So a void tile lying at 0 with a WALL beside it takes the
+## wall's height, and the face machinery paints its drawing on exactly where the
+## cartridge drew it.
+##
+## BEFORE `_measure_ramps`, which is what the corners and the rim both want: the
+## mouth stands at the wall's height before anything measures a slope, so the rim
+## beside it has nothing to come down to and the entrance is not at the point of
+## a funnel. Nothing here writes a corner for the same reason: the ramp pass
+## fills them from the heights it finds.
+##
+## THE CLIFF IS WHAT IT TAKES ITS HEIGHT FROM, not any neighbour, and that is
+## what keeps `_settle_void`'s pits alone: a hole in a floor has floor all round
+## it and no cliff anywhere, so it reads nothing here and stays at the floor it
+## was settled to. A mouth has the cliff on both sides of it. Not `_volume`,
+## which by this point in the resolve is 0 on every rim `_measure_ramps` has
+## sloped, the cliff round a cave mouth included.
+func _measure_mouths() -> void:
+	for at: int in _size.x * _size.y:
+		if _void[at] != 1 or _heights[at] != 0:
+			continue
+		@warning_ignore("integer_division")
+		var from := Vector2i(at % _size.x, at / _size.x)
+		var high: int = 0
+		for step: Vector2i in [
+			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
+		]:
+			var to: Vector2i = from + step
+			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+				continue
+			var index: int = to.y * _size.x + to.x
+			if _void[index] == 1 or _cliff[index] == 0:
+				continue
+			high = maxi(high, _heights[index])
+		if high <= 0:
+			continue
+		_heights[at] = high
+
+
 ## THE SHORE, eased from the land down to the water instead of dropping to it.
 ##
 ## Where water meets land the cartridge draws a small rock bank, and this file
@@ -2603,10 +2650,17 @@ func _cliff_height(tx: int, top_row: int) -> int:
 ## The ground a plateau is made of: flat art standing on the ground plane. Water
 ## is flat too and is deliberately not this, and anything already raised has been
 ## measured off its own drawing and is not a floor to be lifted.
+## A CAVE MOUTH IS NOT A FLOOR, and leaving it one is the whole of map 8,6. The
+## black opening is drawn flat and walkable, so the flood ran straight through
+## the doorway and joined the sand shelf above the cliff to the grass below it:
+## one region carrying both kinds of evidence, which this pass then leaves alone,
+## so a plateau the size of half the map stayed at 0 with a two-tile ridge along
+## its front where its face should have been. A hole in a wall is a hole in a
+## wall from either side of it.
 func _is_plateau_floor(at: int) -> bool:
 	return (
 		_tiles[at] >= 0 and _art[at] == ART_FLAT and _heights[at] == 0
-		and _lip[at] == 0
+		and _lip[at] == 0 and _void[at] == 0
 	)
 
 
