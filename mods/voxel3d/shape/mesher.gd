@@ -436,6 +436,7 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	_house_done.clear()
 	_stair_done.clear()
 	_fence_done.clear()
+	_skirt_fence_done.clear()
 	_built_model = false
 	# Chunks are cut on the world's own grid rather than on the window's corner,
 	# so walking one cell east recentres the window onto the SAME chunks and the
@@ -908,6 +909,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# With the objects, and for the same reason: a boxed house covers its tiles
 	# and hands them back to the floor of their own cell.
 	_measure_house_boxes(source)
+	_settle_house_ground()
 	_measure_stairs(shape)
 	# Last, because it overrides whatever the passes above made of a ledge tile
 	# and reads the ground they settled either side of it.
@@ -1183,6 +1185,28 @@ func _house_footprint(plans: Array, across: Vector2i) -> PackedByteArray:
 	return covered
 
 
+## The tiles a drawing's buildings actually STAND on, which since the depth cap
+## is a shorter rectangle than the one they cover: see `_house_body`.
+func _house_body_mask(plans: Array, across: Vector2i) -> PackedByteArray:
+	var stood := PackedByteArray()
+	stood.resize(across.x * across.y)
+	for plan: Dictionary in plans:
+		if int(plan.get("right", -1)) < 0:
+			continue
+		@warning_ignore("integer_division")
+		var first := Vector2i(
+			int(plan["cover_left"]) / TILE_PX, int(plan["north_row"]) / TILE_PX
+		)
+		@warning_ignore("integer_division")
+		var last := Vector2i(
+			int(plan["cover_right"]) / TILE_PX, int(plan["south_row"]) / TILE_PX
+		)
+		for row: int in range(maxi(first.y, 0), mini(last.y, across.y - 1) + 1):
+			for column: int in range(maxi(first.x, 0), mini(last.x, across.x - 1) + 1):
+				stood[row * across.x + column] = 1
+	return stood
+
+
 ## THE PAINTED HOUSES THAT ARE STOOD UP AS BOXES, given back to the FLOOR.
 ##
 ## Every tile a boxed drawing covers becomes a cutout standing at its own cell's
@@ -1202,6 +1226,8 @@ func _measure_house_boxes(source: RefCounted) -> void:
 	_house_covered.resize(_size.x * _size.y)
 	_house_covered.fill(0)
 	_house_over.clear()
+	_house_open.clear()
+	_house_ground.clear()
 	if _houses.is_empty():
 		return
 	var warps: Array = []
@@ -1232,9 +1258,9 @@ func _measure_house_boxes(source: RefCounted) -> void:
 		for row: int in across.y:
 			for column: int in across.x:
 				floors.append(_cell_floor((start.x + column) >> 1, (start.y + row) >> 1))
-		var footprint: PackedByteArray = _house_footprint(
-			_house_chosen(entry), across
-		)
+		var chosen: Array = _house_chosen(entry)
+		var footprint: PackedByteArray = _house_footprint(chosen, across)
+		var stood: PackedByteArray = _house_body_mask(chosen, across)
 		for row: int in across.y:
 			for column: int in across.x:
 				if footprint[row * across.x + column] == 0:
@@ -1263,6 +1289,58 @@ func _measure_house_boxes(source: RefCounted) -> void:
 				var over: PackedInt32Array = _house_over.get(at, PackedInt32Array())
 				over.append(index)
 				_house_over[at] = over
+				# A COVERED TILE WITH NOTHING STANDING ON IT IS OPEN GROUND, and
+				# it has to be told what ground: `_ground_art` looks two tiles for
+				# something flat and falls back to the tile's OWN drawing, which
+				# behind the tower is twenty rows of its facade lying flat on the
+				# floor like a fallen billboard. Answered along the row instead,
+				# which is where the map says what the building is standing in.
+				if stood[row * across.x + column] == 0:
+					_house_open[at] = Vector2i(start.x, start.x + across.x)
+
+
+## Per tile the depth cap released: the columns of the drawing that covered it,
+## which is the span the floor beside it is searched outside of.
+var _house_open: Dictionary = {}
+## And the answer, once asked. Emptied with the map.
+var _house_ground: Dictionary = {}
+
+
+## The floor BESIDE one released tile, along its own row and outside the drawing.
+##
+## Nearer first and both ways at once, so a building against a bank takes the
+## bank and one standing in a canal takes the canal. Water counts, which is the
+## one place it does: this quad IS the ground rather than something standing on
+## it, and Cerulean's tower has water either side of it for sixteen rows.
+##
+## Its own pass, straight after the boxes and BEFORE the ramps and the shores,
+## which is what makes the answer the map's rather than a quad laid over it: the
+## height goes into `_heights` with it, so the bank beside the canal measures the
+## released tiles as canal and the water joins across them instead of ending in a
+## step at the tower's foot.
+func _settle_house_ground() -> void:
+	for at: int in _house_open:
+		var span: Vector2i = _house_open[at]
+		@warning_ignore("integer_division")
+		var ty: int = at / _size.x
+		var found := Vector2i(-1, 0)
+		for step: int in range(1, _size.x):
+			var reached: bool = false
+			for way: int in [-1, 1]:
+				var at_x: int = (span.x - step) if way < 0 else (span.y - 1 + step)
+				if at_x < 0 or at_x >= _size.x:
+					continue
+				reached = true
+				var index: int = ty * _size.x + at_x
+				if _art[index] == ART_FLAT and _tiles[index] >= 0:
+					found = Vector2i(_tiles[index], _heights[index])
+					break
+			if found.x >= 0 or not reached:
+				break
+		if found.x < 0:
+			continue
+		_house_ground[at] = found
+		_heights[at] = found.y
 
 
 ## The tiles of a drawing that one of its buildings stands on.
@@ -1464,13 +1542,18 @@ func _measure_columns() -> void:
 ## THE ARMS RUN HALF A CELL EACH WAY FROM THE CENTRE, so a straight run is
 ## continuous and a corner is two arms crossing. A cell with no fence beside it
 ## keeps the drawing's own axis.
-func _fence(tx: int, ty: int, ground: float, atlas: RefCounted) -> void:
-	var at: int = ty * _size.x + tx
+## [param arms] overrides the measured pair, for a cell that has none: the SKIRT
+## lies outside the resolved grid and its fence is carried out of the edge cell
+## rather than measured. Below zero reads the map's own answer.
+func _fence(
+	tx: int, ty: int, ground: float, atlas: RefCounted, arms: int = -1
+) -> void:
 	if _fence_mask.is_empty():
 		_fence_profile(atlas)
 	if _fence_mask.is_empty():
 		return
-	var arms: int = int(_fence_arms[at])
+	if arms < 0:
+		arms = int(_fence_arms[ty * _size.x + tx])
 	var cell := Vector2i((tx - _margin.x) >> 1, (ty - _margin.y) >> 1)
 	var middle := Vector2(
 		_world_x(_margin.x + cell.x * CELL_TILES) + TILE,
@@ -2318,6 +2401,15 @@ func _measure_shores() -> void:
 			var high: int = _heights[at]
 			# The three tiles that meet this corner. The highest LAND among them is
 			# what the bank rises to; water and the map's own outside are not land.
+			#
+			# AT THE CORNER ITSELF, and not at the neighbour's own height. The two
+			# are the same number for flat land and they are not for a RAMP, whose
+			# whole point is that its four corners differ from it: the rock patch
+			# on Cerulean's waterfront stands at 8 and its rim comes down to 0 at
+			# the very corner the bank beside it meets, so reading the height lifted
+			# that bank sixteen pixels in one tile and left a fin standing where the
+			# rock said nothing was. A shared corner has ONE height or there is a
+			# hole through the seam.
 			for reach: Vector2i in [Vector2i(step.x, 0), Vector2i(0, step.y), step]:
 				var to := Vector2i(tx + reach.x, ty + reach.y)
 				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
@@ -2325,11 +2417,23 @@ func _measure_shores() -> void:
 				var index: int = to.y * _size.x + to.x
 				if _tiles[index] < 0 or _heights[index] <= _heights[at]:
 					continue
-				high = maxi(high, _heights[index])
+				high = maxi(high, _corners[index * 4 + _corner_across(step, reach)])
 			_corners[at * 4 + corner] = high
 			sloped = sloped or high > _heights[at]
 		if sloped:
 			_ramp[at] = 1
+
+
+## The SAME corner point, in the frame of the neighbour [param reach] away.
+##
+## A corner is one point shared by up to four tiles, and each names it by its own
+## quadrant: the tile east of here calls this tile's north-east corner its own
+## north-west. Every component the step was reached across flips, and the ones it
+## was not are unchanged.
+func _corner_across(step: Vector2i, reach: Vector2i) -> int:
+	var sx: int = step.x if reach.x == 0 else -step.x
+	var sy: int = step.y if reach.y == 0 else -step.y
+	return (0 if sx < 0 else 1) + (0 if sy < 0 else 2)
 
 
 ## A CLIFF IS AS TALL AS ITS FACE IS DRAWN, in 8px bands.
@@ -5494,11 +5598,34 @@ func _house_body(
 	if m1 < 0:
 		m0 = left
 		m1 = right
+	# A BUILDING IS NO DEEPER THAN IT IS WIDE.
+	#
+	# Generation II draws a building face-on, so its whole height is drawn going
+	# UP the map and the fold reads that height as depth: a house eight tiles wide
+	# and six tall stands eight by six, which is a house, and Cerulean's tower is
+	# eight wide and twenty-eight tall and stands as a slab fourteen walk cells
+	# deep lying across a canal. The drawn height is a fact about the FACADE and
+	# not about the ground the thing covers, and nothing in the cartridge says how
+	# deep a building is, so the one measurement that is honest is the other one
+	# the drawing gives: its width.
+	#
+	# The HEIGHT does not move. It is `peak` to `foot` and neither is touched
+	# here, so the tower is still fourteen cells tall; it is a tower now rather
+	# than a slab. Nothing under the cap moves at all, which is most of the game:
+	# a drawing wider than it is tall keeps every row it had.
+	#
+	# THE FOOTPRINT KEEPS EVERY ROW and only the BODY is shortened, which is what
+	# leaves the ground behind the tower drawn: a tile the drawing covers is
+	# handed to the floor beside it and the building stood over it, so the rows
+	# the body no longer reaches come out as the canal and the grass they are
+	# drawn in the middle of. Releasing them instead would stand each one up as
+	# the facade it is painted, which is the slab again in twenty pieces.
+	var north_row: int = maxi(top_row + gap, foot + 1 - (right + 1 - left))
 	var plan: Dictionary = {
 		"rows": rows, "cols": cols, "foot": foot, "gap": gap,
 		"left": left, "right": right,
 		"cover_left": cover.x, "cover_right": cover.y,
-		"top_row": top_row, "north_row": top_row + gap, "south_row": foot + 1,
+		"top_row": top_row, "north_row": north_row, "south_row": foot + 1,
 		"tops": tops, "eave_from": eave_from, "eave_to": eave_to,
 		"cap_from": cap_from, "cap_to": cap_to, "m0": m0, "m1": m1,
 		"peak_rise": float(foot + 1 - peak),
@@ -7162,18 +7289,34 @@ func _tile_at(tx: int, ty: int) -> int:
 ## flat, and the only two tiles in the rectangle that read 16 with 0 under them
 ## are the sign's.
 func _ground_art(tx: int, ty: int) -> Vector2i:
-	for step: Vector2i in [
-		Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0),
-		Vector2i(0, 2), Vector2i(0, -2), Vector2i(2, 0), Vector2i(-2, 0),
-	]:
-		var beside := Vector2i(tx + step.x, ty + step.y)
-		if beside.x < 0 or beside.y < 0 or beside.x >= _size.x or beside.y >= _size.y:
-			continue
-		var index: int = beside.y * _size.x + beside.x
-		if _stair_at[index] >= 0 or _ramp[index] == 1:
-			continue
-		if _art[index] == ART_FLAT and _heights[index] >= 0:
-			return Vector2i(maxi(_tiles[index], 0), _heights[index])
+	var released: Vector2i = _house_ground.get(ty * _size.x + tx, Vector2i(-1, 0))
+	if released.x >= 0:
+		return released
+	# AND THE SECOND TILE IS ONLY REACHED OVER GROUND. The far ring exists for a
+	# tile with nothing flat beside it at all, which is a wood or a hedge, and a
+	# RAMP is the one thing that stands between two levels: reaching past one
+	# lands on the shelf it climbs to. Cerulean's tree line is drawn along the
+	# north edge of a rock patch, its trees looked one tile south at the rim,
+	# refused it, looked two and took the rock's own top, so a slab of rock art
+	# hung a band over the grass with a trunk under it. A direction a ramp was
+	# refused in is closed for the far ring too.
+	var blocked: Dictionary = {}
+	for ring: int in [1, 2]:
+		for way: Vector2i in [
+			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
+		]:
+			if ring > 1 and blocked.has(way):
+				continue
+			var beside := Vector2i(tx + way.x * ring, ty + way.y * ring)
+			if beside.x < 0 or beside.y < 0 \
+					or beside.x >= _size.x or beside.y >= _size.y:
+				continue
+			var index: int = beside.y * _size.x + beside.x
+			if _stair_at[index] >= 0 or _ramp[index] == 1:
+				blocked[way] = true
+				continue
+			if _art[index] == ART_FLAT and _heights[index] >= 0:
+				return Vector2i(maxi(_tiles[index], 0), _heights[index])
 	# NOTHING FLAT WITHIN TWO TILES, which is a wood, a hedge or a border ring, and
 	# is four in five of the game's modelled tiles. The tileset's own ground stands
 	# in, because a thing never stands on a picture of itself: this answered the
@@ -7194,7 +7337,14 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	if _art[at] == ART_CUTOUT or _art[at] == ART_RAILING or _art[at] == ART_FENCE \
 			or _art[at] == ART_BALL:
 		var ground: Vector2i = _ground_art(tx, ty)
+		# A RELEASED TILE STANDING IN WATER REACHES THE WATER'S OWN MATERIAL, the
+		# way the skirt's does: the recess is what says it is water, and a quad
+		# left on the terrain mesh is a still blue square in the middle of a
+		# rippling canal. Only the surface; the faces below are the bank.
+		if ground.y < 0 and _house_ground.has(at):
+			_sink = SINK_WATER
 		_face_top(tx, ty, float(ground.y), atlas.uv(ground.x), SHADE_TOP_FLAT)
+		_sink = SINK_TERRAIN
 		# THE SIDES WEAR THE FLOOR TOO. What stands here is a model and its drawing
 		# is the model, so a face cut from the tile is the flat sprite smeared down
 		# the side of the ground it stands on.
@@ -7936,6 +8086,49 @@ func _emit_skirt(tx: int, ty: int, atlas: RefCounted) -> void:
 	_sink = SINK_WATER if floor_at.y < 0 else SINK_TERRAIN
 	_face_top(tx, ty, float(floor_at.y), atlas.uv(floor_at.x), SHADE_TOP_FLAT)
 	_sink = SINK_TERRAIN
+	# After the floor and with the sink back to terrain, since the fence is wood
+	# standing on it and not part of the surface.
+	_skirt_fence(tx, ty, edge, float(floor_at.y), atlas)
+
+
+## Per skirt walk cell, so the fence carried out of one edge cell is built once
+## rather than by each of the four tiles that ask for it.
+var _skirt_fence_done: Dictionary = {}
+
+
+## A FENCE RUNS PAST THE MAP EDGE, because the drawing does.
+##
+## The cartridge's border block carries the map's own art out, so the ring keeps
+## four more tiles of a fence and then it stops dead in open ground: a run walking
+## north out of Cerulean ends in mid air with the path carrying on under it. The
+## floor is already carried the whole depth of the skirt and this is the same
+## claim about the thing standing on it.
+##
+## ONLY THE ARM THAT POINTS OUT. A fence cell holds two arms and the one running
+## ALONG the edge is a fact about the tiles beside it, none of which is out here;
+## carrying it lays a rail across open ground at right angles to the run. So the
+## skirt takes the perpendicular arm alone, and only where the edge cell has it,
+## which is what distinguishes a fence walking out of the map from one lying
+## along its boundary.
+func _skirt_fence(
+	tx: int, ty: int, edge: Vector2i, ground: float, atlas: RefCounted
+) -> void:
+	var out_x: bool = tx < 0 or tx >= _size.x
+	var out_y: bool = ty < 0 or ty >= _size.y
+	# A corner is out on both axes and belongs to neither run.
+	if out_x == out_y:
+		return
+	var index: int = edge.y * _size.x + edge.x
+	if _art[index] != ART_FENCE:
+		return
+	var arm: int = FENCE_ACROSS if out_x else FENCE_AWAY
+	if int(_fence_arms[index]) & arm == 0:
+		return
+	var cell := Vector2i((tx - _margin.x) >> 1, (ty - _margin.y) >> 1)
+	if _skirt_fence_done.has(cell):
+		return
+	_skirt_fence_done[cell] = true
+	_fence(tx, ty, ground, atlas, arm)
 
 
 ## The tile id and height of the floor at one grid edge position, as a Vector2i.
@@ -7952,11 +8145,41 @@ func _emit_skirt(tx: int, ty: int, atlas: RefCounted) -> void:
 ## its boundary laid an orange runway to the horizon, and a town whose north side
 ## is eight tiles of building drew nothing at all and opened a hole in the ground
 ## plane. A wrong patch of grass reads as grass; a hole reads as a hole.
+##
+## BUT THE COLUMN BESIDE IT IS ASKED FIRST, and it is asked because the whole-map
+## answer is a fact about the WHOLE perimeter and is used at ONE point on it.
+## Cerulean's is water, its sea being most of its boundary, and the two columns a
+## fence runs north out of hold no floor in any of their four ring rows: two
+## strips of sea eight pixels below the grass ran twenty-eight tiles out to the
+## horizon on either side of a path. One tile east is the same path, and along
+## the edge is where a skirt column's own floor is.
+const SKIRT_ALONG: int = 8
+
+
 func _skirt_floor(edge: Vector2i) -> Vector2i:
 	var inward := Vector2i(
 		1 if edge.x == 0 else (-1 if edge.x == _size.x - 1 else 0),
 		1 if edge.y == 0 else (-1 if edge.y == _size.y - 1 else 0)
 	)
+	var found: Vector2i = _skirt_column(edge, inward)
+	if found.x >= 0:
+		return found
+	# Along the edge, nearer first and both ways at once, so a run of hedge takes
+	# the floor from whichever end of it is closer.
+	var along := Vector2i(inward.y, inward.x)
+	for step: int in range(1, SKIRT_ALONG + 1):
+		for way: int in [1, -1]:
+			found = _skirt_column(edge + along * step * way, inward)
+			if found.x >= 0:
+				return found
+	return _commonest_edge_floor()
+
+
+## The floor in one column of the ring, inward from [param edge], or x below zero
+## where that column holds none.
+func _skirt_column(edge: Vector2i, inward: Vector2i) -> Vector2i:
+	if edge.x < 0 or edge.y < 0 or edge.x >= _size.x or edge.y >= _size.y:
+		return Vector2i(-1, 0)
 	for step: int in maxi(_margin.x, 1):
 		var at := edge + inward * step
 		if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
@@ -7964,7 +8187,7 @@ func _skirt_floor(edge: Vector2i) -> Vector2i:
 		var index: int = at.y * _size.x + at.x
 		if _art[index] == ART_FLAT and _tiles[index] >= 0:
 			return Vector2i(_tiles[index], _heights[index])
-	return _commonest_edge_floor()
+	return Vector2i(-1, 0)
 
 
 var _edge_floor := Vector2i(-2, 0)

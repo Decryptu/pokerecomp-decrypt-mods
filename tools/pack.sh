@@ -87,10 +87,25 @@ case "$SELECT" in
 			| awk -F'\t' 'NF >= 7 && $1 ~ /^[0-9]+,[0-9]+$/ { print $1 "\t" $6 "\t" $7 }')
 		;;
 	*)
+		# An explicit list carries no centre and no distance, so ask the one
+		# thing that knows, ONCE and before the loop rather than once per map:
+		# twenty maps meant twenty-one Godot starts for one table, and a map
+		# missing from it was reported halfway through the render instead of
+		# before the first frame.
+		table=$("$GODOT" --headless --path "$HOST" -s "$HERE/tools/maps.gd" \
+			-- "$CACHE" all 2>/dev/null)
 		for pair in $SELECT "$@"; do
 			case "$pair" in
-				*,*) rows="$rows$pair	\n" ;;
+				*,*) ;;
+				*) continue ;;
 			esac
+			row=$(printf '%s\n' "$table" \
+				| awk -F'\t' -v m="$pair" '$1 == m { print $1 "\t" $6 "\t" $7 }')
+			if [ -z "$row" ]; then
+				echo "no map $pair" >&2
+				continue
+			fi
+			rows="$rows$row\n"
 		done
 		rows=$(printf "%b" "$rows")
 		;;
@@ -106,15 +121,6 @@ printf '%s\n' "$rows" | while IFS="$(printf '\t')" read -r map centre fit; do
 	[ -n "$map" ] || continue
 	group="${map%%,*}"
 	number="${map##*,}"
-	# An explicit list carries neither, so ask the one thing that knows rather
-	# than guessing 40,36 and a distance.
-	if [ -z "${centre:-}" ]; then
-		read -r centre fit <<-EOF
-		$("$GODOT" --headless --path "$HOST" -s "$HERE/tools/maps.gd" \
-			-- "$CACHE" all 2>/dev/null \
-			| awk -F'\t' -v m="$map" '$1 == m { print $6, $7 }')
-		EOF
-	fi
 	[ -n "$centre" ] || { echo "no map $map" >&2; continue; }
 	x="${centre%%,*}"
 	y="${centre##*,}"
@@ -123,7 +129,8 @@ printf '%s\n' "$rows" | while IFS="$(printf '\t')" read -r map centre fit; do
 	file="$OUT/${group}_${number}.png"
 	"$GODOT" --path "$HOST" -s "$HERE/tools/shot.gd" -- "$CACHE" \
 		"$group" "$number" "$x" "$y" "$file" \
-		"$PITCH" "$stand" "$TIME_OF_DAY" "" 6 "$BEARING" > /dev/null 2>&1
+		"$PITCH" "$stand" "$TIME_OF_DAY" "" 6 "$BEARING" \
+		< /dev/null > /dev/null 2>&1
 	if [ -f "$file" ]; then
 		printf '%s\tmap %s\taimed at %s from %s\n' \
 			"${group}_${number}.png" "$map" "$centre" "$stand" >> "$LOG"
