@@ -2703,7 +2703,7 @@ const TILESETS: Dictionary = {
 	# boulder drawn as its own silhouette, which is the portrait a model is turned
 	# from. See "The sprite-to-model pipeline".
 	9: {
-		&"boulder": [1, 2, 17, 18],
+		&"sea_rock": [1, 2, 17, 18],
 		# The pair flanking a doorway, one placement each on two maps.
 		&"statue_pillar": [6, 7, 22, 23, 8, 9, 24, 25],
 	},
