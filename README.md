@@ -55,7 +55,8 @@ inside has to match what the index advertised:
 sh tools/package.sh voxel3d
 ```
 
-The result lands in `dist/`.
+The result lands in `dist/`, with `icon.png` and `thumbnail.webp` inside it if
+the mod has them.
 
 ## Developing
 
