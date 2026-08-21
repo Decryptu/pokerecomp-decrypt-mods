@@ -5255,6 +5255,31 @@ func _house_run(paint: Array, rows: int, x: int, band: Vector2i) -> Vector2i:
 
 
 ## One building out of a painting, planned on its own.
+## A HOLE IN THE MIDDLE OF A ROOF IS A DRAWING THE CARTRIDGE CUT OFF.
+##
+## Saffron's northern house straddles the top edge of the map, so the catalogue
+## flooded its roof out of the four rows that are on it and painted the rest
+## nowhere: the drawing carries a cap at each END of the building and nothing in
+## between, which stood four walls with a cornice round an open box. A roof that
+## stops and starts again over one building is not a courtyard, so a column
+## between two capped ones takes the nearer of them. The ends are left alone: a
+## column PAST the last capped one is outside the roof rather than inside a gap
+## in it.
+func _house_carry(
+	from: PackedInt32Array, to: PackedInt32Array, left: int, right: int
+) -> void:
+	var last: int = -1
+	for x: int in range(left, right + 1):
+		if from[x] < 0:
+			continue
+		if last >= 0:
+			for gap: int in range(last + 1, x):
+				var near: int = last if gap - last <= x - gap else x
+				from[gap] = from[near]
+				to[gap] = to[near]
+		last = x
+
+
 func _house_body(
 	paint: Array, rows: int, cols: int,
 	owner: PackedInt32Array, terrace: PackedInt32Array, body: int
@@ -5316,6 +5341,7 @@ func _house_body(
 			top_row = mini(top_row, cap_from[x])
 		elif eave_from[x] >= 0:
 			top_row = mini(top_row, eave_from[x])
+	_house_carry(cap_from, cap_to, left, right)
 	var rival := PackedInt32Array()
 	rival.resize(cols)
 	rival.fill(cols * 2)
