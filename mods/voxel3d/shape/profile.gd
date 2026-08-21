@@ -2049,8 +2049,14 @@ const CLIFFS: Dictionary = {
 	# below it, so that rim was a structure of its own with no front in it and
 	# stood 32 px beside an 8 px shelf.
 	1: [76, 59, 61, 75, 77, 43, 45, 70, 71, 86, 87],
-	# The tan rock face under a raised earth terrace.
-	2: [76],
+	# The tan rock face under a raised earth terrace, AND THE WHOLE RING ROUND A
+	# ROCK PATCH, which tileset 2 draws out of the same ids tileset 1 does. Only
+	# 76 was listed, so Saffron's sea rocks came out as craters: the front face
+	# stood and the three sides and the four corners stayed flat, which left a
+	# square of walkable rock 8 px down inside a ring 8 and 16 px up. See the
+	# tileset 1 line above; 70, 71, 86 and 87 are its cave mouth and are left out
+	# until a picture says tileset 2 draws one.
+	2: [76, 59, 61, 75, 77, 43, 45],
 	# Towns: the rock walls of Cianwood and Olivine. 55 is the upper band of the
 	# face and 19 and 53 the inner corners; 36, 39, 30 and 2 are the diagonal
 	# ends, where the low ground is what lies beyond the diagonal.
@@ -2090,6 +2096,8 @@ const LIPS: Dictionary = {
 	# neither the shelf's own height nor the ring's slope. Blackthorn's 22 patches
 	# came out ramped on three sides and stepped along the north.
 	1: [44],
+	# The same north rim, and tileset 2 draws it with the same id. See above.
+	2: [44],
 }
 
 ## THE TILES THAT DRAW A FENCE FACE-ON, as ROWS of tile ids, top row first and

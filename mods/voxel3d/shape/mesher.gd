@@ -50,6 +50,18 @@ const BAND: int = 8
 ## front rather than a floor lifted behind it.
 const PLATEAU_FLOOR: int = BAND * 2
 
+## How large a region a face SHORTER than a walk cell may lift, in tiles.
+##
+## The paragraph above is why a short face seeds nothing, and it is about a kerb
+## running the length of a city. It is not about a rock standing on its own in
+## the sea, which draws the same nine-patch the routes do and is one band tall
+## because there is nothing under it to be two: Saffron's came out as craters, a
+## ring 8 px up round a square of walkable rock left at the water. So a short
+## face speaks, and only for a POCKET. Sixteen tiles is four walk cells, which
+## holds the top of a six-by-six patch and is three orders off the paving of a
+## town.
+const PATCH_TILES: int = 16
+
 ## Volume height cap, in walk cells. Three is 48 world pixels: tall enough for a
 ## house drawn three cells deep, short enough that nothing measured wrong can
 ## become a tower.
@@ -266,6 +278,12 @@ const HOUSE_NONE: int = 0
 const HOUSE_GROUND: int = 1
 const HOUSE_WALL: int = 2
 const HOUSE_ROOF: int = 3
+## How much of one painted building has to lie inside a LARGER one before it is
+## read as a fragment of it rather than as a building of its own. Per cent of the
+## small one's own tiles. Ninety, so that a body cut off by a neighbouring
+## drawing's rectangle edge is caught whichever side of the edge the door fell,
+## and two buildings that merely share a wall are not.
+const FRAGMENT_OF: int = 90
 var _house := PackedByteArray()
 ## One entry per placement of a built drawing: the drawing, the tile it starts
 ## at, how many tiles it runs, and the pixel columns its DOORS occupy.
@@ -640,7 +658,15 @@ func _tile_fact(shape: RefCounted, tile: int, permission: int) -> Array:
 	var margin: Vector2i = shape.facade_margin(tile) if part == PART_WALL \
 		else Vector2i.ZERO
 	var is_volume: bool = art == &"upright"
-	var cliff: int = 1 if is_volume and shape.is_cliff(tile) else 0
+	# A RIM DRAWN FROM ABOVE IS STILL THE ROCK. The gate was `is_volume` alone,
+	# which is the face seen face-on, and it left every tile of a patch that the
+	# cartridge draws looking DOWN onto out of the structure: those stood the flat
+	# 8 px band their class gives, beside a rim that ramps, so a rock came out a
+	# frustum with a cube at each corner and a triangle of nothing down each seam.
+	# `top` is the same rock from the other angle and belongs to the same
+	# structure; it keeps its own art either way.
+	var cliff: int = 1 if shape.is_cliff(tile) and (is_volume or art == &"top") \
+		else 0
 	var span: Vector2i = shape.span_cells(shape_class)
 	var fact: Array = []
 	fact.resize(FACT_HEIGHT + 1)
@@ -891,6 +917,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_fence_mask = PackedByteArray()
 	_measure_fences()
 	# After every one of them, since each can still move a height and a ramp is
+	# BEFORE THE RAMPS, or the rim slopes down into the mouth it stands beside and
+	# a cave entrance comes out at the point of a funnel.
+	_measure_mouths()
 	# cut from the heights as they finally stand.
 	_measure_ramps()
 	# After the ramps, which is what sizes and fills the corners they write into.
@@ -985,6 +1014,13 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 	# An Array and not a PackedInt32Array: a packed array is a value and appending
 	# to one read out of a dictionary appends to a copy of it, which indexed
 	# nothing and quietly cost sixty maps their painted houses.
+	# WHICH DRAWING SITS WHERE IS ANSWERED BEFORE ANY OF THEM CLAIMS, so that a
+	# building can be weighed against the ones it overlaps rather than only
+	# against the ones found before it. The second loop is the claim, in the
+	# order the first loop found them, which is the order it always was. See the
+	# fragment rule between the two.
+	var found: Array = []
+	var offered: Array = []
 	var where: Dictionary = {}
 	for at: int in count:
 		var tile: int = maxi(_tiles[at], 0)
@@ -1028,40 +1064,78 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 			# what a building actually stands on, and testing the same, lets
 			# #96 take the part #99 never used.
 			var plans: Array = _house_plan(house)
-			if not plans.is_empty():
-				var mine := PackedInt32Array()
-				for index: int in plans.size():
-					var rect: Rect2i = _house_tile_rect(plans[index], across)
-					rect.position += Vector2i(tx, ty)
-					if _house_claimed(rect):
-						continue
-					mine.append(index)
-					for row: int in rect.size.y:
-						for column: int in rect.size.x:
-							_house[(rect.position.y + row) * _size.x
-								+ rect.position.x + column] = HOUSE_WALL
-				if not mine.is_empty():
-					_houses.append([house, Vector2i(tx, ty), across, [], mine])
+			found.append([house, Vector2i(tx, ty), across, plans])
+			for index: int in plans.size():
+				var rect: Rect2i = _house_tile_rect(plans[index], across)
+				rect.position += Vector2i(tx, ty)
+				offered.append([
+					rect.size.x * rect.size.y, found.size() - 1, index, rect, 0
+				])
+
+	# A FRAGMENT LOSES TO THE BUILDING IT IS A FRAGMENT OF.
+	#
+	# Ordering the whole claim by building size instead was tried and is wrong: on
+	# a street of overlapping paintings it lets the biggest body of each drawing
+	# win piecemeal and mixes two paintings over one row of houses, which took the
+	# walls off four of map 21,4's. What is wrong in Saffron is narrower than that.
+	# Drawing 97's rectangle overlaps the department store's right four columns and
+	# the flood cut that overlap off as a body of its own, so a 4x17 sliver stands
+	# wholly inside drawing 98's 12x16 body: not a second building but the same one
+	# seen through a smaller window. 97 is the larger DRAWING, so its sliver claimed
+	# first and the store was refused for the collision, which stood half a
+	# department store as a fin and left the other half to the fold. Where one
+	# offered body lies inside another, the small one is the fragment and it never
+	# claims; nothing else about the claim moves.
+	for offer: Array in offered:
+		for other: Array in offered:
+			if other[1] == offer[1] or other[0] <= offer[0]:
 				continue
-			for row: int in across.y:
-				for column: int in across.x:
-					var at: int = (ty + row) * _size.x + tx + column
-					var stroke: String = _house_word(paint, row, column)
-					if stroke == "":
+			if (offer[3] as Rect2i).intersection(other[3] as Rect2i).get_area() \
+					* 100 >= offer[0] * FRAGMENT_OF:
+				offer[4] = 1
+				break
+	var claims: Dictionary = {}
+	for offer: Array in offered:
+		if offer[4] == 1 or _house_claimed(offer[3] as Rect2i):
+			continue
+		var rect: Rect2i = offer[3]
+		var mine: PackedInt32Array = claims.get(offer[1], PackedInt32Array())
+		mine.append(offer[2])
+		claims[offer[1]] = mine
+		for row: int in rect.size.y:
+			for column: int in rect.size.x:
+				_house[(rect.position.y + row) * _size.x
+					+ rect.position.x + column] = HOUSE_WALL
+	for index: int in found.size():
+		var place: Array = found[index]
+		var house: Dictionary = place[0]
+		var start: Vector2i = place[1]
+		var across: Vector2i = place[2]
+		if not (place[3] as Array).is_empty():
+			# A PLACEMENT EVERY BUILDING OF WHICH WAS REFUSED IS NOT A PLACEMENT.
+			if claims.has(index):
+				_houses.append([house, start, across, [], claims[index]])
+			continue
+		var paint: Array = house["paint"]
+		for row: int in across.y:
+			for column: int in across.x:
+				var at: int = (start.y + row) * _size.x + start.x + column
+				var stroke: String = _house_word(paint, row, column)
+				if stroke == "":
+					continue
+				if stroke == Houses.NONE:
+					# NOT THE HOUSE only takes a tile the pass had called one.
+					# The rectangle holds the pavement, the shadow and whatever
+					# tree stands beside the door, and flattening those would be
+					# a painting nobody made.
+					if _part[at] == PART_NONE:
 						continue
-					if stroke == Houses.NONE:
-						# NOT THE HOUSE only takes a tile the pass had called
-						# one. The rectangle holds the pavement, the shadow and
-						# whatever tree stands beside the door, and flattening
-						# those would be a painting nobody made.
-						if _part[at] == PART_NONE:
-							continue
-						_house[at] = HOUSE_GROUND
-					elif stroke == Houses.ROOF:
-						_house[at] = HOUSE_ROOF
-					else:
-						_house[at] = HOUSE_WALL
-					_house_tile(shape, at, stroke)
+					_house[at] = HOUSE_GROUND
+				elif stroke == Houses.ROOF:
+					_house[at] = HOUSE_ROOF
+				else:
+					_house[at] = HOUSE_WALL
+				_house_tile(shape, at, stroke)
 
 
 ## The one word a whole tile is painted, or "" where the painting cuts it.
@@ -1749,6 +1823,8 @@ func _measure_ramps() -> void:
 			var to := Vector2i(tx + step.x, ty + step.y)
 			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
 				continue
+			if not _in_map(to.x, to.y):
+				continue
 			var index: int = to.y * _size.x + to.x
 			if _shelf[index] == 1 or _heights[index] >= _heights[at]:
 				continue
@@ -1793,6 +1869,14 @@ func _measure_ramps() -> void:
 				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
 					near = 0
 					continue
+				# PAST THE SEAM IS NOT LOW GROUND. The margin holds the border
+				# block, or a neighbouring map's, and neither is this map's floor
+				# for a rim to come down to: Saffron's east wall is two tiles of
+				# 45 degrees and then flat rock all the way out, and reading the
+				# margin as ground turned the flat into a second slope, so the
+				# wall came out a knife-edge ridge with nothing level on top.
+				if not _in_map(to.x, to.y):
+					continue
 				var index: int = to.y * _size.x + to.x
 				# Anything that is not shelf and stands no higher is the ground the
 				# rim comes down to; anything standing on the shelf is not.
@@ -1810,6 +1894,17 @@ func _measure_ramps() -> void:
 			# resolved as, its drawing is now the surface the player walks up.
 			_art[at] = ART_FLAT
 			_volume[at] = 0
+
+
+## Whether a grid position is on the map itself rather than in the margin round
+## it. The margin is the border block, or as much of a neighbour as a connection
+## hands over, and it is drawn so that a structure at the edge has something to
+## measure against; it is not this map's ground.
+func _in_map(tx: int, ty: int) -> bool:
+	return (
+		tx >= _margin.x and ty >= _margin.y
+		and tx < _size.x - _margin.x and ty < _size.y - _margin.y
+	)
 
 
 ## The map's OPEN water: the tile id it draws most of its water with, or -1 where
@@ -2045,6 +2140,14 @@ func _measure_mounds(shape: RefCounted) -> void:
 				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
 					near = 0
 					continue
+				# PAST THE SEAM IS NOT LOW GROUND. The margin holds the border
+				# block, or a neighbouring map's, and neither is this map's floor
+				# for a rim to come down to: Saffron's east wall is two tiles of
+				# 45 degrees and then flat rock all the way out, and reading the
+				# margin as ground turned the flat into a second slope, so the
+				# wall came out a knife-edge ridge with nothing level on top.
+				if not _in_map(to.x, to.y):
+					continue
 				var index: int = to.y * _size.x + to.x
 				near = mini(near, maxi(distance[index], 0) if inside[index] == 1 else 0)
 			var high: int = mini(near * BAND, MOUND_HIGH)
@@ -2104,6 +2207,58 @@ func _measure_doors(shape: RefCounted) -> void:
 		_heights[at] = high
 		for corner: int in 4:
 			_corners[at * 4 + corner] = high
+
+
+## A HOLE IN A WALL STANDS IN THE WALL, whether or not the tileset has a `MOUNDS`
+## line to name its door with.
+##
+## `_measure_doors` is the same thought and it can only reach a tileset somebody
+## has pinned the cave mouth of, which is tileset 3 alone. The `void` class is
+## already that pin under another name: it says this tile is the black opening
+## and not a surface. So a void tile lying at 0 with a WALL beside it takes the
+## wall's height, and the face machinery paints its drawing on exactly where the
+## cartridge drew it.
+##
+## BEFORE `_measure_ramps`, which is what the corners and the rim both want: the
+## mouth stands at the wall's height before anything measures a slope, so the rim
+## beside it has nothing to come down to and the entrance is not at the point of
+## a funnel, and it then slopes with that rim rather than against it. Nothing
+## here writes a corner for the same reason: the ramp pass fills them from the
+## heights it finds.
+##
+## THE CLIFF IS WHAT IT TAKES ITS HEIGHT FROM, not any neighbour, and that is
+## what keeps `_settle_void`'s pits alone: a hole in a floor has floor all round
+## it and no cliff anywhere, so it reads nothing here and stays at the floor it
+## was settled to. A mouth has the cliff on both sides of it. Not `_volume`,
+## which by this point in the resolve is 0 on every rim `_measure_ramps` has
+## sloped, the cliff round a cave mouth included.
+func _measure_mouths() -> void:
+	for at: int in _size.x * _size.y:
+		if _void[at] != 1 or _heights[at] != 0:
+			continue
+		@warning_ignore("integer_division")
+		var from := Vector2i(at % _size.x, at / _size.x)
+		var high: int = 0
+		for step: Vector2i in [
+			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
+		]:
+			var to: Vector2i = from + step
+			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+				continue
+			var index: int = to.y * _size.x + to.x
+			if _void[index] == 1 or _cliff[index] == 0:
+				continue
+			high = maxi(high, _heights[index])
+		if high <= 0:
+			continue
+		_heights[at] = high
+		# AND IT IS THE SAME SURFACE AS THE WALL, which is what puts it in the
+		# shelf: the rim beside it comes down at 45 degrees over its own two tiles
+		# and the mouth left flat at the top of that slope is a cube standing in
+		# it, with a triangle of nothing down each side where the corners they
+		# share disagree by a band. Marked shelf it ramps with the rest, off the
+		# same pass and the same corners, so the two meet exactly.
+		_shelf[at] = 1
 
 
 ## THE SHORE, eased from the land down to the water instead of dropping to it.
@@ -2299,7 +2454,8 @@ func _cliff_base(at: int) -> int:
 func _measure_plateaus() -> void:
 	var seeds: Dictionary = {}
 	var fronts: Dictionary = {}
-	if not _cliff_evidence(seeds, fronts):
+	var patches: Dictionary = {}
+	if not _cliff_evidence(seeds, fronts, patches):
 		return
 
 	var region := PackedInt32Array()
@@ -2308,6 +2464,9 @@ func _measure_plateaus() -> void:
 	# Per region: the lowest height the evidence above it agrees on, and whether
 	# any of its tiles is ground the cliff stands ON.
 	var lift: Dictionary = {}
+	# The same, from faces one band tall, kept apart because a short face only
+	# speaks for a POCKET. See `PATCH_TILES`.
+	var patch: Dictionary = {}
 	var blocked: Dictionary = {}
 	var next: int = 0
 	var stack: Array[int] = []
@@ -2323,6 +2482,9 @@ func _measure_plateaus() -> void:
 			if seeds.has(at):
 				var height: int = int(seeds[at])
 				lift[next] = mini(int(lift.get(next, height)), height)
+			if patches.has(at):
+				var height: int = int(patches[at])
+				patch[next] = mini(int(patch.get(next, height)), height)
 			if fronts.has(at):
 				blocked[next] = true
 			var tx: int = at % _size.x
@@ -2339,10 +2501,15 @@ func _measure_plateaus() -> void:
 					continue
 				region[index] = next
 				stack.append(index)
+		var raise: int = -1
 		if not blocked.has(next) and lift.has(next):
-			var height: int = int(lift[next])
+			raise = int(lift[next])
+		elif not blocked.has(next) and patch.has(next) \
+				and members.size() <= PATCH_TILES:
+			raise = int(patch[next])
+		if raise >= 0:
 			for at: int in members:
-				_heights[at] = height
+				_heights[at] = raise
 				_shelf[at] = 1
 		next += 1
 	_settle_lips()
@@ -2442,7 +2609,9 @@ func _is_water(at: int) -> bool:
 ## either answer mean anything: the west rim of the same cliff has the plateau on
 ## one side of it and the low ground on the other, and reading it as a front
 ## calls the plateau the ground the wall stands on.
-func _cliff_evidence(seeds: Dictionary, fronts: Dictionary) -> bool:
+func _cliff_evidence(
+	seeds: Dictionary, fronts: Dictionary, patches: Dictionary
+) -> bool:
 	var any: bool = false
 	for tx: int in _size.x:
 		var ty: int = 0
@@ -2460,9 +2629,11 @@ func _cliff_evidence(seeds: Dictionary, fronts: Dictionary) -> bool:
 				var above: int = ty - 1
 				if above >= 0 and _is_plateau_floor(above * _size.x + tx):
 					var height: int = _cliff_height(tx, ty)
+					var index: int = above * _size.x + tx
 					if height >= PLATEAU_FLOOR:
-						var index: int = above * _size.x + tx
 						seeds[index] = mini(int(seeds.get(index, height)), height)
+					elif height > 0:
+						patches[index] = mini(int(patches.get(index, height)), height)
 				var below: int = ty + run
 				if below < _size.y and _is_plateau_floor(below * _size.x + tx):
 					fronts[below * _size.x + tx] = true
@@ -2487,10 +2658,17 @@ func _cliff_height(tx: int, top_row: int) -> int:
 ## The ground a plateau is made of: flat art standing on the ground plane. Water
 ## is flat too and is deliberately not this, and anything already raised has been
 ## measured off its own drawing and is not a floor to be lifted.
+## A CAVE MOUTH IS NOT A FLOOR, and leaving it one is the whole of map 8,6. The
+## black opening is drawn flat and walkable, so the flood ran straight through
+## the doorway and joined the sand shelf above the cliff to the grass below it:
+## one region carrying both kinds of evidence, which this pass then leaves alone,
+## so a plateau the size of half the map stayed at 0 with a two-tile ridge along
+## its front where its face should have been. A hole in a wall is a hole in a
+## wall from either side of it.
 func _is_plateau_floor(at: int) -> bool:
 	return (
 		_tiles[at] >= 0 and _art[at] == ART_FLAT and _heights[at] == 0
-		and _lip[at] == 0
+		and _lip[at] == 0 and _void[at] == 0
 	)
 
 
@@ -5176,6 +5354,31 @@ func _house_run(paint: Array, rows: int, x: int, band: Vector2i) -> Vector2i:
 
 
 ## One building out of a painting, planned on its own.
+## A HOLE IN THE MIDDLE OF A ROOF IS A DRAWING THE CARTRIDGE CUT OFF.
+##
+## Saffron's northern house straddles the top edge of the map, so the catalogue
+## flooded its roof out of the four rows that are on it and painted the rest
+## nowhere: the drawing carries a cap at each END of the building and nothing in
+## between, which stood four walls with a cornice round an open box. A roof that
+## stops and starts again over one building is not a courtyard, so a column
+## between two capped ones takes the nearer of them. The ends are left alone: a
+## column PAST the last capped one is outside the roof rather than inside a gap
+## in it.
+func _house_carry(
+	from: PackedInt32Array, to: PackedInt32Array, left: int, right: int
+) -> void:
+	var last: int = -1
+	for x: int in range(left, right + 1):
+		if from[x] < 0:
+			continue
+		if last >= 0:
+			for gap: int in range(last + 1, x):
+				var near: int = last if gap - last <= x - gap else x
+				from[gap] = from[near]
+				to[gap] = to[near]
+		last = x
+
+
 func _house_body(
 	paint: Array, rows: int, cols: int,
 	owner: PackedInt32Array, terrace: PackedInt32Array, body: int
@@ -5237,6 +5440,7 @@ func _house_body(
 			top_row = mini(top_row, cap_from[x])
 		elif eave_from[x] >= 0:
 			top_row = mini(top_row, eave_from[x])
+	_house_carry(cap_from, cap_to, left, right)
 	var rival := PackedInt32Array()
 	rival.resize(cols)
 	rival.fill(cols * 2)
@@ -5536,6 +5740,49 @@ func _house_cap(
 		column += run
 
 
+## THE FLAT LID OVER A BUILDING THE PAINTING GIVES NO ROOF.
+##
+## The wall's own footprint, at the wall's own top line, wearing the row of art
+## the wall ends in: a parapet or a cornice reads as a plausible flat roof and it
+## is the only art the drawing has that belongs to the top of this building.
+## Emitted per tile column and whole across the depth, since one band of the
+## drawing stretched is the same picture as a strip per pixel.
+func _house_lid(
+	tiles: Array, across: Vector2i, plan: Dictionary, origin_x: float,
+	base: float, near: float, far: float, atlas: RefCounted
+) -> void:
+	var tops: PackedInt32Array = plan["tops"]
+	var left: int = int(plan["left"])
+	var right: int = int(plan["right"])
+	var column: int = left
+	while column <= right:
+		var top: int = tops[column]
+		if top < 0:
+			column += 1
+			continue
+		var run: int = 1
+		while column + run <= right:
+			if (column + run) / TILE_PX != column / TILE_PX \
+					or tops[column + run] != top:
+				break
+			run += 1
+		@warning_ignore("integer_division")
+		var tile: int = int(tiles[(top / TILE_PX) * across.x + column / TILE_PX])
+		var uv: Rect2 = atlas.uv_box(
+			tile, Rect2i(column % TILE_PX, top % TILE_PX, run, 1)
+		)
+		var y_west: float = base + _house_rise(plan, float(column))
+		var y_east: float = base + _house_rise(plan, float(column + run))
+		var x0: float = origin_x + float(column)
+		var x1: float = origin_x + float(column + run)
+		_quad(
+			Vector3(x0, y_west, near), Vector3(x1, y_east, near),
+			Vector3(x1, y_east, far), Vector3(x0, y_west, far),
+			Vector3.UP, uv, SHADE_TOP_FLAT
+		)
+		column += run
+
+
 ## ONE PAINTED HOUSE, STOOD UP. The reviewer's own reading, taken in round
 ## twenty-one over drawings 1 and 4, and every number in it is measured off the
 ## painting.
@@ -5656,6 +5903,15 @@ func _emit_house_body(
 		Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas
 	)
 	if thick <= 0.0:
+		# A BUILDING WITH NO ROOF PAINTED IS STILL CLOSED. Saffron's radio tower
+		# and the wing beside it are drawn face-on and the cartridge never shows
+		# their tops, so the painting has no `roof` in it and the slab machinery
+		# below has nothing to build: what stood was four walls round a hole you
+		# could see the sky through from above. A lid over the wall's own
+		# footprint, at the wall's own top line, in the wall's own topmost row of
+		# art. It follows `_house_rise` exactly as the walls do, so the edges meet
+		# whatever the roof line does.
+		_house_lid(tiles, across, plan, origin_x, base, south, north, atlas)
 		return
 
 	# THE ROOF STANDS OUT PAST THE WALL, by exactly what the drawing puts either
