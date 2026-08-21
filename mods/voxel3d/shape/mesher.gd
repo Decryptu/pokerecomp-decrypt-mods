@@ -902,11 +902,6 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# Before the furniture, which asks what the height of the thing under it came
 	# to and would read an unsettled -1 as standing on the floor.
 	_settle_unmeasured()
-	# AFTER IT, and that is the whole of why this is not beside the ponds and the
-	# beds it argues the same way as: a drawing's own tile is unmeasured until
-	# that pass, so asked any earlier every rock in the sea answered -1 and none
-	# of them floated. Still before the shores, which is what it has to forestall.
-	_settle_islets()
 	# After every pass that moves a height, since the shell's is not measured off
 	# anything: it is two cells because a room is two cells high.
 	_measure_room()
@@ -2768,73 +2763,6 @@ func _settle_beds() -> void:
 		if kerb > 0:
 			for at: int in members:
 				_heights[at] = kerb
-
-
-## A THING STANDING IN WATER STANDS IN IT, not on a plinth cut out of the sea.
-##
-## The Ruins of Alph is drawn as stone standing in open water and every cell of
-## it was an island: a rock's own tiles are not water, so they held the ground
-## plane at 0 while the water around them sat recessed at -8, and the shore pass
-## then read that step as a bank and ringed every rock with eight pixels of the
-## map's own brick. Forty rocks, each on its own brick doily.
-##
-## THE UNIT IS THE WALK CELL, which is the reviewer's own, "all the 2x2 tiles
-## that are like 20,0 to 21,1". A region flood cannot be it: this map's stone is
-## one connected mass from the north edge to the causeway, so a rule asking what
-## rings a REGION asks about 612 tiles at once and answers for none of them.
-## Read per cell, the four tiles move together and a drawing never tilts.
-##
-## A CELL FLOATS WHERE IT MEETS THE WATER AND MEETS NO FLOOR. The wall along the
-## causeway is standing on the causeway and stays where it is; the wall out in
-## the sea is standing in the sea.
-func _settle_islets() -> void:
-	for ty: int in range(_margin.y % 2, _size.y - 1, 2):
-		for tx: int in range(_margin.x % 2, _size.x - 1, 2):
-			var cell: Array[int] = [
-				ty * _size.x + tx, ty * _size.x + tx + 1,
-				(ty + 1) * _size.x + tx, (ty + 1) * _size.x + tx + 1,
-			]
-			var standing: bool = true
-			for at: int in cell:
-				standing = standing and _is_islet(at)
-			if not standing:
-				continue
-			# The one height every water tile round it agrees on. A water height is
-			# itself negative, so no value can stand for refusal and the flag
-			# carries it.
-			var sea: int = 0
-			var floats: bool = false
-			for step: Vector2i in [
-				Vector2i(-1, 0), Vector2i(2, 0), Vector2i(0, -1), Vector2i(0, 2)
-			]:
-				for along: int in 2:
-					var to := Vector2i(tx, ty) + step
-					if step.x == 0:
-						to.x += along
-					else:
-						to.y += along
-					if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-						continue
-					var index: int = to.y * _size.x + to.x
-					if _is_water(index):
-						if sea == 0:
-							sea = _heights[index]
-							floats = true
-						elif sea != _heights[index]:
-							floats = false
-						continue
-					# A FLOOR BESIDE IT IS WHAT IT STANDS ON. Anything flat at the ground
-					# plane or above is land, and a rock touching land is standing on it.
-					if _tiles[index] >= 0 and _art[index] == ART_FLAT:
-						floats = false
-			if floats and sea < 0:
-				for at: int in cell:
-					_heights[at] = sea
-
-
-## What may float: a drawing standing on the ground plane rather than a floor.
-func _is_islet(at: int) -> bool:
-	return _tiles[at] >= 0 and _art[at] != ART_FLAT and _heights[at] == 0
 
 
 ## What a bed can be made of: anything standing on the ground rather than raised
@@ -7537,9 +7465,6 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 	# hung a band over the grass with a trunk under it. A direction a ramp was
 	# refused in is closed for the far ring too.
 	var blocked: Dictionary = {}
-	# The nearest WATER found on the way, for a drawing that has no land to stand
-	# on at all. See below.
-	var wet := Vector2i(-1, 0)
 	for ring: int in [1, 2]:
 		for way: Vector2i in [
 			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
@@ -7554,23 +7479,8 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 			if _stair_at[index] >= 0 or _ramp[index] == 1:
 				blocked[way] = true
 				continue
-			if _art[index] != ART_FLAT:
-				continue
-			if _heights[index] >= 0:
+			if _art[index] == ART_FLAT and _heights[index] >= 0:
 				return Vector2i(maxi(_tiles[index], 0), _heights[index])
-			if wet.x < 0:
-				wet = Vector2i(maxi(_tiles[index], 0), _heights[index])
-	# A THING WITH NO LAND WITHIN TWO TILES AND WATER BESIDE IT IS IN THE WATER.
-	#
-	# Land wins wherever there is any, which is what keeps this off a bank: a tree
-	# on the towpath has grass on one side and a canal on the other and is standing
-	# on the grass. This is for the drawing that has neither, the Ruins of Alph's
-	# stone out in the open sea, which found nothing flat it would accept and fell
-	# through to the tileset's own named ground. That ground is BRICK here, so
-	# every rock in the water stood on a brick doily, and `_settle_islets` sinking
-	# it to the water's own height only moved the doily down with it.
-	if wet.x >= 0:
-		return wet
 	# NOTHING FLAT WITHIN TWO TILES, which is a wood, a hedge or a border ring, and
 	# is four in five of the game's modelled tiles. The tileset's own ground stands
 	# in, because a thing never stands on a picture of itself: this answered the
@@ -7591,13 +7501,11 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	if _art[at] == ART_CUTOUT or _art[at] == ART_RAILING or _art[at] == ART_FENCE \
 			or _art[at] == ART_BALL:
 		var ground: Vector2i = _ground_art(tx, ty)
-		# A TILE STANDING IN WATER REACHES THE WATER'S OWN MATERIAL, the way the
-		# skirt's does: the recess is what says it is water, and a quad left on the
-		# terrain mesh is a still blue square in the middle of a rippling canal.
-		# Only the surface; the faces below are the bank. Asked of a house's
-		# released tile alone until the Ruins of Alph, whose stone stands in the
-		# open sea and gets its floor the same way.
-		if ground.y < 0:
+		# A RELEASED TILE STANDING IN WATER REACHES THE WATER'S OWN MATERIAL, the
+		# way the skirt's does: the recess is what says it is water, and a quad
+		# left on the terrain mesh is a still blue square in the middle of a
+		# rippling canal. Only the surface; the faces below are the bank.
+		if ground.y < 0 and _house_ground.has(at):
 			_sink = SINK_WATER
 		_face_top(tx, ty, float(ground.y), atlas.uv(ground.x), SHADE_TOP_FLAT)
 		_sink = SINK_TERRAIN
