@@ -1812,6 +1812,8 @@ func _measure_ramps() -> void:
 			var to := Vector2i(tx + step.x, ty + step.y)
 			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
 				continue
+			if not _in_map(to.x, to.y):
+				continue
 			var index: int = to.y * _size.x + to.x
 			if _shelf[index] == 1 or _heights[index] >= _heights[at]:
 				continue
@@ -1856,6 +1858,14 @@ func _measure_ramps() -> void:
 				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
 					near = 0
 					continue
+				# PAST THE SEAM IS NOT LOW GROUND. The margin holds the border
+				# block, or a neighbouring map's, and neither is this map's floor
+				# for a rim to come down to: Saffron's east wall is two tiles of
+				# 45 degrees and then flat rock all the way out, and reading the
+				# margin as ground turned the flat into a second slope, so the
+				# wall came out a knife-edge ridge with nothing level on top.
+				if not _in_map(to.x, to.y):
+					continue
 				var index: int = to.y * _size.x + to.x
 				# Anything that is not shelf and stands no higher is the ground the
 				# rim comes down to; anything standing on the shelf is not.
@@ -1873,6 +1883,17 @@ func _measure_ramps() -> void:
 			# resolved as, its drawing is now the surface the player walks up.
 			_art[at] = ART_FLAT
 			_volume[at] = 0
+
+
+## Whether a grid position is on the map itself rather than in the margin round
+## it. The margin is the border block, or as much of a neighbour as a connection
+## hands over, and it is drawn so that a structure at the edge has something to
+## measure against; it is not this map's ground.
+func _in_map(tx: int, ty: int) -> bool:
+	return (
+		tx >= _margin.x and ty >= _margin.y
+		and tx < _size.x - _margin.x and ty < _size.y - _margin.y
+	)
 
 
 ## The map's OPEN water: the tile id it draws most of its water with, or -1 where
@@ -2107,6 +2128,14 @@ func _measure_mounds(shape: RefCounted) -> void:
 				var to := Vector2i(tx + reach.x, ty + reach.y)
 				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
 					near = 0
+					continue
+				# PAST THE SEAM IS NOT LOW GROUND. The margin holds the border
+				# block, or a neighbouring map's, and neither is this map's floor
+				# for a rim to come down to: Saffron's east wall is two tiles of
+				# 45 degrees and then flat rock all the way out, and reading the
+				# margin as ground turned the flat into a second slope, so the
+				# wall came out a knife-edge ridge with nothing level on top.
+				if not _in_map(to.x, to.y):
 					continue
 				var index: int = to.y * _size.x + to.x
 				near = mini(near, maxi(distance[index], 0) if inside[index] == 1 else 0)
