@@ -34,6 +34,7 @@ const AtlasScript: GDScript = preload("../shape/atlas.gd")
 const MesherScript: GDScript = preload("../shape/mesher.gd")
 const CameraRigScript: GDScript = preload("camera_rig.gd")
 const DioramaScript: GDScript = preload("diorama.gd")
+const TransitionScript: GDScript = preload("transition.gd")
 
 const CELL: float = 16.0
 ## A graphics tile, which is what a mesh window is measured in.
@@ -119,6 +120,14 @@ var _text_box := Rect2i()
 var _screen_rect := Rect2i()
 ## Whether a screen laid out in 160x144 owns the picture.
 var _interface_masked: bool = false
+## `DoBattleTransition` over the map. See `world/transition.gd`.
+var _transition: RefCounted = null
+## Which of the map's sprites the transition is still drawing, and the object it
+## names when that is the battlers alone. `RespawnPlayerAndOpponent` at each
+## outro's setup leaves the player and whoever `hLastTalked` names in OAM and
+## nothing else, and the two views have to agree about that.
+var _transition_sprites: int = Gen2BattleTransition.SPRITES_ALL
+var _transition_opponent: int = -1
 ## The ground the slice in flight will cover, in world pixels, handed to the far
 ## field only when that slice is published: see `_advance_build`. Until then the
 ## mesh on screen is the one the OLD hole was cut for.
@@ -129,6 +138,10 @@ func _init() -> void:
 	var modules: Dictionary = _load_modules()
 	_stage = (modules["diorama"] as GDScript).new()
 	add_child(_stage.container)
+	# After the stage, so the cartridge's own cells are over the world they are
+	# closing on.
+	_transition = TransitionScript.new()
+	add_child(_transition.layer)
 	_read_options()
 	# On the press rather than by polling: the host owns the surfaces the player
 	# changes a setting on, and says so.
@@ -172,8 +185,52 @@ func set_text_box_rect(rect: Rect2i) -> void:
 ## one.
 func set_screen_rect(rect: Rect2i) -> void:
 	_screen_rect = rect
+	_transition.place(_screen_place())
 	_apply_text_box()
 	_apply_interface_mask()
+
+
+## One frame of `DoBattleTransition`. See `world/transition.gd` for the picture
+## and Gen2ModHost's own notes for the rest of what arrives with it.
+##
+## [param order] is `StartTrainerBattle_Flash` writing `wBGP` and calling
+## `DmgToCgbBGPals` alone, which is a permutation over the background's four
+## levels and exactly what `frame.gd` already restates for a move animation's
+## whole-screen flash. The seven backgrounds carry one byte between them here, so
+## the same pass answers both.
+func set_transition(
+	cells: PackedByteArray, tiles: PackedByteArray, palette: PackedColorArray,
+	sprites: int = Gen2BattleTransition.SPRITES_ALL, opponent: int = -1,
+	order: int = Gen2BattleTransition.IDENTITY
+) -> void:
+	_transition_sprites = sprites
+	_transition_opponent = opponent
+	_transition.place(_screen_place())
+	## The ball's own colours take the order too. `StartTrainerBattle_Flash`
+	## writes one `wBGP` across the background, so what the flash does to the
+	## world under this layer has to happen to the layer as well or the ball is
+	## the one thing on screen the flash never reaches. The stage's own pass
+	## cannot do it: `frame.gd` runs on the container, and this is drawn over it.
+	_transition.set_frame(
+		cells, tiles, Gen2WorldPalette.fade_palette(palette, order)
+	)
+	_stage.set_flash(_flash_bytes(order))
+
+
+func clear_transition() -> void:
+	_transition_sprites = Gen2BattleTransition.SPRITES_ALL
+	_transition_opponent = -1
+	_transition.clear()
+	_stage.set_flash(_flash_bytes(Gen2BattleTransition.IDENTITY))
+
+
+## The background palette order as the seven-entry map `frame.gd` reads, since
+## the transition writes one byte across the lot.
+static func _flash_bytes(order: int) -> PackedByteArray:
+	var out := PackedByteArray()
+	out.resize(7)
+	out.fill(order & 0xFF)
+	return out
 
 
 ## A screen laid out in 160x144 has taken the picture, or given it back: the
@@ -188,6 +245,16 @@ func set_interface_masked(masked: bool) -> void:
 
 func _apply_interface_mask() -> void:
 	_stage.set_interface_mask(_screen_rect, _interface_masked)
+
+
+## The hardware screen's rectangle on this surface, or the whole surface where no
+## host has said: a renderer built outside the game has one surface and it is the
+## screen. The mask reads [member _screen_rect] itself, because a surround with
+## nothing outside it is nothing to close.
+func _screen_place() -> Rect2i:
+	if _screen_rect.size.x > 0 and _screen_rect.size.y > 0:
+		return _screen_rect
+	return Rect2i(Vector2i.ZERO, Vector2i(_stage.container.size))
 
 
 ## The pan the live text box asks for, in the SURFACE'S own pixels, since that is
@@ -215,6 +282,7 @@ func _apply_text_box() -> void:
 func set_native_size(size_pixels: Vector2i) -> void:
 	size = Vector2(size_pixels)
 	_stage.container.size = Vector2(size_pixels)
+	_transition.place(_screen_place())
 	_apply_text_box()
 	_apply_interface_mask()
 
@@ -532,7 +600,16 @@ func _rebuild_actors() -> void:
 		return
 	_stage.begin_cards()
 	_stage.begin_shadow_casters()
+	## A TRANSITION EMPTIES OAM AND THEN PUTS TWO SPRITES BACK, and the begin and
+	## end above and below are what leaves the pool with nothing in it. See
+	## [method _drawn_in_transition].
+	if _transition_sprites == Gen2BattleTransition.SPRITES_NONE:
+		_stage.end_cards()
+		_stage.end_shadow_casters()
+		return
 	for object: Gen2WorldObject in _world.visible_objects():
+		if not _drawn_in_transition(object.index):
+			continue
 		_add_actor(
 			object.sprite, object.palette, object.facing, object.frame,
 			Vector2(object.cell) + object.step_offset_cells(), PackedColorArray(),
@@ -547,16 +624,26 @@ func _rebuild_actors() -> void:
 	# A mod's own sprites, after the map's and the player's. Depth is the stage's
 	# to decide here rather than a row order's, which is the one thing this view
 	# does not have to copy from the tile page.
-	if _mod_actors != null:
+	if _mod_actors != null and _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
 		for entry: Dictionary in _mod_actors.sprites():
 			_add_actor(
 				entry["sprite"], 0, int(entry["facing"]), int(entry["frame"]),
 				entry["position_cells"], entry.get("colors", PackedColorArray())
 			)
-	_add_connected_actors()
+	if _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
+		_add_connected_actors()
 	_add_encounter_pulse()
 	_stage.end_cards()
 	_stage.end_shadow_casters()
+
+
+## Whether a map object is still in OAM this frame. `RespawnPlayerAndOpponent`
+## at each outro's setup leaves the player and whoever `hLastTalked` names and
+## takes everything else off, and the built-in view obeys the same three values.
+func _drawn_in_transition(index: int) -> bool:
+	if _transition_sprites == Gen2BattleTransition.SPRITES_BATTLERS:
+		return index == _transition_opponent
+	return _transition_sprites != Gen2BattleTransition.SPRITES_NONE
 
 
 ## How far a person on the map next door is drawn from, in world pixels. Past

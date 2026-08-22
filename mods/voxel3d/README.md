@@ -161,6 +161,28 @@ staged on the place has as much to put out there as the overworld had a frame
 earlier. Only the arena grows: the panels, the bars and the text stay hardware
 pixels in the same centred rectangle they were always laid out in.
 
+## The encounter closing
+
+`DoBattleTransition` is the one screen the cartridge draws that has no world in
+it: twenty by eighteen cells blacked out a few at a time in one of the game's
+own patterns, with a trainer's Poke Ball stamped over the top in graphics tiles.
+It is drawn here now, in the cartridge's own cells over the diorama, at the
+rectangle the Game Boy screen occupies, with the surround already closed around
+it. Before, an encounter in this view cut from the map straight to the fight.
+
+Repainted per cell that MOVED. A transition is two hundred frames and every one
+is a different picture; a step writes a handful of cells, and repainting all
+23040 pixels each time would be most of a frame on its own.
+
+A trainer's flash is the one part with no exact answer here. `StartTrainerBattle`
+writes one background palette across the whole screen, which on the hardware
+recolours the map to two of the ball's own colours; a diorama has continuous tone
+rather than four levels, so the same permutation is read as the curve through
+those four levels and applied to the whole picture, which is exactly what a move
+animation's whole-screen flash already does in the fight. The ball itself takes
+the permutation on its own colours, since the pass over the frame runs under this
+layer rather than over it.
+
 ## The battle
 
 `Gen2BattleScreen` hands over display values and, once per battle, a
@@ -908,7 +930,8 @@ world/water.gd       the water surface: the sky by Fresnel, the swell, the sun
 world/wind.gd        what makes grass and foliage bend, and part around a walker
 world/motes.gd       the drifting leaves and the fireflies
 world/far_field.gd   the ground past the mesh: the maps around this one, flat
-world/frame.gd       the pass over the finished picture, and the hour's tint in it
+world/frame.gd       the pass over the finished picture, the hour's tint, the bars
+world/transition.gd  DoBattleTransition's own cells, over the map it closes on
 world/camera_rig.gd  pitch, distance, lens and the ease between settings
 battle/renderer.gd   the battle Node: the arena, the battlers and the panels
 battle/arena.gd      where the fight is staged and where it is shot from
