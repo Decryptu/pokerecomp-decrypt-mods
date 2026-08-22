@@ -6,7 +6,7 @@
 			"id": "voxel3d",
 			"name": "Voxel 3D",
 			"version": "0.4.0",
-			"description": "Rebuilds the overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and carries the ground past the mesh so the maps around this one stand where the connection graph puts them. Stages a battle on the map it was started on. Choose it on this page to draw the overworld and the fight alike. Q and E or the wheel zoom, I and K raise and lower the camera.",
+			"description": "Rebuilds the overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and carries the ground past the mesh so the maps around this one stand where the connection graph puts them. A fight is staged on the map it started on and fills the window with it. Choose it on this page to draw both. Q and E or the wheel zoom, I and K raise and lower the camera.",
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.4.0/voxel3d-0.4.0.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/thumbnail.webp"
@@ -33,7 +33,7 @@
 			"id": "overworld_encounters",
 			"name": "Overworld Encounters",
 			"version": "0.2.0",
-			"description": "Replaces random steps with a bounded population of visible roaming wild Pokemon drawn from each map's own encounter tables, with visible shiny Pokemon.",
+			"description": "Replaces random steps with a bounded population of visible roaming wild Pokemon drawn from each map's own encounter tables, with visible shiny Pokemon. Up to sixteen a map, for a screen that shows the whole of one.",
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.2.0/overworld_encounters-0.2.0.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/overworld_encounters/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/overworld_encounters/thumbnail.webp"
