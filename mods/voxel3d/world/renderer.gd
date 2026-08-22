@@ -232,6 +232,7 @@ func _process(delta: float) -> void:
 ## window around a player it does not have.
 func _read_options() -> void:
 	_draw_cells = int(Options.value(Options.DISTANCE, 0))
+	_stage.set_render_scale(int(Options.value(Options.SCALE, Options.default_scale())))
 	_rig.set_wheel_sign(int(Options.value(Options.WHEEL, 1)))
 	_rig.set_default_pitch(float(Options.value(Options.CAMERA, Options.CAMERA_VALUES[1])))
 
@@ -246,6 +247,8 @@ func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void
 			# that changed, and what a tile is was resolved once for this map.
 			_window_centre = Vector2i.MAX
 			_recentre_window()
+		Options.SCALE:
+			_stage.set_render_scale(int(value))
 		Options.WHEEL:
 			_rig.set_wheel_sign(int(value))
 		Options.CAMERA:

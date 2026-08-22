@@ -165,6 +165,7 @@ func interface_opacity() -> float:
 ## renderer outside the game wants.
 func _read_options() -> void:
 	_draw_cells = int(Options.value(Options.DISTANCE, 0))
+	_stage.set_render_scale(int(Options.value(Options.SCALE, Options.default_scale())))
 	_arena.set_wheel_sign(int(Options.value(Options.WHEEL, 1)))
 
 
@@ -175,6 +176,8 @@ func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void
 		Options.DISTANCE:
 			_draw_cells = int(value)
 			_build_arena()
+		Options.SCALE:
+			_stage.set_render_scale(int(value))
 		Options.WHEEL:
 			_arena.set_wheel_sign(int(value))
 		Options.RECENTRE:

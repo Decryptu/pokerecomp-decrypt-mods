@@ -142,6 +142,10 @@ func _init() -> void:
 	container = SubViewportContainer.new()
 	container.stretch = true
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# A pass drawn at a divisor is blown back up to the control, and any filter
+	# but nearest would smear the cartridge's own texels doing it. See
+	# `set_render_scale`.
+	container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
 	viewport = SubViewport.new()
 	# Its own 3D world, so this never shares a scene with whatever else the
@@ -285,6 +289,22 @@ func set_view_distance(pixels: float) -> void:
 	camera.far = FAR_DEFAULT
 	_light.directional_shadow_max_distance = minf(SHADOW_DISTANCE_DEFAULT, pixels)
 	_reach = FAR_DEFAULT
+
+
+## How many window pixels the 3D pass draws one of.
+##
+## THE SCREEN NOW FILLS THE WINDOW, and this view is the one that pays for it:
+## the 2D page is 160x144 whatever the window is, and this is drawn at the
+## control's own pixel count, which on a phone panel is a hundred times the area
+## through a shader with six fetches in it and geometry that leans on the depth
+## buffer rather than a sort. A divisor is quadratic in every part of that, so a
+## half is a quarter of the work and a third is a ninth.
+##
+## It is not a compromise on the art either way: the picture is a Game Boy's own
+## texels, and a divisor draws them larger rather than blurrier. The container
+## is the shrink the SubViewport was built around, so nothing else changes.
+func set_render_scale(divisor: int) -> void:
+	container.stretch_shrink = clampi(divisor, 1, 4)
 
 
 ## The ground past the mesh, or none for a battle. See `far_field.gd`.

@@ -19,6 +19,7 @@ const MOD_ID: StringName = &"voxel3d"
 const Steering: GDScript = preload("steering.gd")
 
 const DISTANCE: StringName = &"distance"
+const SCALE: StringName = &"scale"
 const WHEEL: StringName = &"wheel"
 const CAMERA: StringName = &"camera"
 ## A setting that is a press rather than a ladder: see `register`.
@@ -38,6 +39,16 @@ const RECENTRE: StringName = &"recentre"
 ## See `world/renderer.gd` for what happens when the player walks out of one.
 const DISTANCE_VALUES: Array = [12, 16, 24, 0]
 
+## How many window pixels the 3D pass draws one of. See
+## `world/diorama.gd:set_render_scale` for why this is the one rung that matters
+## on a device that cannot afford the window it was given.
+##
+## The default is chosen by PLATFORM and not by taste: a desktop draws the whole
+## window and a phone starts at a half, because there is no benchmarking a phone
+## from here and the player who most needs this rung is the one who has not
+## found the settings card. Either way it is one press from the other.
+const SCALE_VALUES: Array = [1, 2, 3, 4]
+
 ## Which way a wheel notch zooms. The only part of the binding that is a
 ## preference rather than a decision, which is why it is the only part with a
 ## setting; `steering.gd` owns the rest and both views share it.
@@ -53,6 +64,11 @@ const REGISTERED: Array[Dictionary] = [
 		"key": DISTANCE, "label": "DISTANCE",
 		"values": DISTANCE_VALUES, "labels": ["12", "16", "24", "FULL"],
 		"default": 16,
+	},
+	{
+		"key": SCALE, "label": "RES",
+		"values": SCALE_VALUES, "labels": ["FULL", "1/2", "1/3", "1/4"],
+		"default": 1,
 	},
 	{
 		"key": WHEEL, "label": "WHEEL",
@@ -77,7 +93,11 @@ const REGISTERED: Array[Dictionary] = [
 ## card. A press in the MODS menu needs no binding at all.
 static func register(host: Gen2ModHost, id: StringName) -> void:
 	for option: Dictionary in REGISTERED:
-		host.register_option(id, option)
+		var row: Dictionary = option
+		if row["key"] == SCALE:
+			row = option.duplicate()
+			row["default"] = default_scale()
+		host.register_option(id, row)
 	# Feature-detected rather than assumed: `api_version` gates a mod built for
 	# an older host, not a host older than the mod, so this is the mod's to check.
 	if not host.has_method("register_action"):
@@ -87,6 +107,11 @@ static func register(host: Gen2ModHost, id: StringName) -> void:
 	host.register_option(id, {
 		"key": RECENTRE, "label": "CAMERA", "kind": &"button", "press_label": "RECENTRE",
 	})
+
+
+## The rung this device opens at. See SCALE_VALUES.
+static func default_scale() -> int:
+	return 2 if OS.has_feature("mobile") else 1
 
 
 ## What the player chose, or [param fallback] when nothing did the registering.
