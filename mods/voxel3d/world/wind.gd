@@ -160,8 +160,50 @@ void fragment() {
 }
 """
 
+## THE CARTRIDGE'S OWN DRAWING STOOD UP, for a model too far away to turn.
+##
+## Same bend as `FOLIAGE_CODE` and the same instance phase, so a stamp that
+## crosses the detail ring keeps swaying exactly as it was. What differs is
+## where the colour comes from: a solid bakes it into its vertices, and this
+## reads the tileset pixels themselves, cut out of the drawing with everything
+## that is not the thing left transparent.
+##
+## `cull_disabled` is what makes it four triangles a tree rather than eight: a
+## plane has two sides and this way one quad serves both. `discard` on the alpha
+## rather than a blend, so the pair of crossed planes needs no sorting and
+## writes depth like everything else on this stage.
+const SPRITE_CODE: String = """
+shader_type spatial;
+render_mode specular_disabled, diffuse_lambert, cull_disabled;
+
+uniform sampler2D cutout : source_color, filter_nearest;
+uniform float reach;
+__BEND__
+
+void vertex() {
+	// UV carries the drawing here, so the sway weight moves to UV2.x. Same
+	// meaning: zero at the foot, one at the top of the crown.
+	float up = UV2.x;
+	float phase = INSTANCE_CUSTOM.x;
+	vec3 at = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	VERTEX.xz += normalize(wind) * bend_at(at.xz, phase) * reach * up * up;
+}
+
+void fragment() {
+	vec4 drawn = texture(cutout, UV);
+	if (drawn.a < 0.5) {
+		discard;
+	}
+	ALBEDO = drawn.rgb;
+}
+"""
+
 var grass: ShaderMaterial = null
 var foliage: ShaderMaterial = null
+## One material per cut-out drawing, since each wears its own picture. There are
+## tens of distinct drawings on a map, not hundreds, and a material is not a
+## draw: the instances under one still batch as one.
+var _sprites: Dictionary = {}
 
 
 func _init() -> void:
@@ -182,6 +224,16 @@ func _material(code: String, reach: float) -> ShaderMaterial:
 	made.set_shader_parameter("gust_length", GUST_LENGTH)
 	made.set_shader_parameter("jitter", CLUMP_JITTER)
 	made.set_shader_parameter("reach", reach)
+	return made
+
+
+## The material a cut-out drawing is stamped with, made once per picture.
+func sprite_material(cutout: Texture2D) -> ShaderMaterial:
+	if _sprites.has(cutout):
+		return _sprites[cutout]
+	var made: ShaderMaterial = _material(SPRITE_CODE, FOLIAGE_REACH)
+	made.set_shader_parameter("cutout", cutout)
+	_sprites[cutout] = made
 	return made
 
 

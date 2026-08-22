@@ -415,6 +415,7 @@ func _read_options() -> void:
 	_stage.set_render_scale(int(Options.value(Options.SCALE, Options.default_scale())))
 	_rig.set_wheel_sign(int(Options.value(Options.WHEEL, 1)))
 	_rig.set_default_pitch(float(Options.value(Options.CAMERA, Options.CAMERA_VALUES[1])))
+	_stage.set_depth_of_field(dof_mode, dof_radius, dof_near, dof_far)
 
 
 func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void:
@@ -535,6 +536,7 @@ func _recentre_window() -> void:
 		if _window_centre == Vector2i.MAX:
 			_window_centre = Vector2i.ZERO
 			_stage.set_view_distance(0.0)
+			_ring_on(_world.player_position_cells())
 			_begin_terrain(Rect2i())
 		return
 	var at := Vector2i(_world.player_position_cells().floor())
@@ -544,12 +546,82 @@ func _recentre_window() -> void:
 			and absi(at.y - _window_centre.y) <= margin:
 		return
 	_window_centre = at
+	_ring_on(_world.player_position_cells())
 	var span: int = _draw_cells * 2 + 1
 	_stage.set_view_distance(float(_draw_cells) * CELL, true)
 	_begin_terrain(Rect2i(
 		(at - Vector2i(_draw_cells, _draw_cells)) * RomLayout.MAP_BLOCK_CELL_WIDTH,
 		Vector2i(span, span) * RomLayout.MAP_BLOCK_CELL_WIDTH
 	))
+
+
+## HOW FAR OUT A STAMPED MODEL IS STILL A SOLID, in walk cells.
+##
+## Past it a tree is the flat impostor, which is a tenth of the triangles: see
+## `shape/mesher.gd:set_detail_ring`. Ten cells is a little past what the default
+## camera frames, so everything the player is actually walking among is turned
+## and what the swap can be seen happening to is already small in the frame.
+##
+## THIRTY FIVE, chosen off a sweep: at 20 the swap is close enough to notice
+## when the camera is low, at 50 the saving is down to a third, and 35 keeps
+## everything the default camera frames as a turned solid while still drawing
+## two thirds less. Zero is no ring at all, which is what shipped before this.
+##
+## STATIC so a tool can sweep it over one scene. It is a setting when the rung
+## is offered to a player.
+static var solid_cells: float = 35.0
+
+## Whether the maps on the horizon stand trees as well as ground. See
+## `world/far_foliage.gd`. Measured at four per cent of the frame's triangles on
+## the widest horizon in the game, against a flat page for a landscape.
+static var far_trees: bool = true
+
+## THE DEPTH OF FIELD, which is a look and not a saving: see
+## `world/frame.gd:set_depth_of_field`. Coarser pixels with distance, lightly:
+## enough to take the edge off a flat drawing standing where a solid stood, and
+## not enough to read as a modern blur laid over a Game Boy. A soft blur was the
+## other candidate and it smears along the horizon line, where the ground's
+## distance runs away and the sky is sampled into it.
+##
+## Static for the same reason `solid_cells` is, and a setting when it lands.
+static var dof_mode: int = 1
+static var dof_radius: float = 4.0
+static var dof_near: float = 900.0
+static var dof_far: float = 2600.0
+
+
+## Stands this map's own tree on the maps out past the mesh, once there is a
+## mesh to take one from. See `world/far_foliage.gd`.
+func _dress_far_field() -> void:
+	var far: RefCounted = _stage.far_field()
+	if far == null:
+		return
+	if not far_trees:
+		far.set_far_tree(null, null)
+		return
+	var tree: Array = _mesher.far_tree()
+	far.set_far_tree(
+		tree[0] as Mesh, _stage.foliage_material(tree[1] as Texture2D)
+	) if tree.size() == 2 else far.set_far_tree(null, null)
+
+
+## Centres the detail ring on the EYE and not on the player.
+##
+## Level of detail is a fact about how far a thing is from the person looking at
+## it, and the eye stands back from the player: a ring drawn round the player
+## spends half of itself behind the camera, where there is nothing to see, and
+## runs out close in front, which is the half of the frame that is actually
+## being looked at.
+##
+## Only x and z matter, since the ring is a circle on the ground.
+##
+## IT MOVES WHEN THE WINDOW DOES and not when the camera turns, because a rebuild
+## is dear and a swing is cheap and constant. So a hard swing leaves the ring
+## where the last step put it until the next one. That is a real edge and it is
+## why the radius wants to be generous rather than tight.
+func _ring_on(cells: Vector2) -> void:
+	var here := Vector3(cells.x * CELL, 0.0, cells.y * CELL)
+	_mesher.set_detail_ring(here + _rig.offset(), solid_cells * CELL)
 
 
 ## Starts a sliced build of [param window], and finishes it in `_process`.
@@ -590,6 +662,7 @@ func _advance_build() -> void:
 	if done:
 		_building = false
 		_standing = true
+		_dress_far_field()
 
 
 func _frame_camera() -> void:

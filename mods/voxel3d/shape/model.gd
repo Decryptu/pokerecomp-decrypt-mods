@@ -115,6 +115,7 @@ var _colors := PackedColorArray()
 ## top, which is what `world/wind.gd` bends the tree by. A model carries no
 ## texture, its colour being baked into the vertices, so UV is free for it.
 var _sways := PackedVector2Array()
+var _uvs := PackedVector2Array()
 ## The weight the next face is written with, set per voxel row.
 ## The sway weight is read off the VERTEX rather than off the voxel row, so these
 ## are the two numbers a vertex height is measured against: where the crown's
@@ -1009,3 +1010,212 @@ func _quad(origin: Vector3, side: Vector3i, color: Color) -> void:
 		_normals.push_back(normal)
 		_colors.push_back(color)
 		_sways.push_back(Vector2(_sway_at(vertex.y), 0.0))
+
+
+## THE SAME THING AS A FLAT DRAWING STOOD UP, for the distance.
+##
+## A stamped model is 700 to 1200 triangles and a map wears hundreds of them, so
+## models are between 81 and 92 per cent of every outdoor map's geometry. That is
+## affordable for the ground the player is standing on and it is not affordable
+## for the maps behind it, which is why everything past the mesh is a flat page
+## today.
+##
+## This is the middle rung. It reads the SAME `Measure` the solid is turned from,
+## so the silhouette is the drawing's own width at every row and the colours are
+## the drawing's own bands, and it spends that on two crossed planes instead of a
+## turned volume. Rows of equal width and colour merge into one band, so a tree
+## comes out in tens of triangles rather than hundreds and still reads as that
+## tree rather than as a green lolly.
+##
+## The wind frame is copied exactly rather than approximated: same `_sway_foot`
+## and `_sway_span`, so an impostor bends with the trees around it and a stamp
+## that crosses the swap does not jump.
+##
+## BOTH WINDINGS ARE EMITTED because the foliage material culls back faces and a
+## plane has two sides. Giving impostors a `cull_disabled` material of their own
+## would halve this again; it is a second material on the sink and not worth it
+## until the rung is real.
+func impostor(measured: Measure) -> ArrayMesh:
+	_vertices = PackedVector3Array()
+	_normals = PackedVector3Array()
+	_colors = PackedColorArray()
+	_sways = PackedVector2Array()
+	_voxel = ROCK_VOXEL if measured.rock or measured.potted else VOXEL
+	var rows: int = measured.profile.size()
+	var stretch: float = measured.stretch
+	if stretch <= 0.0:
+		stretch = 1.0 if measured.shrub else CROWN_STRETCH
+	var crown_high: int = maxi(ceili(float(rows) * stretch / _voxel), 2)
+	var trunk_high: int = 0 if measured.shrub else maxi(ceili(
+		maxf(float(measured.trunk_height), POT_STALK) / _voxel
+		if not measured.pot.is_empty()
+		else maxf(float(measured.trunk_height), float(measured.width()) * TRUNK_MIN)
+			/ _voxel
+	), 2)
+	var trunk_half: float = maxf(
+		float(measured.width()) * TRUNK_THICKNESS * 0.5 / _voxel, 1.0
+	)
+	var pot_high: int = 0
+	if not measured.pot.is_empty():
+		pot_high = maxi(ceili(float(measured.pot.size()) / _voxel), 1)
+	var tall: int = pot_high + trunk_high + crown_high + 1
+	_sway_still = measured.rock
+	_sway_foot = float(pot_high + trunk_high) * _voxel
+	_sway_span = float(maxi(crown_high - 1, 1)) * _voxel
+
+	# Per voxel row: how wide the thing is there and what colour it is, which is
+	# the same pair `tree` fills its solid and paints its faces from.
+	var widths := PackedFloat32Array()
+	var tones: PackedColorArray = PackedColorArray()
+	for vy: int in tall:
+		var half: float = 0.0
+		var tone: Color = Color(0.5, 0.5, 0.5)
+		if vy < pot_high:
+			var at_row: int = mini(
+				int(float(pot_high - 1 - vy) * _voxel), measured.pot.size() - 1
+			)
+			half = measured.pot[at_row] / _voxel
+			if vy == pot_high - 1:
+				half += 1.0
+			if not measured.pot_bands.is_empty():
+				tone = measured.pot_bands[clampi(
+					measured.pot_bands.size() - 1 - int(float(vy) * _voxel),
+					0, measured.pot_bands.size() - 1
+				)]
+		elif vy < pot_high + trunk_high:
+			half = trunk_half
+			tone = measured.bark[measured.bark.size() / 2] if not measured.bark.is_empty() \
+				else Color(0.35, 0.25, 0.18)
+		else:
+			half = _radius(measured, vy - pot_high - trunk_high, crown_high)
+			tone = _band_at(measured, vy - pot_high - trunk_high, crown_high)
+		widths.push_back(half)
+		tones.push_back(tone)
+
+	var run: int = 0
+	while run < tall:
+		if widths[run] <= 0.0:
+			run += 1
+			continue
+		var last: int = run
+		while last + 1 < tall and is_equal_approx(widths[last + 1], widths[run]) \
+				and tones[last + 1] == tones[run]:
+			last += 1
+		var half: float = widths[run] * _voxel
+		var foot: float = float(run) * _voxel
+		var head: float = float(last + 1) * _voxel
+		_band_quad(Vector3(0.0, 0.0, 1.0), half, foot, head, tones[run])
+		_band_quad(Vector3(1.0, 0.0, 0.0), half, foot, head, tones[run])
+		run = last + 1
+
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = _vertices
+	arrays[Mesh.ARRAY_NORMAL] = _normals
+	arrays[Mesh.ARRAY_COLOR] = _colors
+	arrays[Mesh.ARRAY_TEX_UV] = _sways
+	var mesh := ArrayMesh.new()
+	if not _vertices.is_empty():
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+## THE DRAWING ITSELF STOOD UP, which is the cheapest a thing can be and still
+## be the thing.
+##
+## Two crossed quads, four triangles, wearing the tileset pixels cut out of the
+## drawing rather than a silhouette rebuilt from its measurement. The band
+## version above reconstructs the shape row by row and costs about 120 triangles;
+## this is the same idea carried all the way, and it is the picture the cartridge
+## actually drew.
+##
+## It stands exactly as tall and as wide as the SOLID of the same drawing, so a
+## stamp crossing the detail ring does not change size. `cull_disabled` on the
+## material is what lets one quad serve both faces.
+func sprite(measured: Measure) -> ArrayMesh:
+	_vertices = PackedVector3Array()
+	_normals = PackedVector3Array()
+	_colors = PackedColorArray()
+	_sways = PackedVector2Array()
+	_uvs = PackedVector2Array()
+	_voxel = ROCK_VOXEL if measured.rock or measured.potted else VOXEL
+	var frame: Vector3 = _stand(measured)
+	_sway_still = measured.rock
+	_sway_foot = frame.x
+	_sway_span = frame.y
+	var half: float = maxf(float(measured.width()) * 0.5, _voxel)
+	_sprite_quad(Vector3(0.0, 0.0, 1.0), half, frame.z)
+	_sprite_quad(Vector3(1.0, 0.0, 0.0), half, frame.z)
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = _vertices
+	arrays[Mesh.ARRAY_NORMAL] = _normals
+	arrays[Mesh.ARRAY_COLOR] = _colors
+	arrays[Mesh.ARRAY_TEX_UV] = _uvs
+	arrays[Mesh.ARRAY_TEX_UV2] = _sways
+	var mesh := ArrayMesh.new()
+	if not _vertices.is_empty():
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+## One upright quad of a cut-out drawing, wearing the whole picture.
+func _sprite_quad(normal: Vector3, half: float, high: float) -> void:
+	var across: Vector3 = Vector3(normal.z, 0.0, normal.x) * half
+	var corners: Array[Vector3] = [
+		-across, across, across + Vector3(0.0, high, 0.0),
+		-across + Vector3(0.0, high, 0.0),
+	]
+	var map: Array[Vector2] = [
+		Vector2(0.0, 1.0), Vector2(1.0, 1.0), Vector2(1.0, 0.0), Vector2(0.0, 0.0),
+	]
+	for corner: int in [0, 2, 1, 0, 3, 2]:
+		_vertices.push_back(corners[corner])
+		_normals.push_back(normal)
+		_colors.push_back(Color.WHITE)
+		_uvs.push_back(map[corner])
+		_sways.push_back(Vector2(_sway_at(corners[corner].y), 0.0))
+
+
+## The foot of the sway, its span and the thing's whole height, which is the one
+## frame the solid, the band impostor and the cut-out all have to agree on or a
+## stamp changes size as it crosses the ring.
+func _stand(measured: Measure) -> Vector3:
+	var rows: int = measured.profile.size()
+	var stretch: float = measured.stretch
+	if stretch <= 0.0:
+		stretch = 1.0 if measured.shrub else CROWN_STRETCH
+	var crown_high: int = maxi(ceili(float(rows) * stretch / _voxel), 2)
+	var trunk_high: int = 0 if measured.shrub else maxi(ceili(
+		maxf(float(measured.trunk_height), POT_STALK) / _voxel
+		if not measured.pot.is_empty()
+		else maxf(float(measured.trunk_height), float(measured.width()) * TRUNK_MIN)
+			/ _voxel
+	), 2)
+	var pot_high: int = 0
+	if not measured.pot.is_empty():
+		pot_high = maxi(ceili(float(measured.pot.size()) / _voxel), 1)
+	return Vector3(
+		float(pot_high + trunk_high) * _voxel,
+		float(maxi(crown_high - 1, 1)) * _voxel,
+		float(pot_high + trunk_high + crown_high + 1) * _voxel
+	)
+
+
+## One upright band of an impostor, both faces of it, in the plane whose normal
+## is [param normal].
+func _band_quad(
+	normal: Vector3, half: float, foot: float, head: float, tone: Color
+) -> void:
+	var across: Vector3 = Vector3(normal.z, 0.0, normal.x) * half
+	var a: Vector3 = -across + Vector3(0.0, foot, 0.0)
+	var b: Vector3 = across + Vector3(0.0, foot, 0.0)
+	var c: Vector3 = across + Vector3(0.0, head, 0.0)
+	var d: Vector3 = -across + Vector3(0.0, head, 0.0)
+	for side: float in [1.0, -1.0]:
+		var facing: Vector3 = normal * side
+		for vertex: Vector3 in ([a, c, b, a, d, c] if side > 0.0 else [a, b, c, a, c, d]):
+			_vertices.push_back(vertex)
+			_normals.push_back(facing)
+			_colors.push_back(tone)
+			_sways.push_back(Vector2(_sway_at(vertex.y), 0.0))

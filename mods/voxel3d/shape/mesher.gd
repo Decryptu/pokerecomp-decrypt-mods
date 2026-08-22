@@ -246,9 +246,16 @@ const FACT_POTTED: int = 29
 ## tile may carry two.
 var _object_covered := PackedByteArray()
 var _object_over: Dictionary = {}
-## Per tile: the top of the object standing on it, in world pixels, or 0. See
-## `_measure_surfaces`.
+## Per tile: the top of the object standing on it, in world pixels, or
+## `NO_OBJECT` where nothing stands. See `_measure_surfaces`.
 var _surface := PackedInt32Array()
+## No object stands on this tile. NOT 0, because 0 is a real height and the floor
+## is not the lowest one: water lies at -8, and a fill of 0 read through the
+## `maxi` in `surface_height_at_position` clamped every water tile back up to the
+## land it is recessed from, so everything standing in the sea stood a whole
+## band above it. A surfing player, a wild on a surf cell and a swimmer alike
+## floated clear of the water with a gap under them.
+const NO_OBJECT: int = -0x40000000
 ## One entry per object found on this map: its declaration, the tile its
 ## arrangement starts at, and how many tiles across and down that is.
 var _objects: Array = []
@@ -2087,7 +2094,7 @@ func _commonest_water() -> int:
 ## AFTER every pass that can still move a height, since `_ground_art` reads them.
 func _measure_surfaces() -> void:
 	_surface.resize(_size.x * _size.y)
-	_surface.fill(0)
+	_surface.fill(NO_OBJECT)
 	for entry: Array in _objects:
 		var object: Dictionary = entry[0]
 		var start: Vector2i = entry[1]
@@ -2131,14 +2138,55 @@ func _measure_surfaces() -> void:
 				_surface[at] = maxi(_surface[at], top)
 
 
+## HOW DEEP A THING STANDING IN WATER SITS INTO IT, in world pixels.
+##
+## Nothing in this game stands ON water. A surfing player rides half in it, a
+## Tentacool floats in it and a swimmer is up to their chest, and a card whose
+## feet are exactly on the surface quad reads as none of those: it reads as
+## walking on the sea, because the waterline lands where the drawing stops and
+## the eye takes that as the ground.
+##
+## An eighth of a sprite, which is 16 pixels tall, so two, and it is small
+## because THE CARTRIDGE'S OWN ART ALREADY DRAWS THE WATERLINE. A swimmer is
+## drawn as a head and shoulders and the surf blob is drawn as a thing half
+## sunk, so a draught deep enough to look right on a solid drawing sinks these
+## twice over: at four the water is at the swimmer's chin and a third of a
+## Tentacool is gone, and at eight it reaches their eyes.
+##
+## What this has to buy is only that the surface CROSSES the drawing. A card
+## tangent to the plane reads as a sticker laid on top of it, which is what a
+## draught of zero looks like, and two pixels is enough that the waterline cuts
+## the sprite from every camera the rig reaches.
+##
+## The water is opaque and writes depth, so this is all it takes. The submerged
+## part is behind the surface quad from any camera above it, and the shadow
+## caster goes down with the card, so the shadow stays under the thing casting it.
+const WATER_DRAUGHT: int = 2
+
+
 ## The top of whatever is drawn at a world position: the resolved column, or the
 ## object standing on it where one does. What a thing placed there stands on.
+##
+## WATER IS STOOD IN AND NOT ON: see [constant WATER_DRAUGHT]. An object laid
+## over water is a jetty or a bridge and is stood on like any other, so the
+## draught is taken off the water's own column and not off whatever won here.
+##
+## THE RECESS IS WHAT SAYS IT IS WATER, which is the same test the skirt and the
+## far field make and not `_is_water`: that one also asks for `ART_FLAT`, so it
+## refuses the 1060 tiles over the game where a drawing STANDS in water, and a
+## buoy's own cell would be the one place on a lake an actor rode high. Water is
+## the only class that recesses, measured over all 388 maps, so a column below
+## the floor is water whatever is carved on it.
 func surface_height_at_position(position: Vector3) -> int:
 	var tx: int = floori(position.x / TILE) + _margin.x
 	var ty: int = floori(position.z / TILE) + _margin.y
 	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
 		return 0
-	return maxi(_height_at(tx, ty), _surface[ty * _size.x + tx])
+	var column: int = _height_at(tx, ty)
+	var object: int = _surface[ty * _size.x + tx]
+	if object > column:
+		return object
+	return column - WATER_DRAUGHT if column < 0 else column
 
 
 ## THE CAVE MOUND, as a truncated pyramid instead of a flat slab.
@@ -4576,7 +4624,13 @@ func _place_model(tx: int, ty: int, atlas: RefCounted, base: float = INF) -> voi
 		# The stamp carries its own WIND PHASE with it, off the same anchor, so a
 		# tree bends at the same moment every time the window is rebuilt and no two
 		# neighbours bend together. See `world/wind.gd`.
-		(_model_spots[key] as Dictionary)[str(start)] = [
+		var worn: String = key
+		if _ring_reach > 0.0 and _model_measures.has(key) \
+				and Vector2(spot.x, spot.z).distance_to(
+					Vector2(_ring_at.x, _ring_at.z)
+				) > _ring_reach:
+			worn = _far_key(key)
+		(_model_spots[worn] as Dictionary)[str(start)] = [
 			Transform3D(Basis(Vector3(0.0, 1.0, 0.0), turn), spot),
 			_hash_spot(anchor + Vector2i(0, 53)),
 			_model_chunk(start),
@@ -4676,7 +4730,9 @@ func _model_bodies_of(
 			measured.potted = _potted[at] == 1
 			measured.column = _column[at] == 1
 			measured.stretch = _stretch[at]
-			_model_meshes[key] = (Model.new() as RefCounted).tree(measured)
+			_model_meshes[key] = _model_mesh_of(measured)
+			_model_measures[key] = measured
+			_model_cutouts[key] = _cut_out(only, span, tiles, across, atlas)
 			_model_spots[key] = {}
 			_built_model = true
 		var box: Rect2i = bounds[group]
@@ -4693,6 +4749,133 @@ const MODEL_BODY_MIN: int = 8
 ## How far a stamped model is nudged off its lattice point, in world pixels,
 ## across the whole span of the wobble.
 const MODEL_NUDGE: float = 5.0
+
+
+## Draw every stamped model as a flat impostor rather than as a turned solid.
+## See `model.gd:impostor`. Off is what the game ships.
+##
+## STATIC because it is an EXPERIMENT SWITCH and not the rung itself: the tools
+## set it before a world is opened so a whole run is measured and photographed
+## one way or the other. The rung this is investigating is per stamp and by
+## distance, and when it lands it belongs on the placement rather than here.
+static var impostor_models: bool = false
+
+
+## Per model key: the reading the solid was turned from, kept so the FAR mesh of
+## the same drawing can be turned from the same measurement on demand.
+var _model_measures: Dictionary = {}
+## Per model key: the drawing itself, cut out of the sheet with everything that
+## is not this body left transparent. What a far stamp wears. See [method _cut_out].
+var _model_cutouts: Dictionary = {}
+## What a far key is called: the near key and this. See [method _far_key].
+const IMPOSTOR_SUFFIX: String = "~far"
+## Where the detail ring is centred, in world pixels, and how far it reaches.
+## A radius of zero is no ring: every stamp is solid, which is what the game
+## shipped before this. See [method set_detail_ring].
+var _ring_at := Vector3.ZERO
+var _ring_reach: float = 0.0
+
+
+## THE RING INSIDE WHICH A MODEL IS A SOLID. Past it a stamp wears the flat
+## impostor instead: see `model.gd:impostor`.
+##
+## In world pixels and centred on the player rather than on the map, so what is
+## solid is what the player is standing in. A stamp crossing the ring swaps on
+## the next window rebuild, which is the same beat the window itself recentres
+## on, so nothing swaps under the eye mid-step.
+func set_detail_ring(at: Vector3, reach: float) -> void:
+	_ring_at = at
+	_ring_reach = maxf(reach, 0.0)
+
+
+## The mesh one stamped drawing is worn by, at whichever level of detail this
+## build is running at.
+func _model_mesh_of(measured: RefCounted) -> ArrayMesh:
+	var model: RefCounted = Model.new()
+	return model.impostor(measured) if impostor_models else model.tree(measured)
+
+
+## The far twin of a near key, turned from the same measurement the first time a
+## stamp out there asks for it.
+##
+## The cut-out drawing where there is one, which is four triangles and the
+## cartridge's own pixels, and the rebuilt silhouette where there is not, which
+## is about 120 and still the right shape. Nothing has been met without one; the
+## fallback is there because a drawing that cuts to nothing must not vanish.
+func _far_key(key: String) -> String:
+	var far: String = key + IMPOSTOR_SUFFIX
+	if not _model_meshes.has(far):
+		var model: RefCounted = Model.new()
+		var measured: RefCounted = _model_measures[key]
+		_model_meshes[far] = model.sprite(measured) \
+			if _model_cutouts.get(key) != null else model.impostor(measured)
+		_model_spots[far] = {}
+	return far
+
+
+## THE DRAWING THE MAPS ON THE HORIZON STAND, as `[mesh, cut-out]`, or empty
+## where this map turned no model at all.
+##
+## The BIGGEST cut-out this map built, which is the nearest thing to "the tree
+## of this route" that can be had without counting stamps: a route's tree is
+## drawn larger than its bushes, and a map whose largest drawing is a bush is a
+## map with no trees to put out there anyway. See `world/far_foliage.gd` for why
+## one drawing serves every map on the horizon.
+func far_tree() -> Array:
+	var best: String = ""
+	var widest: int = 0
+	for key: String in _model_cutouts:
+		var cutout: ImageTexture = _model_cutouts[key]
+		if cutout == null:
+			continue
+		var area: int = cutout.get_width() * cutout.get_height()
+		if area > widest:
+			widest = area
+			best = key
+	if best.is_empty():
+		return []
+	return [_model_meshes[_far_key(best)], _model_cutouts[best]]
+
+
+## THE DRAWING CUT OUT OF THE SHEET: this body's own pixels, and transparency
+## everywhere else.
+##
+## The mask is the one the SOLID is turned from, so what is kept here is exactly
+## what is carved there: the thing without the ground it is drawn standing on.
+## That ground is the whole reason a tile cannot simply be pasted onto a quad,
+## and the mod already had to answer it to build the model at all.
+##
+## Cropped to the mask, so the quad's own corners are the drawing's extent and no
+## texture space is spent on the empty rows around it.
+func _cut_out(
+	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
+	atlas: RefCounted
+) -> ImageTexture:
+	var box := Rect2i(0, 0, 0, 0)
+	var any: bool = false
+	for py: int in span.y:
+		for px: int in span.x:
+			if mask[py * span.x + px] != 1:
+				continue
+			if not any:
+				any = true
+				box = Rect2i(px, py, 1, 1)
+			else:
+				box = box.expand(Vector2i(px + 1, py + 1)).expand(Vector2i(px, py))
+	if not any or box.size.x <= 0 or box.size.y <= 0:
+		return null
+	var image := Image.create(box.size.x, box.size.y, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	for py: int in box.size.y:
+		for px: int in box.size.x:
+			var at := Vector2i(box.position.x + px, box.position.y + py)
+			if mask[at.y * span.x + at.x] != 1:
+				continue
+			@warning_ignore("integer_division")
+			var tile: int = int(tiles[(at.y / int(TILE)) * across.x + at.x / int(TILE)])
+			var drawn: Color = atlas.texel(tile, at.x % int(TILE), at.y % int(TILE))
+			image.set_pixel(px, py, Color(drawn.r, drawn.g, drawn.b, 1.0))
+	return ImageTexture.create_from_image(image)
 
 
 ## A settled number in 0 to 1 for a placement, so a forest is varied and a tree
@@ -4734,7 +4917,11 @@ func take_models() -> Array:
 			for entry: Array in groups[cell] as Array:
 				placed.append(entry[0] as Transform3D)
 				phases.append(float(entry[1]))
-			out.append([_model_meshes[key], placed, phases])
+			out.append([
+				_model_meshes[key], placed, phases,
+				_model_cutouts.get(key.trim_suffix(IMPOSTOR_SUFFIX)) \
+					if key.ends_with(IMPOSTOR_SUFFIX) else null,
+			])
 	return out
 
 
@@ -6007,7 +6194,7 @@ func _object_model(
 			var drawn_rows: int = int((bounds[group] as Rect2i).size.y)
 			if drawn_rows > 0:
 				measured.stretch = float(object[&"height"]) / float(drawn_rows)
-			_model_meshes[key] = (Model.new() as RefCounted).tree(measured)
+			_model_meshes[key] = _model_mesh_of(measured)
 			_model_spots[key] = {}
 			_built_model = true
 		var middle: Vector2 = Vector2((bounds[group] as Rect2i).get_center())

@@ -503,6 +503,65 @@ At any draw distance short of FULL the window clips most of it. At FULL it is
 paid for whole, and on a large route that is about as much geometry again as the
 map itself.
 
+## Near it is turned, far it is the drawing again
+
+A stamped model is 700 to 1200 triangles and a route wears hundreds of them, so
+models are 87 per cent of all outdoor geometry: 34.4 million triangles of the
+39.3 the game's 77 outdoor maps come to. That is worth paying where the player
+is standing and nowhere else.
+
+So past a ring 35 cells from the EYE, a stamp stops being a turned solid and
+becomes the cartridge's own drawing stood up: two crossed quads, four triangles,
+wearing the tileset's pixels with everything that is not the thing cut away. The
+mask doing the cutting is the one the solid is carved from, so what stands out
+there is exactly what would have been turned. Same height, same width, same wind
+phase, so a tree crossing the ring does not change size or step out of time.
+
+The ring is on the eye and not on the player because the camera stands back: a
+ring round the player spends half itself behind the shot. It moves when the
+window rebuilds rather than when the camera swings, since a rebuild is dear and a
+swing is neither, so a hard swing leaves it where the last step put it.
+
+Route 32, the thickest wood in the game, goes from 1,096,319 triangles to
+470,943 at the same camera. Up close the flat ones read as cardboard, which is
+what the ring is for; at 35 cells nothing the default camera frames is flat at
+all.
+
+## And trees on the horizon
+
+The pages past the mesh carry the same drawing. A map out there is walked once,
+cell by cell, asking the tileset whether a tile is a model, which is a question
+about the tile and the permission and nothing else and so costs 2 ms a map
+against the quarter of a second a real resolve does. Every map it finds them on
+stands them.
+
+It is four per cent of the frame's triangles on the widest horizon in the game,
+and it is the difference between a neighbour reading as a landmass and reading as
+a green rug laid on the sea. Two simplifications, both deliberate: every far map
+wears this map's tree rather than its own, and a cell gets one tree rather than
+its drawing's own bodies.
+
+## A little out of focus, in pixels
+
+The frame's finishing pass coarsens toward the horizon: the same picture sampled
+on a grid that grows with distance, four pixels at the far end. Not a blur. The
+one kind of soft focus a Game Boy could have had is a bigger pixel, and a
+gaussian over this art reads as a photograph of a screen. A blur was tried and it
+also smears along the horizon line, where the ground's distance runs away and the
+sky is gathered into it.
+
+The distance is WORKED OUT and not sampled. A canvas pass has no depth buffer,
+but it has a camera looking down at a world that is mostly a plane, so where the
+eye stands, how far it is tilted and how wide it sees give every row of the
+picture a distance across the ground. It is the ground's distance and not the
+pixel's, so a tall thing close by wears the haze of the ground behind its head;
+what this is spent on lies on the plane, so it does not show.
+
+IT IS A LOOK AND NOT A SAVING, and the measurement is worth keeping because the
+intuition is so strong the other way: drawing the whole frame at a quarter of its
+resolution, sixteen times fewer fragments, changes the frame time by nothing at
+all. Fragments are free here and triangles are not.
+
 ## The sky and the hour
 
 Above that horizon the sky is generated: a ramp of four bands, deepest overhead,
@@ -544,6 +603,21 @@ way up the sky lands off the top of the frame at every hour: what is asked is ho
 nearly a piece of water is tilted to bounce the sun into the eye, which is a fact
 about the swell, so the glitter rides the waves and goes out at night with the
 light.
+
+WATER IS STOOD IN AND NOT ON. It lies eight pixels below the land it is recessed
+from, and everything the map stands on it, a surfing player, a swimmer, a wild
+Pokemon on a surf cell, sat at the height of the LAND instead: a whole band clear
+of the surface, with its shadow on the water under it and daylight in the gap. On
+a Game Boy screen the sprite was the same few pixels either way. Drawn at the
+window's resolution it is a boat in the air.
+
+They now stand on the water's own surface and two pixels into it, so the
+waterline crosses the drawing. Two rather than a quarter of the sprite because
+the cartridge's own art already draws the waterline: a swimmer is a head and
+shoulders and the surf blob is a thing half sunk, so a deeper draught sinks them
+twice and the sea comes up to their eyes. The water is opaque and writes depth,
+so nothing is clipped or masked; the surface simply stands in front of what is
+under it.
 
 ## Sprites another mod puts in the world
 
