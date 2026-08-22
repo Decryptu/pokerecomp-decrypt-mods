@@ -39,6 +39,12 @@ const VOXEL: float = 2.0
 ## sea rock three, which is a box whatever profile it was turned from. A crown is
 ## made of leaves and wants to be chunky; a stone has one surface and does not.
 const ROCK_VOXEL: float = 1.0
+## The least stalk a potted plant stands its crown on, in world pixels. The
+## drawing states the stalk honestly and then the crown hangs over most of it, so
+## read literally the leaves sit on the rim and the plant has no stem at all.
+const POT_STALK: float = 5.0
+## How far a potted crown's two lit flanks move on the ladder, in rungs.
+const LEAF_FLANK: float = 0.9
 
 ## How ragged the crown is, as a share of each row's own radius. Enough to break
 ## the turned surface into clumps, little enough that the sprite's profile is
@@ -567,26 +573,6 @@ const LEAF: int = 2
 ## the cartridge has already shaded it.
 const POT: int = 3
 
-## A PALM IS FRONDS AND A TURN CANNOT MAKE ONE. A body of revolution reads a
-## crown's silhouette as its diameter, which is right for a tree seen from far
-## enough away that its leaves are a mass, and wrong for the plant on the floor
-## of a Pokemon Centre: the reviewer's own words are "a thin palm trunk and some
-## palm leaves", and turned it is a green cube on a blue drum.
-##
-## So a potted crown is ARMS. How many, how far they reach and how they droop is
-## authored, because no drawing of a plant from the front states any of it; the
-## reach is the drawing's own widest row and the colours are the drawing's own.
-const FROND_ARMS: int = 8
-
-## How thick an arm is at the crown and at the tip, in voxels.
-const FROND_THICK: float = 1.0
-## How high a frond leaves the stem before it bends away, as a share of the
-## crown's own drawn height: the leaves are most of what the drawing is.
-const FROND_PEAK_SHARE: float = 0.45
-## Whether a potted crown is built as fronds rather than turned from its
-## silhouette. Both were built and photographed; see the round notes.
-const FRONDS: bool = true
-
 
 ## Turns the profile into a voxel tree, centred on x and z, standing on y = 0.
 func tree(measured: Measure) -> ArrayMesh:
@@ -601,19 +587,19 @@ func tree(measured: Measure) -> ArrayMesh:
 	var rows: int = measured.profile.size()
 	var stretch: float = measured.stretch
 	if stretch <= 0.0:
-		# A PLANT WITH A POT UNDER IT IS DRAWN AT THE HEIGHT IT STANDS. `tree`'s
-		# own 1.3 corrects a sprite that draws its trunk behind its crown and so
-		# states no height at all; a drawing that shows crown, stalk and pot states
-		# all of it. Keyed on the POT being there rather than on the class, since
-		# the same class covers drawings with no pot in them at all.
-		stretch = 1.0 if measured.shrub or not measured.pot.is_empty() \
-			else CROWN_STRETCH
+		stretch = 1.0 if measured.shrub else CROWN_STRETCH
 	var crown_high: int = maxi(ceili(float(rows) * stretch / _voxel), 2)
 	# A HOUSEPLANT'S STALK IS DRAWN IN FRONT OF ITS CROWN and states its own
 	# length; a tree's is drawn behind one and states nothing, which is what the
 	# floor under `TRUNK_MIN` is for.
+	# A HOUSEPLANT'S STALK IS DRAWN IN FRONT OF ITS CROWN and states its own
+	# length, where a tree's is drawn behind one and states nothing, which is what
+	# the floor under `TRUNK_MIN` is for. It is still held to `POT_STALK`, because
+	# a stalk shorter than that is a crown sitting on the rim with no plant
+	# between the two.
 	var trunk_high: int = 0 if measured.shrub else maxi(ceili(
-		float(measured.trunk_height) / _voxel if not measured.pot.is_empty()
+		maxf(float(measured.trunk_height), POT_STALK) / _voxel
+		if not measured.pot.is_empty()
 		else maxf(float(measured.trunk_height), float(measured.width()) * TRUNK_MIN)
 			/ _voxel
 	), 2)
@@ -661,7 +647,14 @@ func tree(measured: Measure) -> ArrayMesh:
 					var at_row: int = mini(
 						int(float(pot_high - 1 - vy) * _voxel), measured.pot.size() - 1
 					)
-					if plan <= measured.pot[at_row] / _voxel:
+					# A POT HAS A RIM: its top course stands a voxel proud of the
+					# body, which is the one thing that tells a pot from a drum and
+					# is what the drawing's own rim row is too narrow to say once it
+					# has been turned.
+					var wall: float = measured.pot[at_row] / _voxel
+					if vy == pot_high - 1:
+						wall += 1.0
+					if plan <= wall:
 						fill = POT
 				elif vy < pot_high + trunk_high:
 					# The trunk, and four roots flaring from its foot: a tree does
@@ -676,10 +669,7 @@ func tree(measured: Measure) -> ArrayMesh:
 							or (across_root <= trunk_half * 0.55 \
 								and along <= trunk_half + root):
 						fill = BARK
-				if fill == EMPTY and pot_high > 0 and FRONDS:
-					# The crown is laid on after the body: see `_fronds`.
-					pass
-				elif fill == EMPTY:
+				if fill == EMPTY:
 					# The crown stands ON the trunk, so its foot is the trunk's top
 					# and it is read upward from there.
 					var radius: float = _radius(
@@ -695,12 +685,6 @@ func tree(measured: Measure) -> ArrayMesh:
 						if plan <= radius * _wobble(x, z, plan, vy, ragged):
 							fill = LEAF
 				solid[(vy * wide + vz) * wide + vx] = fill
-
-	if pot_high > 0 and FRONDS:
-		_fronds(
-			solid, wide, tall, reach, pot_high + trunk_high, widest,
-			float(crown_high) * FROND_PEAK_SHARE
-		)
 
 	for vy: int in tall:
 		_band = _band_at(measured, vy - pot_high - trunk_high, crown_high)
@@ -728,52 +712,6 @@ func tree(measured: Measure) -> ArrayMesh:
 	if not _vertices.is_empty():
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
-
-
-## THE FRONDS, laid on the trunk's top: one arm per direction, each rising off
-## the crown and drooping to its tip, and each as wide at the crown as a handful
-## of leaves and one voxel at the end. See `FROND_ARMS`.
-func _fronds(
-	solid: PackedByteArray, wide: int, tall: int, reach: int, foot: int, span: float,
-	peak: float
-) -> void:
-	var length: float = maxf(span, 3.0)
-	# The stem carries on to where the fronds leave it, or the crown floats.
-	for lift: int in range(0, int(roundf(peak)) + 1):
-		var vy: int = foot + lift
-		if vy < 0 or vy >= tall:
-			continue
-		for dz: int in [-1, 0]:
-			for dx: int in [-1, 0]:
-				var vx: int = reach + dx
-				var vz: int = reach + dz
-				if solid[(vy * wide + vz) * wide + vx] == EMPTY:
-					solid[(vy * wide + vz) * wide + vx] = BARK
-	for arm: int in FROND_ARMS:
-		var angle: float = (float(arm) + 0.5) * TAU / float(FROND_ARMS)
-		var along := Vector2(cos(angle), sin(angle))
-		var steps: int = int(ceilf(length))
-		for step: int in range(0, steps + 1):
-			var t: float = float(step) / float(steps)
-			# AN ARCH, not a rise and a fall. A frond leaves the stem at its
-			# highest and bends away, steepening as it goes, which is the one
-			# thing that separates a palm from a parasol.
-			var lift: float = peak * (1.0 - t)
-			var at := Vector2(along.x, along.y) * float(step)
-			var vy: int = foot + int(roundf(lift))
-			var thick: float = lerpf(FROND_THICK, 0.7, t)
-			var span_v: int = int(ceilf(thick))
-			for dz: int in range(-span_v, span_v + 1):
-				for dx: int in range(-span_v, span_v + 1):
-					if Vector2(float(dx), float(dz)).length() > thick:
-						continue
-					var vx: int = reach + int(roundf(at.x)) + dx
-					var vz: int = reach + int(roundf(at.y)) + dz
-					if vx < 0 or vz < 0 or vx >= wide or vz >= wide \
-							or vy < 0 or vy >= tall:
-						continue
-					if solid[(vy * wide + vz) * wide + vx] == EMPTY:
-						solid[(vy * wide + vz) * wide + vx] = LEAF
 
 
 ## How much of its row's radius the crown reaches along one RAY, in 0 to 1.
@@ -969,6 +907,17 @@ func _tone(
 		if side.y >= 0:
 			return _band
 		return palette[clampi(_ladder(palette, _band) + 1, 0, palette.size() - 1)]
+	# A POTTED CROWN IS LIT FROM ONE SIDE AS WELL AS FROM ABOVE. Exposure alone
+	# spends the ladder on how much stands over a face, so a plant standing in the
+	# open takes one green on every flank and reads flat; the cartridge paints it
+	# light down one side and dark down the other, and that is the volume. Painting
+	# it by BAND instead was built and thrown away: a dithered crown's commonest
+	# colour per row is its OUTLINE, and the whole plant came back near-black.
+	if fill == LEAF and not measured.pot.is_empty():
+		return _lit(
+			palette, side, sky, near, false,
+			-LEAF_FLANK if side.x < 0 or side.z < 0 else LEAF_FLANK
+		)
 	# A SHRUB STARTS A STEP DARKER, because exposure alone reads it wrong. The
 	# rule spends the palette on how much stands over a face, and almost nothing
 	# stands over a thing seven voxels tall: every top face takes the lightest
@@ -997,9 +946,10 @@ func _tone(
 ## round twenty-six over three rules that do not mix, having been told which one
 ## was which and shown all four in a wood.
 func _lit(
-	palette: PackedColorArray, side: Vector3i, sky: int, near: int, dark_mass: bool
+	palette: PackedColorArray, side: Vector3i, sky: int, near: int, dark_mass: bool,
+	flank: float = 0.0
 ) -> Color:
-	var rung: float = 1.0 if dark_mass else 0.0
+	var rung: float = (1.0 if dark_mass else 0.0) + flank
 	if side.y > 0:
 		rung -= 0.5
 	elif side.y < 0:

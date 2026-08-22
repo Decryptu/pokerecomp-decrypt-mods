@@ -3178,7 +3178,7 @@ func _floor_beside(tx: int, ty: int) -> Vector2i:
 			reached = true
 			var index: int = ty * _size.x + at_x
 			if _art[index] == ART_FLAT and _tiles[index] >= 0 and _heights[index] >= 0:
-				return Vector2i(_tiles[index], _heights[index])
+				return _floor_art.get(index, Vector2i(_tiles[index], _heights[index]))
 		if not reached:
 			break
 	return Vector2i(-1, 0)
@@ -8014,7 +8014,14 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 				blocked[way] = true
 				continue
 			if _art[index] == ART_FLAT and _heights[index] >= 0:
-				return Vector2i(maxi(_tiles[index], 0), _heights[index])
+				# AND A NEIGHBOUR THAT WAS HANDED A FLOOR HANDS IT ON. A released
+				# apron row IS floor, but its own drawing is the front of the table
+				# standing over it, so a thing beside it that reads the ground per
+				# tile stood on the table's own legs: the stool south of the small
+				# table had them painted on the lino under it.
+				return _floor_art.get(
+					index, Vector2i(maxi(_tiles[index], 0), _heights[index])
+				)
 	# NOTHING FLAT WITHIN TWO TILES, which is a wood, a hedge or a border ring, and
 	# is four in five of the game's modelled tiles. The tileset's own ground stands
 	# in, because a thing never stands on a picture of itself: this answered the
