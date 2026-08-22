@@ -173,6 +173,9 @@ var _outlined := PackedByteArray()
 var _modelled := PackedByteArray()
 var _shrub := PackedByteArray()
 var _rock := PackedByteArray()
+## And whether it stands in a POT, which is what keeps the rows below its stalk
+## instead of reading them as the shadow it stands in. See `profile.gd:POTTED`.
+var _potted := PackedByteArray()
 ## And whether it is a straight COLUMN rather than a turned silhouette.
 var _column := PackedByteArray()
 ## Per tile: how tall a modelled class stands against how tall it is drawn, or
@@ -233,6 +236,9 @@ const FACT_CLIFF: int = 25
 const FACT_FRONT: int = 26
 const FACT_LIP: int = 27
 const FACT_HEIGHT: int = 28
+## Whether the modelled class stands in a pot. Last, so the array's own length is
+## this plus one.
+const FACT_POTTED: int = 29
 
 ## THE OBJECTS, which are the one thing here that is not resolved per tile. See
 ## `_measure_objects` and `profile.gd:OBJECTS`. Per tile: whether an object covers
@@ -670,7 +676,7 @@ func _tile_fact(shape: RefCounted, tile: int, permission: int) -> Array:
 		else 0
 	var span: Vector2i = shape.span_cells(shape_class)
 	var fact: Array = []
-	fact.resize(FACT_HEIGHT + 1)
+	fact.resize(FACT_POTTED + 1)
 	fact[FACT_ART] = _art_mode(art)
 	fact[FACT_DEPTH] = clampi(shape.depth(shape_class), 1, 16)
 	fact[FACT_ROUND] = 1 if shape.is_round(shape_class) else 0
@@ -681,6 +687,7 @@ func _tile_fact(shape: RefCounted, tile: int, permission: int) -> Array:
 	fact[FACT_MODELLED] = 1 if shape.is_model(shape_class) else 0
 	fact[FACT_SHRUB] = 1 if shape.is_shrub(shape_class) else 0
 	fact[FACT_ROCK] = 1 if shape.is_rock(shape_class) else 0
+	fact[FACT_POTTED] = 1 if shape.is_potted(shape_class) else 0
 	fact[FACT_COLUMN] = 1 if shape.is_column(shape_class) else 0
 	fact[FACT_STRETCH] = shape.model_stretch(shape_class)
 	fact[FACT_TUFTED] = 1 if shape.is_tufted(shape_class) else 0
@@ -757,6 +764,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_modelled.resize(count)
 	_shrub.resize(count)
 	_rock.resize(count)
+	_potted.resize(count)
 	_column.resize(count)
 	_stretch.resize(count)
 	_tufted.resize(count)
@@ -837,6 +845,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_modelled[at] = fact[FACT_MODELLED]
 			_shrub[at] = fact[FACT_SHRUB]
 			_rock[at] = fact[FACT_ROCK]
+			_potted[at] = fact[FACT_POTTED]
 			_column[at] = fact[FACT_COLUMN]
 			_stretch[at] = fact[FACT_STRETCH]
 			# WHICH CELLS ARE GRASS IS THE CARTRIDGE'S OWN ANSWER, and it is in
@@ -912,6 +921,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# given, and after the heights, because every tile it covers goes back to
 	# standing at the floor of its own cell.
 	_measure_objects(shape, source)
+	# After the objects, because a declared one wraps its own apron round itself
+	# and every tile it covers is its business rather than this pass's.
+	_settle_aprons()
 	# After them, because what it repairs is what they take away.
 	_measure_room_behind()
 	# With the objects, and for the same reason: a boxed house covers its tiles
@@ -1412,6 +1424,7 @@ func _house_tile(shape: RefCounted, at: int, stroke: String) -> void:
 	_modelled[at] = 0
 	_shrub[at] = 0
 	_rock[at] = 0
+	_potted[at] = 0
 	_column[at] = 0
 	_tufted[at] = 0
 	_long_grass[at] = 0
@@ -3034,6 +3047,124 @@ func _measure_furniture() -> void:
 				placed[index] = 1
 
 
+## THE APRON IS THE FRONT OF THE TABLE AND NOT THE TOP OF IT.
+##
+## Generation II draws a table the way it draws a house: the surface seen from
+## above, and under it one row of the SIDE seen face-on, with the legs and the
+## shadow between them. Read per tile the whole drawing is one class at one
+## height, so that last row came out as more table top, lying flat on the floor
+## a band up with the apron painted on it. Every table in the game was a slab a
+## tile too deep with its own front wallpapered across the near edge.
+##
+## So the southmost row of a furniture region is handed back to the floor, and
+## what stands over it is the face. The FACES need nothing: `_band_tile` reads a
+## column's own base row, which is that apron row, so all four sides of the table
+## already wear the front the cartridge drew, and dropping the row out of the top
+## is the whole fix.
+##
+## A ROW IS ONLY AN APRON WHERE THE DRAWING CHANGES AT IT. A counter running off
+## the bottom of the map draws the same side tile the whole way down and its last
+## row is more counter, not a front; a table's is drawn once and differs from
+## what is above it. That single test is what tells the two apart, and it is the
+## drawing's own answer rather than a rule about where a map ends.
+const APRON_CLASSES: Array[StringName] = [&"table", &"counter", &"desk"]
+
+
+func _settle_aprons() -> void:
+	var wanted: Dictionary = {}
+	for shape_class: StringName in APRON_CLASSES:
+		if _class_ids.has(shape_class):
+			wanted[int(_class_ids[shape_class])] = true
+	if wanted.is_empty():
+		return
+	var release: Array[int] = []
+	for ty: int in _size.y:
+		for tx: int in _size.x:
+			var at: int = ty * _size.x + tx
+			if not wanted.has(int(_klass[at])) \
+					or (_art[at] != ART_TOP and _art[at] != ART_UPRIGHT):
+				continue
+			if _object_covered[at] == 1 or _house[at] != HOUSE_NONE:
+				continue
+			if _heights[at] <= 0:
+				continue
+			var north: int = at - _size.x
+			if ty <= 0 or not wanted.has(int(_klass[north])) \
+					or _heights[north] != _heights[at]:
+				continue
+			if _tiles[north] == _tiles[at] or _tiles[at] < 0:
+				continue
+			# The southmost row of the region, which is the only one the drawing
+			# can be showing the front of.
+			if ty + 1 < _size.y and wanted.has(int(_klass[at + _size.x])) \
+					and _heights[at + _size.x] == _heights[at]:
+				continue
+			release.append(at)
+	for at: int in release:
+		var tx: int = at % _size.x
+		@warning_ignore("integer_division")
+		var ty: int = at / _size.x
+		var floor_tile: Vector2i = _floor_beside(tx, ty)
+		if floor_tile.x < 0:
+			continue
+		_floor_art[at] = floor_tile
+		_heights[at] = floor_tile.y
+		_art[at] = ART_FLAT
+		_volume[at] = 0
+		_on_furniture[at] = 0
+
+
+## Per tile: a drawing and a height handed to it IN PLACE OF ITS OWN, as
+## `Vector2i(tile, height)`. Two things write it and both are a tile whose own
+## drawing is something now standing over it rather than lying where it is drawn:
+## a released apron row, which is floor, and the tiles under an object that
+## stands on furniture, which are the table top around it. Read by `_ground_art`
+## and by the flat face.
+var _floor_art: Dictionary = {}
+
+
+## The nearest tile along a row that is a SURFACE at the given height: what the
+## table around an object standing on it is drawn with.
+func _surface_beside(tx: int, ty: int, height: int) -> Vector2i:
+	for step: int in range(1, _size.x):
+		var reached: bool = false
+		for way: int in [-1, 1]:
+			var at_x: int = tx + step * way
+			if at_x < 0 or at_x >= _size.x:
+				continue
+			reached = true
+			var index: int = ty * _size.x + at_x
+			if _object_covered[index] == 1 or _tiles[index] < 0:
+				continue
+			if (_art[index] == ART_TOP or _art[index] == ART_UPRIGHT) \
+					and _heights[index] == height:
+				return Vector2i(_tiles[index], height)
+		if not reached:
+			break
+	return Vector2i(-1, 0)
+
+
+## The nearest flat floor along a row, both ways at once, nearer first.
+##
+## The same question `_settle_house_ground` asks of a released building tile and
+## for the same reason: the tile's OWN drawing is the thing that was standing
+## there, so falling back on it lays the apron flat again.
+func _floor_beside(tx: int, ty: int) -> Vector2i:
+	for step: int in range(1, _size.x):
+		var reached: bool = false
+		for way: int in [-1, 1]:
+			var at_x: int = tx + step * way
+			if at_x < 0 or at_x >= _size.x:
+				continue
+			reached = true
+			var index: int = ty * _size.x + at_x
+			if _art[index] == ART_FLAT and _tiles[index] >= 0 and _heights[index] >= 0:
+				return Vector2i(_tiles[index], _heights[index])
+		if not reached:
+			break
+	return Vector2i(-1, 0)
+
+
 ## THE BOX one drawing is cut over, in tiles: where it starts on the block grid
 ## and how much of it the drawing uses.
 ##
@@ -3277,6 +3408,7 @@ func _stands_on_floor(
 ## them worth naming rather than cropping away: a border flood needs a border of
 ## open water to read, and the ship reaches the edge of its own hull.
 func _measure_objects(shape: RefCounted, source: RefCounted) -> void:
+	_floor_art.clear()
 	_object_covered.resize(_size.x * _size.y)
 	_object_covered.fill(0)
 	_object_over.clear()
@@ -3318,6 +3450,20 @@ func _measure_objects(shape: RefCounted, source: RefCounted) -> void:
 						_front[at] = 0
 						_lip[at] = 0
 						_heights[at] = floors[row * across.x + column]
+						# AN OBJECT STANDING ON FURNITURE LEAVES THE FURNITURE. Its
+						# tiles are handed back to the floor of their own cell like
+						# any other, and under a carving in the middle of a table
+						# that is a square hole through the top with the lino at the
+						# bottom of it. The table beside it is what is there, so the
+						# tile keeps that height and wears that drawing.
+						var rise: int = int(object.get(&"rise", 0))
+						if rise > 0:
+							var stood: Vector2i = _surface_beside(
+								tx + column, ty + row, floors[row * across.x + column] + rise
+							)
+							if stood.x >= 0:
+								_heights[at] = stood.y
+								_floor_art[at] = stood
 						var over: PackedInt32Array = _object_over.get(
 							at, PackedInt32Array()
 						)
@@ -4408,6 +4554,15 @@ func _model_bodies_of(
 		tiles, across, atlas, _filled[at] == 1, int(_outlined[at])
 	)
 	var body: PackedInt32Array = _bodies(mask, span)
+	# A POTTED PLANT IS ONE THING AND THE FLOOD CANNOT KNOW IT. Its crown, its
+	# stalk and its pot are drawn in three shades with an outline between them, so
+	# the flood hands back two or three bodies and each is turned on its own and
+	# stood on the FLOOR: a green mass on the lino with the pot beside it. The
+	# class says the drawing is one plant, which is exactly what a pin is for.
+	if _potted[at] == 1:
+		for pixel: int in body.size():
+			if body[pixel] >= 0:
+				body[pixel] = 0
 	var counts: Dictionary = {}
 	var bounds: Dictionary = {}
 	for pixel: int in body.size():
@@ -4430,9 +4585,12 @@ func _model_bodies_of(
 			only.resize(mask.size())
 			for pixel: int in body.size():
 				only[pixel] = 1 if body[pixel] == group else 0
-			var measured: RefCounted = Model.measure(only, span, tiles, across, atlas)
+			var measured: RefCounted = Model.measure(
+				only, span, tiles, across, atlas, _potted[at] == 1
+			)
 			measured.shrub = _shrub[at] == 1
 			measured.rock = _rock[at] == 1
+			measured.potted = _potted[at] == 1
 			measured.column = _column[at] == 1
 			measured.stretch = _stretch[at]
 			_model_meshes[key] = (Model.new() as RefCounted).tree(measured)
@@ -4577,8 +4735,13 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 	if bool(object.get(&"bin", false)):
 		_object_bin(object, start, across, front, tiles, mask, span, window, atlas)
 		return
+	if bool(object.get(&"terminal", false)):
+		_object_terminal(
+			object, start, across, front, tiles, mask, span, window, atlas
+		)
+		return
 	if bool(object.get(&"stool", false)):
-		_object_stool(object, start, across, front, tiles, window, atlas)
+		_object_stool(object, start, across, front, tiles, mask, span, window, atlas)
 		return
 	if bool(object.get(&"seat", false)):
 		_object_seat(object, start, across, front, tiles, mask, span, window, atlas)
@@ -4920,76 +5083,170 @@ func _room_faces(tx: int, ty: int, normal: Vector3) -> bool:
 	return ty >= _size.y - _margin.y
 
 
-## THE STOOL, BUILT RATHER THAN CARVED, and the reviewer's own section of it: a
-## disc three pixels thick that you sit on, on four legs five high and three
-## thick, so the whole thing stands eight and nothing about it is in the drawing.
+## THE STOOL, BUILT IN VOXELS OUT OF ITS OWN DRAWING.
 ##
-## A Generation II stool is drawn looked down on. Its seat is a circle and its
-## legs are four marks under the near edge of it, and every route this file has
-## for standing a drawing up reads that as a lump: carved it is a wafer, turned it
-## is a drum, and stood up it is a post. The section is the only thing that says
-## what it is, and a section is three numbers.
+## A Generation II stool is drawn looked down on: the seat is a circle seen at
+## the map's own angle, the pale patch in the middle is where the light falls on
+## it, and the marks under the near edge are its legs. Every route this file has
+## for standing a drawing up reads that as a lump, carved a wafer and stood up a
+## post, and TURNED it is a smooth drum: sixteen segments of lathe, which is the
+## one thing the rest of this view is not. The world is drawn in pixels and so is
+## the furniture in it.
 ##
-## WHAT IS NOT AUTHORED IS THE COLOUR. `Atlas.shade_order` ranks the tile's own
-## shades by luminance, so the darkest paints the legs and the ring round the
-## seat's edge, the next paints the seat's face and the one above that its rim:
-## darker inside than out, which is how a turned wooden seat reads, and every one
-## of them the cartridge's own.
-const STOOL_SEGMENTS: int = 16
+## So the seat is a DISC RASTERISED ON THE DRAWING'S OWN PIXEL LATTICE, one
+## voxel to the world pixel, and its lid is painted per voxel out of the seat's
+## own rows un-foreshortened: the drawing is a circle squashed up the page, so
+## the row is read at the voxel's distance BACK rather than at its distance down.
+## That is what carries the pale middle and the dark ring round the edge without
+## either being authored.
+##
+## WHAT IS AUTHORED is the section, and it is three numbers: a seat three pixels
+## thick, four legs five high and two thick. Nothing in a drawing seen from above
+## states any of them.
 const STOOL_SEAT: float = 3.0
 const STOOL_LEG: float = 5.0
-const STOOL_LEG_THICK: float = 3.0
-## How far in from the seat's own edge the darkest ring reaches.
-const STOOL_RIM: float = 1.0
+const STOOL_LEG_THICK: float = 2.0
 ## Where a leg stands, as a share of the seat's radius. The four stand on the
 ## diagonals, so each reaches this far along one and `SQRT_HALF` of it on each
 ## axis.
 const STOOL_LEG_REACH: float = 0.62
 const SQRT_HALF: float = 0.70710678
+## Which rows of the drawing are the SEAT rather than what is under it: a row
+## whose drawn run reaches this share of the widest one. Below it the drawing has
+## stopped being the seat and is the legs and the shadow between them.
+const STOOL_SEAT_SHARE: float = 0.75
+## How far in the pale patch in the middle of the seat reaches, as a share of
+## the seat's own radius.
+const STOOL_GLINT: float = 0.42
+## Which of the drawing's shades the legs are painted in, darkest first.
+const STOOL_LEG_SHADE: int = 0
+
+
+## One pixel of an object's own drawing, as a uv box.
+func _object_pixel(
+	atlas: RefCounted, tiles: Array, across: Vector2i, px: int, py: int
+) -> Rect2:
+	@warning_ignore("integer_division")
+	var tile: int = int(tiles[(py / int(TILE)) * across.x + px / int(TILE)])
+	return atlas.uv_box(tile, Rect2i(px % int(TILE), py % int(TILE), 1, 1))
+
+
+## The widest drawn run in one row of a mask, in pixels.
+func _row_run(mask: PackedByteArray, span: Vector2i, window: Rect2i, py: int) -> int:
+	var widest: int = 0
+	var run: int = 0
+	for px: int in range(window.position.x, window.position.x + window.size.x):
+		if _drawn(mask, span, px, py):
+			run += 1
+			widest = maxi(widest, run)
+		else:
+			run = 0
+	return widest
 
 
 func _object_stool(
 	_object: Dictionary, start: Vector2i, across: Vector2i, front: float, tiles: Array,
-	window: Rect2i, atlas: RefCounted
+	mask: PackedByteArray, span: Vector2i, window: Rect2i, atlas: RefCounted
 ) -> void:
 	var base: float = float(_ground_art(start.x, start.y + across.y - 1).y)
-	var wide: float = float(window.size.x)
-	var centre := Vector2(
-		_world_x(start.x) + float(window.position.x) + wide * 0.5, front - wide * 0.5
-	)
-	var radius: float = wide * 0.5
 	var tile: int = int(tiles[0])
 	var dark: Rect2 = _shade_texel(atlas, tile, 0)
-	var face: Rect2 = _shade_texel(atlas, tile, 1)
-	var rim: Rect2 = _shade_texel(atlas, tile, 2)
+	# The seat's own rows, and how wide the widest of them is drawn, which is the
+	# diameter: a circle seen from above states its width honestly.
+	var rows := PackedInt32Array()
+	var widest: int = 0
+	for py: int in range(window.position.y, window.position.y + window.size.y):
+		var run: int = _row_run(mask, span, window, py)
+		rows.append(run)
+		widest = maxi(widest, run)
+	if widest < 2:
+		return
+	var first: int = -1
+	var last: int = -1
+	for row: int in rows.size():
+		if rows[row] <= 0:
+			continue
+		if first < 0:
+			first = row
+		if float(rows[row]) >= float(widest) * STOOL_SEAT_SHARE:
+			last = row
+	if first < 0 or last < first:
+		return
+	var seat_rows: int = last - first + 1
+	var wide: int = widest
+	var radius: float = float(wide) * 0.5
+	# The disc is laid on the lattice the drawing is drawn on, so the near edge of
+	# the cell the stool blocks is where its own drawing ends.
+	var left: float = _world_x(start.x) + float(window.position.x) \
+		+ (float(window.size.x) - float(wide)) * 0.5
+	var back: float = front - float(wide)
 	var low: float = base + STOOL_LEG
 	var high: float = low + STOOL_SEAT
-	var step: float = TAU / float(STOOL_SEGMENTS)
-	for segment: int in STOOL_SEGMENTS:
-		var d0: Vector2 = _bin_ray(float(segment) * step)
-		var d1: Vector2 = _bin_ray(float(segment + 1) * step)
-		var out := Vector3(d0.x + d1.x, 0.0, d0.y + d1.y).normalized()
-		_quad(
-			_bin_point(centre, d0, radius, low), _bin_point(centre, d1, radius, low),
-			_bin_point(centre, d1, radius, high), _bin_point(centre, d0, radius, high),
-			out, rim, SHADE_SIDE
-		)
-		# The seat, as a ring of the darkest shade round a face of the next: the
-		# outer edge first, or the lid faces down and is culled. See the bin's lip.
-		_quad(
-			_bin_point(centre, d0, radius, high),
-			_bin_point(centre, d1, radius, high),
-			_bin_point(centre, d1, radius - STOOL_RIM, high),
-			_bin_point(centre, d0, radius - STOOL_RIM, high),
-			Vector3.UP, dark, SHADE_TOP_FLAT
-		)
-		_tri(
-			_bin_point(centre, d0, radius - STOOL_RIM, high),
-			_bin_point(centre, d1, radius - STOOL_RIM, high),
-			Vector3(centre.x, high, centre.y), Vector3.UP,
-			face.position, face.end, face.position + face.size * 0.5,
-			SHADE_TOP_FLAT
-		)
+	var centre := Vector2(left + radius, back + radius)
+	# The band the seat's own edge is painted in, read at the widest row: the rim
+	# the cartridge shades round the front of the seat.
+	var rim: Rect2 = _shade_texel(atlas, tile, 1)
+	var pale: Rect2 = _shade_texel(atlas, tile, 3)
+	var body: Rect2 = _shade_texel(atlas, tile, 2)
+	var filled := PackedByteArray()
+	filled.resize(wide * wide)
+	for j: int in wide:
+		for i: int in wide:
+			var to_centre := Vector2(float(i) + 0.5 - radius, float(j) + 0.5 - radius)
+			filled[j * wide + i] = 1 if to_centre.length() <= radius - 0.5 else 0
+	for j: int in wide:
+		for i: int in wide:
+			if filled[j * wide + i] == 0:
+				continue
+			var x0: float = left + float(i)
+			var z0: float = back + float(j)
+			var out: float = Vector2(
+				float(i) + 0.5 - radius, float(j) + 0.5 - radius
+			).length() / radius
+			# THE SEAT AS THE CARTRIDGE PAINTS IT: the dark outline round the edge,
+			# the seat's own shade over most of it, and the pale patch in the
+			# middle where the light falls. Three of the drawing's own four shades,
+			# and the outline is the voxels the disc ENDS at rather than a radius,
+			# so it is one voxel wide the whole way round however the lattice cuts.
+			var lid: Rect2 = body
+			if i == 0 or j == 0 or i + 1 >= wide or j + 1 >= wide \
+					or filled[j * wide + i - 1] == 0 or filled[j * wide + i + 1] == 0 \
+					or filled[(j - 1) * wide + i] == 0 \
+					or filled[(j + 1) * wide + i] == 0:
+				lid = dark
+			elif out < STOOL_GLINT:
+				lid = pale
+			_quad(
+				Vector3(x0, high, z0 + 1.0), Vector3(x0 + 1.0, high, z0 + 1.0),
+				Vector3(x0 + 1.0, high, z0), Vector3(x0, high, z0),
+				Vector3.UP, lid, SHADE_TOP_FLAT
+			)
+			# The side of the disc, wherever the lattice steps out of it. This is
+			# what makes the seat read as pixels rather than as a lathe.
+			if j + 1 >= wide or filled[(j + 1) * wide + i] == 0:
+				_quad(
+					Vector3(x0, low, z0 + 1.0), Vector3(x0 + 1.0, low, z0 + 1.0),
+					Vector3(x0 + 1.0, high, z0 + 1.0), Vector3(x0, high, z0 + 1.0),
+					Vector3(0.0, 0.0, 1.0), rim, SHADE_SOUTH
+				)
+			if j == 0 or filled[(j - 1) * wide + i] == 0:
+				_quad(
+					Vector3(x0 + 1.0, low, z0), Vector3(x0, low, z0),
+					Vector3(x0, high, z0), Vector3(x0 + 1.0, high, z0),
+					Vector3(0.0, 0.0, -1.0), rim, SHADE_NORTH
+				)
+			if i + 1 >= wide or filled[j * wide + i + 1] == 0:
+				_quad(
+					Vector3(x0 + 1.0, low, z0 + 1.0), Vector3(x0 + 1.0, low, z0),
+					Vector3(x0 + 1.0, high, z0), Vector3(x0 + 1.0, high, z0 + 1.0),
+					Vector3(1.0, 0.0, 0.0), rim, SHADE_SIDE
+				)
+			if i == 0 or filled[j * wide + i - 1] == 0:
+				_quad(
+					Vector3(x0, low, z0), Vector3(x0, low, z0 + 1.0),
+					Vector3(x0, high, z0 + 1.0), Vector3(x0, high, z0),
+					Vector3(-1.0, 0.0, 0.0), rim, SHADE_SIDE
+				)
 	var reach: float = radius * STOOL_LEG_REACH
 	var half: float = STOOL_LEG_THICK * 0.5
 	for corner: Vector2 in [
@@ -5000,7 +5257,120 @@ func _object_stool(
 			centre.y + corner.y * reach * SQRT_HALF
 		)
 		_box(
-			at.x - half, at.x + half, base, low, at.y - half, at.y + half, dark
+			at.x - half, at.x + half, base, low, at.y - half, at.y + half,
+			_shade_texel(atlas, tile, STOOL_LEG_SHADE)
+		)
+
+
+## THE COMPUTER ON ITS DESK, WHICH IS THREE THINGS AND WAS DRAWN AS ONE COLUMN.
+##
+## Generation II draws it in three tile rows: the monitor's hood and screen, then
+## the desk seen face-on with the keyboard drawn overhanging its front edge. Read
+## per tile that is one `on_furniture` column three cells tall, folded upright
+## against the wall, and because its top row stands exactly where the room's own
+## wall stands it took that tile with it: the drawing is a computer STANDING
+## AGAINST the wall, and the wall behind it is a wall. Declared as an object, the
+## room repairs itself behind it (`_measure_room_behind`) and the shape below is
+## what stands in front.
+##
+## WHAT IS AUTHORED is the section: a desk box, a monitor standing on the back of
+## it, and the keyboard as a slab overhanging the front edge, which is where a
+## keyboard is and is what the cartridge draws. The drawing states the widths and
+## the two faces a person ever sees: the screen goes on the monitor's front and
+## the desk's own front row on the desk's, with the wood below it. Nothing else
+## about a box seen face-on is in the picture.
+const TERMINAL_DESK: float = 12.0
+const TERMINAL_DESK_DEEP: float = 12.0
+const TERMINAL_SCREEN: float = 16.0
+const TERMINAL_SCREEN_DEEP: float = 8.0
+## The keyboard: how far it stands proud of the desk's front edge, how deep it
+## is and how thick.
+const TERMINAL_KEYS_OUT: float = 2.0
+const TERMINAL_KEYS_DEEP: float = 6.0
+const TERMINAL_KEYS_THICK: float = 2.0
+## How far in from each end of the desk the keyboard sits, and the monitor.
+const TERMINAL_KEYS_INSET: float = 2.0
+## A MONITOR IS NARROWER THAN THE DESK IT STANDS ON. Drawn they are the same
+## width, because the drawing is one column of tiles and everything in it is
+## drawn to the cell; standing the two at one width is a cabinet rather than a
+## desk with a computer on it. The screen is cropped by the same two pixels it is
+## brought in by, so the picture on it stays the cartridge's own.
+const TERMINAL_SCREEN_INSET: float = 2.0
+
+
+func _object_terminal(
+	object: Dictionary, start: Vector2i, across: Vector2i, front: float, tiles: Array,
+	mask: PackedByteArray, span: Vector2i, window: Rect2i, atlas: RefCounted
+) -> void:
+	var base: float = float(_ground_art(start.x, start.y + across.y - 1).y) \
+		+ float(object.get(&"rise", 0))
+	var left: float = _world_x(start.x) + float(window.position.x)
+	var right: float = left + float(window.size.x)
+	var desk_back: float = front - TERMINAL_DESK_DEEP
+	var desk_top: float = base + TERMINAL_DESK
+	var screen_top: float = desk_top + TERMINAL_SCREEN
+	var screen_back: float = front - TERMINAL_SCREEN_DEEP
+	var screen_front: float = front + 0.01
+	# The wood the desk is built of, and the hood the monitor is cased in: one
+	# texel each, taken from inside the drawing's own rows.
+	var wood: Rect2 = _object_texel(
+		atlas, tiles, across, mask, span, window,
+		window.position.y + 16, window.position.y + window.size.y
+	)
+	var case: Rect2 = _object_texel(
+		atlas, tiles, across, mask, span, window,
+		window.position.y, window.position.y + 8
+	)
+	_box(left, right, base, desk_top, desk_back, front, wood)
+	_box(
+		left + TERMINAL_SCREEN_INSET, right - TERMINAL_SCREEN_INSET,
+		desk_top, screen_top, screen_back, front, case
+	)
+	# THE TWO FACES THE DRAWING ACTUALLY DRAWS, laid over the boxes tile by tile:
+	# a texel is only ever sampled out of the tile it was drawn in.
+	var inset: int = int(TERMINAL_SCREEN_INSET)
+	for row: int in 2:
+		for column: int in across.x:
+			var tile: int = int(tiles[row * across.x + column])
+			var cut := Rect2i(0, 0, int(TILE), int(TILE))
+			if column == 0:
+				cut.position.x = inset
+				cut.size.x -= inset
+			if column == across.x - 1:
+				cut.size.x -= inset
+			if cut.size.x <= 0:
+				continue
+			var x0: float = left + float(column) * TILE + float(cut.position.x)
+			var high: float = screen_top - float(row) * TILE
+			_quad(
+				Vector3(x0, high - TILE, screen_front),
+				Vector3(x0 + float(cut.size.x), high - TILE, screen_front),
+				Vector3(x0 + float(cut.size.x), high, screen_front),
+				Vector3(x0, high, screen_front),
+				Vector3(0.0, 0.0, 1.0), atlas.uv_box(tile, cut), SHADE_SOUTH
+			)
+	# THE KEYBOARD, OVERHANGING, which is where the cartridge draws it and is what
+	# a keyboard is for. Its lid wears the keys the desk's own row is drawn with.
+	var keys_front: float = front + TERMINAL_KEYS_OUT
+	var keys_back: float = keys_front - TERMINAL_KEYS_DEEP
+	var keys_low: float = desk_top - TERMINAL_KEYS_THICK
+	_box(
+		left + TERMINAL_KEYS_INSET, right - TERMINAL_KEYS_INSET,
+		keys_low, desk_top, keys_back, keys_front, wood
+	)
+	for column: int in across.x:
+		var tile: int = int(tiles[2 * across.x + column])
+		var x0: float = maxf(left + float(column) * TILE, left + TERMINAL_KEYS_INSET)
+		var x1: float = minf(x0 + TILE, right - TERMINAL_KEYS_INSET)
+		if x1 <= x0:
+			continue
+		_quad(
+			Vector3(x0, desk_top + 0.01, keys_front),
+			Vector3(x1, desk_top + 0.01, keys_front),
+			Vector3(x1, desk_top + 0.01, keys_back),
+			Vector3(x0, desk_top + 0.01, keys_back),
+			Vector3.UP,
+			atlas.uv_box(tile, Rect2i(0, 3, int(TILE), 5)), SHADE_TOP_FLAT
 		)
 
 
@@ -5460,6 +5830,14 @@ func _object_model(
 			inside[py * span.x + px] = mask[py * span.x + px] \
 				if window.has_point(Vector2i(px, py)) else 0
 	body = _bodies(inside, span)
+	# ONE DRAWING, ONE BODY, where the object says so: a carving on a plinth is
+	# drawn in two shades with an outline between them, so the flood hands back
+	# the figure and the plinth as two and each is turned and stood on the table
+	# separately.
+	if bool(object.get(&"whole", false)):
+		for pixel: int in body.size():
+			if body[pixel] >= 0:
+				body[pixel] = 0
 	var counts: Dictionary = {}
 	var bounds: Dictionary = {}
 	for pixel: int in body.size():
@@ -5472,7 +5850,12 @@ func _object_model(
 		counts[group] = int(counts.get(group, 0)) + 1
 		var box: Rect2i = bounds.get(group, Rect2i(px, py, 1, 1))
 		bounds[group] = box.expand(Vector2i(px, py)).expand(Vector2i(px + 1, py + 1))
-	var ground: float = float(_ground_art(start.x, start.y + across.y - 1).y)
+	# WHAT IT STANDS ON. A carving in the middle of a table meets the table, and
+	# the drawing of it says nothing at all about how high that is: the object
+	# that IS the table does, and `rise` is where that is spent, exactly as it is
+	# for an object stood up rather than turned.
+	var ground: float = float(_ground_art(start.x, start.y + across.y - 1).y) \
+		+ float(object.get(&"rise", 0))
 	for group: int in counts:
 		if int(counts[group]) < MODEL_BODY_MIN:
 			continue
@@ -7519,6 +7902,9 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 	var released: Vector2i = _house_ground.get(ty * _size.x + tx, Vector2i(-1, 0))
 	if released.x >= 0:
 		return released
+	released = _floor_art.get(ty * _size.x + tx, Vector2i(-1, 0))
+	if released.x >= 0:
+		return released
 	# AND THE SECOND TILE IS ONLY REACHED OVER GROUND. The far ring exists for a
 	# tile with nothing flat beside it at all, which is a wood or a hedge, and a
 	# RAMP is the one thing that stands between two levels: reaching past one
@@ -7570,7 +7956,12 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		# rippling canal. Only the surface; the faces below are the bank.
 		if ground.y < 0 and _house_ground.has(at):
 			_sink = SINK_WATER
-		_face_top(tx, ty, float(ground.y), atlas.uv(ground.x), SHADE_TOP_FLAT)
+		_face_top(
+			tx, ty, float(ground.y), atlas.uv(ground.x),
+			# A TILE WEARING THE TABLE AROUND IT IS TABLE and is shaded as one, or
+			# the square under a carving reads as a lighter patch on the top.
+			SHADE_TOP_VOLUME if _floor_art.has(at) else SHADE_TOP_FLAT
+		)
 		_sink = SINK_TERRAIN
 		# THE SIDES WEAR THE FLOOR TOO. What stands here is a model and its drawing
 		# is the model, so a face cut from the tile is the flat sprite smeared down
@@ -7637,6 +8028,10 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	# column happens to sit on.
 	@warning_ignore("integer_division")
 	var cap: int = _band_tile(tx, ty, maxi(here / BAND - 1, 0)) if is_volume else tile
+	# A RELEASED APRON ROW IS FLOOR AND WEARS THE FLOOR. Its own drawing is the
+	# front of the table now standing over it: see `_settle_aprons`.
+	if _floor_art.has(at):
+		cap = int((_floor_art[at] as Vector2i).x)
 	# The one quad that is the water's own surface. The bank around it is not: the
 	# faces below are the shore, they wear the shore's art, and they are terrain.
 	_sink = SINK_WATER if _is_water(at) else SINK_TERRAIN

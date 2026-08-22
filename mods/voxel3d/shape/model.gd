@@ -141,6 +141,12 @@ class Measure extends RefCounted:
 	## standing it on a stalk makes a small tree, which is what the first attempt
 	## looked like.
 	var shrub: bool = false
+	## A POTTED plant keeps the rows below its stalk: they are the pot, not the
+	## shadow the thing stands in. Half the drawn width at each of those rows, top
+	## first, and the drawing's own colour at each of them.
+	var potted: bool = false
+	var pot := PackedFloat32Array()
+	var pot_bands: PackedColorArray = PackedColorArray()
 	## A ROCK is not a plant. It sits on the ground as a shrub does, and the three
 	## other things this mod does to a plant are all wrong for it: it is barely
 	## ragged, it does not bend in the wind, and it is not the dark mass a hedge
@@ -202,9 +208,10 @@ class Measure extends RefCounted:
 ## upward from the foot finds a trunk one pixel tall and a tree with no trunk.
 static func measure(
 	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
-	atlas: RefCounted
+	atlas: RefCounted, measured_pot: bool = false
 ) -> Measure:
 	var out := Measure.new()
+	out.potted = measured_pot
 	var widths := PackedInt32Array()
 	widths.resize(span.y)
 	var first_row: int = -1
@@ -261,6 +268,15 @@ static func measure(
 	out.trunk_height = maxi(trunk_bottom - crown_bottom, 2)
 	out.trunk_width = maxi(trunk, 3)
 
+	# THE POT IS WHAT IS LEFT UNDER THE STALK, and only where a person has said
+	# the thing has one: the same rows under a tree are the shadow it is drawn
+	# standing in. Read downward from the stalk's foot to the drawing's last row.
+	if measured_pot and trunk_bottom <= last_row:
+		for py: int in range(trunk_bottom, last_row + 1):
+			out.pot.append(float(widths[py]) * 0.5)
+		out.pot_bands = _bands(
+			mask, span, tiles, across, atlas, trunk_bottom, last_row
+		)
 	out.tones = _tones(mask, span, tiles, across, atlas, first_row, crown_bottom - 1)
 	out.shades = _tones(
 		mask, span, tiles, across, atlas, first_row, crown_bottom - 1, false
@@ -528,6 +544,10 @@ static func _luminance(colour: Color) -> float:
 const EMPTY: int = 0
 const BARK: int = 1
 const LEAF: int = 2
+## The pot a houseplant stands in, painted by the drawing's own band at its own
+## row the way a rock is rather than by exposure: a pot is one glazed surface and
+## the cartridge has already shaded it.
+const POT: int = 3
 
 
 ## Turns the profile into a voxel tree, centred on x and z, standing on y = 0.
@@ -552,9 +572,20 @@ func tree(measured: Measure) -> ArrayMesh:
 	var widest: float = 0.0
 	for radius: float in measured.profile:
 		widest = maxf(widest, radius / _voxel)
-	var reach: int = ceili(widest + (0.0 if measured.shrub else ROOT_REACH)) + 1
+	# THE POT IS TURNED THE WAY THE CROWN IS and it stands on the ground, with the
+	# stalk and the crown lifted onto its rim. Its rows are read the other way up:
+	# the drawing's last row is the pot's foot.
+	var pot_high: int = 0
+	var pot_wide: float = 0.0
+	if not measured.pot.is_empty():
+		pot_high = maxi(ceili(float(measured.pot.size()) / _voxel), 1)
+		for radius: float in measured.pot:
+			pot_wide = maxf(pot_wide, radius / _voxel)
+	var reach: int = ceili(
+		maxf(widest, pot_wide) + (0.0 if measured.shrub or pot_high > 0 else ROOT_REACH)
+	) + 1
 	var wide: int = reach * 2 + 1
-	var tall: int = trunk_high + crown_high + 1
+	var tall: int = pot_high + trunk_high + crown_high + 1
 	# ZERO THROUGH THE TRUNK, because a trunk that sways is a tree falling over,
 	# and rising through the crown from its foot. A shrub has no trunk and so
 	# bends from its own base, which is what a springy mass does; its bottom
@@ -562,7 +593,7 @@ func tree(measured: Measure) -> ArrayMesh:
 	# everywhere, which is how a model made of the same material and stamped by
 	# the same code stands still in the wind that moves the wood.
 	_sway_still = measured.rock
-	_sway_foot = float(trunk_high) * _voxel
+	_sway_foot = float(pot_high + trunk_high) * _voxel
 	_sway_span = float(maxi(crown_high - 1, 1)) * _voxel
 
 	var solid := PackedByteArray()
@@ -574,12 +605,19 @@ func tree(measured: Measure) -> ArrayMesh:
 				var z: float = float(vz - reach)
 				var plan: float = sqrt(x * x + z * z)
 				var fill: int = EMPTY
-				if vy < trunk_high:
+				if vy < pot_high:
+					# The pot's own drawn width at that row, its last row lowest.
+					var at_row: int = mini(
+						int(float(pot_high - 1 - vy) * _voxel), measured.pot.size() - 1
+					)
+					if plan <= measured.pot[at_row] / _voxel:
+						fill = POT
+				elif vy < pot_high + trunk_high:
 					# The trunk, and four roots flaring from its foot: a tree does
 					# not meet the ground in a circle, and the flare is most of
 					# what says which way is down.
-					var root: float = maxf(
-						1.0 - float(vy) / (float(trunk_high) * ROOT_RISE), 0.0
+					var root: float = 0.0 if pot_high > 0 else maxf(
+						1.0 - float(vy - pot_high) / (float(trunk_high) * ROOT_RISE), 0.0
 					) * ROOT_REACH
 					var along: float = maxf(absf(x), absf(z))
 					var across_root: float = minf(absf(x), absf(z))
@@ -590,7 +628,9 @@ func tree(measured: Measure) -> ArrayMesh:
 				if fill == EMPTY:
 					# The crown stands ON the trunk, so its foot is the trunk's top
 					# and it is read upward from there.
-					var radius: float = _radius(measured, vy - trunk_high, crown_high)
+					var radius: float = _radius(
+						measured, vy - pot_high - trunk_high, crown_high
+					)
 					if radius > 0.0:
 						# The jitter is the leaves. Deterministic, so one tree is
 						# one model however many times it is stamped.
@@ -603,8 +643,13 @@ func tree(measured: Measure) -> ArrayMesh:
 				solid[(vy * wide + vz) * wide + vx] = fill
 
 	for vy: int in tall:
-		_band = _band_at(measured, vy - trunk_high, crown_high)
-		_wrap = _wrap_at(measured, vy - trunk_high, crown_high)
+		_band = _band_at(measured, vy - pot_high - trunk_high, crown_high)
+		_wrap = _wrap_at(measured, vy - pot_high - trunk_high, crown_high)
+		if vy < pot_high and not measured.pot_bands.is_empty():
+			_band = measured.pot_bands[clampi(
+				measured.pot_bands.size() - 1 - int(float(pot_high - 1 - vy) * _voxel),
+				0, measured.pot_bands.size() - 1
+			)]
 		for vz: int in wide:
 			for vx: int in wide:
 				if solid[(vy * wide + vz) * wide + vx] == EMPTY:
@@ -785,6 +830,12 @@ func _tone(
 	measured: Measure, fill: int, side: Vector3i, sky: int, near: int,
 	across: float
 ) -> Color:
+	if fill == POT:
+		# The pot's own drawn colour at that row, a step darker underneath, which
+		# is the one thing about a turned body a band cannot say.
+		if side.y >= 0:
+			return _band
+		return _band.darkened(0.25)
 	var palette: PackedColorArray = measured.bark if fill == BARK else measured.tones
 	# The crown is painted from the drawing's whole ladder, its darkest included.
 	# A ROCK is painted by BAND and keeps the reading it was measured with, which
