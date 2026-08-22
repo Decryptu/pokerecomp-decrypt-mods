@@ -129,6 +129,11 @@ func is_shrub(shape_class: StringName) -> bool:
 	return bool(_profile.SHRUB.get(shape_class, false))
 
 
+## Whether a modelled class stands in a POT. See `profile.gd:POTTED`.
+func is_potted(shape_class: StringName) -> bool:
+	return bool(_profile.POTTED.get(shape_class, false))
+
+
 ## Whether a modelled class is stone rather than a plant. See `profile.gd:ROCK`.
 func is_rock(shape_class: StringName) -> bool:
 	return bool(_profile.ROCK.get(shape_class, false))

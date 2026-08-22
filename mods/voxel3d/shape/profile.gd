@@ -437,6 +437,13 @@ const MODEL: Dictionary = {
 	&"boulder": true,
 	&"sea_rock": true,
 	&"stool": true,
+	# THE POTTED PLANT AND THE POTTED PALM, which are a crown, a stalk and a POT,
+	# and the one drawing here whose bottom rows are a thing rather than the
+	# shadow under one. Carved per pixel the crown is a lattice with the wall
+	# visible through it and the pot is a slab; turned, the drawing states all
+	# three: see `model.gd:Measure.potted`.
+	&"planter": true,
+	&"palm": true,
 	# THE CONCRETE BOLLARD, which the carved path revolved per row into a ribbed
 	# drum with the paving showing THROUGH it. See `COLUMN` for the shape and
 	# `OUTLINE` for the holes.
@@ -456,6 +463,19 @@ const SHRUB: Dictionary = {
 	&"sea_rock": true,
 	&"stool": true,
 	&"post": true,
+}
+
+## The modelled classes that STAND IN A POT.
+##
+## A tree's drawing ends in the shadow it stands in, so `measure` reads the rows
+## below the trunk as ground and drops them. A potted plant's do not: below its
+## stalk is the pot, which is a turned body of its own and is most of what says
+## the thing is a houseplant rather than a sapling growing out of the lino. Only
+## a class a person has named as potted looks for one, because no rule can tell a
+## pot from a shadow by the drawing alone: both are wide, dark and at the foot.
+const POTTED: Dictionary = {
+	&"planter": true,
+	&"palm": true,
 }
 
 ## The modelled classes that are STONE rather than growing.
@@ -1376,6 +1396,34 @@ const OBJECTS: Dictionary = {
 		# a section rather than from the drawing: see `mesher.gd:_object_stool`. Its
 		# drawing sits in the middle of its two cells, so the window is the twelve
 		# pixels it actually occupies and not the sixteen it is declared over.
+		# THE COMPUTER AND ITS DESK. See `mesher.gd:_object_terminal`.
+		{
+			&"name": &"terminal",
+			&"tiles": [[64, 65], [32, 33], [66, 67]],
+			&"window": Rect2i(0, 0, 16, 24),
+			&"depth": 12,
+			&"height": 30,
+			&"terminal": true,
+		},
+		# THE CARVING IN THE MIDDLE OF THE TABLE, a figure on a plinth, standing
+		# ON the table: `rise` is the table's own eight pixels. It is a BOX
+		# wearing its own drawing on all four sides, which the reviewer chose over
+		# the turned build: a revolve cannot know the figure is a dog and returned
+		# a stepped wooden mound. Left to the resolver it was three tile rows of
+		# itself folded upright, a smeared slab as tall as a person.
+		{
+			&"name": &"carving",
+			&"tiles": [[34, 35], [82, 83], [37, 53]],
+			&"window": Rect2i(0, 0, 16, 24),
+			# The figure is drawn in the table's own wood on the table's own top,
+			# so no flood can tell the two apart: the rectangle IS the object.
+			&"solid": true,
+			&"top": 0,
+			&"depth": 12,
+			&"height": 24,
+			&"wrap": true,
+			&"rise": 8,
+		},
 		{
 			&"name": &"stool",
 			&"tiles": [[2, 3], [18, 19]],
@@ -1708,6 +1756,34 @@ const OBJECTS: Dictionary = {
 		# same seat seen from above over the same splayed legs. Built from a
 		# section, so the window is the twelve pixels the drawing occupies rather
 		# than the sixteen it is declared over. See `mesher.gd:_object_stool`.
+		# THE COMPUTER AND ITS DESK. See `mesher.gd:_object_terminal`.
+		{
+			&"name": &"terminal",
+			&"tiles": [[64, 65], [32, 33], [66, 67]],
+			&"window": Rect2i(0, 0, 16, 24),
+			&"depth": 12,
+			&"height": 30,
+			&"terminal": true,
+		},
+		# THE CARVING IN THE MIDDLE OF THE TABLE, a figure on a plinth, standing
+		# ON the table: `rise` is the table's own eight pixels. It is a BOX
+		# wearing its own drawing on all four sides, which the reviewer chose over
+		# the turned build: a revolve cannot know the figure is a dog and returned
+		# a stepped wooden mound. Left to the resolver it was three tile rows of
+		# itself folded upright, a smeared slab as tall as a person.
+		{
+			&"name": &"carving",
+			&"tiles": [[34, 35], [82, 83], [37, 53]],
+			&"window": Rect2i(0, 0, 16, 24),
+			# The figure is drawn in the table's own wood on the table's own top,
+			# so no flood can tell the two apart: the rectangle IS the object.
+			&"solid": true,
+			&"top": 0,
+			&"depth": 12,
+			&"height": 24,
+			&"wrap": true,
+			&"rise": 8,
+		},
 		{
 			&"name": &"stool",
 			&"tiles": [[2, 3], [18, 19]],
@@ -2579,7 +2655,12 @@ const TILESETS: Dictionary = {
 	},
 	# Pokemon Centers, shops and houses, on 57 maps.
 	5: {
-		&"table": [5, 21, 38, 39, 41, 47, 50, 51, 54, 57, 58, 59, 60],
+		# THE BOOK AND THE PENCIL LYING ON THE TABLE, 70/71/86/87, are the table:
+		# a drawing seen from ABOVE, at the height of the thing it is lying on.
+		# The pass called them `on_furniture`, which stands a drawing up on the
+		# furniture it is drawn on, so a book two tiles tall came out as a slab
+		# standing a walk cell and a half over the desk beside the trainer's head.
+		&"table": [5, 21, 38, 39, 41, 47, 50, 51, 54, 57, 58, 59, 60, 70, 71, 86, 87],
 		# Three tiles tall, which is what `bookcase` already is.
 		&"bookcase": [14, 15, 48, 49],
 		&"tombstone": [40, 55, 56, 63, 78],
