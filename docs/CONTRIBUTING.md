@@ -43,6 +43,10 @@ a browser from smoothing the upscale, so the sharp copy is a file rather than a
 style. They live outside `mods/` so they stay out of the archives: nothing
 installs them and nothing reads them but this repository's own README.
 
+A row in `index.json` repeats the manifest's `games`, so the launcher's mod page
+and the library site both know which cartridges a mod is for before it is
+installed. Keep the two lists the same when either changes.
+
 A row in `index.json` carries `icon` and `thumbnail` as https URLs, which is how
 the launcher gives a mod a face before it is installed and how the website finds
 its picture without opening an archive. Both point at this repository's raw
