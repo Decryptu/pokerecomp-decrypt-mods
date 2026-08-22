@@ -44,7 +44,9 @@ func _initialize() -> void:
 		host.load_discovered()
 	var renderer: StringName = StringName(args[4]) if args.size() > 4 else &"gen2"
 	if renderer != &"gen2":
-		var selected: Dictionary = host.select_world_renderer(renderer)
+		## R24 folded the two per-surface selectors into one view id, so this is
+		## `select_view` and not the `select_world_renderer` that is gone.
+		var selected: Dictionary = host.select_view(renderer)
 		if not bool(selected.get("ok", false)):
 			print("could not select renderer %s: %s" % [renderer, selected])
 			quit(1)
