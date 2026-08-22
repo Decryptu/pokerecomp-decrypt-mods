@@ -85,14 +85,25 @@ func _initialize() -> void:
 		# one: geometry is stored once per drawing and rasterised once per stamp, so
 		# a forest is one mesh to hold and two hundred trees to draw. A model built
 		# at a finer voxel is nearly free in the first and multiplied in the second.
+		#
+		# AND ONE MESH IS HANDED OVER SEVERAL TIMES. `take_models` answers per
+		# distinct drawing PER GROUP, because a MultiMesh spanning a whole window
+		# has the window for a bounding box and can never be culled, so a forest
+		# arrives as one mesh in a dozen entries. Counting its faces per entry
+		# reported the whole game at 10.26M triangles the day the grouping landed,
+		# against 7.23M for exactly the same geometry.
 		var stamps: int = 0
 		var drawn: int = 0
+		var held: Dictionary = {}
 		for model: Array in mesher.take_models():
+			var mesh: ArrayMesh = model[0]
 			var model_faces: int = 0
-			for surface: int in (model[0] as ArrayMesh).get_surface_count():
-				model_faces += ((model[0] as ArrayMesh).surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
+			for surface: int in mesh.get_surface_count():
+				model_faces += (mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
 					as PackedVector3Array).size()
-			faces += model_faces
+			if not held.has(mesh.get_instance_id()):
+				held[mesh.get_instance_id()] = true
+				faces += model_faces
 			stamps += (model[1] as Array).size()
 			drawn += model_faces * (model[1] as Array).size()
 		@warning_ignore("integer_division")
