@@ -327,6 +327,30 @@ func set_render_scale(divisor: int) -> void:
 	container.stretch_shrink = clampi(divisor, 1, 4)
 
 
+## See `frame.gd:set_depth_of_field`.
+func set_depth_of_field(
+	mode: int, radius: float, near: float = 900.0, far: float = 2600.0
+) -> void:
+	_frame.set_depth_of_field(mode, radius, near, far)
+
+
+## Hands the finishing pass where the eye stands, which is what lets it tell how
+## far out each row of the picture lands. See `frame.gd:set_eye`.
+func set_eye_for_depth_of_field(eye: Vector3, focus: Vector3) -> void:
+	var reach: Vector3 = focus - eye
+	var flat: float = Vector2(reach.x, reach.z).length()
+	_frame.set_eye(
+		maxf(eye.y - focus.y, 1.0),
+		atan2(maxf(eye.y - focus.y, 0.001), maxf(flat, 0.001)),
+		deg_to_rad(camera.fov)
+	)
+
+
+## The material a cut-out drawing is stamped with. See `wind.gd:sprite_material`.
+func foliage_material(cutout: Texture2D) -> ShaderMaterial:
+	return _wind.sprite_material(cutout) if cutout != null else _wind.foliage
+
+
 ## The ground past the mesh, or none for a battle. See `far_field.gd`.
 func far_field() -> RefCounted:
 	return _far
@@ -369,9 +393,16 @@ func set_models(models: Array) -> void:
 	for index: int in models.size():
 		if index >= _models.size():
 			var instance := MultiMeshInstance3D.new()
-			instance.material_override = _wind.foliage
 			viewport.add_child(instance)
 			_models.append(instance)
+		# A FAR STAMP WEARS THE DRAWING and a near one wears its own vertices, so
+		# the material is per entry rather than per pool: see `wind.gd:SPRITE_CODE`.
+		# The instance is pooled and re-pointed, so this is set every time and not
+		# only when the instance is made.
+		var cutout: Texture2D = models[index][3] as Texture2D \
+			if models[index].size() > 3 else null
+		_models[index].material_override = _wind.sprite_material(cutout) \
+			if cutout != null else _wind.foliage
 		var multi := MultiMesh.new()
 		multi.transform_format = MultiMesh.TRANSFORM_3D
 		# The per-instance WIND PHASE, so one mesh stamped across a forest still
@@ -488,6 +519,12 @@ func aim_camera(eye: Vector3, target: Vector3) -> void:
 	if absf(direction.normalized().dot(Vector3.UP)) > 0.999:
 		up = Vector3.FORWARD
 	camera.look_at_from_position(eye, target, up)
+	# The finishing pass reads distance off the camera, so it is told where the
+	# camera went the moment the camera goes there. Only when something is
+	# actually spending it: otherwise this is eight uniform writes a frame for a
+	# shader branch that is switched off.
+	if _frame.wants_eye():
+		set_eye_for_depth_of_field(eye, target)
 
 
 ## Cards are POOLED rather than rebuilt. The overworld re-places every actor each

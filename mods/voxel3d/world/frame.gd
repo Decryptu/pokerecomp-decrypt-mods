@@ -114,6 +114,43 @@ uniform bool flashing = false;
 uniform vec4 screen_uv = vec4(0.0, 0.0, 1.0, 1.0);
 uniform bool masking = false;
 
+// DEPTH OF FIELD, and the distance it is spent against is WORKED OUT rather
+// than sampled. A canvas shader has no depth buffer, and this one is composited
+// over a viewport rather than inside it, so there is nothing to read. What there
+// is instead is a camera looking down at a world that is mostly a plane: given
+// where the eye stands, how far it is tilted and how wide it sees, every ROW of
+// the picture is a known distance out across the ground, and that is the whole
+// of it. Two trig calls a pixel, on a pass that was measured as costing nothing.
+//
+// It is the GROUND's distance and not the pixel's, so a tall thing close by
+// wears the blur of the ground behind its head. That is wrong and it does not
+// show: what this is for is the far field and the flat trees on it, which lie on
+// the plane the reading is exact for.
+uniform int dof_mode = 0;
+uniform float dof_radius = 0.0;
+uniform float dof_near = 900.0;
+uniform float dof_far = 2600.0;
+uniform float eye_height = 100.0;
+uniform float eye_pitch = 0.6;
+uniform float eye_fov = 0.7;
+
+const int DOF_OFF = 0;
+const int DOF_PIXELS = 1;
+const int DOF_BLUR = 2;
+
+// How far out across the ground the row under [param uv] lands, in world pixels.
+float ground_reach(vec2 uv) {
+	float ndc = 1.0 - 2.0 * uv.y;
+	float up = atan(ndc * tan(eye_fov * 0.5));
+	float below = eye_pitch - up;
+	// At or above the horizon there is no ground, and the sky takes the most
+	// there is rather than a number that runs away.
+	if (below <= 0.002) {
+		return 1.0e9;
+	}
+	return eye_height / tan(below);
+}
+
 // How near an end a curve's own level has to be before the picture is taken to
 // it flat rather than lifted toward it. A third of the gap between two of the
 // hardware's four levels, so nothing inside the range is touched and the two
@@ -121,7 +158,36 @@ uniform bool masking = false;
 const float PINNED_BAND = 0.11;
 
 void fragment() {
-	COLOR = texture(TEXTURE, UV);
+	if (dof_mode == DOF_OFF || dof_radius <= 0.0) {
+		COLOR = texture(TEXTURE, UV);
+	} else {
+		float reach = ground_reach(UV);
+		float amount = clamp(
+			(reach - dof_near) / max(dof_far - dof_near, 1.0), 0.0, 1.0
+		);
+		float spread = dof_radius * amount;
+		if (dof_mode == DOF_PIXELS) {
+			// COARSER PIXELS AND NOT SOFTER ONES, which is the one kind of
+			// distance haze a Game Boy could have had. The grid is in the
+			// viewport's own pixels, so it follows the RES setting and a step of
+			// it is always a whole number of them.
+			vec2 grid = TEXTURE_PIXEL_SIZE * max(floor(spread), 1.0);
+			COLOR = texture(TEXTURE, clamp(
+				(floor(UV / grid) + 0.5) * grid, vec2(0.0), vec2(1.0)
+			));
+		} else {
+			vec4 gathered = vec4(0.0);
+			for (int y = -1; y <= 1; y++) {
+				for (int x = -1; x <= 1; x++) {
+					gathered += texture(TEXTURE, clamp(
+						UV + vec2(float(x), float(y)) * TEXTURE_PIXEL_SIZE * spread,
+						vec2(0.0), vec2(1.0)
+					));
+				}
+			}
+			COLOR = gathered / 9.0;
+		}
+	}
 	COLOR.rgb *= tint;
 	if (flashing) {
 		float luma = dot(COLOR.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -163,6 +229,13 @@ var _flashing: bool = false
 ## surround is closed around it. See CODE.
 var _screen_uv := Vector4(0.0, 0.0, 1.0, 1.0)
 var _masking: bool = false
+var _dof_mode: int = 0
+var _dof_radius: float = 0.0
+var _dof_near: float = 900.0
+var _dof_far: float = 2600.0
+var _eye_height: float = 100.0
+var _eye_pitch: float = 0.6
+var _eye_fov: float = 0.7
 
 
 func _init() -> void:
@@ -185,6 +258,41 @@ func set_interface_mask(bounds: Vector4, masked: bool) -> void:
 		return
 	_screen_uv = bounds
 	_masking = masked
+	_apply()
+
+
+## WHICH DEPTH OF FIELD THIS VIEW WEARS, and how much of it.
+##
+## Off is what ships. `1` is coarser pixels with distance and `2` is an ordinary
+## soft blur; the radius is in the viewport's own pixels at the far end of the
+## ramp, and the ramp runs from [param near] to [param far] in world pixels.
+##
+## This is a LOOK and not a saving. The pass it lives on was measured as free:
+## drawing the whole frame at a quarter of its resolution, which is sixteen times
+## fewer fragments, changed the frame time by nothing at all, so nothing here
+## buys back a triangle. It is here because a far field of flat trees reads
+## better slightly out of focus.
+func set_depth_of_field(
+	mode: int, radius: float, near: float = 900.0, far: float = 2600.0
+) -> void:
+	_dof_mode = clampi(mode, 0, 2)
+	_dof_radius = maxf(radius, 0.0)
+	_dof_near = near
+	_dof_far = far
+	_apply()
+
+
+## Whether anything is being spent that needs to know where the eye is.
+func wants_eye() -> bool:
+	return _dof_mode != 0 and _dof_radius > 0.0
+
+
+## Where the eye stands, so the shader can tell how far out each row of the
+## picture lands. See CODE.
+func set_eye(height: float, pitch: float, fov: float) -> void:
+	_eye_height = maxf(height, 1.0)
+	_eye_pitch = pitch
+	_eye_fov = fov
 	_apply()
 
 
@@ -233,3 +341,10 @@ func _apply() -> void:
 	material.set_shader_parameter("flashing", _flashing)
 	material.set_shader_parameter("screen_uv", _screen_uv)
 	material.set_shader_parameter("masking", _masking)
+	material.set_shader_parameter("dof_mode", _dof_mode)
+	material.set_shader_parameter("dof_radius", _dof_radius)
+	material.set_shader_parameter("dof_near", _dof_near)
+	material.set_shader_parameter("dof_far", _dof_far)
+	material.set_shader_parameter("eye_height", _eye_height)
+	material.set_shader_parameter("eye_pitch", _eye_pitch)
+	material.set_shader_parameter("eye_fov", _eye_fov)

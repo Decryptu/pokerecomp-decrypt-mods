@@ -24,6 +24,7 @@ extends RefCounted
 ## Out of doors only. A room ends at its walls and there is no horizon in it.
 
 const AtlasScript: GDScript = preload("../shape/atlas.gd")
+const FarFoliageScript: GDScript = preload("far_foliage.gd")
 
 const TILE: float = 8.0
 const BLOCK_PIXELS: float = 32.0
@@ -118,6 +119,8 @@ var _hole := Rect2()
 var _layers: Array[MeshInstance3D] = []
 var _fill: MeshInstance3D = null
 var _quad: PlaneMesh = null
+## The trees standing on the pages. See `far_foliage.gd`.
+var _foliage: RefCounted = null
 ## Per map, keyed "group:number": its coloured tile sheet, its block bytes.
 ## Built one a frame, because a sheet is a hundred tiles painted a pixel at a
 ## time and twenty four maps of them on the frame of a warp is the stop this
@@ -144,9 +147,18 @@ func _init() -> void:
 	_quad.orientation = PlaneMesh.FACE_Y
 	_fill = _instance()
 	root.add_child(_fill)
+	_foliage = FarFoliageScript.new()
+	root.add_child(_foliage.root)
 	# Nothing until a world says there is one: a battle shares this stage and
 	# is staged inside the window it stands in.
 	root.visible = false
+
+
+## The cut-out drawing the maps on the horizon stand, and the material carrying
+## it. Handing it null is what leaves the far ground bare, which is what shipped.
+## See `far_foliage.gd`.
+func set_far_tree(mesh: Mesh, material: ShaderMaterial) -> void:
+	_foliage.set_tree(mesh, material)
 
 
 ## A new map, or none. Everything keyed on a map is dropped with it except the
@@ -204,6 +216,7 @@ func advance(focus: Vector3, reach: float) -> void:
 
 	var used: int = 0
 	var owed: bool = false
+	_foliage.begin()
 	for placement: Dictionary in _world.map_placements().values():
 		var near: Gen2WorldMap = placement["map"]
 		var origin: Vector2 = Vector2(placement["origin"] as Vector2i) * BLOCK_PIXELS
@@ -221,6 +234,9 @@ func advance(focus: Vector3, reach: float) -> void:
 		), Vector2(near.width_blocks, near.height_blocks), origin,
 			near.border_block, near.tileset, false)
 		_stand(layer, origin, size, NEAR_DEPTH)
+		# The skyline on the page. See `far_foliage.gd`; it draws nothing until
+		# a tree has been handed to it.
+		_foliage.place(_world.data, near, origin)
 
 	# The loaded map LAST, over the neighbours, for the reason the host draws it
 	# last too: inside `wOverworldMapBlocks` the connection strips are the
@@ -238,6 +254,7 @@ func advance(focus: Vector3, reach: float) -> void:
 		_dress(layer, _sheet(map, true), here, _tile_texture(tileset), blocks,
 			origin, map.border_block, map.tileset, false)
 		_stand(layer, origin, blocks * BLOCK_PIXELS, HERE_DEPTH)
+	_foliage.end()
 	_hide_from(used)
 
 

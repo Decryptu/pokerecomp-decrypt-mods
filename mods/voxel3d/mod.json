@@ -1,9 +1,9 @@
 {
 	"id": "voxel3d",
 	"name": "Voxel 3D",
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"api_version": 10,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
-	"description": "Rebuilds the overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and carries the ground past the mesh so the maps around this one stand where the connection graph puts them. A fight is staged on the map it started on and fills the window with it. Choose it on this page to draw both. Q and E or the wheel zoom, I and K raise and lower the camera."
+	"description": "Rebuilds the overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and carries the ground past the mesh so the maps around this one stand where the connection graph puts them, with their woods standing on them. Past a ring around the camera a tree is the cartridge's own drawing stood up rather than a turned solid, and the distance coarsens in whole pixels. A fight is staged on the map it started on and fills the window with it. Choose it on this page to draw both. Q and E or the wheel zoom, I and K raise and lower the camera."
 }

@@ -198,6 +198,22 @@ func is_dark(tile: int, index: int, count: int) -> bool:
 ##
 ## Public because an authored MODEL is coloured from the cartridge even though
 ## its geometry is not: see `model.gd`.
+## THE PAINTED COLOUR AT ONE PIXEL OF ONE TILE, as the sheet holds it now.
+##
+## `color_of` answers for an INDEX and has to hunt the tile for one wearing it;
+## this is the pixel itself, which is what cutting a drawing out of the sheet
+## wants. Follows the animation, since it reads the live sheet.
+func texel(tile: int, x: int, y: int) -> Color:
+	if _image == null or tile < 0 or tile >= _tile_count:
+		return Color(0.0, 0.0, 0.0, 0.0)
+	if x < 0 or y < 0 or x >= TILE or y >= TILE:
+		return Color(0.0, 0.0, 0.0, 0.0)
+	@warning_ignore("integer_division")
+	return _image.get_pixel(
+		(tile % TILES_PER_ROW) * TILE + x, (tile / TILES_PER_ROW) * TILE + y
+	)
+
+
 func color_of(tile: int, index: int) -> Color:
 	if _image == null or _source.is_empty() or tile < 0 or tile >= _tile_count:
 		return Color(0.0, 0.0, 0.0, 0.0)
