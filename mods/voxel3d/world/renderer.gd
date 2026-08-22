@@ -34,8 +34,11 @@ const AtlasScript: GDScript = preload("../shape/atlas.gd")
 const MesherScript: GDScript = preload("../shape/mesher.gd")
 const CameraRigScript: GDScript = preload("camera_rig.gd")
 const DioramaScript: GDScript = preload("diorama.gd")
+const TransitionScript: GDScript = preload("transition.gd")
 
 const CELL: float = 16.0
+## A graphics tile, which is what a mesh window is measured in.
+const TILE: float = 8.0
 
 ## How opaque the screen draws the FIELD of its own text box over this view.
 ##
@@ -109,12 +112,40 @@ var _chunks: Array = []
 ## their own material: see `mesher.gd:take_water`.
 var _water: Array = []
 var _tufts: Array = []
+## The live text box in HARDWARE pixels and the hardware screen's own rectangle
+## in this surface's, which are the two halves of one question: see
+## [method _apply_text_box]. The screen's rectangle is empty until a host pushes
+## one, which is what a probe, a tool and a framed screen all leave it at.
+var _text_box := Rect2i()
+var _screen_rect := Rect2i()
+## Whether a screen laid out in 160x144 owns the picture.
+var _interface_masked: bool = false
+## `DoBattleTransition` over the map. See `world/transition.gd`.
+var _transition: RefCounted = null
+## Which of the map's sprites the transition is still drawing, and the object it
+## names when that is the battlers alone. `RespawnPlayerAndOpponent` at each
+## outro's setup leaves the player and whoever `hLastTalked` names in OAM and
+## nothing else, and the two views have to agree about that.
+var _transition_sprites: int = Gen2BattleTransition.SPRITES_ALL
+var _transition_opponent: int = -1
+## The two palette orders that can be in force at once: a map or script fade,
+## and the transition's own flash. See [method _apply_flash].
+var _fade_order: int = Gen2WorldPalette.FADE_IDENTITY
+var _transition_order: int = Gen2BattleTransition.IDENTITY
+## The ground the slice in flight will cover, in world pixels, handed to the far
+## field only when that slice is published: see `_advance_build`. Until then the
+## mesh on screen is the one the OLD hole was cut for.
+var _pending_hole := Rect2()
 
 
 func _init() -> void:
 	var modules: Dictionary = _load_modules()
 	_stage = (modules["diorama"] as GDScript).new()
 	add_child(_stage.container)
+	# After the stage, so the cartridge's own cells are over the world they are
+	# closing on.
+	_transition = TransitionScript.new()
+	add_child(_transition.layer)
 	_read_options()
 	# On the press rather than by polling: the host owns the surfaces the player
 	# changes a setting on, and says so.
@@ -134,20 +165,175 @@ func interface_opacity() -> float:
 	return FIELD_OPACITY
 
 
-## Where that box is, in hardware pixels, on every change and empty when none is
+## Where that box is, in HARDWARE pixels, on every change and empty when none is
 ## up. A box covers the bottom third of the screen and the player stands in the
 ## middle of it, so the shot is pushed up the frame by half of what the box takes
 ## and the player is in the middle of what is left. The pan eases like any other
 ## steer. See Gen2ModHost.RENDERER_TEXT_BOX_METHOD.
+##
+## Kept, because where a hardware pixel LANDS moves with the surface: see
+## [method set_screen_rect].
 func set_text_box_rect(rect: Rect2i) -> void:
+	_text_box = rect
+	_apply_text_box()
+
+
+## Where the cartridge's own 160x144 screen sits inside this view's surface, in
+## that surface's pixels, beside every [method set_native_size]. See
+## Gen2ModHost.RENDERER_SCREEN_RECT_METHOD.
+##
+## FRAMED, THE SURFACE WAS THE SCREEN: it was a whole multiple of 160x144, so a
+## hardware pixel landed at a fixed scale from its own corner and nothing had to
+## say where. A surface that fills the window is not, and every hardware-pixel
+## number handed over is a number about that rectangle rather than about this
+## one.
+func set_screen_rect(rect: Rect2i) -> void:
+	_screen_rect = rect
+	_transition.place(_screen_place())
+	_apply_text_box()
+	_apply_interface_mask()
+
+
+## One frame of `DoBattleTransition`. See `world/transition.gd` for the picture
+## and Gen2ModHost's own notes for the rest of what arrives with it.
+##
+## [param order] is `StartTrainerBattle_Flash` writing `wBGP` and calling
+## `DmgToCgbBGPals` alone, which is a permutation over the background's four
+## levels and exactly what `frame.gd` already restates for a move animation's
+## whole-screen flash. The seven backgrounds carry one byte between them here, so
+## the same pass answers both.
+func set_transition(
+	cells: PackedByteArray, tiles: PackedByteArray, palette: PackedColorArray,
+	sprites: int = Gen2BattleTransition.SPRITES_ALL, opponent: int = -1,
+	order: int = Gen2BattleTransition.IDENTITY
+) -> void:
+	_transition_sprites = sprites
+	_transition_opponent = opponent
+	_transition.place(_screen_place())
+	## The ball's own colours take the order too. `StartTrainerBattle_Flash`
+	## writes one `wBGP` across the background, so what the flash does to the
+	## world under this layer has to happen to the layer as well or the ball is
+	## the one thing on screen the flash never reaches. The stage's own pass
+	## cannot do it: `frame.gd` runs on the container, and this is drawn over it.
+	_transition.set_frame(
+		cells, tiles, Gen2WorldPalette.fade_palette(palette, order)
+	)
+	_transition_order = order
+	_apply_flash()
+
+
+func clear_transition() -> void:
+	_transition_sprites = Gen2BattleTransition.SPRITES_ALL
+	_transition_opponent = -1
+	_transition.clear()
+	_transition_order = Gen2BattleTransition.IDENTITY
+	_apply_flash()
+
+
+## ONE STEP OF A MAP FADE, which is the warp's own white or black and the five
+## script specials beside it. See Gen2ModHost.RENDERER_FADE_METHOD.
+##
+## The same permutation over the background's four levels the transition writes,
+## through the same pass: `FADE_OUT_ORDERS` ends at `$00`, every level taken to
+## the brightest, and `FADE_TO_BLACK_ORDERS` at `$FF`, every level to the
+## darkest, so the curve carries a fade to white and a fade to black without a
+## case for either.
+##
+## [param white_fill] is `FillWhiteBGColor`, which flattens the tile page's
+## colour 0 on the way out. A diorama has no colour 0 to flatten: it has a lit
+## picture, and the order above has already taken every level of it to white by
+## the step that runs. Nothing here to do, and reading it would only be a second
+## answer to the same question.
+func set_fade(order: int, white_fill: bool = false) -> void:
+	if order == _fade_order:
+		return
+	_fade_order = order
+	_apply_flash()
+
+
+## The two orders that can be in force at once, spent as one. The 2D view
+## composes them exactly this way in `flood_palette`: the fade first and the
+## transition over it.
+func _apply_flash() -> void:
+	_stage.set_flash(_flash_bytes(_compose_orders(_fade_order, _transition_order)))
+
+
+## Applying [param first] and then [param second], as one order. Each is a
+## permutation of the four background levels packed two bits to a level, so the
+## composition takes level i to `first[second[i]]`.
+static func _compose_orders(first: int, second: int) -> int:
+	if first == Gen2BattleTransition.IDENTITY:
+		return second
+	if second == Gen2BattleTransition.IDENTITY:
+		return first
+	var out: int = 0
+	for level: int in 4:
+		var through: int = (second >> (level * 2)) & 3
+		out |= ((first >> (through * 2)) & 3) << (level * 2)
+	return out
+
+
+## The background palette order as the seven-entry map `frame.gd` reads, since
+## a fade and a transition each write one byte across the lot.
+static func _flash_bytes(order: int) -> PackedByteArray:
+	var out := PackedByteArray()
+	out.resize(7)
+	out.fill(order & 0xFF)
+	return out
+
+
+## A screen laid out in 160x144 has taken the picture, or given it back: the
+## pack, the party, the PC, the dex, an evolution, and `DoBattleTransition`. The
+## host does not paint its own letterbox over this layer, deliberately, so the
+## surround is this view's to close. See
+## Gen2ModHost.RENDERER_INTERFACE_MASK_METHOD and `world/frame.gd`.
+func set_interface_masked(masked: bool) -> void:
+	_interface_masked = masked
+	_apply_interface_mask()
+
+
+func _apply_interface_mask() -> void:
+	_stage.set_interface_mask(_screen_rect, _interface_masked)
+
+
+## The hardware screen's rectangle on this surface, or the whole surface where no
+## host has said: a renderer built outside the game has one surface and it is the
+## screen. The mask reads [member _screen_rect] itself, because a surround with
+## nothing outside it is nothing to close.
+func _screen_place() -> Rect2i:
+	if _screen_rect.size.x > 0 and _screen_rect.size.y > 0:
+		return _screen_rect
+	return Rect2i(Vector2i.ZERO, Vector2i(_stage.container.size))
+
+
+## The pan the live text box asks for, in the SURFACE'S own pixels, since that is
+## what the camera frames. Framed, the screen is the surface and this is the
+## fraction it always was.
+## WHETHER THERE IS A BOX TO PAN FOR IS A HARDWARE QUESTION and is answered
+## here rather than in the rig: no box at all and a box whose top row is the
+## screen's own are both nothing to move for, and both are `position.y` at zero
+## in the cartridge's coordinates whatever surface they land on.
+func _apply_text_box() -> void:
+	var height: float = _stage.container.size.y
+	if _text_box.size.y <= 0 or _text_box.position.y <= 0:
+		_rig.pan_for_text_box(0.0, float(Gen2Screen.HEIGHT))
+		return
+	if _screen_rect.size.y <= 0 or height <= 0.0:
+		_rig.pan_for_text_box(float(_text_box.position.y), float(Gen2Screen.HEIGHT))
+		return
+	var per_pixel: float = float(_screen_rect.size.y) / float(Gen2Screen.HEIGHT)
 	_rig.pan_for_text_box(
-		0 if rect.size.y <= 0 else rect.position.y, Gen2Screen.HEIGHT
+		float(_screen_rect.position.y) + float(_text_box.position.y) * per_pixel,
+		height, per_pixel
 	)
 
 
 func set_native_size(size_pixels: Vector2i) -> void:
 	size = Vector2(size_pixels)
 	_stage.container.size = Vector2(size_pixels)
+	_transition.place(_screen_place())
+	_apply_text_box()
+	_apply_interface_mask()
 
 
 ## The sprites registered world actors ask for, handed over once when the view
@@ -173,6 +359,7 @@ func set_time_of_day(time_of_day: int) -> void:
 	_time_of_day = clampi(time_of_day, 0, 3)
 	_actor_textures.clear()
 	_stage.set_time_of_day(_time_of_day)
+	_stage.far_field().set_time_of_day(_time_of_day)
 	# The atlas carries the palette rows, so the whole sheet moves with the clock
 	# and the geometry is not touched.
 	if _build_atlas():
@@ -225,6 +412,7 @@ func _process(delta: float) -> void:
 ## window around a player it does not have.
 func _read_options() -> void:
 	_draw_cells = int(Options.value(Options.DISTANCE, 0))
+	_stage.set_render_scale(int(Options.value(Options.SCALE, Options.default_scale())))
 	_rig.set_wheel_sign(int(Options.value(Options.WHEEL, 1)))
 	_rig.set_default_pitch(float(Options.value(Options.CAMERA, Options.CAMERA_VALUES[1])))
 
@@ -239,6 +427,8 @@ func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void
 			# that changed, and what a tile is was resolved once for this map.
 			_window_centre = Vector2i.MAX
 			_recentre_window()
+		Options.SCALE:
+			_stage.set_render_scale(int(value))
 		Options.WHEEL:
 			_rig.set_wheel_sign(int(value))
 		Options.CAMERA:
@@ -306,6 +496,7 @@ func _rebuild() -> void:
 		_stage.set_terrain([])
 		_stage.set_water([])
 		_stage.set_tufts([])
+		_stage.far_field().configure(null, _time_of_day, true)
 		return
 	var tileset: int = _world.current_tileset.number
 	if _shape == null or tileset != _shape_tileset:
@@ -316,6 +507,9 @@ func _rebuild() -> void:
 	_outside = source.outside()
 	if _build_atlas():
 		_stage.set_texture(_atlas.texture)
+	# After the atlas, which is the sheet the far field draws the loaded map and
+	# its own border block with.
+	_stage.far_field().configure(_world, _time_of_day, _outside, _atlas)
 	_stage.set_time_of_day(_time_of_day)
 	# Resolved once per map, emitted per window: what a tile is and how tall it
 	# stands is a fact about the map, and measuring it through the window would
@@ -351,7 +545,7 @@ func _recentre_window() -> void:
 		return
 	_window_centre = at
 	var span: int = _draw_cells * 2 + 1
-	_stage.set_view_distance(float(_draw_cells) * CELL)
+	_stage.set_view_distance(float(_draw_cells) * CELL, true)
 	_begin_terrain(Rect2i(
 		(at - Vector2i(_draw_cells, _draw_cells)) * RomLayout.MAP_BLOCK_CELL_WIDTH,
 		Vector2i(span, span) * RomLayout.MAP_BLOCK_CELL_WIDTH
@@ -360,6 +554,7 @@ func _recentre_window() -> void:
 
 ## Starts a sliced build of [param window], and finishes it in `_process`.
 func _begin_terrain(window: Rect2i) -> void:
+	_pending_hole = _hole_pixels(window)
 	_chunks = []
 	_water = []
 	_tufts = []
@@ -367,6 +562,7 @@ func _begin_terrain(window: Rect2i) -> void:
 		_stage.set_terrain([])
 		_stage.set_water([])
 		_stage.set_tufts([])
+		_stage.far_field().set_hole(Rect2())
 		_standing = false
 		return
 	_building = true
@@ -386,6 +582,7 @@ func _advance_build() -> void:
 	# at, because a half-built map swapped in over a whole one is a hole opening
 	# in the middle of the frame rather than a map arriving.
 	if done or not _standing:
+		_stage.far_field().set_hole(_pending_hole)
 		_stage.set_terrain(_chunks)
 		_stage.set_water(_water)
 		_stage.set_tufts(_tufts)
@@ -408,6 +605,21 @@ func _frame_camera() -> void:
 	# the frame without the horizon swinging.
 	var pan: Vector3 = _rig.pan()
 	_stage.aim_camera(here + pan + _rig.offset(), here + pan)
+	# After the aim, because where the eye looks is what decides which maps out
+	# there are worth drawing at all.
+	_stage.advance_far_field(here + pan)
+
+
+## The ground the mesh covers, in WORLD PIXELS, which the far field leaves
+## alone. An empty window is FULL distance, where the mesh emits everything it
+## has: the map, its border ring and the skirt past that.
+func _hole_pixels(window: Rect2i) -> Rect2:
+	var bounds: Rect2i = _mesher.drawn_bounds_tiles()
+	if window.size.x > 0 and window.size.y > 0:
+		bounds = bounds.intersection(window)
+	if bounds.size.x <= 0 or bounds.size.y <= 0:
+		return Rect2()
+	return Rect2(Vector2(bounds.position) * TILE, Vector2(bounds.size) * TILE)
 
 
 ## The committed cell plus any in-flight step, so the view eases into a new cell
@@ -437,7 +649,16 @@ func _rebuild_actors() -> void:
 		return
 	_stage.begin_cards()
 	_stage.begin_shadow_casters()
+	## A TRANSITION EMPTIES OAM AND THEN PUTS TWO SPRITES BACK, and the begin and
+	## end above and below are what leaves the pool with nothing in it. See
+	## [method _drawn_in_transition].
+	if _transition_sprites == Gen2BattleTransition.SPRITES_NONE:
+		_stage.end_cards()
+		_stage.end_shadow_casters()
+		return
 	for object: Gen2WorldObject in _world.visible_objects():
+		if not _drawn_in_transition(object.index):
+			continue
 		_add_actor(
 			object.sprite, object.palette, object.facing, object.frame,
 			Vector2(object.cell) + object.step_offset_cells(), PackedColorArray(),
@@ -452,15 +673,56 @@ func _rebuild_actors() -> void:
 	# A mod's own sprites, after the map's and the player's. Depth is the stage's
 	# to decide here rather than a row order's, which is the one thing this view
 	# does not have to copy from the tile page.
-	if _mod_actors != null:
+	if _mod_actors != null and _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
 		for entry: Dictionary in _mod_actors.sprites():
 			_add_actor(
 				entry["sprite"], 0, int(entry["facing"]), int(entry["frame"]),
 				entry["position_cells"], entry.get("colors", PackedColorArray())
 			)
+	if _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
+		_add_connected_actors()
 	_add_encounter_pulse()
 	_stage.end_cards()
 	_stage.end_shadow_casters()
+
+
+## Whether a map object is still in OAM this frame. `RespawnPlayerAndOpponent`
+## at each outro's setup leaves the player and whoever `hLastTalked` names and
+## takes everything else off, and the built-in view obeys the same three values.
+func _drawn_in_transition(index: int) -> bool:
+	if _transition_sprites == Gen2BattleTransition.SPRITES_BATTLERS:
+		return index == _transition_opponent
+	return _transition_sprites != Gen2BattleTransition.SPRITES_NONE
+
+
+## How far a person on the map next door is drawn from, in world pixels. Past
+## this they are a pixel in the haze and the card costs the same as one in front
+## of you.
+const CONNECTED_REACH: float = 2400.0
+
+
+## The people standing on the maps around this one.
+##
+## The host places them and marks them inert: `ReadObjectEvents` fills
+## `wMapObjects` from the loaded map alone, so on the cartridge a connected
+## map's people do not exist until its own load builds them. They take no step,
+## run no script, answer no collision and are not talked to. They are drawn
+## because the 2D view draws them and two views of one world have to agree about
+## what is standing over there.
+##
+## Feature-detected: `api_version` gates a mod built for an older host, not a
+## host older than the mod, so this is the mod's to check.
+func _add_connected_actors() -> void:
+	if _world == null or not _outside \
+			or not _world.has_method(&"connected_map_objects"):
+		return
+	var here: Vector2 = _world.player_position_cells() * CELL
+	for entry: Dictionary in _world.connected_map_objects():
+		var object: Gen2WorldObject = entry["object"]
+		var cells := Vector2(object.cell + (entry["offset"] as Vector2i))
+		if here.distance_squared_to(cells * CELL) > CONNECTED_REACH * CONNECTED_REACH:
+			continue
+		_add_actor(object.sprite, object.palette, object.facing, object.frame, cells)
 
 
 func _add_actor(

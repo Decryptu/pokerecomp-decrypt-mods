@@ -88,12 +88,37 @@ const PALETTE_IDENTITY: int = 0xE4
 ## also the identity curve.
 const FLASH_LEVELS := Vector4(1.0, 2.0 / 3.0, 1.0 / 3.0, 0.0)
 
+## THE THIRD PASS OVER THE FINISHED FRAME IS THE LETTERBOX, and it is here for
+## the same reason as the other two: it reaches every pixel of the picture and
+## nothing in the world can express it.
+##
+## A screen laid out in the hardware's own 160x144 takes the whole picture: the
+## pack, the party, the PC, the dex, an evolution, and `DoBattleTransition`. For
+## a view drawn in hardware pixels the host paints the bars itself, inside the
+## viewport. This one is not in that viewport, deliberately, because a letterbox
+## around a rectangle it never used would crop a view that had already filled the
+## surface, so the host says so instead and the surround is this view's own to
+## close. See `Gen2ModHost.RENDERER_INTERFACE_MASK_METHOD`.
+##
+## BLACK AND NOT A DIM, and the transition is why. Twenty by eighteen cells is
+## all `DoBattleTransition` can write, so its wedge closes inside that rectangle
+## and nowhere else; a dimmed world around a rectangle going black is the picture
+## breaking in half rather than the screen closing. Black is what the hardware
+## left there and what the 2D view leaves there.
 const CODE: String = """
 shader_type canvas_item;
 
 uniform vec3 tint = vec3(1.0);
 uniform vec4 flash = vec4(1.0, 0.6666667, 0.3333333, 0.0);
 uniform bool flashing = false;
+uniform vec4 screen_uv = vec4(0.0, 0.0, 1.0, 1.0);
+uniform bool masking = false;
+
+// How near an end a curve's own level has to be before the picture is taken to
+// it flat rather than lifted toward it. A third of the gap between two of the
+// hardware's four levels, so nothing inside the range is touched and the two
+// bytes that mean "wash the screen out" arrive at white and at black.
+const float PINNED_BAND = 0.11;
 
 void fragment() {
 	COLOR = texture(TEXTURE, UV);
@@ -107,7 +132,24 @@ void fragment() {
 		float blend = at - step_index;
 		float low = flash[int(step_index)];
 		float high = flash[int(step_index) + 1];
-		COLOR.rgb = clamp(COLOR.rgb + (mix(low, high, blend) - luma), 0.0, 1.0);
+		float target = mix(low, high, blend);
+		vec3 lifted = clamp(COLOR.rgb + (target - luma), 0.0, 1.0);
+		// A LEVEL PINNED AT EITHER END HAS NO COLOUR LEFT IN IT. Adding the
+		// difference is right in the middle of the range and is not at the ends,
+		// where the hardware has one flat colour and nothing to add to: a fade to
+		// white left a saturated yellow at its own hue, since its luminance was
+		// already nearly one and the lift had nowhere to go. So the last of the
+		// range is a mix to the level itself rather than a lift toward it.
+		float pinned = clamp(
+			(PINNED_BAND - (0.5 - abs(target - 0.5))) / PINNED_BAND, 0.0, 1.0
+		);
+		COLOR.rgb = mix(lifted, vec3(target), pinned);
+	}
+	// Last, and over the flash as well: a screen that owns the picture owns the
+	// flash too. `return` is not allowed in a fragment processor here.
+	if (masking && (UV.x < screen_uv.x || UV.y < screen_uv.y
+		|| UV.x >= screen_uv.z || UV.y >= screen_uv.w)) {
+		COLOR = vec4(0.0, 0.0, 0.0, 1.0);
 	}
 }
 """
@@ -117,6 +159,10 @@ var _time_of_day: int = 1
 var _outside: bool = true
 var _flash: Vector4 = FLASH_LEVELS
 var _flashing: bool = false
+## The hardware screen's rectangle in this surface's own 0 to 1, and whether the
+## surround is closed around it. See CODE.
+var _screen_uv := Vector4(0.0, 0.0, 1.0, 1.0)
+var _masking: bool = false
 
 
 func _init() -> void:
@@ -129,6 +175,16 @@ func _init() -> void:
 
 func set_time_of_day(time_of_day: int) -> void:
 	_time_of_day = clampi(time_of_day, 0, DAY_TINT.size() - 1)
+	_apply()
+
+
+## [param bounds] is the hardware screen as `x, y, x end, y end` in this
+## surface's own 0 to 1.
+func set_interface_mask(bounds: Vector4, masked: bool) -> void:
+	if masked == _masking and bounds.is_equal_approx(_screen_uv):
+		return
+	_screen_uv = bounds
+	_masking = masked
 	_apply()
 
 
@@ -175,3 +231,5 @@ func _apply() -> void:
 	material.set_shader_parameter("tint", Vector3(tint.r, tint.g, tint.b))
 	material.set_shader_parameter("flash", _flash)
 	material.set_shader_parameter("flashing", _flashing)
+	material.set_shader_parameter("screen_uv", _screen_uv)
+	material.set_shader_parameter("masking", _masking)

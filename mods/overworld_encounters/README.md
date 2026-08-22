@@ -21,7 +21,10 @@ then every ten seconds while it remains on the map.
 
 ## Setting
 
-`VISIBLE` caps one map at 2, 4, 6 or 8 Pokemon. Six is the default.
+`VISIBLE` caps one map at 2, 4, 6, 8, 12 or 16 Pokemon. Six is the default. The
+top two rungs are for a screen that fills the window: eight spread over a whole
+route was more than a Game Boy screen ever showed at once and reads as an empty
+route when the whole of it is drawn.
 
 ## Cartridge rules
 

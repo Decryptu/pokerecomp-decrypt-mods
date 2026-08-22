@@ -1,9 +1,9 @@
 {
 	"id": "overworld_encounters",
 	"name": "Overworld Encounters",
-	"version": "0.1.3",
+	"version": "0.2.0",
 	"api_version": 6,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
-	"description": "Replaces random steps with a bounded population of visible roaming wild Pokemon drawn from each map's own encounter tables, with visible shiny Pokemon."
+	"description": "Replaces random steps with a bounded population of visible roaming wild Pokemon drawn from each map's own encounter tables, with visible shiny Pokemon. Up to sixteen a map, for a screen that shows the whole of one."
 }

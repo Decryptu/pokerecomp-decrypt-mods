@@ -398,6 +398,23 @@ func emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> Array:
 ## of a big route took three times the whole frame budget on its own.
 const CHUNK_TILES: int = 16
 
+## And the same unit for the STAMPED MODELS, which had none.
+##
+## Terrain is cut into chunks so the engine can reject the ones behind the eye,
+## and a stamped model was not: `take_models` handed one MultiMesh per distinct
+## drawing covering the whole window, so its bounding box WAS the window and a
+## forest was submitted whole at every camera angle. A camera 42 degrees tall on
+## a filled window frames about a quarter of a circle, so most of that geometry
+## was drawn for nothing, and the wider the window the worse it got.
+##
+## Its own constant rather than CHUNK_TILES itself, because it is its own
+## decision: a MultiMesh is a draw of its own, so a finer grid buys culling and
+## pays in draws. Measured on Route 29 at 3840x2160, LOW camera, FULL distance,
+## which is the worst case in the game: 32 tiles is 1.95M triangles in 137
+## draws, 16 is 1.26M in 166, and 8 is 1.03M in 228 and slower than 16 for it.
+## Against 5.39M in 116 draws with no grouping at all.
+const MODEL_CHUNK_TILES: int = CHUNK_TILES
+
 var _emit_atlas: RefCounted = null
 var _chunks: Array[Rect2i] = []
 var _chunk_at: int = 0
@@ -599,6 +616,20 @@ func size_pixels() -> Vector2:
 
 func size_tiles() -> Vector2i:
 	return _map_size
+
+
+## All the ground this mesher will ever emit, in MAP tiles: the map, the border
+## ring around it and the skirt past that. The same box `begin_emit` clips a
+## window against, so a window is what is DRAWN and this is what COULD be.
+##
+## For a view that draws anything beyond the mesh: everything outside this is
+## ground no chunk will ever cover, and everything inside it is the mesh's own.
+## See `world/far_field.gd`.
+func drawn_bounds_tiles() -> Rect2i:
+	if _size == Vector2i.ZERO:
+		return Rect2i()
+	var out: Vector2i = _margin + Vector2i(_skirt_reach(), _skirt_reach())
+	return Rect2i(-out, _map_size + out * 2)
 
 
 ## The world x and z of a GRID tile's own corner. The grid is the map inside its
@@ -4548,6 +4579,7 @@ func _place_model(tx: int, ty: int, atlas: RefCounted, base: float = INF) -> voi
 		(_model_spots[key] as Dictionary)[str(start)] = [
 			Transform3D(Basis(Vector3(0.0, 1.0, 0.0), turn), spot),
 			_hash_spot(anchor + Vector2i(0, 53)),
+			_model_chunk(start),
 		]
 
 
@@ -4670,19 +4702,38 @@ func _hash_spot(anchor: Vector2i) -> float:
 	return value - floorf(value)
 
 
-## The models this emit placed: a list of [mesh, placements], one per distinct
-## drawing, each placement a `Transform3D`. Empty until an emit has run.
+## Which model group a drawing stamped at [param start] belongs to. See
+## [constant MODEL_CHUNK_TILES].
+static func _model_chunk(start: Vector2i) -> Vector2i:
+	return Vector2i(
+		floori(float(start.x) / MODEL_CHUNK_TILES),
+		floori(float(start.y) / MODEL_CHUNK_TILES)
+	)
+
+
+## The models this emit placed: a list of [mesh, placements, phases], one per
+## distinct drawing PER GROUP, each placement a `Transform3D`. Empty until an
+## emit has run.
+##
+## One entry a drawing would be fewer draws and no culling at all: see
+## [constant MODEL_CHUNK_TILES].
 func take_models() -> Array:
 	var out: Array = []
 	for key: String in _model_meshes:
-		var placed: Array[Transform3D] = []
-		var phases := PackedFloat32Array()
 		# A mesh with no spots is a drawing built for an earlier window and not
 		# stamped in this one, which is ordinary once a window moves.
+		var groups: Dictionary = {}
 		for entry: Array in (_model_spots.get(key, {}) as Dictionary).values():
-			placed.append(entry[0] as Transform3D)
-			phases.append(float(entry[1]))
-		if not placed.is_empty():
+			var cell: Vector2i = entry[2]
+			if not groups.has(cell):
+				groups[cell] = []
+			(groups[cell] as Array).append(entry)
+		for cell: Vector2i in groups:
+			var placed: Array[Transform3D] = []
+			var phases := PackedFloat32Array()
+			for entry: Array in groups[cell] as Array:
+				placed.append(entry[0] as Transform3D)
+				phases.append(float(entry[1]))
 			out.append([_model_meshes[key], placed, phases])
 	return out
 
@@ -5965,6 +6016,7 @@ func _object_model(
 				_world_x(start.x) + middle.x, ground, _world_z(start.y) + middle.y
 			)),
 			0.0,
+			_model_chunk(start),
 		]
 
 

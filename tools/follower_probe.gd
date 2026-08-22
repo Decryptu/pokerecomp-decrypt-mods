@@ -13,10 +13,12 @@ extends SceneTree
 ##   Godot --headless --path <pokerecomp> -s tools/follower_probe.gd -- \
 ##       "user://rom_cache/crystal_f2f52230"
 
-## Frames one plain overworld step is drawn over, which is the host's own
-## STEP_FRAMES_NORMAL. The count changes nothing here: the follower reads the
-## player's fraction rather than counting frames, and the probe walks whatever
-## it is handed.
+## Map PASSES one plain overworld step is drawn over, which is the host's own
+## STEP_PASSES_WALK. `HandleMap` ends each iteration in `NextOverworldFrame`,
+## whose MaxOverworldDelay is 2, so the map layer runs once per two hardware
+## frames and every duration the overworld reads is counted in those passes. The
+## count changes nothing here: the follower reads the player's fraction rather
+## than counting anything, and the probe walks whatever it is handed.
 const STEP_FRAMES: int = 8
 
 const HOME: Vector2i = Vector2i(24, 3)
@@ -422,7 +424,7 @@ func _walk_onto(
 			continue
 		world.move(direction)
 		while world.player_step_in_progress():
-			world.advance_player_step_frame()
+			world.advance_player_step_pass()
 			actor.advance_frame()
 		actor.advance_frame()
 		break
