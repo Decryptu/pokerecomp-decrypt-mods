@@ -266,6 +266,21 @@ func set_flash(maps: Variant) -> void:
 	_frame.set_flash(maps)
 
 
+## Closes the surround around the hardware screen's own rectangle, or opens it.
+## [param screen] is that rectangle in the container's own pixels, which is what
+## `Gen2ModHost.RENDERER_SCREEN_RECT_METHOD` pushes. See `frame.gd`.
+func set_interface_mask(screen: Rect2i, masked: bool) -> void:
+	var whole: Vector2 = container.size
+	if not masked or screen.size.x <= 0 or screen.size.y <= 0 \
+			or whole.x <= 0.0 or whole.y <= 0.0:
+		_frame.set_interface_mask(Vector4(0.0, 0.0, 1.0, 1.0), false)
+		return
+	_frame.set_interface_mask(Vector4(
+		float(screen.position.x) / whole.x, float(screen.position.y) / whole.y,
+		float(screen.end.x) / whole.x, float(screen.end.y) / whole.y
+	), true)
+
+
 
 ## How far the eye is allowed to see, in world pixels, following whatever the
 ## mesh was actually built out to. Zero is the whole map.

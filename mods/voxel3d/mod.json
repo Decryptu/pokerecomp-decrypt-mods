@@ -2,7 +2,7 @@
 	"id": "voxel3d",
 	"name": "Voxel 3D",
 	"version": "0.4.0",
-	"api_version": 2,
+	"api_version": 10,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
 	"description": "Rebuilds the overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and carries the ground past the mesh so the maps around this one stand where the connection graph puts them. Stages a battle on the map it was started on. Choose it on this page to draw the overworld and the fight alike. Q and E or the wheel zoom, I and K raise and lower the camera."

@@ -108,6 +108,9 @@ var _anim_drawn_at := Vector4i(9999, 9999, 9999, 9999)
 var _battlers: Array[TextureRect] = []
 var _pic_textures: Dictionary = {}
 var _native := Vector2i(Gen2Screen.WIDTH, Gen2Screen.HEIGHT)
+## The hardware screen's own rectangle inside that surface, empty until a host
+## pushes one. See [method _hud_scale].
+var _screen_rect := Rect2i()
 ## How far out from the fight the map is meshed, in walk cells. Zero is all of
 ## it. The player's own DISTANCE setting, shared with the overworld.
 var _draw_cells: int = 0
@@ -207,6 +210,16 @@ func set_native_size(size_pixels: Vector2i) -> void:
 	_native = size_pixels
 	size = Vector2(size_pixels)
 	_stage.container.size = Vector2(size_pixels)
+	_layout_hud()
+
+
+## Where the cartridge's own 160x144 screen sits inside this view's surface,
+## beside every [method set_native_size]. See
+## Gen2ModHost.RENDERER_SCREEN_RECT_METHOD and [method _hud_scale].
+func set_screen_rect(rect: Rect2i) -> void:
+	if rect == _screen_rect:
+		return
+	_screen_rect = rect
 	_layout_hud()
 
 
@@ -834,7 +847,26 @@ func _layout_layer(layer: TextureRect) -> void:
 	layer.position = _hud_origin()
 
 
+## Window pixels per HARDWARE pixel, and where the hardware screen's own corner
+## sits on this surface. Everything laid out in the cartridge's coordinates goes
+## through these two: the panels, both bars, the text, the battlers and the move
+## animation's OAM layer.
+##
+## THE HOST OWNS BOTH NOW. A fight staged on the map fills the window, so the
+## surface is no longer a whole multiple of 160x144 and centring the hardware
+## screen in it is no longer this renderer's arithmetic to do: the host centres
+## it in a buffer built out of whole map BLOCKS and pushes the answer. Working it
+## out here instead put the panels at seven window pixels per hardware pixel
+## where the host's own text box was drawn at six, and 80 pixels up the frame
+## from it, in a 1600x900 window.
+##
+## The fallback is what a renderer built outside the game gets, and what a framed
+## screen gave before any of this: a probe and `tools/battle_shot.gd` push no
+## rectangle, and there the surface IS the screen.
 func _hud_scale() -> int:
+	if _screen_rect.size.y >= Gen2Screen.HEIGHT:
+		@warning_ignore("integer_division")
+		return maxi(1, _screen_rect.size.y / Gen2Screen.HEIGHT)
 	@warning_ignore("integer_division")
 	return maxi(1, mini(
 		_native.x / Gen2Screen.WIDTH, _native.y / Gen2Screen.HEIGHT
@@ -842,6 +874,8 @@ func _hud_scale() -> int:
 
 
 func _hud_origin() -> Vector2:
+	if _screen_rect.size.y >= Gen2Screen.HEIGHT:
+		return Vector2(_screen_rect.position)
 	var factor: int = _hud_scale()
 	var drawn := Vector2(Gen2Screen.WIDTH * factor, Gen2Screen.HEIGHT * factor)
 	return ((Vector2(_native) - drawn) * 0.5).floor()

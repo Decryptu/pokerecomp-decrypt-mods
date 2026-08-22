@@ -63,12 +63,11 @@ Movement and interaction keys never reach the mod: the world screen claims what
 it needs and offers the rest, so the camera can be steered while the game is
 still played on the grid it always was.
 
-WITH THE GAME'S SCREEN FILL ON, WHICH IS ITS DEFAULT, `=`, `-` and the wheel are
-the game's own zoom and are taken before this view is offered them. That zoom is
-screen pixels per hardware pixel and there is no hardware pixel in this view, so
-the press does nothing you can see and the dolly and the lens are unreachable at
-their defaults. Until the game hands them back, bind Push in, Pull back, Zoom in
-and Zoom out to other keys in the controls card, or set Screen to Framed.
+The game's own SCREEN FILL zoom, on `+`, `-`, `0` and the wheel, is not claimed
+over this view and does not have to be: its ladder counts screen pixels per
+HARDWARE pixel, and there is no hardware pixel here. Those events reach this
+mod's own dolly and lens instead, which is why `=` and `-` still pull the eye
+about.
 
 ## Settings
 
@@ -125,7 +124,7 @@ screen keeps being drawn while the next map builds, so the map arrives a moment
 late instead of the frame stopping. A battle also keeps the map it resolved, so a
 second fight on the same route pays for the geometry alone.
 
-## The text box
+## The text box, and where a Game Boy pixel lands
 
 Over this view the screen's own text box is drawn with its FIELD at 0.75 and its
 frame and glyphs solid, so a prompt reads exactly as well and the map is still
@@ -136,6 +135,31 @@ the camera not at all, and a box that does reach past the middle pushes the shot
 just far enough to clear it. The battle never pans: each battler is pinned to its
 own hardware picture slot, which is what makes a collision with the box
 impossible in the first place.
+
+A box's rectangle arrives in the cartridge's own pixels, and WHERE ONE OF THOSE
+LANDS is a second question now. Framed, this view's surface was a whole multiple
+of 160x144 and the mapping was the surface itself; filling the window it is not,
+so the game says where the Game Boy screen sits inside it and everything measured
+in hardware pixels goes through that: the pan above, and the fight's panels,
+bars, text and battlers. Working it out here instead put the battle's panels at
+seven window pixels per hardware pixel where the game's own text box was drawn at
+six, and eighty pixels up the frame from it, in a 1600x900 window.
+
+## When a Game Boy screen takes the picture
+
+The pack, the party, the PC, the dex, the trainer card, an evolution, a hatch,
+the day-care, the slot machine, card flip and the encounter transition are all
+laid out in 160x144 and own the whole picture while they are up. Over a framed
+screen the game paints its own bars around them; it does not paint them over this
+view, because a letterbox around a rectangle this view never used would crop a
+picture that had already filled the window. So it says so instead and the
+surround is closed here, in the pass over the finished frame, black and to the
+edge of the window.
+
+A fight, though, FILLS the window with the map it started on, because a battle
+staged on the place has as much to put out there as the overworld had a frame
+earlier. Only the arena grows: the panels, the bars and the text stay hardware
+pixels in the same centred rectangle they were always laid out in.
 
 ## The battle
 

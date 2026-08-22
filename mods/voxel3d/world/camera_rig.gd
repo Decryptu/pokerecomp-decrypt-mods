@@ -202,12 +202,19 @@ func fov() -> float:
 ## [param box_top] and [param screen_height] are hardware pixels, and an empty
 ## box is a zero pan back to centre. The value is a fraction of the frame's own
 ## height, so it means the same thing at every zoom and every window size.
-func pan_for_text_box(box_top: int, screen_height: int) -> void:
+## [param box_top] and [param frame_height] are in the SURFACE'S OWN PIXELS and
+## no longer in the hardware's: a filled window is not a whole multiple of
+## 160x144, so where a hardware pixel lands on it is a question only the host can
+## answer and `set_screen_rect` is the answer. [param per_hardware_pixel] is how
+## many surface pixels one hardware pixel covers, which is what BOX_CLEARANCE is
+## measured in.
+func pan_for_text_box(
+	box_top: float, frame_height: float, per_hardware_pixel: float = 1.0
+) -> void:
 	var wanted: float = 0.0
-	if box_top > 0 and box_top < screen_height:
-		wanted = maxf(
-			0.0, 0.5 - float(box_top - BOX_CLEARANCE) / float(screen_height)
-		)
+	if box_top > 0.0 and box_top < frame_height and frame_height > 0.0:
+		wanted = maxf(0.0, 0.5 - (box_top - BOX_CLEARANCE * per_hardware_pixel)
+			/ frame_height)
 	if is_equal_approx(wanted, _pan_goal):
 		return
 	_aim(_pitch_goal, _distance_goal, _zoom_goal, wanted)

@@ -111,6 +111,14 @@ var _chunks: Array = []
 ## their own material: see `mesher.gd:take_water`.
 var _water: Array = []
 var _tufts: Array = []
+## The live text box in HARDWARE pixels and the hardware screen's own rectangle
+## in this surface's, which are the two halves of one question: see
+## [method _apply_text_box]. The screen's rectangle is empty until a host pushes
+## one, which is what a probe, a tool and a framed screen all leave it at.
+var _text_box := Rect2i()
+var _screen_rect := Rect2i()
+## Whether a screen laid out in 160x144 owns the picture.
+var _interface_masked: bool = false
 ## The ground the slice in flight will cover, in world pixels, handed to the far
 ## field only when that slice is published: see `_advance_build`. Until then the
 ## mesh on screen is the one the OLD hole was cut for.
@@ -140,20 +148,75 @@ func interface_opacity() -> float:
 	return FIELD_OPACITY
 
 
-## Where that box is, in hardware pixels, on every change and empty when none is
+## Where that box is, in HARDWARE pixels, on every change and empty when none is
 ## up. A box covers the bottom third of the screen and the player stands in the
 ## middle of it, so the shot is pushed up the frame by half of what the box takes
 ## and the player is in the middle of what is left. The pan eases like any other
 ## steer. See Gen2ModHost.RENDERER_TEXT_BOX_METHOD.
+##
+## Kept, because where a hardware pixel LANDS moves with the surface: see
+## [method set_screen_rect].
 func set_text_box_rect(rect: Rect2i) -> void:
+	_text_box = rect
+	_apply_text_box()
+
+
+## Where the cartridge's own 160x144 screen sits inside this view's surface, in
+## that surface's pixels, beside every [method set_native_size]. See
+## Gen2ModHost.RENDERER_SCREEN_RECT_METHOD.
+##
+## FRAMED, THE SURFACE WAS THE SCREEN: it was a whole multiple of 160x144, so a
+## hardware pixel landed at a fixed scale from its own corner and nothing had to
+## say where. A surface that fills the window is not, and every hardware-pixel
+## number handed over is a number about that rectangle rather than about this
+## one.
+func set_screen_rect(rect: Rect2i) -> void:
+	_screen_rect = rect
+	_apply_text_box()
+	_apply_interface_mask()
+
+
+## A screen laid out in 160x144 has taken the picture, or given it back: the
+## pack, the party, the PC, the dex, an evolution, and `DoBattleTransition`. The
+## host does not paint its own letterbox over this layer, deliberately, so the
+## surround is this view's to close. See
+## Gen2ModHost.RENDERER_INTERFACE_MASK_METHOD and `world/frame.gd`.
+func set_interface_masked(masked: bool) -> void:
+	_interface_masked = masked
+	_apply_interface_mask()
+
+
+func _apply_interface_mask() -> void:
+	_stage.set_interface_mask(_screen_rect, _interface_masked)
+
+
+## The pan the live text box asks for, in the SURFACE'S own pixels, since that is
+## what the camera frames. Framed, the screen is the surface and this is the
+## fraction it always was.
+## WHETHER THERE IS A BOX TO PAN FOR IS A HARDWARE QUESTION and is answered
+## here rather than in the rig: no box at all and a box whose top row is the
+## screen's own are both nothing to move for, and both are `position.y` at zero
+## in the cartridge's coordinates whatever surface they land on.
+func _apply_text_box() -> void:
+	var height: float = _stage.container.size.y
+	if _text_box.size.y <= 0 or _text_box.position.y <= 0:
+		_rig.pan_for_text_box(0.0, float(Gen2Screen.HEIGHT))
+		return
+	if _screen_rect.size.y <= 0 or height <= 0.0:
+		_rig.pan_for_text_box(float(_text_box.position.y), float(Gen2Screen.HEIGHT))
+		return
+	var per_pixel: float = float(_screen_rect.size.y) / float(Gen2Screen.HEIGHT)
 	_rig.pan_for_text_box(
-		0 if rect.size.y <= 0 else rect.position.y, Gen2Screen.HEIGHT
+		float(_screen_rect.position.y) + float(_text_box.position.y) * per_pixel,
+		height, per_pixel
 	)
 
 
 func set_native_size(size_pixels: Vector2i) -> void:
 	size = Vector2(size_pixels)
 	_stage.container.size = Vector2(size_pixels)
+	_apply_text_box()
+	_apply_interface_mask()
 
 
 ## The sprites registered world actors ask for, handed over once when the view
