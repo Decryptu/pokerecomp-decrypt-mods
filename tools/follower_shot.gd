@@ -34,7 +34,7 @@ const CAUGHT_AT: int = 4
 ## script has run and the player can be walked.
 const SETTLE_FRAMES: int = 60
 ## A press in a direction the player is not already facing turns them and spends
-## nothing else, which is the host's own STEP_FRAMES_TURN. It is the whole reason
+## nothing else, which is the host's own STEP_PASSES_TURN. It is the whole reason
 ## a trailing follower can be faced at all: a second press would step onto it.
 const TURN_FRAMES: int = 4
 ## The real frame the picture is taken on, well past the one the walk was staged
