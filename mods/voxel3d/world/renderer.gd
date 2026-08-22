@@ -36,6 +36,8 @@ const CameraRigScript: GDScript = preload("camera_rig.gd")
 const DioramaScript: GDScript = preload("diorama.gd")
 
 const CELL: float = 16.0
+## A graphics tile, which is what a mesh window is measured in.
+const TILE: float = 8.0
 
 ## How opaque the screen draws the FIELD of its own text box over this view.
 ##
@@ -109,6 +111,10 @@ var _chunks: Array = []
 ## their own material: see `mesher.gd:take_water`.
 var _water: Array = []
 var _tufts: Array = []
+## The ground the slice in flight will cover, in world pixels, handed to the far
+## field only when that slice is published: see `_advance_build`. Until then the
+## mesh on screen is the one the OLD hole was cut for.
+var _pending_hole := Rect2()
 
 
 func _init() -> void:
@@ -173,6 +179,7 @@ func set_time_of_day(time_of_day: int) -> void:
 	_time_of_day = clampi(time_of_day, 0, 3)
 	_actor_textures.clear()
 	_stage.set_time_of_day(_time_of_day)
+	_stage.far_field().set_time_of_day(_time_of_day)
 	# The atlas carries the palette rows, so the whole sheet moves with the clock
 	# and the geometry is not touched.
 	if _build_atlas():
@@ -306,6 +313,7 @@ func _rebuild() -> void:
 		_stage.set_terrain([])
 		_stage.set_water([])
 		_stage.set_tufts([])
+		_stage.far_field().configure(null, _time_of_day, true)
 		return
 	var tileset: int = _world.current_tileset.number
 	if _shape == null or tileset != _shape_tileset:
@@ -316,6 +324,9 @@ func _rebuild() -> void:
 	_outside = source.outside()
 	if _build_atlas():
 		_stage.set_texture(_atlas.texture)
+	# After the atlas, which is the sheet the far field draws the loaded map and
+	# its own border block with.
+	_stage.far_field().configure(_world, _time_of_day, _outside, _atlas)
 	_stage.set_time_of_day(_time_of_day)
 	# Resolved once per map, emitted per window: what a tile is and how tall it
 	# stands is a fact about the map, and measuring it through the window would
@@ -360,6 +371,7 @@ func _recentre_window() -> void:
 
 ## Starts a sliced build of [param window], and finishes it in `_process`.
 func _begin_terrain(window: Rect2i) -> void:
+	_pending_hole = _hole_pixels(window)
 	_chunks = []
 	_water = []
 	_tufts = []
@@ -367,6 +379,7 @@ func _begin_terrain(window: Rect2i) -> void:
 		_stage.set_terrain([])
 		_stage.set_water([])
 		_stage.set_tufts([])
+		_stage.far_field().set_hole(Rect2())
 		_standing = false
 		return
 	_building = true
@@ -386,6 +399,7 @@ func _advance_build() -> void:
 	# at, because a half-built map swapped in over a whole one is a hole opening
 	# in the middle of the frame rather than a map arriving.
 	if done or not _standing:
+		_stage.far_field().set_hole(_pending_hole)
 		_stage.set_terrain(_chunks)
 		_stage.set_water(_water)
 		_stage.set_tufts(_tufts)
@@ -408,6 +422,21 @@ func _frame_camera() -> void:
 	# the frame without the horizon swinging.
 	var pan: Vector3 = _rig.pan()
 	_stage.aim_camera(here + pan + _rig.offset(), here + pan)
+	# After the aim, because where the eye looks is what decides which maps out
+	# there are worth drawing at all.
+	_stage.advance_far_field(here + pan)
+
+
+## The ground the mesh covers, in WORLD PIXELS, which the far field leaves
+## alone. An empty window is FULL distance, where the mesh emits everything it
+## has: the map, its border ring and the skirt past that.
+func _hole_pixels(window: Rect2i) -> Rect2:
+	var bounds: Rect2i = _mesher.drawn_bounds_tiles()
+	if window.size.x > 0 and window.size.y > 0:
+		bounds = bounds.intersection(window)
+	if bounds.size.x <= 0 or bounds.size.y <= 0:
+		return Rect2()
+	return Rect2(Vector2(bounds.position) * TILE, Vector2(bounds.size) * TILE)
 
 
 ## The committed cell plus any in-flight step, so the view eases into a new cell
@@ -458,9 +487,40 @@ func _rebuild_actors() -> void:
 				entry["sprite"], 0, int(entry["facing"]), int(entry["frame"]),
 				entry["position_cells"], entry.get("colors", PackedColorArray())
 			)
+	_add_connected_actors()
 	_add_encounter_pulse()
 	_stage.end_cards()
 	_stage.end_shadow_casters()
+
+
+## How far a person on the map next door is drawn from, in world pixels. Past
+## this they are a pixel in the haze and the card costs the same as one in front
+## of you.
+const CONNECTED_REACH: float = 2400.0
+
+
+## The people standing on the maps around this one.
+##
+## The host places them and marks them inert: `ReadObjectEvents` fills
+## `wMapObjects` from the loaded map alone, so on the cartridge a connected
+## map's people do not exist until its own load builds them. They take no step,
+## run no script, answer no collision and are not talked to. They are drawn
+## because the 2D view draws them and two views of one world have to agree about
+## what is standing over there.
+##
+## Feature-detected: `api_version` gates a mod built for an older host, not a
+## host older than the mod, so this is the mod's to check.
+func _add_connected_actors() -> void:
+	if _world == null or not _outside \
+			or not _world.has_method(&"connected_map_objects"):
+		return
+	var here: Vector2 = _world.player_position_cells() * CELL
+	for entry: Dictionary in _world.connected_map_objects():
+		var object: Gen2WorldObject = entry["object"]
+		var cells := Vector2(object.cell + (entry["offset"] as Vector2i))
+		if here.distance_squared_to(cells * CELL) > CONNECTED_REACH * CONNECTED_REACH:
+			continue
+		_add_actor(object.sprite, object.palette, object.facing, object.frame, cells)
 
 
 func _add_actor(

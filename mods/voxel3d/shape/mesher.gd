@@ -618,6 +618,20 @@ func size_tiles() -> Vector2i:
 	return _map_size
 
 
+## All the ground this mesher will ever emit, in MAP tiles: the map, the border
+## ring around it and the skirt past that. The same box `begin_emit` clips a
+## window against, so a window is what is DRAWN and this is what COULD be.
+##
+## For a view that draws anything beyond the mesh: everything outside this is
+## ground no chunk will ever cover, and everything inside it is the mesh's own.
+## See `world/far_field.gd`.
+func drawn_bounds_tiles() -> Rect2i:
+	if _size == Vector2i.ZERO:
+		return Rect2i()
+	var out: Vector2i = _margin + Vector2i(_skirt_reach(), _skirt_reach())
+	return Rect2i(-out, _map_size + out * 2)
+
+
 ## The world x and z of a GRID tile's own corner. The grid is the map inside its
 ## border ring and the world is measured from the map's corner, so this is the
 ## one place the ring is subtracted and nothing outside this file ever sees it.

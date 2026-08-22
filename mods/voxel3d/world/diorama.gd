@@ -13,6 +13,7 @@ const Water3D: GDScript = preload("water.gd")
 const Wind3D: GDScript = preload("wind.gd")
 const Frame3D: GDScript = preload("frame.gd")
 const Motes3D: GDScript = preload("motes.gd")
+const FarField3D: GDScript = preload("far_field.gd")
 
 const CELL: float = 16.0
 
@@ -75,6 +76,33 @@ const AMBIENT_ENERGY: float = 0.28
 const FAR_DEFAULT: float = 8000.0
 const SHADOW_DISTANCE_DEFAULT: float = 600.0
 
+## AERIAL PERSPECTIVE, in world pixels, and the one thing that lets a flat far
+## field read as distance rather than as a page laid down beside the diorama.
+##
+## `far_field.gd` carries the ground out to the far plane, which is hundreds of
+## walk cells of 8 pixel art seen nearly edge on: minified that hard it shimmers
+## when the camera moves, and where it meets the mesh the change from voxels to a
+## flat page is a line across the picture. Both are the same fault, which is that
+## nothing in the frame said the far ground was FAR.
+##
+## Its colour is the SKY'S OWN HORIZON rather than a chosen grey, so what the
+## ground fades into is exactly what is above it and the hour carries both: see
+## `sky.gd:set_background`. Indoors there is no sky and no haze.
+##
+## BEGIN IS PAST EVERYTHING THE PLAYER IS PLAYING IN. The eye sits 190 world
+## pixels back at the default pitch and frames about sixteen walk cells, so a
+## haze starting at nine hundred cannot touch the map being walked on even at the
+## lowest camera; what it reaches is the far field and the outer edge of a FULL
+## distance mesh.
+const HAZE_BEGIN: float = 1400.0
+const HAZE_END: float = 5200.0
+## Squared rather than linear, so the near half of the ramp is nearly nothing and
+## the fade gathers where the detail is smallest.
+const HAZE_CURVE: float = 2.0
+## Not to nothing: the far ground keeps a fifth of itself at the horizon, which
+## is what leaves a coastline readable out there instead of a band of sky.
+const HAZE_DENSITY: float = 0.85
+
 var container: SubViewportContainer = null
 var viewport: SubViewport = null
 var camera: Camera3D = null
@@ -103,6 +131,11 @@ var _models: Array[MultiMeshInstance3D] = []
 var _time_of_day: int = Gen2WorldPalette.TIME_MORNING
 var _motes: RefCounted = null
 var _motes_node: MultiMeshInstance3D = null
+## The ground past the mesh: see `far_field.gd`. Only the overworld hands it a
+## world, because a battle is staged inside the window it stands in.
+var _far: RefCounted = null
+## How far the eye is allowed to see, which the far field is laid out against.
+var _reach: float = FAR_DEFAULT
 
 
 func _init() -> void:
@@ -128,6 +161,17 @@ func _init() -> void:
 	_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	_environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	_environment.ambient_light_energy = AMBIENT_ENERGY
+	# AERIAL PERSPECTIVE: see HAZE_BEGIN. Its colour is the sky's own and moves
+	# with the hour, so it is set with the background rather than here.
+	_environment.fog_mode = Environment.FOG_MODE_DEPTH
+	_environment.fog_depth_begin = HAZE_BEGIN
+	_environment.fog_depth_end = HAZE_END
+	_environment.fog_depth_curve = HAZE_CURVE
+	_environment.fog_density = HAZE_DENSITY
+	# The ramp overhead is painted per hour off the map's own background colour
+	# and is already the thing the haze fades TO; tinting it by itself would only
+	# flatten it.
+	_environment.fog_sky_affect = 0.0
 	holder.environment = _environment
 	viewport.add_child(holder)
 	# The dither cell is screen pixels, so the sky has to be told what the frame
@@ -169,6 +213,9 @@ func _init() -> void:
 
 	actors = Node3D.new()
 	viewport.add_child(actors)
+
+	_far = FarField3D.new()
+	viewport.add_child(_far.root)
 
 	# The drifting leaves and the fireflies. Last in, and one node: see
 	# `motes.gd` for why this is the only invented thing in the frame.
@@ -228,9 +275,27 @@ func set_view_distance(pixels: float) -> void:
 	if pixels <= 0.0:
 		camera.far = FAR_DEFAULT
 		_light.directional_shadow_max_distance = SHADOW_DISTANCE_DEFAULT
+		_reach = FAR_DEFAULT
 		return
-	camera.far = minf(FAR_DEFAULT, pixels * 2.0)
+	# THE FAR PLANE NO LONGER FOLLOWS THE WINDOW, because the ground carries on
+	# past it: cutting the view at twice the window was right when there was
+	# nothing out there but sky, and now it would cut the horizon off instead.
+	# The window still decides what the SUN is asked for, which is the half of a
+	# draw distance that actually pays.
+	camera.far = FAR_DEFAULT
 	_light.directional_shadow_max_distance = minf(SHADOW_DISTANCE_DEFAULT, pixels)
+	_reach = FAR_DEFAULT
+
+
+## The ground past the mesh, or none for a battle. See `far_field.gd`.
+func far_field() -> RefCounted:
+	return _far
+
+
+## Lays the far field out under this frame's camera. Called after the camera is
+## aimed, since where it stands is what decides which maps are worth drawing.
+func advance_far_field(focus: Vector3) -> void:
+	_far.advance(focus, _reach)
 
 
 ## The terrain, as one instance per CHUNK.
@@ -350,6 +415,10 @@ func set_texture(texture: Texture2D) -> void:
 ## makes a ramp of it, and out of doors is the only place a ramp belongs.
 func set_background(color: Color, outside: bool = true) -> void:
 	_sky.set_background(color, outside)
+	# The haze fades the ground into the sky, so it is the sky that says what
+	# colour it is, and a room has neither.
+	_environment.fog_enabled = outside
+	_environment.fog_light_color = _sky.horizon
 	# A room has no sky to take its colour from, and so takes no hour either.
 	_frame.set_outside(outside)
 	_water_shader.set_sky(_sky.horizon, _sky.zenith)
