@@ -275,20 +275,25 @@ func set_flash(maps: Variant) -> void:
 ## the shadow pass is held to the same reach: shadows are cast per frame, so
 ## asking for them across a route no view distance is drawing is the part of a
 ## draw distance that actually pays.
-func set_view_distance(pixels: float) -> void:
+## [param horizon] is whether anything is drawn past the window, which is the
+## overworld and not a battle: see `far_field.gd`.
+##
+## THE FAR PLANE FOLLOWS THE WINDOW ONLY WHERE THERE IS NOTHING BEHIND IT.
+## Cutting the view at twice the window was right when the world ended at the
+## mesh, and over a far field it would cut the horizon off instead. A battle has
+## no far field and keeps the near plane it always had, which is worth keeping:
+## a small scene under an 8000 unit far plane spends its depth buffer on empty
+## space. The window decides what the SUN is asked for either way, which is the
+## half of a draw distance that actually pays.
+func set_view_distance(pixels: float, horizon: bool = false) -> void:
 	if pixels <= 0.0:
 		camera.far = FAR_DEFAULT
 		_light.directional_shadow_max_distance = SHADOW_DISTANCE_DEFAULT
 		_reach = FAR_DEFAULT
 		return
-	# THE FAR PLANE NO LONGER FOLLOWS THE WINDOW, because the ground carries on
-	# past it: cutting the view at twice the window was right when there was
-	# nothing out there but sky, and now it would cut the horizon off instead.
-	# The window still decides what the SUN is asked for, which is the half of a
-	# draw distance that actually pays.
-	camera.far = FAR_DEFAULT
+	camera.far = FAR_DEFAULT if horizon else minf(FAR_DEFAULT, pixels * 2.0)
 	_light.directional_shadow_max_distance = minf(SHADOW_DISTANCE_DEFAULT, pixels)
-	_reach = FAR_DEFAULT
+	_reach = camera.far
 
 
 ## How many window pixels the 3D pass draws one of.

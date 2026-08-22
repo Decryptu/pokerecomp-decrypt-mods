@@ -365,7 +365,7 @@ func _recentre_window() -> void:
 		return
 	_window_centre = at
 	var span: int = _draw_cells * 2 + 1
-	_stage.set_view_distance(float(_draw_cells) * CELL)
+	_stage.set_view_distance(float(_draw_cells) * CELL, true)
 	_begin_terrain(Rect2i(
 		(at - Vector2i(_draw_cells, _draw_cells)) * RomLayout.MAP_BLOCK_CELL_WIDTH,
 		Vector2i(span, span) * RomLayout.MAP_BLOCK_CELL_WIDTH
