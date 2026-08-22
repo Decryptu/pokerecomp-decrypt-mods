@@ -50,18 +50,30 @@ const RESET: StringName = &"reset"
 ## zoom on the shoulders. A default already bound to one of the eight is dropped
 ## by the host and reported, which is how the W and S this file used to read
 ## would have been caught the day they were written.
+##
+## ZOOM AND RECENTRE ARE THE HOST'S OWN KEYS, deliberately: `=`, `+`, the keypad
+## plus and the wheel zoom in, `-` and the keypad minus zoom out, `0` recentres,
+## which is what `Gen2WorldScreen` binds for a view drawing into the hardware
+## buffer. This view declines that buffer, so the screen never claims those
+## events and they arrive here as actions instead ([method
+## Gen2WorldScreen._handle_zoom]). One key means one thing whichever view is up,
+## which is the whole point: a player switching with `V` is not learning a second
+## keyboard. DOLLY has no counterpart over there and takes the freed E and Q.
 const ACTIONS: Array[Dictionary] = [
 	{
 		"key": ZOOM_IN, "label": "Zoom in",
 		"default": [
-			{"kind": &"key", "code": KEY_E},
+			{"kind": &"key", "code": KEY_EQUAL},
+			{"kind": &"key", "code": KEY_PLUS},
+			{"kind": &"key", "code": KEY_KP_ADD},
 			{"kind": &"pad_button", "code": JOY_BUTTON_RIGHT_SHOULDER},
 		],
 	},
 	{
 		"key": ZOOM_OUT, "label": "Zoom out",
 		"default": [
-			{"kind": &"key", "code": KEY_Q},
+			{"kind": &"key", "code": KEY_MINUS},
+			{"kind": &"key", "code": KEY_KP_SUBTRACT},
 			{"kind": &"pad_button", "code": JOY_BUTTON_LEFT_SHOULDER},
 		],
 	},
@@ -95,16 +107,17 @@ const ACTIONS: Array[Dictionary] = [
 	},
 	{
 		"key": DOLLY_OUT, "label": "Pull back",
-		"default": [{"kind": &"key", "code": KEY_MINUS}],
+		"default": [{"kind": &"key", "code": KEY_Q}],
 	},
 	{
 		"key": DOLLY_IN, "label": "Push in",
-		"default": [{"kind": &"key", "code": KEY_EQUAL}],
+		"default": [{"kind": &"key", "code": KEY_E}],
 	},
 	{
 		"key": RESET, "label": "Recentre the camera",
 		"default": [
-			{"kind": &"key", "code": KEY_O},
+			{"kind": &"key", "code": KEY_0},
+			{"kind": &"key", "code": KEY_KP_0},
 			{"kind": &"pad_button", "code": JOY_BUTTON_RIGHT_STICK},
 		],
 	},

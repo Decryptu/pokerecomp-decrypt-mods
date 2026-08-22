@@ -735,7 +735,8 @@ func _rebuild_actors() -> void:
 		_add_actor(
 			object.sprite, object.palette, object.facing, object.frame,
 			Vector2(object.cell) + object.step_offset_cells(), PackedColorArray(),
-			object.height_offset_pixels()
+			object.height_offset_pixels(),
+			object.emote_id if object.emote_visible else Gen2WorldActors.EMOTE_NONE
 		)
 	_add_actor(
 		_world.player_sprite(), _world.player_palette(),
@@ -750,7 +751,8 @@ func _rebuild_actors() -> void:
 		for entry: Dictionary in _mod_actors.sprites():
 			_add_actor(
 				entry["sprite"], 0, int(entry["facing"]), int(entry["frame"]),
-				entry["position_cells"], entry.get("colors", PackedColorArray())
+				entry["position_cells"], entry.get("colors", PackedColorArray()),
+				0.0, int(entry.get("emote", Gen2WorldActors.EMOTE_NONE))
 			)
 	if _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
 		_add_connected_actors()
@@ -800,16 +802,89 @@ func _add_connected_actors() -> void:
 
 func _add_actor(
 	sprite: Gen2WorldSprite, palette: int, facing: int, frame: int, cells: Vector2,
-	colors: PackedColorArray = PackedColorArray(), height_offset: float = 0.0
+	colors: PackedColorArray = PackedColorArray(), height_offset: float = 0.0,
+	emote: int = Gen2WorldActors.EMOTE_NONE
 ) -> void:
 	var texture: Texture2D = _actor_texture(sprite, palette, facing, frame, colors)
 	if texture != null:
 		var ground: Vector3 = _ground(cells)
-		_stage.add_standing_card(texture, _actor_position(ground, height_offset))
+		var stood: Vector3 = _actor_position(ground, height_offset)
+		_stage.add_standing_card(texture, stood)
 		# The same drawing again, at the same size, for the sun alone: an actor
 		# turns to the camera and cannot be its own caster. A jumping actor's
 		# shadow stays on the ground, which is why the offset is not applied here.
 		_stage.add_shadow_caster(texture, ground, 1.0)
+		_add_emote(emote, stood)
+
+
+## `SpawnEmote`'s bubble over whoever asked for one, which out here is a card of
+## its own standing where the tile page puts it.
+##
+## THE FLAT VIEW PUTS IT TWO ROWS ABOVE THE SPRITE, `MovementFunction_Emote`'s
+## own `-2 * TILE_WIDTH`, and a drawing is two rows tall, so the bubble's middle
+## sits a tile and a half over the ground the drawing stands on. It rides the
+## jump offset with the drawing and casts nothing: it is a speech bubble, not a
+## thing in the world, and a shadow of one on the grass is a hole in the joke.
+const EMOTE_SIDE: int = 2 * Gen2Tiles.TILE_WIDTH
+## A drawing is EMOTE_SIDE tall and the bubble is the band above it, so the
+## bubble's middle is one and a half of them over the ground.
+const EMOTE_CENTRE: float = 1.5 * EMOTE_SIDE
+
+
+func _add_emote(emote: int, stood: Vector3) -> void:
+	if emote == Gen2WorldActors.EMOTE_NONE:
+		return
+	var texture: Texture2D = _emote_texture(emote)
+	if texture == null:
+		return
+	_stage.add_centred_card(texture, stood + Vector3(0.0, EMOTE_CENTRE, 0.0))
+
+
+## The four tiles of one emote sheet as one 16x16 drawing.
+##
+## THE FIELD AROUND THE BUBBLE IS COLOUR 0 AND THE FIELD INSIDE IT IS NOT, which
+## is why this is a straight blit and not a cutout the way a battle pic needs:
+## these are OBJECTS, and colour 0 is what OAM makes transparent, so the paper
+## the heart is drawn on stays paper and everything past the bubble's outline
+## goes. Cut every white instead and the bubble is a floating outline.
+func _emote_texture(emote: int) -> Texture2D:
+	if _world == null or _world.data == null \
+			or emote < 0 or emote >= RomLayout.EMOTE_NAMES.size():
+		return null
+	var key: String = "e%d:%d" % [emote, _time_of_day]
+	if _actor_textures.has(key):
+		return _actor_textures[key]
+	var sheet: Dictionary = _world.data.overworld_effect(RomLayout.EMOTE_NAMES[emote])
+	if sheet.is_empty():
+		return null
+	var tiles: int = int(sheet.get("tiles", 0))
+	var indices: PackedByteArray = sheet.get("indices", PackedByteArray())
+	if tiles < 4 or indices.size() < tiles * Gen2Tiles.TILE_PIXELS:
+		return null
+	# The bubbles wear one of the map's own sprite palettes, PAL_OW_EMOTE; only
+	# the heal machine brings colours of its own, and it is not an emote.
+	var palette: PackedColorArray = sheet.get("colors", PackedColorArray())
+	if palette.is_empty():
+		palette = _world.data.overworld_sprite_palette(
+			Gen2WorldEffects.PAL_OW_EMOTE, _time_of_day
+		)
+	var image := Image.create_empty(EMOTE_SIDE, EMOTE_SIDE, false, Image.FORMAT_RGBA8)
+	var width: int = tiles * Gen2Tiles.TILE_WIDTH
+	for tile: int in 4:
+		var left: int = (tile & 1) * Gen2Tiles.TILE_WIDTH
+		var top: int = (tile >> 1) * Gen2Tiles.TILE_HEIGHT
+		for y: int in Gen2Tiles.TILE_HEIGHT:
+			for x: int in Gen2Tiles.TILE_WIDTH:
+				var index: int = int(indices[y * width + tile * Gen2Tiles.TILE_WIDTH + x])
+				if index == 0:
+					continue
+				image.set_pixel(
+					left + x, top + y,
+					palette[index] if index < palette.size() else Color.MAGENTA
+				)
+	var texture: Texture2D = ImageTexture.create_from_image(image)
+	_actor_textures[key] = texture
+	return texture
 
 
 ## The host's jump offset is already in world pixels, the same unit as this

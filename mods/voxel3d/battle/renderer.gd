@@ -133,7 +133,7 @@ func _init() -> void:
 		backing.set_meta(&"tiles", panel)
 		add_child(backing)
 		_panels_backing.append(backing)
-	for index: int in 4:
+	for index: int in HUD_LAYERS:
 		var layer := TextureRect.new()
 		# Nearest, or the hardware pixels stop being square on the last hop.
 		layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -430,11 +430,63 @@ func _frame_stretch() -> float:
 ## the hardware's own picture slots, so nothing here can wander under a panel or
 ## the text box.
 ##
-## `player_pic_visible` is the cartridge's own answer for the stretch before the
-## back picture is placed. There is no intro slide out here, but honouring it is
-## what keeps the player's Pokemon off the field until it has been sent out.
+## WHAT STANDS ON EACH SQUARE IS THE HOST'S ANSWER, not this view's guess. See
+## [method _place_entrance]; a view built by a probe or a tool carries no
+## entrance and takes the settled pair.
 func _place_battlers() -> void:
 	_stage.begin_shadow_casters()
+	var entrance: Variant = _view.get("entrance", null)
+	var slot: int = _place_entrance(entrance as Dictionary) \
+		if entrance is Dictionary else _place_settled()
+	for index: int in range(slot, _battlers.size()):
+		_battlers[index].visible = false
+	_stage.end_shadow_casters()
+
+
+## THE FIGHT DOES NOT OPEN WITH TWO POKEMON ON THE FIELD, and for one release
+## this view opened with exactly that: `player_species` was drawn from the first
+## frame it was handed, so both animals were standing there through an entrance
+## in which neither has been sent out yet.
+##
+## Two TRAINERS slide in from opposite sides, the opponent sends out first, the
+## player's own picture walks off, and a ball puts a Pokemon where each was
+## standing. `view["entrance"]` is that state resolved for a renderer with no
+## background plane to read it off: what each square holds, and how far the
+## picture on it stands from its resting place. See `docs/MODS.md` in pokerecomp.
+##
+## The displacement is spent in HARDWARE pixels across the screen rather than as
+## a walk over the ground, and deliberately: the cartridge slides a picture, not
+## a person, and a card pinned to its patch of ground is already drawn in that
+## unit. So the slide is the cartridge's own, at whatever size the window is.
+##
+## The opponent standing behind their Pokemon for the rest of the fight is this
+## view's own staging and stays. It waits for the send-out: during the entrance
+## the class picture is on the square the Pokemon will take, which is where the
+## cartridge puts it and what the walk-off leaves empty.
+func _place_entrance(entrance: Dictionary) -> int:
+	var enemy: Dictionary = entrance.get("enemy", {})
+	var player: Dictionary = entrance.get("player", {})
+	var slot: int = 0
+	if StringName(enemy.get("kind", ENTRANCE_NONE)) == ENTRANCE_MON \
+			and StringName(_view.get("battle_kind", &"wild")) == &"trainer":
+		slot = _pin(
+			slot, _trainer_pic(int(_view.get("trainer_class", 0))),
+			_arena.enemy_trainer_ground()
+		)
+	slot = _pin(
+		slot, _entrance_pic(enemy, false), _arena.enemy_ground(),
+		Vector2(enemy.get("offset_pixels", Vector2.ZERO))
+	)
+	return _pin(
+		slot, _entrance_pic(player, true), _arena.player_ground(),
+		Vector2(player.get("offset_pixels", Vector2.ZERO))
+	)
+
+
+## Both Pokemon on their squares and the opponent behind theirs, which is every
+## frame of a fight past its entrance and the whole of what a hand-built view
+## from `tools/battle_shot.gd` ever asks for.
+func _place_settled() -> int:
 	var slot: int = 0
 	if StringName(_view.get("battle_kind", &"wild")) == &"trainer":
 		slot = _pin(
@@ -442,11 +494,45 @@ func _place_battlers() -> void:
 			_arena.enemy_trainer_ground()
 		)
 	slot = _pin(slot, _pic(int(_view.get("enemy_species", 0)), false), _arena.enemy_ground())
-	if bool(_view.get("player_pic_visible", true)):
-		slot = _pin(slot, _pic(int(_view.get("player_species", 0)), true), _arena.player_ground())
-	for index: int in range(slot, _battlers.size()):
-		_battlers[index].visible = false
-	_stage.end_shadow_casters()
+	return _pin(slot, _pic(int(_view.get("player_species", 0)), true), _arena.player_ground())
+
+
+## What one side's square holds. `none` is the stretch between a trainer walking
+## off and the ball arriving, and it is a state only the opponent's side reaches
+## at a frame boundary: `SendOutMonText` ends in `done`, so the player's last
+## slide column and the stamp land in one frame.
+const ENTRANCE_NONE: StringName = &"none"
+const ENTRANCE_TRAINER: StringName = &"trainer"
+const ENTRANCE_MON: StringName = &"mon"
+
+
+func _entrance_pic(side: Dictionary, back: bool) -> Texture2D:
+	match StringName(side.get("kind", ENTRANCE_NONE)):
+		ENTRANCE_MON:
+			return _pic(int(side.get("species", 0)), back)
+		ENTRANCE_TRAINER:
+			if back:
+				return _backpic(String(side.get("backpic", "")))
+			return _trainer_pic(int(side.get("trainer_class", 0)))
+	return null
+
+
+## The player's own picture, which is a person and not a species: `chris`,
+## `kris` or the catching tutorial's `dude`.
+##
+## The colours are a field of their own, because the Dude has none: the
+## cartridge draws him in the player's, which is what `player_backpic_palette`
+## carries and why it is not simply the pic's own name.
+func _backpic(kind: String) -> Texture2D:
+	if _data == null or kind.is_empty():
+		return null
+	var colors: String = String(_view.get("player_backpic_palette", kind))
+	var dmg: int = _palette_map(PAL_BG_PLAYER)
+	return _texture(
+		"b%s:%s:%d" % [kind, colors, dmg],
+		_data.player_backpic(kind),
+		_remap(_data.player_palette(colors), dmg),
+	)
 
 
 ## One picture standing on [param ground], its feet at that point and its middle
@@ -457,7 +543,14 @@ func _place_battlers() -> void:
 ## 3D view. Both layers are centred on the same window and the rig frames the
 ## same world height, so a battler landing on its ground point is also landing in
 ## the hardware slot the rig was solved for.
-func _pin(slot: int, texture: Texture2D, ground: Vector3) -> int:
+## [param offset] is how far the picture stands from that patch, in hardware
+## pixels across the screen, which is zero for every frame outside an entrance.
+## A picture part way off the field casts NOTHING: the sun sees a card standing
+## on the ground, and a shadow sliding across the arena under a picture that is
+## not standing on it yet is the slide made literal.
+func _pin(
+	slot: int, texture: Texture2D, ground: Vector3, offset: Vector2 = Vector2.ZERO
+) -> int:
 	if texture == null:
 		return slot
 	var at: Vector2 = _stage.camera.unproject_position(ground)
@@ -465,9 +558,10 @@ func _pin(slot: int, texture: Texture2D, ground: Vector3) -> int:
 	var rect: TextureRect = _battler(slot)
 	rect.texture = texture
 	rect.size = drawn
-	rect.position = at - Vector2(drawn.x * 0.5, drawn.y)
+	rect.position = at - Vector2(drawn.x * 0.5, drawn.y) + offset * float(_hud_scale())
 	rect.visible = true
-	_stage.add_shadow_caster(texture, ground, _caster_scale(ground, texture.get_height()))
+	if offset.is_zero_approx():
+		_stage.add_shadow_caster(texture, ground, _caster_scale(ground, texture.get_height()))
 	return slot + 1
 
 
@@ -693,49 +787,74 @@ func _field(pixels: PackedByteArray, width: int, height: int) -> PackedByteArray
 ##
 ## `hud_visible` is false for the length of a move animation, which is
 ## `BattleAnimClearHud` taking all four off the map.
+##
+## THE TWO PANELS ARRIVE ONE AT A TIME, which is why each has a layer of its own
+## rather than sharing one buffer: an entrance puts the opponent's panel up when
+## it sends out and the player's only once the ball has landed, and drawing both
+## names into one picture makes that impossible to say. `enemy_hud_visible` and
+## `player_hud_visible` are the host's answer per side, against `hud_visible`'s
+## summary of both. A view carrying neither is a settled fight and takes both,
+## which is what a hand-built one from `tools/battle_shot.gd` wants.
+const HUD_ENEMY_PANEL: int = 0
+const HUD_PLAYER_PANEL: int = 1
+const HUD_ENEMY_BAR: int = 2
+const HUD_PLAYER_BAR: int = 3
+const HUD_EXP_BAR: int = 4
+const HUD_LAYERS: int = 5
+
+
 func _draw_hud() -> void:
 	if _hud == null:
 		return
-	if not bool(_view.get("hud_visible", true)):
-		for layer: TextureRect in _hud_layers:
-			layer.texture = null
-		for backing: ColorRect in _panels_backing:
-			backing.visible = false
-		return
-	for backing: ColorRect in _panels_backing:
-		backing.visible = true
+	var up: bool = bool(_view.get("hud_visible", true))
+	var enemy_up: bool = up and bool(_view.get("enemy_hud_visible", true))
+	var player_up: bool = up and bool(_view.get("player_hud_visible", true))
+	_panels_backing[0].visible = enemy_up
+	_panels_backing[1].visible = player_up
 
 	var enemy_hp: int = int(_view.get("enemy_hp", 0))
 	var enemy_max_hp: int = int(_view.get("enemy_max_hp", 0))
 	var player_hp: int = int(_view.get("player_hp", 0))
 	var player_max_hp: int = int(_view.get("player_max_hp", 0))
-
-	var panels: PackedByteArray = _buffer()
-	_hud.draw_enemy(
-		panels, Gen2Screen.WIDTH, String(_view.get("enemy_name", "")),
-		int(_view.get("enemy_level", 0))
+	var ink: PackedColorArray = Gen2Palette.pic_palette(
+		PackedColorArray([Color.WHITE, Color.BLACK])
 	)
-	_hud.draw_player(
-		panels, Gen2Screen.WIDTH, String(_view.get("player_name", "")),
-		int(_view.get("player_level", 0)), player_hp, player_max_hp
-	)
-	_show(0, panels, Gen2Palette.pic_palette(PackedColorArray([Color.WHITE, Color.BLACK])))
 
-	var enemy_bar: PackedByteArray = _buffer()
-	_hud.draw_hp_bar(
-		enemy_bar, Gen2Screen.WIDTH, Gen2BattleHud.ENEMY_BAR, enemy_hp, enemy_max_hp
-	)
-	_show(1, enemy_bar, _hp_palette(enemy_hp, enemy_max_hp))
+	if enemy_up:
+		var panel: PackedByteArray = _buffer()
+		_hud.draw_enemy(
+			panel, Gen2Screen.WIDTH, String(_view.get("enemy_name", "")),
+			int(_view.get("enemy_level", 0))
+		)
+		_show(HUD_ENEMY_PANEL, panel, ink)
+		var enemy_bar: PackedByteArray = _buffer()
+		_hud.draw_hp_bar(
+			enemy_bar, Gen2Screen.WIDTH, Gen2BattleHud.ENEMY_BAR, enemy_hp, enemy_max_hp
+		)
+		_show(HUD_ENEMY_BAR, enemy_bar, _hp_palette(enemy_hp, enemy_max_hp))
+	else:
+		_hud_layers[HUD_ENEMY_PANEL].texture = null
+		_hud_layers[HUD_ENEMY_BAR].texture = null
 
-	var player_bar: PackedByteArray = _buffer()
-	_hud.draw_hp_bar(
-		player_bar, Gen2Screen.WIDTH, Gen2BattleHud.PLAYER_BAR, player_hp, player_max_hp
-	)
-	_show(2, player_bar, _hp_palette(player_hp, player_max_hp))
-
-	var gained: PackedByteArray = _buffer()
-	_hud.draw_exp_bar(gained, Gen2Screen.WIDTH, int(_view.get("exp_pixels", 0)))
-	_show(3, gained, _data.bar_palette("exp"))
+	if player_up:
+		var panel: PackedByteArray = _buffer()
+		_hud.draw_player(
+			panel, Gen2Screen.WIDTH, String(_view.get("player_name", "")),
+			int(_view.get("player_level", 0)), player_hp, player_max_hp
+		)
+		_show(HUD_PLAYER_PANEL, panel, ink)
+		var player_bar: PackedByteArray = _buffer()
+		_hud.draw_hp_bar(
+			player_bar, Gen2Screen.WIDTH, Gen2BattleHud.PLAYER_BAR, player_hp, player_max_hp
+		)
+		_show(HUD_PLAYER_BAR, player_bar, _hp_palette(player_hp, player_max_hp))
+		var gained: PackedByteArray = _buffer()
+		_hud.draw_exp_bar(gained, Gen2Screen.WIDTH, int(_view.get("exp_pixels", 0)))
+		_show(HUD_EXP_BAR, gained, _data.bar_palette("exp"))
+	else:
+		_hud_layers[HUD_PLAYER_PANEL].texture = null
+		_hud_layers[HUD_PLAYER_BAR].texture = null
+		_hud_layers[HUD_EXP_BAR].texture = null
 
 
 ## THE MOVE ANIMATION, over everything. `anim.gd` turns the view's OAM into one
