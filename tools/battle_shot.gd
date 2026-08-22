@@ -15,7 +15,13 @@ extends SceneTree
 ##   Godot --path <pokerecomp> -s tools/battle_shot.gd -- <cache> <group> \
 ##       <number> <cell x> <cell y> <out.png> [facing 0-3] [time 0-3] \
 ##       [player species] [enemy species] [hold frames] [hp 0-1] \
-##       [anim index] [anim frame] [enemy turn 0-1] [background half 0-1]
+##       [anim index] [anim frame] [enemy turn 0-1] [background half 0-1] \
+##       [entrance]
+##
+## AN ENTRANCE IS A MOMENT, not a frame count: `slide` is both pictures part way
+## in, `stand` is both standing, `walkoff` is the player's picture leaving with
+## the opponent's Pokemon already out, and `sent` is the stretch with the
+## opponent's square empty. See [method _entrance].
 ##
 ## A MOVE ANIMATION IS RUN HEADLESS rather than mocked up, which is what makes
 ## open work 7 checkable at all. `Gen2BattleAnimPlayer` is the cartridge's own
@@ -56,7 +62,7 @@ func _initialize() -> void:
 		print("usage: <cache> <group> <number> <cell x> <cell y> <out.png>"
 			+ " [facing 0-3] [time 0-3] [player species] [enemy species]"
 			+ " [hold frames] [hp 0-1] [anim index] [anim frame]"
-			+ " [enemy turn 0-1] [background half 0-1]")
+			+ " [enemy turn 0-1] [background half 0-1] [entrance]")
 		quit(1)
 		return
 	var data: GameData = GameData.open_directory(args[0])
@@ -113,11 +119,28 @@ func _initialize() -> void:
 		"player_level": 9,
 		"player_hp": int(round(27.0 * share)),
 		"player_max_hp": 27,
-		"player_pic_visible": true,
 		"hud_visible": true,
 		"exp_pixels": 20,
 	}
 	_hold = maxi(int(args[10]) if args.size() > 10 else 12, 2)
+
+	var moment: String = args[16] if args.size() > 16 else ""
+	if not moment.is_empty():
+		var entrance: Dictionary = _entrance(moment, data)
+		if entrance.is_empty():
+			print("no entrance moment ", moment)
+			quit(1)
+			return
+		_view["entrance"] = entrance
+		_view["battle_kind"] = &"trainer"
+		_view["trainer_class"] = TRAINER_CLASS
+		_view["player_backpic_palette"] = PLAYER_BACKPIC
+		# The two panels arrive with the Pokemon they describe, so neither is up
+		# while a trainer is still standing on the square.
+		_view["enemy_hud_visible"] = \
+			StringName(entrance["enemy"]["kind"]) == &"mon"
+		_view["player_hud_visible"] = \
+			StringName(entrance["player"]["kind"]) == &"mon"
 
 	var anim_index: int = int(args[12]) if args.size() > 12 else 0
 	if anim_index > 0:
@@ -127,6 +150,54 @@ func _initialize() -> void:
 			bool(int(args[14])) if args.size() > 14 else false,
 			bool(int(args[15])) if args.size() > 15 else true
 		)
+
+
+## The player's own picture, and a class to stand opposite it. Neither is read
+## off a save here: this tool builds a view rather than running a battle.
+const PLAYER_BACKPIC: String = "chris"
+const TRAINER_CLASS: int = 1
+
+
+## One named moment of `view["entrance"]`, which is `Gen2BattleScreen`'s own
+## shape. The slide's displacement comes from `Gen2BattleIntro` rather than from
+## a number chosen here, so a picture is where the cartridge would have put it.
+func _entrance(moment: String, data: GameData) -> Dictionary:
+	var trainer := {
+		"kind": &"trainer", "backpic": PLAYER_BACKPIC, "trainer_class": 0,
+		"species": 0, "offset_pixels": Vector2.ZERO,
+	}
+	var foe := {
+		"kind": &"trainer", "backpic": "", "trainer_class": TRAINER_CLASS,
+		"species": 0, "offset_pixels": Vector2.ZERO,
+	}
+	var mon := {
+		"kind": &"mon", "backpic": "", "trainer_class": 0,
+		"species": int(_view["enemy_species"]), "offset_pixels": Vector2.ZERO,
+	}
+	match moment:
+		"slide":
+			var intro: Gen2BattleIntro = Gen2BattleIntro.for_data(data)
+			for _step: int in intro.frames() / 2:
+				intro.advance_frame()
+			trainer["offset_pixels"] = Vector2(intro.player_offset(), 0.0)
+			foe["offset_pixels"] = Vector2(intro.enemy_offset(), 0.0)
+			return {"player": trainer, "enemy": foe}
+		"stand":
+			return {"player": trainer, "enemy": foe}
+		"sent":
+			return {
+				"player": trainer,
+				"enemy": {
+					"kind": &"none", "backpic": "", "trainer_class": 0,
+					"species": 0, "offset_pixels": Vector2.ZERO,
+				},
+			}
+		"walkoff":
+			trainer["offset_pixels"] = Vector2(
+				-float(Gen2Tiles.TILE_WIDTH * 4), 0.0
+			)
+			return {"player": trainer, "enemy": mon}
+	return {}
 
 
 ## Runs one of the cartridge's own move animations to a chosen frame and puts

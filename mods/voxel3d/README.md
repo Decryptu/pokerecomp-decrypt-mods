@@ -14,11 +14,17 @@ on-screen pad. The defaults:
 
 | Control | Key | Pad | Does |
 | --- | --- | --- | --- |
-| Zoom in / out | `E` / `Q`, or the wheel | shoulders | Zoom the lens, in both views |
+| Zoom in / out | `=` / `-`, or the wheel | shoulders | Zoom the lens, in both views |
 | Camera up / down | `I` / `K` | right stick | Raise and lower the camera, in both views |
 | Swing left / right | `J` / `L` | right stick | Battle: swing the shot around the arena |
-| Push in / pull back | `=` / `-` | | Overworld: move the eye |
-| Recentre | `O` | right stick press | Back to the framing the view opened at |
+| Push in / pull back | `E` / `Q` | | Overworld: move the eye |
+| Recentre | `0` | right stick press | Back to the framing the view opened at |
+
+Zoom and recentre are the keys the game already zooms the flat view with, so
+one key means one thing whichever view is up: `=` and `+` in, `-` out, `0` back
+to the default framing, the keypad's own three with them, and the wheel either
+way. Only the eye, which the flat view has no counterpart for, is this mod's
+own.
 
 Turning this view on is one choice and the host owns it: the mod's own page in
 the launcher carries a View switch, and choosing this mod there draws the
@@ -201,6 +207,29 @@ layer rather than over it.
 `Gen2BattleWorldContext` saying where the encounter happened. That is enough to
 rebuild the map from its records with the same mesher the overworld uses and
 stand the two battlers on it.
+
+### The entrance
+
+A fight does not open with two Pokemon standing on the field. Two trainers slide
+in from opposite sides, the opponent sends out first, the player's own picture
+walks off, and a ball puts a Pokemon where each was standing. The host resolves
+that for a view with no background plane to read it off, as what each square
+holds and how far the picture on it stands from its resting place, so the
+opponent's class picture and the player's own back pic stand on the map exactly
+where their Pokemon will, and the panels arrive one at a time with the Pokemon
+they describe.
+
+The slide is spent in hardware pixels across the screen rather than as a walk
+over the ground, and deliberately: the cartridge slides a picture, not a person,
+and a battler is already drawn in that unit. A picture part way off the field
+casts nothing, since the sun sees a card standing on ground it is not standing
+on yet.
+
+The opponent standing behind their Pokemon for the rest of the fight is this
+view's own staging and it waits for the send-out. Through the entrance the
+cartridge's own answer wins.
+
+### The shot
 
 The shot is a solve, not a taste. Each battler is pinned to its patch of ground
 and drawn in hardware pixels at the size the cartridge drew it, wherever that
