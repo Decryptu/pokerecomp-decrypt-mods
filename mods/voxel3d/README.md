@@ -63,9 +63,16 @@ Movement and interaction keys never reach the mod: the world screen claims what
 it needs and offers the rest, so the camera can be steered while the game is
 still played on the grid it always was.
 
+WITH THE GAME'S SCREEN FILL ON, WHICH IS ITS DEFAULT, `=`, `-` and the wheel are
+the game's own zoom and are taken before this view is offered them. That zoom is
+screen pixels per hardware pixel and there is no hardware pixel in this view, so
+the press does nothing you can see and the dolly and the lens are unreachable at
+their defaults. Until the game hands them back, bind Push in, Pull back, Zoom in
+and Zoom out to other keys in the controls card, or set Screen to Framed.
+
 ## Settings
 
-Four, in the start menu's MODS entry and on this mod's card in the launcher.
+Five, in the start menu's MODS entry and on this mod's card in the launcher.
 Both surfaces are built by the host out of one registration in `options.gd`, so
 this mod writes no settings screen. Values are per installation and not per save:
 a draw distance must not change when a slot is loaded.
@@ -73,11 +80,22 @@ a draw distance must not change when a slot is loaded.
 | Setting | Rungs | Does |
 | --- | --- | --- |
 | DISTANCE | 12, 16, 24, FULL | How far out the map is meshed, in walk cells |
+| RES | FULL, 1/2, 1/3, 1/4 | How many window pixels the 3D pass draws one of |
 | WHEEL | NORMAL, INVERTED | Which way a wheel notch zooms |
 | CAMERA | LOW, MID, HIGH | The pitch the overworld camera opens at |
 | CAMERA | RECENTRE | A press, not a rung: put the shot back the way it opened |
 
-DISTANCE is where the frame time is. The biggest map meshes whole in 39 ms of
+RES is where the frame time is on a device that cannot afford the window it was
+given. The 2D page is 160x144 whatever the window is; this view is drawn at the
+window's own pixel count, which on a phone panel is a hundred times the area
+through a shader with six fetches in it. A divisor is quadratic in all of it, so
+a half is a quarter of the work and a third a ninth: on the largest shot in the
+game, 151 MB of video memory at FULL, 92 at a half, 81 at a third. It is not a
+compromise on the art either way, because the picture is a Game Boy's own texels
+and a divisor draws them larger rather than blurrier. The default is the
+platform's: FULL on a desktop, a half on a phone or a tablet.
+
+DISTANCE is the other half of it. The biggest map meshes whole in 39 ms of
 geometry and in 13 ms at sixteen cells, for the same picture: at the default
 pitch the eye frames about sixteen cells of ground and no more. A LOW camera is
 the case that sees past a window, because its top edge runs nearly level and
@@ -93,6 +111,13 @@ culls per instance: as one mesh a map can only be accepted or rejected whole, an
 at any camera angle most of it is behind the eye. Measured on the default shot,
 about half the geometry falls outside the frustum on a town and on the largest
 route alike.
+
+The stamped models are grouped on the same grid, and that is where a filled
+window pays most: a camera 42 degrees tall on a wide window frames about a
+quarter of a circle, and one MultiMesh per drawing over the whole window has the
+window for a bounding box, so a forest went in whole whichever way the shot
+pointed. On the largest shot in the game, 5.39M triangles in 116 draws becomes
+1.26M in 166.
 
 A build is spread over frames rather than taken in one: a surveyed town is 200 ms
 of geometry, which was a visible stop on every warp. Whatever is already on
@@ -329,12 +354,59 @@ geometry at all and a route can really end in a wood. A carved drawing stays at
 one block because of what repeating it costs: a hedge bush is about 170 triangles
 a tile.
 
+THE RING IS THE MAP NEXT DOOR wherever there is one. The cartridge pads a
+connection by three blocks, which is everything a Game Boy screen could reach
+past a seam, and past that the host places the whole neighbouring map on the
+connection graph. So a ring four blocks deep reads the real map for its
+outermost block instead of repeating this one's border block: over Crystal that
+is 1977 blocks on 68 of the 77 outdoor maps, and it is the difference between a
+tree line at a seam being a skyline with gaps in it and being one flat mass of
+canopy. A neighbour on ANOTHER TILESET is refused and takes the border block,
+because its blocks are numbered in its own tileset and this mesher resolves one
+grid against one atlas; 68 blocks in the game are that.
+
 Beyond the ring the floor runs on for thirty-two tiles, so a route ends at a
 horizon instead of at a cliff of nothing and a fight staged near an edge is not
 shot against sky. That floor is the nearest flat tile inward, which is why a
 shoreline carries the water out and not the beach, and where a column meets
 nothing but structures it takes the commonest floor along the map's perimeter
 rather than leaving a hole.
+
+## And past the mesh, the region
+
+The mesh is bounded twice over: DISTANCE builds a window around the player and
+nothing outside it, and even at FULL the map ends at that skirt. On a screen the
+size of a Game Boy's, that edge was never in the frame. On one that fills the
+window, at a low camera, pulled back, it is.
+
+So past the mesh the ground carries on, flat, one quad a map, folded on the GPU
+the way the game folds its own 2D page: block byte, `$00` to the border block,
+metatile slot, tile, texel. Where those maps go is the connection graph the 2D
+view is drawn from, so the two agree about what is over the hill, and the map
+header's own border block fills whatever no map covers, out to the horizon.
+Nothing is baked, and the map you are standing on shares the sheet the tile
+animation repaints, so the flowers past the window open with the flowers inside
+it.
+
+IT IS ALSO THE LEVEL OF DETAIL, and that is the part worth having: where the
+window cuts, what carries on is the same map with its height thrown away, which
+is what a Game Boy drew in the first place. The near ground is a diorama and the
+far ground is the page it was read off. Ten draws and three thousand triangles
+on the largest shot in the game, against tens of maps of geometry for the same
+picture.
+
+The people standing on those maps are drawn with it, because the 2D view draws
+them. They are the game's own read-only copies and take no part in anything: no
+step, no script, no collision, and they cannot be talked to. On the cartridge
+they do not exist at all until their own map is loaded.
+
+AERIAL PERSPECTIVE is what makes a flat far field read as distance rather than
+as a page laid down beside the diorama. Its colour is the sky's own horizon
+rather than a chosen grey, so the ground fades into exactly what is above it and
+the hour carries both. It begins nine hundred world pixels out, which is past
+everything a player is playing in: the eye sits 190 back at the default pitch
+and frames sixteen walk cells, so at that rung the picture is pixel for pixel
+what it was. Indoors there is no sky and no haze.
 
 Out of doors only: a room ends at its walls and there is nothing past them, so
 carrying a floor out of a house would lay its lino across the void it is drawn
@@ -811,6 +883,7 @@ world/sky.gd         the banded, dithered sky and the shader that paints it
 world/water.gd       the water surface: the sky by Fresnel, the swell, the sun
 world/wind.gd        what makes grass and foliage bend, and part around a walker
 world/motes.gd       the drifting leaves and the fireflies
+world/far_field.gd   the ground past the mesh: the maps around this one, flat
 world/frame.gd       the pass over the finished picture, and the hour's tint in it
 world/camera_rig.gd  pitch, distance, lens and the ease between settings
 battle/renderer.gd   the battle Node: the arena, the battlers and the panels
