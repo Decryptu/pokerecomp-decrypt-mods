@@ -161,7 +161,7 @@ staged on the place has as much to put out there as the overworld had a frame
 earlier. Only the arena grows: the panels, the bars and the text stay hardware
 pixels in the same centred rectangle they were always laid out in.
 
-## The encounter closing
+## The encounter closing, and a warp fading
 
 `DoBattleTransition` is the one screen the cartridge draws that has no world in
 it: twenty by eighteen cells blacked out a few at a time in one of the game's
@@ -173,6 +173,18 @@ it. Before, an encounter in this view cut from the map straight to the fight.
 Repainted per cell that MOVED. A transition is two hundred frames and every one
 is a different picture; a step writes a handful of cells, and repainting all
 23040 pixels each time would be most of a frame on its own.
+
+A WARP FADES TOO, on the same pass. `FadeOutToWhite` and its four siblings walk
+four palette orders, two frames each, and the last of them takes every one of the
+background's levels to the brightest or to the darkest; before, this view cut to
+the new map on the frame the cartridge was at its whitest. A level pinned at
+either end has no colour left in it, which is where the restatement below had to
+grow a rule: adding the difference is right in the middle of the range and is not
+at the ends, where a fade to white was leaving a saturated yellow at its own hue
+because its luminance was already nearly one and the lift had nowhere to go. The
+last of the range is taken to the level flat instead. Nothing between the
+hardware's own four levels moves, and neither does any frame with no whole-screen
+effect on it.
 
 A trainer's flash is the one part with no exact answer here. `StartTrainerBattle`
 writes one background palette across the whole screen, which on the hardware

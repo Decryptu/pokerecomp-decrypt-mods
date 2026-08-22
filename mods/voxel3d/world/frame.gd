@@ -114,6 +114,12 @@ uniform bool flashing = false;
 uniform vec4 screen_uv = vec4(0.0, 0.0, 1.0, 1.0);
 uniform bool masking = false;
 
+// How near an end a curve's own level has to be before the picture is taken to
+// it flat rather than lifted toward it. A third of the gap between two of the
+// hardware's four levels, so nothing inside the range is touched and the two
+// bytes that mean "wash the screen out" arrive at white and at black.
+const float PINNED_BAND = 0.11;
+
 void fragment() {
 	COLOR = texture(TEXTURE, UV);
 	COLOR.rgb *= tint;
@@ -126,7 +132,18 @@ void fragment() {
 		float blend = at - step_index;
 		float low = flash[int(step_index)];
 		float high = flash[int(step_index) + 1];
-		COLOR.rgb = clamp(COLOR.rgb + (mix(low, high, blend) - luma), 0.0, 1.0);
+		float target = mix(low, high, blend);
+		vec3 lifted = clamp(COLOR.rgb + (target - luma), 0.0, 1.0);
+		// A LEVEL PINNED AT EITHER END HAS NO COLOUR LEFT IN IT. Adding the
+		// difference is right in the middle of the range and is not at the ends,
+		// where the hardware has one flat colour and nothing to add to: a fade to
+		// white left a saturated yellow at its own hue, since its luminance was
+		// already nearly one and the lift had nowhere to go. So the last of the
+		// range is a mix to the level itself rather than a lift toward it.
+		float pinned = clamp(
+			(PINNED_BAND - (0.5 - abs(target - 0.5))) / PINNED_BAND, 0.0, 1.0
+		);
+		COLOR.rgb = mix(lifted, vec3(target), pinned);
 	}
 	// Last, and over the flash as well: a screen that owns the picture owns the
 	// flash too. `return` is not allowed in a fragment processor here.

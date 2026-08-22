@@ -128,6 +128,10 @@ var _transition: RefCounted = null
 ## nothing else, and the two views have to agree about that.
 var _transition_sprites: int = Gen2BattleTransition.SPRITES_ALL
 var _transition_opponent: int = -1
+## The two palette orders that can be in force at once: a map or script fade,
+## and the transition's own flash. See [method _apply_flash].
+var _fade_order: int = Gen2WorldPalette.FADE_IDENTITY
+var _transition_order: int = Gen2BattleTransition.IDENTITY
 ## The ground the slice in flight will cover, in world pixels, handed to the far
 ## field only when that slice is published: see `_advance_build`. Until then the
 ## mesh on screen is the one the OLD hole was cut for.
@@ -214,18 +218,63 @@ func set_transition(
 	_transition.set_frame(
 		cells, tiles, Gen2WorldPalette.fade_palette(palette, order)
 	)
-	_stage.set_flash(_flash_bytes(order))
+	_transition_order = order
+	_apply_flash()
 
 
 func clear_transition() -> void:
 	_transition_sprites = Gen2BattleTransition.SPRITES_ALL
 	_transition_opponent = -1
 	_transition.clear()
-	_stage.set_flash(_flash_bytes(Gen2BattleTransition.IDENTITY))
+	_transition_order = Gen2BattleTransition.IDENTITY
+	_apply_flash()
+
+
+## ONE STEP OF A MAP FADE, which is the warp's own white or black and the five
+## script specials beside it. See Gen2ModHost.RENDERER_FADE_METHOD.
+##
+## The same permutation over the background's four levels the transition writes,
+## through the same pass: `FADE_OUT_ORDERS` ends at `$00`, every level taken to
+## the brightest, and `FADE_TO_BLACK_ORDERS` at `$FF`, every level to the
+## darkest, so the curve carries a fade to white and a fade to black without a
+## case for either.
+##
+## [param white_fill] is `FillWhiteBGColor`, which flattens the tile page's
+## colour 0 on the way out. A diorama has no colour 0 to flatten: it has a lit
+## picture, and the order above has already taken every level of it to white by
+## the step that runs. Nothing here to do, and reading it would only be a second
+## answer to the same question.
+func set_fade(order: int, white_fill: bool = false) -> void:
+	if order == _fade_order:
+		return
+	_fade_order = order
+	_apply_flash()
+
+
+## The two orders that can be in force at once, spent as one. The 2D view
+## composes them exactly this way in `flood_palette`: the fade first and the
+## transition over it.
+func _apply_flash() -> void:
+	_stage.set_flash(_flash_bytes(_compose_orders(_fade_order, _transition_order)))
+
+
+## Applying [param first] and then [param second], as one order. Each is a
+## permutation of the four background levels packed two bits to a level, so the
+## composition takes level i to `first[second[i]]`.
+static func _compose_orders(first: int, second: int) -> int:
+	if first == Gen2BattleTransition.IDENTITY:
+		return second
+	if second == Gen2BattleTransition.IDENTITY:
+		return first
+	var out: int = 0
+	for level: int in 4:
+		var through: int = (second >> (level * 2)) & 3
+		out |= ((first >> (through * 2)) & 3) << (level * 2)
+	return out
 
 
 ## The background palette order as the seven-entry map `frame.gd` reads, since
-## the transition writes one byte across the lot.
+## a fade and a transition each write one byte across the lot.
 static func _flash_bytes(order: int) -> PackedByteArray:
 	var out := PackedByteArray()
 	out.resize(7)
