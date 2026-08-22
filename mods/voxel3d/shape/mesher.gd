@@ -2062,8 +2062,8 @@ func _measure_surfaces() -> void:
 		var start: Vector2i = entry[1]
 		var across: Vector2i = entry[2]
 		var front: float = entry[3]
-		var base: int = _ground_art(start.x, start.y + across.y - 1).y
-		var top: int = base + int(object.get(&"rise", 0)) + int(object.get(&"height", 0))
+		var top: int = int(_object_base(object, start, across)) \
+			+ int(object.get(&"height", 0))
 		if top <= 0:
 			continue
 		# A TURNED object states no depth: it is as deep as its drawing is wide and
@@ -3071,6 +3071,7 @@ const APRON_CLASSES: Array[StringName] = [&"table", &"counter", &"desk"]
 
 
 func _settle_aprons() -> void:
+	_apron_face.clear()
 	var wanted: Dictionary = {}
 	for shape_class: StringName in APRON_CLASSES:
 		if _class_ids.has(shape_class):
@@ -3108,10 +3109,28 @@ func _settle_aprons() -> void:
 		if floor_tile.x < 0:
 			continue
 		_floor_art[at] = floor_tile
+		var apron: int = _tiles[at]
 		_heights[at] = floor_tile.y
 		_art[at] = ART_FLAT
 		_volume[at] = 0
 		_on_furniture[at] = 0
+		# AND THE FACES WEAR IT, all four of them. A side is painted with
+		# `_band_tile`, which reads the column's own BASE row, and the base row of
+		# what is left after the release is the table top: a tan box with a tan
+		# front. The apron is what the drawing gives, so it is kept per tile up
+		# the column it was released from and every face of that column takes it.
+		var up: int = ty - 1
+		while up >= 0:
+			var above: int = up * _size.x + tx
+			if not wanted.has(int(_klass[above])) or _heights[above] <= 0:
+				break
+			_apron_face[above] = apron
+			up -= 1
+
+
+## Per tile of a table or a counter: the tile its APRON is drawn in, which every
+## face of that column is painted with. See `_settle_aprons`.
+var _apron_face: Dictionary = {}
 
 
 ## Per tile: a drawing and a height handed to it IN PLACE OF ITS OWN, as
@@ -3165,6 +3184,27 @@ func _floor_beside(tx: int, ty: int) -> Vector2i:
 	return Vector2i(-1, 0)
 
 
+## WHERE A DRAWING'S BOX STARTS, on the MAP's own block grid.
+##
+## THE GRID IS NOT THE MAP. Every array here is the map inside a border ring two
+## tiles wide, so a grid coordinate is a map coordinate plus the margin, and a
+## box aligned by taking the grid coordinate modulo the box's own size is aligned
+## to the RING rather than to the blocks the cartridge authored. Two tiles is a
+## whole walk cell, so everything one cell across came out right and nothing said
+## otherwise; a drawing TWO cells tall is four tiles, and 2 modulo 4 is 2. Every
+## 1x2 drawing in the game was boxed half a cell high: the potted plant's crown
+## and its pot fell into different boxes, each was cut, turned and stood on the
+## floor on its own, and what the room showed was a green mass standing beside a
+## blue pot.
+func _box_start(tx: int, ty: int, across: Vector2i) -> Vector2i:
+	var map_x: int = tx - _margin.x
+	var map_y: int = ty - _margin.y
+	return Vector2i(
+		_margin.x + map_x - posmod(map_x, across.x),
+		_margin.y + map_y - posmod(map_y, across.y)
+	)
+
+
 ## THE BOX one drawing is cut over, in tiles: where it starts on the block grid
 ## and how much of it the drawing uses.
 ##
@@ -3173,7 +3213,7 @@ func _floor_beside(tx: int, ty: int) -> Vector2i:
 ## box below the first would start in the middle of the one above it.
 func _span_box(at: int, tx: int, ty: int) -> Rect2i:
 	var across := Vector2i(int(_span_x[at]), int(_span_y[at])) * CELL_TILES
-	var start := Vector2i(tx - posmod(tx, across.x), ty - posmod(ty, across.y))
+	var start: Vector2i = _box_start(tx, ty, across)
 	if _span_cut[at] > 0:
 		across.y = int(_span_cut[at])
 	return Rect2i(start, across)
@@ -3217,7 +3257,7 @@ func _measure_cutouts() -> void:
 			if _art[at] != ART_CUTOUT or (_span_x[at] == 1 and _span_y[at] == 1):
 				continue
 			var across := Vector2i(int(_span_x[at]), int(_span_y[at])) * CELL_TILES
-			var start := Vector2i(tx - posmod(tx, across.x), ty - posmod(ty, across.y))
+			var start: Vector2i = _box_start(tx, ty, across)
 			var rows: int = across.y
 			if _lying[at] == 0:
 				while rows > CELL_TILES \
@@ -4085,6 +4125,17 @@ func _height_at(tx: int, ty: int) -> int:
 ## up. Counting from the base rather than from the tile is what makes every
 ## column of one structure wear the same drawing, so the row exposed at its back
 ## shows the structure and not the ground behind it.
+## THE TILE ONE FACE OF A COLUMN IS PAINTED WITH, which is the band's own tile
+## everywhere except on furniture: a table's four sides wear the APRON the
+## cartridge drew under its top, and its lid does not. `_band_tile` answers for
+## both, so the two questions are separated here rather than there.
+func _face_tile(tx: int, ty: int, band: int) -> int:
+	var apron: int = int(_apron_face.get(ty * _size.x + tx, -1))
+	if apron >= 0:
+		return apron
+	return _band_tile(tx, ty, band)
+
+
 func _band_tile(tx: int, ty: int, band: int) -> int:
 	# THE SHELL IS PLASTER ALL THE WAY UP and is one cell thick, so the rows north
 	# of a south wall's base are the room's own floor. It is the one structure here
@@ -4665,6 +4716,24 @@ func _object_texel(
 	return found
 
 
+## WHAT AN OBJECT STANDS ON, in world pixels.
+##
+## The floor under its own bottom-left tile, plus the `rise` a declaration gives
+## where the thing stands on furniture rather than on the ground. THE RISE IS
+## SPENT ONCE: where the object stands on furniture, `_measure_objects` has
+## already handed its tiles that furniture's own height, so `_ground_art` answers
+## with the table rather than the lino and adding the rise again stands the thing
+## a second table up in the air.
+func _object_base(object: Dictionary, start: Vector2i, across: Vector2i) -> float:
+	var tx: int = start.x
+	var ty: int = start.y + across.y - 1
+	var base: float = float(_ground_art(tx, ty).y)
+	if ty >= 0 and ty < _size.y and tx >= 0 and tx < _size.x \
+			and _floor_art.has(ty * _size.x + tx):
+		return base
+	return base + float(object.get(&"rise", 0))
+
+
 ## ONE OBJECT, STOOD UP AT ITS OWN SIZE AND POSITION.
 ##
 ## The drawing is a top and a front stacked, which is the whole of what a 2.5D
@@ -4766,11 +4835,10 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 	var tall: float = float(object[&"height"])
 	# ONE ground for the whole thing, taken at the drawing's own foot. Reading it
 	# per tile would tilt an object that stands across two of them.
-	var base: float = float(_ground_art(start.x, start.y + across.y - 1).y)
 	# UNLESS IT STANDS ON SOMETHING. A terminal on a bench meets the bench and not
 	# the floor, and nothing in a drawing seen from above says how high the thing
-	# under it is: the object that IS the bench says, and this is where it is spent.
-	base += float(object.get(&"rise", 0))
+	# under it is: the object that IS the bench says. See `_object_base`.
+	var base: float = _object_base(object, start, across)
 	# The near edge in plan, which is the drawing's own bottom row held back to the
 	# cell the thing blocks. See `_object_front`.
 	var back: float = front - deep
@@ -5302,8 +5370,7 @@ func _object_terminal(
 	object: Dictionary, start: Vector2i, across: Vector2i, front: float, tiles: Array,
 	mask: PackedByteArray, span: Vector2i, window: Rect2i, atlas: RefCounted
 ) -> void:
-	var base: float = float(_ground_art(start.x, start.y + across.y - 1).y) \
-		+ float(object.get(&"rise", 0))
+	var base: float = _object_base(object, start, across)
 	var left: float = _world_x(start.x) + float(window.position.x)
 	var right: float = left + float(window.size.x)
 	var desk_back: float = front - TERMINAL_DESK_DEEP
@@ -5322,9 +5389,17 @@ func _object_terminal(
 		window.position.y, window.position.y + 8
 	)
 	_box(left, right, base, desk_top, desk_back, front, wood)
+	# `_box` is four walls. Everything here is looked down on, so each piece needs
+	# its lid: without them the desk and the monitor are open boxes seen into from
+	# every angle the camera actually stands at.
+	_lid(left, right, desk_top, desk_back, front, wood)
 	_box(
 		left + TERMINAL_SCREEN_INSET, right - TERMINAL_SCREEN_INSET,
 		desk_top, screen_top, screen_back, front, case
+	)
+	_lid(
+		left + TERMINAL_SCREEN_INSET, right - TERMINAL_SCREEN_INSET,
+		screen_top, screen_back, front, case
 	)
 	# THE TWO FACES THE DRAWING ACTUALLY DRAWS, laid over the boxes tile by tile:
 	# a texel is only ever sampled out of the tile it was drawn in.
@@ -5476,6 +5551,17 @@ func _box(
 	_quad(
 		Vector3(x0, y0, z0), Vector3(x0, y0, z1), Vector3(x0, y1, z1),
 		Vector3(x0, y1, z0), Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
+	)
+
+
+## The top face of a box, which `_box` does not lay: most of what it builds is
+## looked at from in front, and everything on a desk is looked down on.
+func _lid(
+	x0: float, x1: float, y: float, z0: float, z1: float, uv: Rect2
+) -> void:
+	_quad(
+		Vector3(x0, y, z1), Vector3(x1, y, z1), Vector3(x1, y, z0), Vector3(x0, y, z0),
+		Vector3.UP, uv, SHADE_TOP_FLAT
 	)
 
 
@@ -5854,8 +5940,7 @@ func _object_model(
 	# the drawing of it says nothing at all about how high that is: the object
 	# that IS the table does, and `rise` is where that is spent, exactly as it is
 	# for an object stood up rather than turned.
-	var ground: float = float(_ground_art(start.x, start.y + across.y - 1).y) \
-		+ float(object.get(&"rise", 0))
+	var ground: float = _object_base(object, start, across)
 	for group: int in counts:
 		if int(counts[group]) < MODEL_BODY_MIN:
 			continue
@@ -9031,7 +9116,7 @@ func _side_span(
 	for step: int in (here - neighbour) / BAND:
 		var low: float = float(neighbour + step * BAND)
 		var high: float = low + TILE
-		var uv: Rect2 = atlas.uv(_band_tile(tx, ty, maxi(floori(low / TILE), 0)))
+		var uv: Rect2 = atlas.uv(_face_tile(tx, ty, maxi(floori(low / TILE), 0)))
 		if normal.z > 0.0:
 			_quad(
 				Vector3(x0, low, z1), Vector3(x1, low, z1),
@@ -9057,7 +9142,7 @@ func _side_at(
 	for step: int in (here - neighbour) / BAND:
 		var low: float = float(neighbour + step * BAND)
 		var high: float = low + TILE
-		var uv: Rect2 = atlas.uv(_band_tile(tx, ty, maxi(floori(low / TILE), 0)))
+		var uv: Rect2 = atlas.uv(_face_tile(tx, ty, maxi(floori(low / TILE), 0)))
 		if normal.x > 0.0:
 			_quad(
 				Vector3(x, low, z1), Vector3(x, low, z0),
@@ -9282,7 +9367,7 @@ func _side(
 		# The band's own height above the ground plane picks the map row that
 		# folds into it. A skirt below the plane repeats the tile's own art.
 		var uv: Rect2 = atlas.uv(
-			art if art >= 0 else _band_tile(tx, ty, maxi(floori(low / TILE), 0))
+			art if art >= 0 else _face_tile(tx, ty, maxi(floori(low / TILE), 0))
 		)
 		if normal.z > 0.0:
 			_quad(

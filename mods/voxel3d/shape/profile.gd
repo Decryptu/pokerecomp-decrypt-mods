@@ -1405,21 +1405,23 @@ const OBJECTS: Dictionary = {
 			&"height": 30,
 			&"terminal": true,
 		},
-		# THE CARVING IN THE MIDDLE OF THE TABLE, which is a figure on a turned
-		# wooden plinth and was standing as three tile rows of itself folded
-		# upright: a smeared slab as tall as a person in the middle of the room.
-		# Both halves are round, so both are TURNED, and `whole` is what keeps
-		# them one thing: flooded, the figure and the plinth come apart at the
-		# outline between them and each is stood on the table on its own.
+		# THE CARVING IN THE MIDDLE OF THE TABLE, a figure on a plinth, standing
+		# ON the table: `rise` is the table's own eight pixels. It is a BOX
+		# wearing its own drawing on all four sides, which the reviewer chose over
+		# the turned build: a revolve cannot know the figure is a dog and returned
+		# a stepped wooden mound. Left to the resolver it was three tile rows of
+		# itself folded upright, a smeared slab as tall as a person.
 		{
 			&"name": &"carving",
 			&"tiles": [[34, 35], [82, 83], [37, 53]],
 			&"window": Rect2i(0, 0, 16, 24),
-			&"model": true,
-			&"whole": true,
-			&"shrub": true,
-			&"rock": true,
-			&"height": 20,
+			# The figure is drawn in the table's own wood on the table's own top,
+			# so no flood can tell the two apart: the rectangle IS the object.
+			&"solid": true,
+			&"top": 0,
+			&"depth": 12,
+			&"height": 24,
+			&"wrap": true,
 			&"rise": 8,
 		},
 		{
@@ -1763,21 +1765,23 @@ const OBJECTS: Dictionary = {
 			&"height": 30,
 			&"terminal": true,
 		},
-		# THE CARVING IN THE MIDDLE OF THE TABLE, which is a figure on a turned
-		# wooden plinth and was standing as three tile rows of itself folded
-		# upright: a smeared slab as tall as a person in the middle of the room.
-		# Both halves are round, so both are TURNED, and `whole` is what keeps
-		# them one thing: flooded, the figure and the plinth come apart at the
-		# outline between them and each is stood on the table on its own.
+		# THE CARVING IN THE MIDDLE OF THE TABLE, a figure on a plinth, standing
+		# ON the table: `rise` is the table's own eight pixels. It is a BOX
+		# wearing its own drawing on all four sides, which the reviewer chose over
+		# the turned build: a revolve cannot know the figure is a dog and returned
+		# a stepped wooden mound. Left to the resolver it was three tile rows of
+		# itself folded upright, a smeared slab as tall as a person.
 		{
 			&"name": &"carving",
 			&"tiles": [[34, 35], [82, 83], [37, 53]],
 			&"window": Rect2i(0, 0, 16, 24),
-			&"model": true,
-			&"whole": true,
-			&"shrub": true,
-			&"rock": true,
-			&"height": 20,
+			# The figure is drawn in the table's own wood on the table's own top,
+			# so no flood can tell the two apart: the rectangle IS the object.
+			&"solid": true,
+			&"top": 0,
+			&"depth": 12,
+			&"height": 24,
+			&"wrap": true,
 			&"rise": 8,
 		},
 		{
