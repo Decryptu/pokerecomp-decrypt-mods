@@ -558,6 +558,8 @@ func set_walker(at: Vector3) -> void:
 
 
 func set_texture(texture: Texture2D) -> void:
+	if _material.albedo_texture == texture:
+		return
 	_material.albedo_texture = texture
 	_water_shader.set_atlas(texture)
 	_wind.set_atlas(texture)

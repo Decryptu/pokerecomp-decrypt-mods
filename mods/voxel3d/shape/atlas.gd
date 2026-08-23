@@ -51,6 +51,14 @@ func build(
 	time_of_day: int,
 	animation: Gen2WorldAnimation = null,
 ) -> bool:
+	# THE TEXTURE OBJECT IS REUSED WHERE IT CAN BE, and that is not a saving.
+	# A palette command sends `refresh_animation` here to repaint the whole
+	# sheet, and a fresh ImageTexture leaves every material still holding the old
+	# one: the water, the wind and the terrain all went on sampling a sheet
+	# nothing wrote to again, so the whirlpool, the flowers and the shimmer
+	# stopped moving about twenty-six frames into a map and stayed stopped. The
+	# object survives, so a holder cannot go stale.
+	var kept: ImageTexture = texture
 	texture = null
 	_image = null
 	_tile_count = 0
@@ -80,7 +88,11 @@ func build(
 	_image = Image.create(TILES_PER_ROW * TILE, rows * TILE, false, Image.FORMAT_RGBA8)
 	for tile: int in count:
 		_paint(indices, palettes, tile)
-	texture = ImageTexture.create_from_image(_image)
+	if kept != null and kept.get_size() == Vector2(_image.get_size()):
+		kept.set_image(_image)
+		texture = kept
+	else:
+		texture = ImageTexture.create_from_image(_image)
 	return true
 
 

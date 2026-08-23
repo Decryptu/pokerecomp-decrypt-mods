@@ -384,6 +384,11 @@ func refresh_animation() -> void:
 		_world.data, _world.current_map, _world.current_tileset,
 		_time_of_day, _animation
 	):
+		# A palette command repaints the whole sheet rather than two tiles of it,
+		# and `atlas.gd:build` keeps the same texture object across that so the
+		# materials follow. This is the belt for the one case it cannot keep:
+		# a sheet whose size changed under us.
+		_stage.set_texture(_atlas.texture)
 		_apply_background()
 
 
