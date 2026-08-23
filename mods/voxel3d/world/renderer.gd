@@ -447,8 +447,6 @@ func _read_options() -> void:
 	_stage.set_render_scale(int(Options.value(Options.SCALE, Options.default_scale())))
 	_rig.set_wheel_sign(int(Options.value(Options.WHEEL, 1)))
 	_rig.set_default_pitch(float(Options.value(Options.CAMERA, Options.CAMERA_VALUES[1])))
-	_stage.set_look(int(Options.value(Options.LOOK, Options.LOOK_DIORAMA)) == Options.LOOK_FLAT)
-	_stage.set_water_style(int(Options.value(Options.WATER, 0)))
 	_stage.set_depth_of_field(dof_mode, dof_radius, dof_near, dof_far)
 
 
@@ -468,12 +466,6 @@ func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void
 			_rig.set_wheel_sign(int(value))
 		Options.CAMERA:
 			_rig.set_default_pitch(float(value))
-		Options.LOOK:
-			# Nothing is rebuilt: both files keep what they were last handed and
-			# read it the other way. See `world/sky.gd:set_look`.
-			_stage.set_look(int(value) == Options.LOOK_FLAT)
-		Options.WATER:
-			_stage.set_water_style(int(value))
 		Options.RECENTRE:
 			# A button-kind setting carries no value: the press IS the message.
 			_rig.steer(Steering.RESET)

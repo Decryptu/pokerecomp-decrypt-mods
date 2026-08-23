@@ -66,6 +66,8 @@ var _sky_ramp: PackedColorArray = PackedColorArray()
 ## The water row's palest and deepest, worked out with the palettes. See
 ## [method shore_colors].
 var _shore_colors: PackedColorArray = PackedColorArray()
+## And the row those two came out of: see [method water_colors].
+var _water_colors: PackedColorArray = PackedColorArray()
 
 
 ## Rebuilds the whole sheet. Called when the map, the palette or the time of day
@@ -359,6 +361,13 @@ func shore_colors() -> PackedColorArray:
 	return _shore_colors
 
 
+## The water row WHOLE, which is what `world/far_field.gd` matches a texel
+## against: out there the ground is a drawing rather than a surface, so the only
+## way to know a pixel is water is that the cartridge painted it one of these.
+func water_colors() -> PackedColorArray:
+	return _water_colors
+
+
 func _read_shore_colors(
 	data: GameData, map: Gen2WorldMap, time_of_day: int
 ) -> PackedColorArray:
@@ -368,6 +377,7 @@ func _read_shore_colors(
 	var row: PackedColorArray = data.world_palette(int(slots[SKY_WATER_SLOT]))
 	if row.size() < 3:
 		return PackedColorArray()
+	_water_colors = row
 	return PackedColorArray([row[0], row[2]])
 
 

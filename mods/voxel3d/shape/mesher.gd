@@ -1358,6 +1358,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# After the ramps, which is what sizes and fills the corners they write into.
 	_measure_mounds(shape)
 	_measure_doors(shape)
+	# The same thought as the pass above, asked of the CARTRIDGE rather than of a
+	# pin, which is what reaches the border ring: see `_measure_collision_doors`.
+	_measure_collision_doors(source)
 	_measure_shores()
 	# Last of all: it reads the heights every pass above may still have moved.
 	_measure_surfaces()
@@ -2778,6 +2781,89 @@ func _measure_doors(shape: RefCounted) -> void:
 		_heights[at] = high
 		for corner: int in 4:
 			_corners[at * 4 + corner] = high
+
+
+## A DOOR THE CARTRIDGE NAMES ITSELF, wherever it stands.
+##
+## `_measure_doors` above needs a `MOUNDS` pin and reaches one tileset;
+## `_match_houses` needs a painting and reaches the drawings a person corrected.
+## A door outside both is walkable ground with a wall around it, so the column
+## stands at nothing and the doorway comes out as a hole punched clean through
+## the building, with the door's own drawing lying flat on the floor in front of
+## it. THE REVIEWER FOUND ONE IN THE BORDER RING on 2026-08-24: a two by two door
+## at height 0 with 32 either side of it, on Goldenrod's own border block, which
+## no painting can ever reach because a painting matches a whole rectangle and
+## the ring only repeats part of one.
+##
+## The cartridge says which cells are doors and says it everywhere, including
+## past the map edge where `map_source.gd:code_at` answers the drawn block's own
+## collision. `COLL_DOOR`, its 0x79 twin and `COLL_CAVE` are the three that stand
+## in a wall; the warp CARPETS are not among them, and that is the point of
+## naming three codes rather than testing `is_warp_tile`: a carpet is a floor you
+## walk onto, and every map edge has one.
+##
+## It takes the height of the wall around it and the face machinery paints it,
+## which is the whole fix and is `_measure_doors`' own words: a band of a
+## standing face wears the map row that folds into it, so the door lands on the
+## wall exactly where the cartridge drew it. A painted house is left alone, since
+## `_measure_house_boxes` has already stood the whole building up in one piece.
+func _measure_collision_doors(source: RefCounted) -> void:
+	if source == null or not _outside:
+		return
+	var count: int = _size.x * _size.y
+	for at: int in count:
+		if _tiles[at] < 0 or _heights[at] > 0 or _ramp[at] == 1:
+			continue
+		if not _house_covered.is_empty() and _house_covered[at] == 1:
+			continue
+		@warning_ignore("integer_division")
+		var from := Vector2i(at % _size.x, at / _size.x)
+		var high: int = 0
+		for step: Vector2i in [
+			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
+		]:
+			var to: Vector2i = from + step
+			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+				continue
+			high = maxi(high, _heights[to.y * _size.x + to.x])
+		# NOTHING STANDING BESIDE IT IS NOT A DOORWAY, and the test is two array
+		# reads against a collision lookup that walks the block list: asked of
+		# every flat tile in the game it cost 0.77 s of the resolve over 388 maps,
+		# and asked only of the ones with a wall beside them it costs nothing.
+		if high <= 0 or not _is_collision_door(source, at):
+			continue
+		# The other half of a two-cell doorway says nothing about how tall the
+		# wall is: take the tallest neighbour that is not itself a door.
+		high = 0
+		for step: Vector2i in [
+			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
+		]:
+			var to: Vector2i = from + step
+			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
+				continue
+			var index: int = to.y * _size.x + to.x
+			if _is_collision_door(source, index):
+				continue
+			high = maxi(high, _heights[index])
+		if high <= 0:
+			continue
+		_heights[at] = high
+		for corner: int in 4:
+			_corners[at * 4 + corner] = high
+
+
+## Whether the cell this tile sits in is one of the three the cartridge stands in
+## a wall. Asked per TILE because heights are per tile and collision is per cell.
+func _is_collision_door(source: RefCounted, at: int) -> bool:
+	@warning_ignore("integer_division")
+	var tile := Vector2i(at % _size.x - _margin.x, at / _size.x - _margin.y)
+	var code: int = source.code_at(Vector2i(
+		floori(float(tile.x) / float(CELL_TILES)),
+		floori(float(tile.y) / float(CELL_TILES))
+	))
+	return code == Gen2WorldCollision.COLL_DOOR \
+		or code == Gen2WorldCollision.COLL_DOOR_79 \
+		or code == Gen2WorldCollision.COLL_CAVE
 
 
 ## A HOLE IN A WALL STANDS IN THE WALL, whether or not the tileset has a `MOUNDS`

@@ -140,12 +140,6 @@ var actors: Node3D = null
 var _light: DirectionalLight3D = null
 var _environment: Environment = null
 var _sky: RefCounted = null
-## What [method set_background] was last handed, so [method set_look] can put the
-## sky up again in the other look without the caller saying it a second time.
-var _background: Color = Color.BLACK
-var _background_outside: bool = true
-var _background_ramp: PackedColorArray = PackedColorArray()
-var _background_set: bool = false
 var _terrain: Array[MeshInstance3D] = []
 var _material: StandardMaterial3D = null
 ## The water surface and what draws it. Its own instances because it is its own
@@ -526,24 +520,6 @@ func set_bank(field: Texture2D, world: Vector2, origin: Vector2, span: float) ->
 	_water_shader.set_bank(field, world, origin, span)
 
 
-## WHICH LOOK IS UP, which is one press in the MODS menu: see `options.gd:LOOK`.
-## Both files it reaches already carry the two paths and need them anyway, so
-## nothing is built here for the setting alone. The sky is re-applied because the
-## haze and the water's own reflection are read off the ramp it answers with, and
-## a player pressing the row is looking at the sky while they press it.
-func set_look(flat: bool) -> void:
-	_sky.set_look(flat)
-	_water_shader.set_look(flat)
-	if _background_set:
-		set_background(_background, _background_outside, _background_ramp)
-
-
-## Which of the water's three the surface wears: see `water.gd:set_style`. It is
-## a shader parameter and nothing else, so a press costs a frame nothing.
-func set_water_style(style: int) -> void:
-	_water_shader.set_style(style)
-
-
 func set_shore_colors(foam: Color, shallow: Color, deep: Color) -> void:
 	_water_shader.set_shore_colors(foam, shallow, deep)
 
@@ -610,10 +586,6 @@ func set_texture(texture: Texture2D) -> void:
 func set_background(
 	color: Color, outside: bool = true, ramp: PackedColorArray = PackedColorArray()
 ) -> void:
-	_background = color
-	_background_outside = outside
-	_background_ramp = ramp
-	_background_set = true
 	_sky.set_background(color, outside, ramp)
 	# The haze fades the ground into the sky, so it is the sky that says what
 	# colour it is, and a room has neither.
@@ -622,6 +594,12 @@ func set_background(
 	# A room has no sky to take its colour from, and so takes no hour either.
 	_frame.set_outside(outside)
 	_water_shader.set_sky(_sky.horizon, _sky.zenith)
+	# AND THE SEA PAST THE MESH, which is a drawing and cannot reflect anything
+	# for itself. Handed the same horizon and the share the near water takes at a
+	# grazing angle, which is the only angle the far sea is ever seen at, so the
+	# two meet at the map's edge in one colour instead of two.
+	if _far != null:
+		_far.set_sky(_sky.horizon, Water3D.REFLECT_MOST if outside else 0.0)
 	_motes.set_outside(outside)
 	_motes_node.visible = _motes.drifting()
 

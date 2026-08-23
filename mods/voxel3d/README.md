@@ -739,37 +739,6 @@ intuition is so strong the other way: drawing the whole frame at a quarter of it
 resolution, sixteen times fewer fragments, changes the frame time by nothing at
 all. Fragments are free here and triangles are not.
 
-## One row for the whole look
-
-The MODS menu carries a LOOK row with two rungs, and DIORAMA is the default.
-
-FLAT is what this view drew before the sky and the water were given anything
-extra to read: a sky made out of the map's own background colour taken down
-twice over four bands, and water with a swell, the sky in it and the sun on it
-and no bank. It is not a second renderer and not a reduced one. It is the path
-both files fall back to whenever a caller hands them nothing, which is what a
-cave pool and every tool that meshes without a field already take, so both rungs
-are code the view needs anyway.
-
-DIORAMA is those same two files given what the cartridge and the mesher can tell
-them: the hour's own two sky colours over six bands, and a bank to draw a
-waterline and a shallow against.
-
-Pressing the row rebuilds nothing. Each file keeps what it was last handed and
-reads it the other way, so the sky changes while you are looking at it.
-
-WHERE YOU CAN SEE IT MATTERS, and the row is honest about the answer: it changes
-the sky and the waterline, so on a map with no water in the frame, at a camera
-that frames no sky, it changes nothing at all. Measured at the default camera on
-one shot each: 28% of the pixels on a shoreline, 9.6% on a route with a river,
-and 0.08% in a city. Which is what the ANGLE row's LEVEL rung is for, below.
-
-A WATER row sits under it with three rungs, and this one is taste rather than
-correctness. CALM is the long, gentle swell the view was tuned to. ROUGH is a
-shorter, steeper one that reads as open sea with weather in it. GLASS flattens
-the surface and takes far more of the sky into it, with the sun gathered to a
-harder point.
-
 ## The sky and the hour
 
 Above that horizon the sky is generated: a ramp of six bands, deepest overhead,
@@ -881,9 +850,15 @@ Past the edge of that field, which is what a camera standing outside the mesh
 looks across, the answer is open water: what is off the field is unknown, and the
 honest answer to unknown here is the one that draws nothing.
 
-The ground past the mesh gets none of it. Those maps are drawings rather than
-surfaces and carry no swell and no glint either, so a far island has the beach
-its own art draws and nothing added.
+The ground past the mesh gets no waterline, no swell and no glint: those maps are
+drawings rather than surfaces, so a far island has the beach its own art draws
+and nothing added. IT DOES GET THE SKY, and it has to. A drawing of the sea is
+the cartridge's flat blue, and the sea in front of it is that same blue mixed
+toward the sky by Fresnel, so the two met at the map's edge as two different
+colours with a hard line between them. Out there the water is only ever seen at
+a grazing angle, which is the one place the Fresnel has a single answer, so the
+far page takes that share of the same horizon: a texel matching that map's own
+water row, and no other, is graded exactly as the near sea is.
 
 WATER IS STOOD IN AND NOT ON. It lies eight pixels below the land it is recessed
 from, and everything the map stands on it, a surfing player, a swimmer, a wild
@@ -899,6 +874,26 @@ shoulders and the surf blob is a thing half sunk, so a deeper draught sinks them
 twice and the sea comes up to their eyes. The water is opaque and writes depth,
 so nothing is clipped or masked; the surface simply stands in front of what is
 under it.
+
+## A door stands in its wall
+
+A door is walkable, so every pass that reads collision calls it ground, and a
+column stood at nothing: the doorway came out as a hole punched clean through the
+building with the door's own drawing lying flat on the floor in front of it.
+
+Two answers were already here and neither reaches far enough. A `MOUNDS` pin
+names the cave mouths of one tileset. A painting names the drawings a person
+corrected, and a painting matches a whole rectangle, so it can never reach the
+BORDER RING, where the cartridge repeats part of a block and a house is cut in
+half by construction. That ring is where the fault was found.
+
+So the cartridge is asked instead, and it answers everywhere: a cell whose
+collision is a door, its second door code, or a cave takes the height of the wall
+around it, and the face machinery paints its drawing on exactly where the
+cartridge drew it. The warp CARPETS are deliberately not among those codes, since
+a carpet is a floor you walk onto and every map edge has one. It costs about a
+millisecond of the resolve on a map, and the test that guards it is two array
+reads: nothing standing beside a tile means no doorway to stand up.
 
 ## The tile sheet animates, and the geometry spans all of it
 
