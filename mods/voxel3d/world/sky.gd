@@ -33,13 +33,11 @@ const DITHER_START: float = 0.6
 ## The checkerboard cell, in screen pixels. Two keeps the sky's grain in the same
 ## register as the world's own texels at the framing this view opens at.
 const DITHER_CELL: float = 2.0
-## Bands in the ramp, and the FLAT look's own count. Four is what the hardware's
-## palettes hold and is right while both ends are one colour twice; six is for
-## the hour's own pair, because a four band ramp between two HUES shows every step
-## it takes and lands one of them on the muddy middle of the two. See
-## [method set_look].
+## Bands in the ramp. Four is what the hardware's palettes hold and was right
+## while both ends were one colour twice; six since they became the hour's own
+## pair, because a four band ramp between two HUES shows every step it takes and
+## lands one of them on the muddy middle of the two.
 const BANDS: float = 6.0
-const BANDS_FLAT: float = 4.0
 ## How much elevation the ramp spans before it is all zenith, in radians.
 ##
 ## MEASURED off the rig rather than picked: the eye sits between 12 and 88 degrees
@@ -107,14 +105,6 @@ var sky: Sky = null
 var horizon: Color = Color.BLACK
 var zenith: Color = Color.BLACK
 var _material: ShaderMaterial = null
-## Whether the FLAT look is up: see [method set_look]. What it changes is which
-## of the two ramps below is built, so both paths are the ones already here.
-var _flat: bool = false
-## What [method set_background] was last handed, so a look changing under a
-## standing map repaints the sky without the caller having to say it again.
-var _source: Color = Color.BLACK
-var _source_outside: bool = true
-var _source_ramp: PackedColorArray = PackedColorArray()
 
 
 func _init() -> void:
@@ -147,13 +137,10 @@ func _init() -> void:
 func set_background(
 	color: Color, outside: bool = true, ramp: PackedColorArray = PackedColorArray()
 ) -> void:
-	_source = color
-	_source_outside = outside
-	_source_ramp = ramp
 	if not outside:
 		horizon = color
 		zenith = color
-	elif ramp.size() == 2 and not _flat:
+	elif ramp.size() == 2:
 		horizon = ramp[0]
 		zenith = ramp[1]
 	else:
@@ -161,22 +148,6 @@ func set_background(
 		zenith = color.darkened(ZENITH_DARKEN)
 	_material.set_shader_parameter("horizon_color", horizon)
 	_material.set_shader_parameter("zenith_color", zenith)
-
-
-## THE FLAT LOOK IS NOT A SECOND SKY, it is the one this file already falls back
-## to: the map's background colour taken down twice, over four bands, which is
-## what a caller handing no pair gets and what this drew before the hour's own
-## rows were read. So the setting picks between two paths that both have to work
-## anyway rather than adding a third.
-##
-## The ramp is rebuilt here rather than at the next map, since a player pressing
-## the row is looking at the sky while they press it.
-func set_look(flat: bool) -> void:
-	if _flat == flat:
-		return
-	_flat = flat
-	_material.set_shader_parameter("bands", BANDS_FLAT if flat else BANDS)
-	set_background(_source, _source_outside, _source_ramp)
 
 
 ## The frame the checkerboard is measured against. A dither cell is screen pixels,
