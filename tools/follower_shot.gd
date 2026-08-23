@@ -136,6 +136,10 @@ func _process(_delta: float) -> bool:
 	if _screen == null:
 		return false
 	_frames += 1
+	# EVERY FRAME, because the screen puts its own caption and hint back as the
+	# walk moves the player: hiding them once at setup left both in the picture.
+	if _clean:
+		_chrome().hide_chrome(_screen)
 	if _frames < 2:
 		return false
 	if _frames > 2:
@@ -180,7 +184,14 @@ func _pet_the_follower() -> void:
 func _capture() -> bool:
 	var image: Image = _chrome().capture(_screen, _scale) if _clean else null
 	if image == null:
+		# The window, which is where a view drawing at window resolution is, and
+		# where the whole harness is when this is not a clean capture.
 		image = root.get_texture().get_image()
+		if _clean and _scale > 1:
+			image.resize(
+				image.get_width() * _scale, image.get_height() * _scale,
+				Image.INTERPOLATE_NEAREST
+			)
 	var error: Error = image.save_png(_output_path)
 	if error != OK:
 		print("could not write %s (error %d)" % [_output_path, error])

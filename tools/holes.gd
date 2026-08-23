@@ -19,6 +19,12 @@ extends SceneTree
 ##       [group,number|tileset <n>|all] [least pixels]
 ##
 ## [param least pixels] drops cracks shorter than it, default 1.
+##
+## A run over `all` names the first maps and counts the rest, which is readable
+## and is NOT a distribution: taking the drop sizes off that printout counts the
+## twelve worst of two dozen maps and calls it the game. The last line is the
+## whole population, by drop and by tileset, so a round can pick the class that
+## carries the most rather than the one that printed first.
 
 const MOD := "user://mods/voxel3d"
 const TILE: float = 8.0
@@ -42,6 +48,10 @@ func _initialize() -> void:
 		return
 	var select: String = args[1] if args.size() > 1 else "all"
 	var least: int = int(args[2]) if args.size() > 2 else 1
+	# drop in pixels -> how many, and tileset -> how many, over every map
+	# scanned rather than over the ones named.
+	var by_drop: Dictionary = {}
+	var by_tileset: Dictionary = {}
 
 	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
 	var atlas_script: GDScript = load("%s/shape/atlas.gd" % MOD)
@@ -58,7 +68,11 @@ func _initialize() -> void:
 			continue
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		var atlas: RefCounted = atlas_script.new()
-		if not atlas.build(data, map, tileset, 1):
+		# THE SEQUENCE, so the rims counted here are the rims the game draws.
+		# See `atlas.gd:frame_count`.
+		var animation := Gen2WorldAnimation.new()
+		animation.configure_tileset(data, tileset, 1)
+		if not atlas.build(data, map, tileset, 1, animation):
 			continue
 		var shape: RefCounted = shape_script.new(profile, map.tileset)
 		var source: RefCounted = source_script.new(null, map, tileset, data)
@@ -79,6 +93,10 @@ func _initialize() -> void:
 		if cracks.is_empty():
 			continue
 		open_maps += 1
+		for crack: Dictionary in cracks:
+			var drop: float = float(crack["drop"])
+			by_drop[drop] = int(by_drop.get(drop, 0)) + 1
+		by_tileset[map.tileset] = int(by_tileset.get(map.tileset, 0)) + cracks.size()
 		if named >= NAMED:
 			continue
 		named += 1
@@ -96,7 +114,24 @@ func _initialize() -> void:
 		if select == "all" and cracks.size() > 12:
 			print("   ... and %d more" % (cracks.size() - 12))
 	print("%d maps, %d with cracks, %d cracks" % [maps, open_maps, total])
+	_ranked("by drop", by_drop, total, "%.1f px")
+	_ranked("by tileset", by_tileset, total, "ts%d")
 	quit(0)
+
+
+## One population, commonest first, with the share each class carries: which
+## class to take next is the only question this printout answers.
+func _ranked(title: String, counts: Dictionary, total: int, form: String) -> void:
+	if total <= 0:
+		return
+	var keys: Array = counts.keys()
+	keys.sort_custom(func(a: Variant, b: Variant) -> bool:
+		return int(counts[a]) > int(counts[b]))
+	print(title)
+	for key: Variant in keys:
+		print("   %-10s %6d  %4.1f%%" % [
+			form % key, int(counts[key]), 100.0 * float(counts[key]) / float(total),
+		])
 
 
 func _wanted(map: Gen2WorldMap, select: String) -> bool:

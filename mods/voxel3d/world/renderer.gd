@@ -250,6 +250,7 @@ func clear_transition() -> void:
 ## picture, and the order above has already taken every level of it to white by
 ## the step that runs. Nothing here to do, and reading it would only be a second
 ## answer to the same question.
+@warning_ignore("unused_parameter")
 func set_fade(order: int, white_fill: bool = false) -> void:
 	if order == _fade_order:
 		return
@@ -383,6 +384,11 @@ func refresh_animation() -> void:
 		_world.data, _world.current_map, _world.current_tileset,
 		_time_of_day, _animation
 	):
+		# A palette command repaints the whole sheet rather than two tiles of it,
+		# and `atlas.gd:build` keeps the same texture object across that so the
+		# materials follow. This is the belt for the one case it cannot keep:
+		# a sheet whose size changed under us.
+		_stage.set_texture(_atlas.texture)
 		_apply_background()
 
 
@@ -609,9 +615,12 @@ func _dress_far_field() -> void:
 	# own sheet now, drawing by drawing: see `world/far_foliage.gd`. What is left
 	# for this map to lend is the one tree a drawing that cuts to nothing wears.
 	var tree: Array = _mesher.far_tree()
-	far.set_far_tree(
-		tree[0] as Mesh, _stage.foliage_material(tree[1] as Texture2D)
-	) if tree.size() == 2 else far.set_far_tree(null, null)
+	if tree.size() == 2:
+		far.set_far_tree(
+			tree[0] as Mesh, _stage.foliage_material(tree[1] as Texture2D)
+		)
+	else:
+		far.set_far_tree(null, null)
 
 
 ## Centres the detail ring on the EYE and not on the player.

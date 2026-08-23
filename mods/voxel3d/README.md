@@ -106,7 +106,7 @@ a draw distance must not change when a slot is loaded.
 | DISTANCE | 12, 16, 24, FULL | How far out the map is meshed, in walk cells |
 | RES | FULL, 1/2, 1/3, 1/4 | How many window pixels the 3D pass draws one of |
 | WHEEL | NORMAL, INVERTED | Which way a wheel notch zooms |
-| CAMERA | LOW, MID, HIGH | The pitch the overworld camera opens at |
+| ANGLE | LOW, MID, HIGH | The pitch the overworld camera opens at |
 | CAMERA | RECENTRE | A press, not a rung: put the shot back the way it opened |
 
 RES is where the frame time is on a device that cannot afford the window it was
@@ -269,6 +269,17 @@ on yet.
 The opponent standing behind their Pokemon for the rest of the fight is this
 view's own staging and it waits for the send-out. Through the entrance the
 cartridge's own answer wins.
+
+THE WHOLE PICTURE IS GREY WHILE THE INTRO RUNS, which is the cartridge writing
+its own grey over every background palette. Here it is both a pass over the
+diorama and the palette the two battlers are drawn in, because they are a layer
+above that pass: greying only the world left two figures in full colour standing
+in a black and white one.
+
+AND THE TWO PICTURES A BATTLER CAN BE OTHER THAN ITSELF ARE DRAWN. An Unown is
+drawn as the letter it actually is rather than as the first one, and a Pokemon
+behind a substitute is the doll, which the cartridge builds out of the monster
+overworld sprite and draws in whichever palette its side of the field is using.
 
 ### The shot
 
@@ -779,7 +790,14 @@ drawing cannot carry. The sky in the lake is the sky over it, mixed in by
 Fresnel, so the far water is bright and the near water keeps the cartridge's own
 blue. The surface is not flat: two long waves cross it and their gradient is the
 normal everything else is read through, done per fragment so no vertex moves and
-the water cannot tear away from its own bank. And the sun is in it, hung by
+the water cannot tear away from its own bank.
+
+THE SWELL BELONGS TO THE LAKE AND NOT TO THE PLAYER. It is worked out from where
+each piece of water is in the WORLD, so a crest sits over the same patch of sea
+however you walk around it, and the sun's glitter stays on the water it was on.
+Read from where the fragment was on the SCREEN instead, which is what a fragment
+shader is handed by default, the whole sea slid along with the camera and swung
+when it turned. And the sun is in it, hung by
 ANGLE rather than by screen position, because the reflection of a sun most of the
 way up the sky lands off the top of the frame at every hour: what is asked is how
 nearly a piece of water is tilted to bounce the sun into the eye, which is a fact
@@ -800,6 +818,21 @@ shoulders and the surf blob is a thing half sunk, so a deeper draught sinks them
 twice and the sea comes up to their eyes. The water is opaque and writes depth,
 so nothing is clipped or masked; the surface simply stands in front of what is
 under it.
+
+## The tile sheet animates, and the geometry spans all of it
+
+The cartridge rewrites one or two tiles of its sheet every frame: the water
+ripples, the flowers open and shut, a whirlpool turns. This view repaints those
+tiles on the one sheet every mesh samples, so a change moves every instance of
+that tile at once, which is what the hardware does.
+
+A DRAWING THAT ANIMATES IS CUT FROM ALL OF ITS FRAMES AND NOT FROM ONE. A
+billboard is a mask of the drawing, and the sheet is only ever showing one frame,
+so cutting from whichever frame the map happened to load on left the geometry
+short wherever a later frame drew further out and standing empty wherever only an
+earlier one drew. The mask is the union of every frame the tile is ever shown as
+and the texture, which follows the sequence, trims the rest. It shows most in a
+bed of meadow flowers.
 
 ## Sprites another mod puts in the world
 

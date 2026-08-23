@@ -116,7 +116,15 @@ float swell(vec2 at, out vec2 slope) {
 
 void fragment() {
 	vec2 slope;
-	swell(VERTEX.xz + NODE_POSITION_WORLD.xz, slope);
+	// THE SWELL IS THE WORLD'S AND NOT THE CAMERA'S. In `fragment()` VERTEX is
+	// the fragment in VIEW space, so reading it directly tied every crest to
+	// where the player was standing: walking moved the whole sea and turning
+	// swung it, which is a thing water does not do. INV_VIEW_MATRIX takes the
+	// fragment back into world space, which is where `wave_length` and
+	// `wave_speed` are already expressed and where the sun's own half vector
+	// below is already worked out.
+	vec3 world_at = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	swell(world_at.xz, slope);
 	// The wave's normal in view space. The surface is flat and horizontal, so its
 	// tangent frame is the world axes and the tilt goes straight in.
 	vec3 tilted = normalize(vec3(-slope.x * wave_tilt, 1.0, -slope.y * wave_tilt));

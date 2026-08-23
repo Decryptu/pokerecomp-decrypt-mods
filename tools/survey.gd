@@ -290,7 +290,11 @@ func _build(number: int) -> bool:
 	var places: Dictionary = grid["places"]
 
 	_stage.set_time_of_day(Gen2WorldPalette.TIME_DAY)
-	if _atlas.build(_data, map, tileset, Gen2WorldPalette.TIME_DAY):
+	# THE SEQUENCE, so a survey sheet shows the drawing the game cuts. See
+	# `atlas.gd:frame_count`.
+	var animation := Gen2WorldAnimation.new()
+	animation.configure_tileset(_data, tileset, Gen2WorldPalette.TIME_DAY)
+	if _atlas.build(_data, map, tileset, Gen2WorldPalette.TIME_DAY, animation):
 		_stage.set_texture(_atlas.texture)
 		_stage.set_background(Color(0.09, 0.09, 0.11))
 	var shape: RefCounted = _tile_shape.new(_profile, number)

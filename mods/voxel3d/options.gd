@@ -76,7 +76,9 @@ const REGISTERED: Array[Dictionary] = [
 		"default": 1,
 	},
 	{
-		"key": CAMERA, "label": "CAMERA",
+		# ANGLE and not CAMERA: the recentre button below is the camera's row and
+		# two rows reading CAMERA is the one thing a player sees of either.
+		"key": CAMERA, "label": "ANGLE",
 		"values": CAMERA_VALUES, "labels": ["LOW", "MID", "HIGH"],
 		"default": 50.0,
 	},

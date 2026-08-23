@@ -154,7 +154,11 @@ func _initialize() -> void:
 	DisplayServer.window_set_size(window)
 
 	_stage.set_time_of_day(Gen2WorldPalette.TIME_DAY)
-	if atlas.build(data, map, tileset, Gen2WorldPalette.TIME_DAY):
+	# THE SEQUENCE, so this benches the mesh the game builds. See
+	# `atlas.gd:frame_count`.
+	var animation := Gen2WorldAnimation.new()
+	animation.configure_tileset(data, tileset, Gen2WorldPalette.TIME_DAY)
+	if atlas.build(data, map, tileset, Gen2WorldPalette.TIME_DAY, animation):
 		_stage.set_texture(atlas.texture)
 		if source.outside():
 			_stage.set_background(atlas.background(), true)
@@ -224,7 +228,7 @@ func _apply(named: Dictionary) -> void:
 		for material: ShaderMaterial in [_stage._wind.grass, _stage._wind.foliage]:
 			material.set_shader_parameter("period", 3600.0)
 	if int(named.get("pass", "1")) == 0:
-		_stage.container.material = null
+		_stage.set_pass_enabled(false)
 	print("stage      scale %s, dof %d, shadows %s (%s splits, %.0f px), water %s,"
 			% [
 		named.get("scale", "1"), dof, named.get("shadows", "1"),

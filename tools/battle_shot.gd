@@ -16,7 +16,7 @@ extends SceneTree
 ##       <number> <cell x> <cell y> <out.png> [facing 0-3] [time 0-3] \
 ##       [player species] [enemy species] [hold frames] [hp 0-1] \
 ##       [anim index] [anim frame] [enemy turn 0-1] [background half 0-1] \
-##       [entrance]
+##       [entrance] [doll none|enemy|player|both] [unown form 1-26]
 ##
 ## AN ENTRANCE IS A MOMENT, not a frame count: `slide` is both pictures part way
 ## in, `stand` is both standing, `walkoff` is the player's picture leaving with
@@ -31,6 +31,11 @@ extends SceneTree
 ## ninety, which is the one worth photographing and is tedious to find by hand.
 ## `hud_visible` goes false with it, because `BattleAnimClearHud` takes the
 ## panels and both bars off the map for the length of a move.
+##
+## DOLL raises the substitute on one side or both, and UNOWN FORM puts Unown on
+## both squares in the letter asked for. Both are pictures the renderer chooses
+## between and neither is reachable by staging a wild Pidgey, so each is an
+## argument rather than something to catch mid-battle.
 ##
 ## THE SHUTTER IS ON THE COMPOSITE and the reason is in `tools/shot.gd`: a pass
 ## over the finished picture lives on the stage container's material and only
@@ -62,7 +67,8 @@ func _initialize() -> void:
 		print("usage: <cache> <group> <number> <cell x> <cell y> <out.png>"
 			+ " [facing 0-3] [time 0-3] [player species] [enemy species]"
 			+ " [hold frames] [hp 0-1] [anim index] [anim frame]"
-			+ " [enemy turn 0-1] [background half 0-1] [entrance]")
+			+ " [enemy turn 0-1] [background half 0-1] [entrance]"
+			+ " [doll none|enemy|player|both] [unown form 1-26]")
 		quit(1)
 		return
 	var data: GameData = GameData.open_directory(args[0])
@@ -124,6 +130,19 @@ func _initialize() -> void:
 	}
 	_hold = maxi(int(args[10]) if args.size() > 10 else 12, 2)
 
+	var doll: String = args[17] if args.size() > 17 else "none"
+	_view["enemy_substitute"] = doll == "enemy" or doll == "both"
+	_view["player_substitute"] = doll == "player" or doll == "both"
+
+	var form: int = clampi(int(args[18]) if args.size() > 18 else 0, 0, 26)
+	if form > 0:
+		_view["enemy_species"] = RomLayout.UNOWN_SPECIES
+		_view["player_species"] = RomLayout.UNOWN_SPECIES
+		_view["enemy_name"] = "UNOWN"
+		_view["player_name"] = "UNOWN"
+	_view["enemy_unown_form"] = form
+	_view["player_unown_form"] = form
+
 	var moment: String = args[16] if args.size() > 16 else ""
 	if not moment.is_empty():
 		var entrance: Dictionary = _entrance(moment, data)
@@ -132,6 +151,8 @@ func _initialize() -> void:
 			quit(1)
 			return
 		_view["entrance"] = entrance
+		# True for the whole of the intro, which is what the screen answers.
+		_view["grayscale"] = true
 		_view["battle_kind"] = &"trainer"
 		_view["trainer_class"] = TRAINER_CLASS
 		_view["player_backpic_palette"] = PLAYER_BACKPIC
