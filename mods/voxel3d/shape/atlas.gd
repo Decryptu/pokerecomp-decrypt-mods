@@ -20,6 +20,29 @@ const TILE: int = 8
 ## Tiles per atlas row. A tileset is ninety-six tiles, so the atlas is 128x48.
 const TILES_PER_ROW: int = 16
 
+## THE SKY'S TWO ENDS, and which of the hour's rows each is read from. See
+## [method sky_ramp].
+##
+## Slot 6 is the only background slot holding a BLUE PAIR, and it holds one at
+## every hour: #7bffff and #298cff by day, #6b63bd and #5a4aa5 at night, black in
+## the dark. They have to be read from the ROW, before `_LoadMapPals` reaches its
+## roof branch and hands those two slots to the map group's own roof colours, or
+## the sky over a town is whatever that town's roofs are painted.
+const SKY_SLOT: int = 6
+## Morning's own, and why it takes neither of the above: see [method sky_ramp].
+const SKY_WATER_SLOT: int = 3
+const SKY_WARM_SLOT: int = 4
+## How far each end is taken down from the colour the cartridge holds. The
+## horizon barely, since the haze fades the far ground into it and both have to
+## arrive at one colour; the zenith enough to leave the ramp somewhere to go.
+const SKY_HORIZON_DARKEN: float = 0.10
+const SKY_ZENITH_DARKEN: float = 0.30
+## Morning's horizon is taken TOWARD WHITE rather than down, which is the same
+## class of operation and the opposite direction: #ff8408 is the colour of a sun
+## and not of the air around one, and at full strength it stops reading as sky.
+const SKY_MORNING_LIGHTEN: float = 0.40
+const SKY_MORNING_ZENITH_DARKEN: float = 0.34
+
 var texture: ImageTexture = null
 ## Kept beside the texture so an animation frame can repaint the one or two
 ## tiles it rewrote instead of recolouring the whole sheet.
@@ -37,6 +60,12 @@ var _animation: Gen2WorldAnimation = null
 ## tile -> `Gen2WorldAnimation.tile_frames`, which is a walk of the whole command
 ## list and so is asked once per tile and kept. Empty for a still tile.
 var _frames: Dictionary = {}
+## The hour's sky, horizon first, worked out with the palettes. Empty until a
+## build has run, which is what leaves `sky.gd` on its background-only fallback.
+var _sky_ramp: PackedColorArray = PackedColorArray()
+## The water row's palest and deepest, worked out with the palettes. See
+## [method shore_colors].
+var _shore_colors: PackedColorArray = PackedColorArray()
 
 
 ## Rebuilds the whole sheet. Called when the map, the palette or the time of day
@@ -81,6 +110,8 @@ func build(
 		return false
 	if not palettes.is_empty() and (palettes[0] as PackedColorArray).size() >= 1:
 		_background = (palettes[0] as PackedColorArray)[0]
+	_sky_ramp = _read_sky_ramp(data, map, time_of_day)
+	_shore_colors = _read_shore_colors(data, map, time_of_day)
 
 	_tile_count = count
 	@warning_ignore("integer_division")
@@ -296,6 +327,70 @@ func color_of(tile: int, index: int) -> Color:
 
 func background() -> Color:
 	return _background
+
+
+## The sky over this map at this hour, as the ramp's horizon and zenith.
+##
+## The cartridge has no sky palette: the 2D view fills the margin past the map
+## with the background colour and stops there, and taking that one colour down
+## twice is what this view drew a sky out of until now. It reads grey-green,
+## because the background colour is the hardware's white and Generation II's
+## white is #deffde by day and #e6ff84 in the morning.
+##
+## So both ends come out of the hour's own rows instead. [constant SKY_SLOT] is
+## the blue pair, and it is a different pair at every hour, so the sky follows
+## the clock without a table of hours here.
+##
+## MORNING IS THE EXCEPTION and it has to be: its blue pair is byte for byte
+## day's, so reading it would leave the two hours sharing one sky with only the
+## sun's bearing to tell them apart. Morning has a sunrise colour of its own in
+## [constant SKY_WARM_SLOT], and the deep end comes from
+## [constant SKY_WATER_SLOT], which is the blue the water on the map is drawn
+## with at that same hour.
+func sky_ramp() -> PackedColorArray:
+	return _sky_ramp
+
+
+## The two ends of the water's own row: its palest colour and its deepest, which
+## is what `world/water.gd` shades a shallow and a deep with. The row is the same
+## one the water tiles are drawn from, so a lake goes pale and deep in its own
+## colours rather than in a tint. Empty until a build has run.
+func shore_colors() -> PackedColorArray:
+	return _shore_colors
+
+
+func _read_shore_colors(
+	data: GameData, map: Gen2WorldMap, time_of_day: int
+) -> PackedColorArray:
+	var slots: Array = Gen2WorldPalette.palette_slots(map.environment, time_of_day)
+	if slots.size() <= SKY_WATER_SLOT:
+		return PackedColorArray()
+	var row: PackedColorArray = data.world_palette(int(slots[SKY_WATER_SLOT]))
+	if row.size() < 3:
+		return PackedColorArray()
+	return PackedColorArray([row[0], row[2]])
+
+
+func _read_sky_ramp(
+	data: GameData, map: Gen2WorldMap, time_of_day: int
+) -> PackedColorArray:
+	var slots: Array = Gen2WorldPalette.palette_slots(map.environment, time_of_day)
+	if slots.size() <= SKY_SLOT:
+		return PackedColorArray()
+	if time_of_day == Gen2WorldPalette.TIME_MORNING:
+		var warm: PackedColorArray = data.world_palette(int(slots[SKY_WARM_SLOT]))
+		var water: PackedColorArray = data.world_palette(int(slots[SKY_WATER_SLOT]))
+		if warm.size() >= 3 and water.size() >= 3:
+			return PackedColorArray([
+				warm[2].lightened(SKY_MORNING_LIGHTEN),
+				water[2].darkened(SKY_MORNING_ZENITH_DARKEN),
+			])
+	var pair: PackedColorArray = data.world_palette(int(slots[SKY_SLOT]))
+	if pair.size() < 3:
+		return PackedColorArray()
+	return PackedColorArray([
+		pair[1].darkened(SKY_HORIZON_DARKEN), pair[2].darkened(SKY_ZENITH_DARKEN),
+	])
 
 
 ## What is behind a wall INDOORS: the colour of the place itself, taken down.
