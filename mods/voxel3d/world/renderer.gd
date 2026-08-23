@@ -598,11 +598,23 @@ func _dress_far_field() -> void:
 		return
 	if not far_trees:
 		far.set_far_tree(null, null)
+		far.set_far_cards({}, -1)
 		return
 	var tree: Array = _mesher.far_tree()
 	far.set_far_tree(
 		tree[0] as Mesh, _stage.foliage_material(tree[1] as Texture2D)
 	) if tree.size() == 2 else far.set_far_tree(null, null)
+	# EACH DRAWING ITS OWN CARD out there, not one tree for the lot: see
+	# `shape/mesher.gd:far_cards`. The materials are the stage's, one per cut-out
+	# and pooled by it, so this is the same call the tree above takes.
+	var cards: Dictionary = {}
+	var built: Dictionary = _mesher.far_cards()
+	for tile: int in built:
+		var card: Array = built[tile]
+		cards[tile] = [card[0], _stage.foliage_material(card[1] as Texture2D)]
+	far.set_far_cards(
+		cards, _world.current_tileset.number if _world.current_tileset != null else -1
+	)
 
 
 ## Centres the detail ring on the EYE and not on the player.
@@ -626,17 +638,23 @@ func _ring_on(cells: Vector2) -> void:
 
 ## Starts a sliced build of [param window], and finishes it in `_process`.
 func _begin_terrain(window: Rect2i) -> void:
-	_pending_hole = _hole_pixels(window)
 	_chunks = []
 	_water = []
 	_tufts = []
+	# THE HOLE IS CUT AFTER THE EMIT HAS SAID WHAT IT COVERS, not before. The
+	# mesher builds whole chunks and clips them to the map rather than to the
+	# window, so what lands is the window rounded out; a hole cut to the window
+	# would leave the far field's own flat ground under that fringe at the same
+	# height as the mesh's. See `shape/mesher.gd:emitted_bounds_tiles`.
 	if not _mesher.begin_emit(_atlas, window):
+		_pending_hole = Rect2()
 		_stage.set_terrain([])
 		_stage.set_water([])
 		_stage.set_tufts([])
 		_stage.far_field().set_hole(Rect2())
 		_standing = false
 		return
+	_pending_hole = _hole_pixels()
 	_building = true
 	_advance_build()
 
@@ -684,12 +702,12 @@ func _frame_camera() -> void:
 
 
 ## The ground the mesh covers, in WORLD PIXELS, which the far field leaves
-## alone. An empty window is FULL distance, where the mesh emits everything it
-## has: the map, its border ring and the skirt past that.
-func _hole_pixels(window: Rect2i) -> Rect2:
-	var bounds: Rect2i = _mesher.drawn_bounds_tiles()
-	if window.size.x > 0 and window.size.y > 0:
-		bounds = bounds.intersection(window)
+## alone. Asked of the mesher after its window has been begun, since what lands
+## is the window rounded out to whole chunks: see
+## `shape/mesher.gd:emitted_bounds_tiles`. At FULL distance it is everything the
+## mesher has, which is the map, its border ring and the skirt past that.
+func _hole_pixels() -> Rect2:
+	var bounds: Rect2i = _mesher.emitted_bounds_tiles()
 	if bounds.size.x <= 0 or bounds.size.y <= 0:
 		return Rect2()
 	return Rect2(Vector2(bounds.position) * TILE, Vector2(bounds.size) * TILE)

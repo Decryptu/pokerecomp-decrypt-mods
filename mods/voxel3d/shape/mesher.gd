@@ -422,19 +422,58 @@ const CHUNK_TILES: int = 16
 ## Against 5.39M in 116 draws with no grouping at all.
 const MODEL_CHUNK_TILES: int = CHUNK_TILES
 
+## How many chunks past the window's own edge the cache keeps. See
+## [method _forget_chunks].
+const CACHE_MARGIN_CHUNKS: int = 2
+
 var _emit_atlas: RefCounted = null
 var _chunks: Array[Rect2i] = []
+## The grid position of each entry in `_chunks`, which is what the cache is keyed
+## on. Parallel rather than a dictionary because the emit walks them in order.
+var _chunk_keys: Array[Vector2i] = []
 var _chunk_at: int = 0
 var _chunk_cursor := Vector2i.ZERO
 var _ready: Array = []
 var _water_ready: Array = []
 var _tuft_ready: Array = []
 
+## WHAT EACH CHUNK CAME OUT AS, kept between two windows.
+##
+## A window that moves by the recentre margin shares five sixths of its chunks
+## with the one before it, and until this was here every one of them was built
+## again: a recentre on a wooded route was eighty milliseconds of emit spread
+## over nineteen frames at the slice budget, every six cells the player walked,
+## and it is the whole of this view's frame-time tail. Keyed on the chunk's grid
+## position; see [method _reusable] for when an entry may be spent, and
+## [method resolve], which drops the lot, for when it may not.
+var _chunk_cache: Dictionary = {}
+## The ground the last [method begin_emit] actually covered, in MAP tiles: see
+## [method emitted_bounds_tiles].
+var _emitted := Rect2i()
+## What the chunk being emitted has claimed and placed, gathered from
+## [method _open_chunk] to [method _close_chunk]. See [method _reuse].
+var _chunk_houses := PackedInt32Array()
+var _chunk_objects := PackedInt32Array()
+var _chunk_stairs := PackedInt32Array()
+var _chunk_fences := PackedInt32Array()
+var _chunk_skirt_fences: Array = []
+var _chunk_spots: Array = []
+## Whether the chunk being emitted SHARES a structure with another chunk, which
+## is what makes it uncacheable. See [method _owned_here].
+var _chunk_shared: bool = false
+## The chunk grid positions this emit selected, which is what says whether the
+## owner of a shared structure is going to be built at all.
+var _selected: Dictionary = {}
+## Which chunk owns each structure that crosses a chunk edge, for the life of one
+## resolved map. See [method _owned_here].
+var _structure_owner: Dictionary = {}
+
 
 ## False when there is nothing to draw at all.
 func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	_emit_atlas = null
 	_chunks = []
+	_chunk_keys = []
 	_chunk_at = 0
 	_ready = []
 	_water_ready = []
@@ -445,11 +484,19 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	# inside its border ring, so the window is carried across by the margin. The
 	# SKIRT lies outside the grid on every side and is walked with it, since it is
 	# emitted per tile and belongs to the same chunks.
+	#
+	# TWO RECTANGLES AND NOT ONE. `box` is everything this mesher could ever emit
+	# and is a fact about the map; `view` is what this window asks for. The window
+	# chooses which CHUNKS are built and the map clips each chunk's own extent, so
+	# a chunk built for one window is the same rectangle for the next one and can
+	# be handed back rather than built again. The cost of that is a fringe of up
+	# to fifteen tiles past the window on each side, which the frustum rejects.
 	var reach: int = maxi(BORDER_TILES - _margin.x, 0) if _outside else 0
 	var box := Rect2i(-Vector2i(reach, reach), _size + Vector2i(reach, reach) * 2)
+	var view := box
 	if window.size.x > 0 and window.size.y > 0:
-		box = box.intersection(Rect2i(window.position + _margin, window.size))
-	if box.size.x <= 0 or box.size.y <= 0:
+		view = box.intersection(Rect2i(window.position + _margin, window.size))
+	if view.size.x <= 0 or view.size.y <= 0:
 		return false
 	_emit_atlas = atlas
 	# EMPTIED, NOT DROPPED. A spot is per emit and a mesh is per map, so the two
@@ -469,25 +516,177 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	_skirt_fence_done.clear()
 	_built_model = false
 	# Chunks are cut on the world's own grid rather than on the window's corner,
-	# so walking one cell east recentres the window onto the SAME chunks and the
-	# ones already built come out identical.
+	# so walking one cell east recentres the window onto the SAME chunks, and a
+	# chunk the last window already built is HANDED BACK rather than built again:
+	# see [method _reusable].
 	var first := Vector2i(
-		floori(float(box.position.x) / CHUNK_TILES), floori(float(box.position.y) / CHUNK_TILES)
+		floori(float(view.position.x) / CHUNK_TILES),
+		floori(float(view.position.y) / CHUNK_TILES)
 	)
 	var last := Vector2i(
-		floori(float(box.end.x - 1) / CHUNK_TILES), floori(float(box.end.y - 1) / CHUNK_TILES)
+		floori(float(view.end.x - 1) / CHUNK_TILES),
+		floori(float(view.end.y - 1) / CHUNK_TILES)
 	)
+	# The chunks this window holds, filled below and read from `_owned_here` while
+	# the emit runs: a structure crossing a chunk edge is the owner's to build
+	# where the owner is here, and anyone's where it is not.
+	_selected = {}
+	_emitted = Rect2i()
 	for cy: int in range(first.y, last.y + 1):
 		for cx: int in range(first.x, last.x + 1):
+			var at := Vector2i(cx, cy)
+			# CLIPPED TO THE MAP AND NOT TO THE WINDOW, which is what makes a
+			# chunk's own rectangle a fact about the map: a rectangle cut to the
+			# window is a different rectangle every time the window moves, and
+			# nothing cut that way can ever be handed back.
 			var chunk := Rect2i(
-				Vector2i(cx, cy) * CHUNK_TILES, Vector2i(CHUNK_TILES, CHUNK_TILES)
+				at * CHUNK_TILES, Vector2i(CHUNK_TILES, CHUNK_TILES)
 			).intersection(box)
-			if chunk.size.x > 0 and chunk.size.y > 0:
-				_chunks.append(chunk)
+			if chunk.size.x <= 0 or chunk.size.y <= 0:
+				continue
+			_selected[at] = true
+			_emitted = chunk if _emitted.size == Vector2i.ZERO else _emitted.merge(chunk)
+			if _reusable(at, chunk):
+				_reuse(at)
+				continue
+			_chunks.append(chunk)
+			_chunk_keys.append(at)
+	_forget_chunks(_selected)
 	if _chunks.is_empty():
-		return false
+		# Every chunk came out of the cache, which is a window that moved without
+		# reaching a chunk it had not built. There is nothing to slice and the
+		# meshes are already waiting in [method take_chunks].
+		return not _ready.is_empty() or not _water_ready.is_empty() \
+			or not _tuft_ready.is_empty()
 	_open_chunk()
 	return true
+
+
+## Whether the chunk being emitted should build the structure named by
+## [param key], and marks the chunk as SHARED where the structure is not its own.
+##
+## A house, an object, a flight of stairs and a fence can each be wider than one
+## chunk and so can straddle a chunk edge. Before the cache that did not matter:
+## whichever tile the emit reached first built it, once, and the record was
+## thrown away with the window. With a cache it matters completely, because a
+## chunk's mesh then depends on which of its neighbours was built first, and a
+## mesh handed to a window whose neighbours are somewhere else is a house drawn
+## twice or not at all. Thirteen maps of three hundred and eighty came out short
+## before this was here.
+##
+## So each structure gets ONE owner, and it is whichever chunk reached it first
+## after the map was resolved. First-come rather than derived from the
+## structure's own first tile, and the difference is a real map: the northern
+## house of 11,2 is cut by the map edge and the tile its record starts at is not
+## a tile any chunk emits it from, so an owner worked out from that record was an
+## owner that never built it and the house went missing. What a chunk reaches is
+## what a chunk can own.
+##
+## Two consequences, both handled here:
+##
+## - Where the owner is not part of this window at all, whoever reaches the
+##   structure builds it, so nothing at the window's own edge goes missing.
+## - Either way, a chunk that shares a structure with another chunk is not
+##   CACHED. Its contents depend on which of its neighbours the window holds, and
+##   that is exactly what a cached chunk may not depend on. Only chunks with a
+##   structure crossing their edge pay it, which is a minority of them.
+func _owned_here(key: String) -> bool:
+	var mine: Vector2i = _chunk_keys[_chunk_at]
+	if not _structure_owner.has(key):
+		_structure_owner[key] = mine
+		return true
+	if _structure_owner[key] == mine:
+		return true
+	_chunk_shared = true
+	return not _selected.has(_structure_owner[key])
+
+
+## Whether the chunk at [param at] can be handed back rather than built again.
+##
+## Two things have to hold. Its RECTANGLE has to be the one the cached mesh was
+## built for, which is why a chunk is cut to the map rather than to the window
+## above. And the DETAIL RING has to be irrelevant to it: a stamp past the ring
+## wears the flat impostor instead of the solid (`_place_model`), the ring moves
+## with the player, so a chunk the ring crosses is a chunk whose contents depend
+## on where the player was standing. Such a chunk is built again, both times.
+##
+## At every draw distance this view offers, the ring is 35 walk cells and the
+## window is at most 24, so the whole window is inside the ring and this is
+## always true; the test is here because the ring is a tuning static and the day
+## it is tightened is the day a stale chunk would otherwise be drawn.
+func _reusable(at: Vector2i, chunk: Rect2i) -> bool:
+	if not _chunk_cache.has(at):
+		return false
+	var held: Dictionary = _chunk_cache[at]
+	if held["rect"] != chunk:
+		return false
+	return _inside_ring(chunk, held["ring_at"], held["ring_reach"]) \
+		and _inside_ring(chunk, _ring_at, _ring_reach)
+
+
+## Whether every corner of a chunk is nearer the ring's centre than its reach, so
+## nothing in it can be worn as a far stamp. A reach of zero is no ring at all.
+func _inside_ring(chunk: Rect2i, centre: Vector3, reach: float) -> bool:
+	if reach <= 0.0:
+		return true
+	var here := Vector2(centre.x, centre.z)
+	for corner: Vector2i in [
+		chunk.position, Vector2i(chunk.end.x, chunk.position.y),
+		Vector2i(chunk.position.x, chunk.end.y), chunk.end,
+	]:
+		if Vector2(_world_x(corner.x), _world_z(corner.y)).distance_to(here) >= reach:
+			return false
+	return true
+
+
+## Hands a cached chunk's work back: its meshes, the structures it CLAIMED and
+## the model stamps it placed.
+##
+## The claims are what keep a structure drawn exactly once. A house, an object, a
+## flight of stairs and a fence are each built by whichever of their tiles the
+## emit reaches first, and the record of what has been built is cleared per emit,
+## so a chunk handed back without its claims would have its houses built a second
+## time by the neighbouring chunk that shares them.
+func _reuse(at: Vector2i) -> void:
+	var held: Dictionary = _chunk_cache[at]
+	if held["terrain"] != null:
+		_ready.append(held["terrain"])
+	if held["water"] != null:
+		_water_ready.append(held["water"])
+	if held["tufts"] != null:
+		_tuft_ready.append(held["tufts"])
+	for index: int in held["houses"] as PackedInt32Array:
+		_house_done[index] = true
+	for index: int in held["objects"] as PackedInt32Array:
+		_object_done[index] = true
+	for index: int in held["stairs"] as PackedInt32Array:
+		_stair_done[index] = true
+	for cell: int in held["fences"] as PackedInt32Array:
+		_fence_done[cell] = true
+	for cell: Vector2i in held["skirt_fences"] as Array:
+		_skirt_fence_done[cell] = true
+	for spot: Array in held["spots"] as Array:
+		(_model_spots[spot[0]] as Dictionary)[spot[1]] = spot[2]
+
+
+## Drops cached chunks the current window is not near, so a walk across a route
+## does not carry the whole route's geometry with it.
+##
+## The margin is a ring of chunks around the window rather than the window
+## itself: the player who walked far enough east to move the window is the player
+## most likely to walk back west, and a chunk dropped on the step out is a chunk
+## rebuilt on the step home.
+func _forget_chunks(wanted: Dictionary) -> void:
+	var low := Vector2i(1 << 30, 1 << 30)
+	var high := Vector2i(-(1 << 30), -(1 << 30))
+	for at: Vector2i in wanted:
+		low = low.min(at)
+		high = high.max(at)
+	low -= Vector2i(CACHE_MARGIN_CHUNKS, CACHE_MARGIN_CHUNKS)
+	high += Vector2i(CACHE_MARGIN_CHUNKS, CACHE_MARGIN_CHUNKS)
+	for at: Vector2i in _chunk_cache.keys():
+		if at.x < low.x or at.y < low.y or at.x > high.x or at.y > high.y:
+			_chunk_cache.erase(at)
 
 
 ## One slice, up to [param budget_usec] of work, or the whole window at zero.
@@ -565,6 +764,13 @@ func take_tufts() -> Array:
 
 func _open_chunk() -> void:
 	_chunk_cursor = _chunks[_chunk_at].position
+	_chunk_houses = PackedInt32Array()
+	_chunk_objects = PackedInt32Array()
+	_chunk_stairs = PackedInt32Array()
+	_chunk_fences = PackedInt32Array()
+	_chunk_skirt_fences = []
+	_chunk_spots = []
+	_chunk_shared = false
 	_vertices = PackedVector3Array()
 	_normals = PackedVector3Array()
 	_uvs = PackedVector2Array()
@@ -587,16 +793,35 @@ func _open_chunk() -> void:
 func _close_chunk() -> void:
 	# A chunk of nothing is most of the sky above a route edge and all of a map's
 	# void; an empty mesh is an instance the engine still has to cull.
-	if not _vertices.is_empty():
-		_ready.append(_mesh_of(_vertices, _normals, _uvs, _colors))
-	if not _water_vertices.is_empty():
-		_water_ready.append(
-			_mesh_of(_water_vertices, _water_normals, _water_uvs, _water_colors)
-		)
-	if not _tuft_vertices.is_empty():
-		_tuft_ready.append(_mesh_of(
-			_tuft_vertices, _tuft_normals, _tuft_uvs, _tuft_colors, _tuft_uv2s
-		))
+	var terrain: ArrayMesh = _mesh_of(_vertices, _normals, _uvs, _colors) \
+		if not _vertices.is_empty() else null
+	var water: ArrayMesh = _mesh_of(
+		_water_vertices, _water_normals, _water_uvs, _water_colors
+	) if not _water_vertices.is_empty() else null
+	var tufts: ArrayMesh = _mesh_of(
+		_tuft_vertices, _tuft_normals, _tuft_uvs, _tuft_colors, _tuft_uv2s
+	) if not _tuft_vertices.is_empty() else null
+	if terrain != null:
+		_ready.append(terrain)
+	if water != null:
+		_water_ready.append(water)
+	if tufts != null:
+		_tuft_ready.append(tufts)
+	if _chunk_shared:
+		# Shared with a neighbour, so what it holds depends on which neighbours
+		# this window had. See [method _owned_here].
+		_chunk_cache.erase(_chunk_keys[_chunk_at])
+		return
+	_chunk_cache[_chunk_keys[_chunk_at]] = {
+		"rect": _chunks[_chunk_at],
+		"terrain": terrain, "water": water, "tufts": tufts,
+		"houses": _chunk_houses, "objects": _chunk_objects,
+		"stairs": _chunk_stairs, "fences": _chunk_fences,
+		"skirt_fences": _chunk_skirt_fences, "spots": _chunk_spots,
+		# The ring this chunk was built under, which is what says whether it may
+		# be handed back: see [method _reusable].
+		"ring_at": _ring_at, "ring_reach": _ring_reach,
+	}
 
 
 func _mesh_of(
@@ -625,9 +850,29 @@ func size_tiles() -> Vector2i:
 	return _map_size
 
 
-## All the ground this mesher will ever emit, in MAP tiles: the map, the border
-## ring around it and the skirt past that. The same box `begin_emit` clips a
-## window against, so a window is what is DRAWN and this is what COULD be.
+## What the last [method begin_emit] ACTUALLY covered, in MAP tiles, which is the
+## window rounded out to whole chunks and clipped to the map.
+##
+## Not the same as the window that was asked for, and the difference is what a
+## view drawing ground past the mesh has to cut its hole to: a chunk is cut to
+## the map rather than to the window so that it can be handed back on the next
+## one (see [method _reusable]), so the mesh reaches up to fifteen tiles further
+## than the window on each side. A hole cut to the window instead would leave the
+## far field's flat ground drawn underneath that fringe, at the same height as
+## the mesh's own.
+##
+## In MAP tiles, like [method drawn_bounds_tiles]: the emit walks the GRID, which
+## is the map inside its border ring, and the margin between the two is subtracted
+## here so that nothing outside this file ever sees the ring.
+func emitted_bounds_tiles() -> Rect2i:
+	if _emitted.size == Vector2i.ZERO:
+		return Rect2i()
+	return Rect2i(_emitted.position - _margin, _emitted.size)
+
+
+## All the ground this mesher could ever emit, in MAP tiles: the map, the border
+## ring around it and the skirt past that. The box `begin_emit` clips every chunk
+## against, so a chunk is what is DRAWN and this is what COULD be.
 ##
 ## For a view that draws anything beyond the mesh: everything outside this is
 ## ground no chunk will ever cover, and everything inside it is the mesh's own.
@@ -769,6 +1014,15 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_model_meshes.clear()
 	_model_spots.clear()
 	_model_bodies.clear()
+	_card_of_tile.clear()
+	# WITH THE MESHES IT NAMES. A cached chunk holds stamps keyed into
+	# `_model_spots` and meshes keyed into `_model_meshes`, and both are about to
+	# be dropped: a chunk outliving them is a stamp of a drawing from the map that
+	# has been left.
+	_chunk_cache.clear()
+	# And who owned what, which is numbered by the structure lists this resolve is
+	# about to rebuild.
+	_structure_owner.clear()
 	_commonest_index.clear()
 	if source == null or not source.valid():
 		return
@@ -4585,8 +4839,15 @@ func _place_model(tx: int, ty: int, atlas: RefCounted, base: float = INF) -> voi
 		for column: int in across.x:
 			tiles.append(_tile_at(start.x + column, start.y + row))
 	var ground: float = base if is_finite(base) else float(_ground_art(tx, ty).y)
+	# WHICH DRAWING STANDS ON THIS TILE, for the maps on the horizon: see
+	# [method far_cards]. The FIRST body of the drawing, because out there a cell
+	# gets one card rather than the drawing's own bodies, and the first is the
+	# one the flood found first, which is stable for a given drawing.
+	var first_tile: int = _tile_at(start.x, start.y)
 	for body: Array in _model_bodies_of(tiles, across, at, atlas):
 		var key: String = body[0]
+		if first_tile >= 0 and not _card_of_tile.has(first_tile):
+			_card_of_tile[first_tile] = key
 		var middle: Vector2 = body[1]
 		# WHERE THE BODY IS DRAWN, on the ground beside it, TURNED AND NUDGED off
 		# the grid it was authored on. The cartridge places its trees on a 16px
@@ -4630,11 +4891,16 @@ func _place_model(tx: int, ty: int, atlas: RefCounted, base: float = INF) -> voi
 					Vector2(_ring_at.x, _ring_at.z)
 				) > _ring_reach:
 			worn = _far_key(key)
-		(_model_spots[worn] as Dictionary)[str(start)] = [
+		var placed: Array = [
 			Transform3D(Basis(Vector3(0.0, 1.0, 0.0), turn), spot),
 			_hash_spot(anchor + Vector2i(0, 53)),
 			_model_chunk(start),
 		]
+		(_model_spots[worn] as Dictionary)[str(start)] = placed
+		# And on the chunk's own list, so a chunk handed back brings its stamps
+		# with it: `_model_spots` is emptied per emit like every other per-window
+		# record.
+		_chunk_spots.append([worn, str(start), placed])
 
 
 ## Whether the drawing CARRIES ON both ways along [param step], which is the test
@@ -4764,6 +5030,9 @@ static var impostor_models: bool = false
 ## Per model key: the reading the solid was turned from, kept so the FAR mesh of
 ## the same drawing can be turned from the same measurement on demand.
 var _model_measures: Dictionary = {}
+## The drawing standing on each first tile, keyed by tile id. See
+## [method far_cards].
+var _card_of_tile: Dictionary = {}
 ## Per model key: the drawing itself, cut out of the sheet with everything that
 ## is not this body left transparent. What a far stamp wears. See [method _cut_out].
 var _model_cutouts: Dictionary = {}
@@ -4821,6 +5090,37 @@ func _far_key(key: String) -> String:
 ## drawn larger than its bushes, and a map whose largest drawing is a bush is a
 ## map with no trees to put out there anyway. See `world/far_foliage.gd` for why
 ## one drawing serves every map on the horizon.
+## THE CARD EACH DRAWING WEARS, keyed by the TILE its drawing starts at, for the
+## maps drawn past the mesh.
+##
+## `world/far_foliage.gd` stands one card on every modelled cell of every map on
+## the horizon, and until this was here it stood the same card on all of them:
+## [method far_tree], the biggest drawing this map turned. So a bush out there
+## was drawn as a tree and a neighbour's own trees were drawn as this map's,
+## which reads as one uniform mass of canopy the moment the camera is dollied
+## out far enough to see a horizon at all. Inside the mesh the detail ring has
+## always swapped each drawing for ITS OWN card; this is the same answer for the
+## ground past it.
+##
+## KEYED BY TILE and therefore only good for maps on THIS TILESET, which is the
+## caller's to check: a block is numbered in its own tileset and a tile id means
+## nothing without one, exactly as `shape/map_source.gd` refuses a neighbour's
+## block for the same reason. A map on another tileset keeps [method far_tree].
+##
+## Only drawings that CUT to something are offered, since a card is the cut-out;
+## a body that cuts to nothing has a rebuilt silhouette instead and that is a
+## solid, not a card.
+func far_cards() -> Dictionary:
+	var out: Dictionary = {}
+	for tile: int in _card_of_tile:
+		var key: String = _card_of_tile[tile]
+		var cutout: ImageTexture = _model_cutouts.get(key)
+		if cutout == null:
+			continue
+		out[tile] = [_model_meshes[_far_key(key)], cutout]
+	return out
+
+
 func far_tree() -> Array:
 	var best: String = ""
 	var widest: int = 0
@@ -6198,13 +6498,19 @@ func _object_model(
 			_model_spots[key] = {}
 			_built_model = true
 		var middle: Vector2 = Vector2((bounds[group] as Rect2i).get_center())
-		(_model_spots[key] as Dictionary)[str(start)] = [
+		var placed: Array = [
 			Transform3D(Basis(), Vector3(
 				_world_x(start.x) + middle.x, ground, _world_z(start.y) + middle.y
 			)),
 			0.0,
 			_model_chunk(start),
 		]
+		(_model_spots[key] as Dictionary)[str(start)] = placed
+		# THE SECOND PLACE A STAMP IS WRITTEN, and it has to be recorded on the
+		# chunk exactly as `_place_model`'s is: a turned object reaches this
+		# rather than that one, and a chunk handed back without it left four maps
+		# short of a stamp apiece.
+		_chunk_spots.append([key, str(start), placed])
 
 
 ## How much wall a body needs before it is a building rather than a speck.
@@ -8310,15 +8616,20 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		# model stamped there, or a rail on its posts.
 		if _house_covered[at] == 1:
 			for index: int in _house_over.get(at, PackedInt32Array()) as PackedInt32Array:
-				if _house_done.has(index):
+				# The ownership test FIRST and the done test second: the first is
+				# what marks this chunk shared, and short circuiting past it is
+				# what cached a chunk as though it owned nothing at all.
+				if not _owned_here("h%d" % index) or _house_done.has(index):
 					continue
 				_house_done[index] = true
+				_chunk_houses.append(index)
 				_emit_house(index, atlas)
 		elif _object_covered[at] == 1:
 			for index: int in _object_over.get(at, PackedInt32Array()) as PackedInt32Array:
-				if _object_done.has(index):
+				if not _owned_here("o%d" % index) or _object_done.has(index):
 					continue
 				_object_done[index] = true
+				_chunk_objects.append(index)
 				_emit_object(index, atlas)
 		elif _art[at] == ART_BALL:
 			_ball(tx, ty, float(ground.y), atlas)
@@ -8329,8 +8640,9 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 			# first: the model spans the cell and the run's two arms cross at its
 			# centre, so a tile is a quarter of it and not a thing of its own.
 			var cell: int = ((ty - _margin.y) >> 1) * _size.x + ((tx - _margin.x) >> 1)
-			if not _fence_done.has(cell):
+			if _owned_here("f%d" % cell) and not _fence_done.has(cell):
 				_fence_done[cell] = true
+				_chunk_fences.append(cell)
 				_fence(tx, ty, float(ground.y), atlas)
 		elif _modelled[at] == 1:
 			_place_model(tx, ty, atlas)
@@ -8411,8 +8723,10 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		_place_model(tx, ty, atlas, float(here))
 	# The flight standing in the cell whose floor this is. Asked for from every one
 	# of its four tiles and built by whichever asks first, as an object is.
-	if _stair_at[at] >= 0 and not _stair_done.has(_stair_at[at]):
+	if _stair_at[at] >= 0 and _owned_here("s%d" % _stair_at[at]) \
+			and not _stair_done.has(_stair_at[at]):
 		_stair_done[_stair_at[at]] = true
+		_chunk_stairs.append(_stair_at[at])
 		_emit_stairs(_stair_at[at], atlas)
 
 
@@ -9169,9 +9483,10 @@ func _skirt_fence(
 	if int(_fence_arms[index]) & arm == 0:
 		return
 	var cell := Vector2i((tx - _margin.x) >> 1, (ty - _margin.y) >> 1)
-	if _skirt_fence_done.has(cell):
+	if not _owned_here("k%s" % str(cell)) or _skirt_fence_done.has(cell):
 		return
 	_skirt_fence_done[cell] = true
+	_chunk_skirt_fences.append(cell)
 	_fence(tx, ty, ground, atlas, arm)
 
 

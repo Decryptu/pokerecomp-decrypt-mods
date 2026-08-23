@@ -10,6 +10,9 @@ mods/<id>/            one installable mod; the archive root
   thumbnail.webp      optional 1280x720 thumbnail, shown on the mod library site
 index.json            the published feed; one row per mod
 tools/package.sh      mods/<id>/ -> dist/<id>-<version>.zip
+tools/check.sh        parses every script; `tools` and `all` widen what it reads
+tools/walk_bench.gd   what a frame costs while the player walks, in the game
+tools/stage_bench.gd  the same for the diorama alone, with each part priceable
 tools/mod_icons.sh    repaints every icon from one cartridge; see icon_art.gd
 docs/icons/<id>.png   the same icon at 4x, for the README table only
 ```

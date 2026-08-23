@@ -76,6 +76,31 @@ const AMBIENT_ENERGY: float = 0.28
 const FAR_DEFAULT: float = 8000.0
 const SHADOW_DISTANCE_DEFAULT: float = 600.0
 
+## How far the sun's shadow may reach, in world pixels, before it is worth
+## SPLITTING the shadow map into cascades at all.
+##
+## A parallel-split shadow spends its map where the eye is, by drawing the scene
+## once per cascade: it is the answer to a shadow that has to cover a landscape,
+## and it is four passes over the geometry to get it. This view's shadow does not
+## cover a landscape. [constant SHADOW_DISTANCE_DEFAULT] caps it at six hundred
+## world pixels and the mesh window caps it again at the DISTANCE setting, which
+## at the default is 256, and one orthogonal map over 256 world pixels of Game
+## Boy art is already finer than the art.
+##
+## THE NUMBER IS MEASURED, on route 26,1 at the lowest camera, one split against
+## four, counting the pixels that differ by more than a level of eight:
+##
+##   reach 192 (DISTANCE 12)   0.64%, which is the run to run noise floor
+##   reach 256 (DISTANCE 16)   1.17%, a pixel of movement on shadow edges
+##   reach 384 (DISTANCE 24)   8.50%, and the far shadows begin to go
+##   reach 600 (FULL)         12.40%, half the picture loses its shadows
+##
+## So the split is kept where it earns its four passes and dropped where it does
+## not. At the default distance the frame goes 4.26 ms to 2.92 ms on a 2560x1440
+## window with the same picture, which is a third of it: see
+## `tools/stage_bench.gd`, the instrument all four numbers came off.
+const ONE_SPLIT_REACH: float = 256.0
+
 ## AERIAL PERSPECTIVE, in world pixels, and the one thing that lets a flat far
 ## field read as distance rather than as a page laid down beside the diorama.
 ##
@@ -303,12 +328,20 @@ func set_interface_mask(screen: Rect2i, masked: bool) -> void:
 func set_view_distance(pixels: float, horizon: bool = false) -> void:
 	if pixels <= 0.0:
 		camera.far = FAR_DEFAULT
-		_light.directional_shadow_max_distance = SHADOW_DISTANCE_DEFAULT
+		_set_shadow_reach(SHADOW_DISTANCE_DEFAULT)
 		_reach = FAR_DEFAULT
 		return
 	camera.far = FAR_DEFAULT if horizon else minf(FAR_DEFAULT, pixels * 2.0)
-	_light.directional_shadow_max_distance = minf(SHADOW_DISTANCE_DEFAULT, pixels)
+	_set_shadow_reach(minf(SHADOW_DISTANCE_DEFAULT, pixels))
 	_reach = camera.far
+
+
+## How far the shadow reaches, and how many passes over the geometry that is
+## worth. See [constant ONE_SPLIT_REACH].
+func _set_shadow_reach(pixels: float) -> void:
+	_light.directional_shadow_max_distance = pixels
+	_light.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL \
+		if pixels <= ONE_SPLIT_REACH else DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 
 
 ## How many window pixels the 3D pass draws one of.
