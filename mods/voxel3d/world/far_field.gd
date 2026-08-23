@@ -81,6 +81,16 @@ uniform highp float border_block = 0.0;
 uniform highp float block_count = 1.0;
 uniform highp float atlas_rows = 1.0;
 uniform bool fill_border = false;
+// THE WATER OUT HERE IS THE SAME WATER. A far map is a drawing rather than a
+// surface, so it has no swell, no glint and no bank; what it CAN have is the
+// sky in it, which is the whole of why the near sea and the far sea were two
+// different colours meeting at a hard line. The three are that map's own water
+// row and a texel matching one of them is water: see `atlas.gd:water_colors`.
+uniform vec3 water_one : source_color = vec3(0.0);
+uniform vec3 water_two : source_color = vec3(0.0);
+uniform vec3 water_three : source_color = vec3(0.0);
+uniform vec3 sky_horizon : source_color = vec3(0.0);
+uniform float water_mix = 0.0;
 
 varying highp vec3 ground;
 
@@ -115,8 +125,18 @@ void fragment() {
 		vec2((slot + 0.5) / 16.0, (block + 0.5) / max(block_count, 1.0))).r * 255.0 + 0.5);
 	highp vec2 pixel = inside - cell * 8.0;
 	highp vec2 sheet = vec2(mod(tile, 16.0), floor(tile / 16.0));
-	ALBEDO = texture(atlas, (sheet * 8.0 + pixel + 0.5)
+	vec3 texel = texture(atlas, (sheet * 8.0 + pixel + 0.5)
 		/ vec2(16.0 * 8.0, max(atlas_rows, 1.0) * 8.0)).rgb;
+	// A palette colour is exact, so this is an equality test with room for the
+	// last bit of an 8 bit channel and nothing more.
+	if (water_mix > 0.0 && (distance(texel, water_one) < 0.01
+		|| distance(texel, water_two) < 0.01
+		|| distance(texel, water_three) < 0.01)) {
+		// The far sea is seen at a grazing angle and nowhere else, which is the
+		// one place `water.gd`'s Fresnel has a single answer: its most.
+		texel = mix(texel, sky_horizon, water_mix);
+	}
+	ALBEDO = texel;
 }
 """
 
@@ -133,6 +153,9 @@ var _hole := Rect2()
 ## The layer pool, re-pointed rather than rebuilt: a recentre moves the hole and
 ## nothing else about what is drawn out there.
 var _layers: Array[MeshInstance3D] = []
+## The sky the far water takes and its share: see [method set_sky].
+var _sky_horizon: Color = Color.BLACK
+var _water_mix: float = 0.0
 var _fill: MeshInstance3D = null
 var _quad: PlaneMesh = null
 ## The trees standing on the pages. See `far_foliage.gd`.
@@ -238,6 +261,23 @@ func set_time_of_day(time_of_day: int) -> void:
 
 
 ## The ground the mesh is drawing, in WORLD PIXELS, which this leaves alone.
+## The sky the far water reflects, and how much of it. Both come from the same
+## place the near water's do, which is what makes the two seas one colour:
+## `diorama.gd:set_background` hands the sky's own horizon over and `water.gd`
+## owns the share.
+func set_sky(horizon: Color, share: float) -> void:
+	_sky_horizon = horizon
+	_water_mix = share
+	for node: MeshInstance3D in _layers:
+		var material := node.material_override as ShaderMaterial
+		if material == null:
+			continue
+		material.set_shader_parameter(
+			&"sky_horizon", Vector3(horizon.r, horizon.g, horizon.b)
+		)
+		material.set_shader_parameter(&"water_mix", share)
+
+
 func set_hole(rect: Rect2) -> void:
 	_hole = rect
 
@@ -443,6 +483,19 @@ func _dress(
 		sheet.texture.get_height() / int(TILE), 1
 	)))
 	material.set_shader_parameter(&"fill_border", fill_border)
+	# That map's own water row, so a lake on a route out there is graded in the
+	# colours the cartridge painted IT with rather than this map's.
+	var water: PackedColorArray = sheet.water_colors()
+	for index: int in 3:
+		var colour: Color = water[index] if index < water.size() else Color.BLACK
+		material.set_shader_parameter(
+			[&"water_one", &"water_two", &"water_three"][index],
+			Vector3(colour.r, colour.g, colour.b)
+		)
+	material.set_shader_parameter(
+		&"sky_horizon", Vector3(_sky_horizon.r, _sky_horizon.g, _sky_horizon.b)
+	)
+	material.set_shader_parameter(&"water_mix", _water_mix)
 
 
 func _block_count(tileset_number: int) -> int:
