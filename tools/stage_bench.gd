@@ -228,7 +228,7 @@ func _apply(named: Dictionary) -> void:
 		for material: ShaderMaterial in [_stage._wind.grass, _stage._wind.foliage]:
 			material.set_shader_parameter("period", 3600.0)
 	if int(named.get("pass", "1")) == 0:
-		_stage.container.material = null
+		_stage.set_pass_enabled(false)
 	print("stage      scale %s, dof %d, shadows %s (%s splits, %.0f px), water %s,"
 			% [
 		named.get("scale", "1"), dof, named.get("shadows", "1"),

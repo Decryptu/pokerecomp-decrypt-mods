@@ -130,6 +130,10 @@ const HAZE_DENSITY: float = 0.85
 
 var container: SubViewportContainer = null
 var viewport: SubViewport = null
+## The pass's own surface and the viewport it is drawn into, both at the divided
+## size. See [method _init].
+var _pass_viewport: SubViewport = null
+var _pass_screen: TextureRect = null
 var camera: Camera3D = null
 var actors: Node3D = null
 
@@ -172,13 +176,43 @@ func _init() -> void:
 	# `set_render_scale`.
 	container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
+	# THE PASS RUNS AT THE MESH'S OWN RESOLUTION AND NOT THE WINDOW'S.
+	#
+	# `frame.gd` used to live on the container's material, which is drawn once
+	# per WINDOW pixel however far RES has shrunk what is under it: the hour's
+	# tint, the depth of field and the mask were the one thing in this view that
+	# did not get cheaper as the divisor went up, and RES is the rung a phone
+	# reaches for. Measured on an M4 at 2560x1440 the pass is lost in the noise
+	# at RES 1 and 0.34 ms of a 2.97 ms frame at RES 4, which is the shape of the
+	# fault rather than its size: everything else there is sixteen times cheaper
+	# and this was not.
+	#
+	# So the picture goes through a viewport of its own, at the divided size,
+	# and THAT is what the container blows back up. The pass is quadratic in the
+	# divisor like everything else now. It does not move the picture: the tint is
+	# a multiply and commutes with a nearest upscale, the depth of field already
+	# worked in the viewport's own texels, and the mask's edges land on divisor
+	# boundaries, which is where every other edge in this view already lands.
+	_pass_viewport = SubViewport.new()
+	_pass_viewport.transparent_bg = false
+	_pass_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	container.add_child(_pass_viewport)
+
+	_pass_screen = TextureRect.new()
+	_pass_screen.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_pass_screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pass_viewport.add_child(_pass_screen)
+	_pass_viewport.size_changed.connect(_on_pass_resized)
+
 	viewport = SubViewport.new()
 	# Its own 3D world, so this never shares a scene with whatever else the
 	# screen has open.
 	viewport.own_world_3d = true
 	viewport.transparent_bg = false
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	container.add_child(viewport)
+	# Inside the pass, which is what makes the pass's own viewport the one the
+	# container sizes. Nothing about the 3D world depends on where it is parented.
+	_pass_screen.add_child(viewport)
 
 	var holder := WorldEnvironment.new()
 	_environment = Environment.new()
@@ -238,7 +272,7 @@ func _init() -> void:
 	# The pass over the composited stage: the hour's own colour over every pixel,
 	# under whatever the screen draws on top of it.
 	_frame = Frame3D.new()
-	container.material = _frame.material
+	_pass_screen.material = _frame.material
 
 	actors = Node3D.new()
 	viewport.add_child(actors)
@@ -366,6 +400,13 @@ func _set_shadow_reach(pixels: float) -> void:
 ## is the shrink the SubViewport was built around, so nothing else changes.
 func set_render_scale(divisor: int) -> void:
 	container.stretch_shrink = clampi(divisor, 1, 4)
+
+
+## Whether the pass over the finished picture runs at all, which is one argument
+## of `tools/stage_bench.gd` and is not a setting: a subsystem's share of a frame
+## is only readable by turning it off.
+func set_pass_enabled(enabled: bool) -> void:
+	_pass_screen.material = _frame.material if enabled else null
 
 
 ## See `frame.gd:set_depth_of_field`.
@@ -536,6 +577,18 @@ func set_background(color: Color, outside: bool = true) -> void:
 	_water_shader.set_sky(_sky.horizon, _sky.zenith)
 	_motes.set_outside(outside)
 	_motes_node.visible = _motes.drifting()
+
+
+## The container sizes the PASS's viewport; the 3D one and the surface the pass
+## is drawn on both follow it, so all three are the divided size and the only
+## upscale in the view is the container's own nearest one.
+func _on_pass_resized() -> void:
+	var size: Vector2i = _pass_viewport.size
+	if size.x <= 0 or size.y <= 0:
+		return
+	viewport.size = size
+	_pass_screen.size = Vector2(size)
+	_pass_screen.texture = viewport.get_texture()
 
 
 func _on_viewport_resized() -> void:
