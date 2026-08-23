@@ -590,31 +590,22 @@ static var dof_near: float = 900.0
 static var dof_far: float = 2600.0
 
 
-## Stands this map's own tree on the maps out past the mesh, once there is a
-## mesh to take one from. See `world/far_foliage.gd`.
+## Hands the maps out past the mesh the one drawing they fall back on, once there
+## is a mesh to take it from. See `world/far_foliage.gd`.
 func _dress_far_field() -> void:
 	var far: RefCounted = _stage.far_field()
 	if far == null:
 		return
+	far.set_far_trees(far_trees)
 	if not far_trees:
-		far.set_far_tree(null, null)
-		far.set_far_cards({}, -1)
 		return
+	# ONLY THE FALLBACK IS HANDED OVER. Each far map cuts its own cards out of its
+	# own sheet now, drawing by drawing: see `world/far_foliage.gd`. What is left
+	# for this map to lend is the one tree a drawing that cuts to nothing wears.
 	var tree: Array = _mesher.far_tree()
 	far.set_far_tree(
 		tree[0] as Mesh, _stage.foliage_material(tree[1] as Texture2D)
 	) if tree.size() == 2 else far.set_far_tree(null, null)
-	# EACH DRAWING ITS OWN CARD out there, not one tree for the lot: see
-	# `shape/mesher.gd:far_cards`. The materials are the stage's, one per cut-out
-	# and pooled by it, so this is the same call the tree above takes.
-	var cards: Dictionary = {}
-	var built: Dictionary = _mesher.far_cards()
-	for tile: int in built:
-		var card: Array = built[tile]
-		cards[tile] = [card[0], _stage.foliage_material(card[1] as Texture2D)]
-	far.set_far_cards(
-		cards, _world.current_tileset.number if _world.current_tileset != null else -1
-	)
 
 
 ## Centres the detail ring on the EYE and not on the player.

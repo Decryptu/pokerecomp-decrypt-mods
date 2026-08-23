@@ -580,35 +580,53 @@ all.
 
 ## And trees on the horizon
 
-The pages past the mesh carry the same drawing. A map out there is walked once,
-cell by cell, asking the tileset whether a tile is a model, which is a question
-about the tile and the permission and nothing else and so costs 2 ms a map
-against the quarter of a second a real resolve does. Every map it finds them on
-stands them.
+The pages past the mesh carry the same drawings. A map out there is walked once,
+tile by tile, asking the tileset which drawing stands where, which is a question
+about the tile ids and the collision and nothing else and so costs about 11 ms a
+map against the quarter of a second a real resolve does. Every map it finds them
+on stands them, the loaded one past its own window included.
 
 It is four per cent of the frame's triangles on the widest horizon in the game,
 and it is the difference between a neighbour reading as a landmass and reading as
 a green rug laid on the sea.
 
-EACH CELL WEARS ITS OWN DRAWING. The detail ring inside the mesh has always
-swapped a drawing for its own card, tree and bush alike, and the horizon used to
-wear ONE card for all of it: the biggest drawing this map turned. So a bush out
-there was drawn as a tree and a neighbour's own trees were drawn as this map's,
-and a whole coast of low scrub came out as a wall of tall canopy with the water
-behind it hidden. That was written down as invisible at the distance it is drawn.
-It is not: dollying the camera out to the rig's own limit is the whole of what it
-takes, and the left third of the horizon on route 26,1 is a worked example.
-`shape/mesher.gd:far_cards` hands over the card each drawing was cut to, keyed by
-the tile it starts at, and the walk groups its spots by card. Measured at no
-change in draws or triangles: the same cells are standing, in a few more
-MultiMeshes.
+EACH DRAWING WEARS ITS OWN CARD, CUT FROM ITS OWN MAP'S SHEET. The detail ring
+inside the mesh has always swapped a drawing for its own card, tree and bush
+alike, and the horizon has been wrong about it three times over.
 
-A map on ANOTHER TILESET still wears the one tree, and that is not laziness: a
-tile is numbered in its own tileset and means nothing in another, which is the
-same reason the border ring refuses a neighbour's block. Nine of the seventy-seven
-outdoor maps have such a neighbour. One simplification is left and is deliberate:
-a cell gets one card rather than its drawing's own bodies, so a cell of four sea
-rocks is one rock out there.
+First it wore ONE card for all of it, the biggest drawing the loaded map turned:
+a bush out there was drawn as a tree, a neighbour's own trees were drawn as this
+map's, and a whole coast of low scrub came out as a wall of tall canopy with the
+water behind it hidden. That was written down as invisible at the distance it is
+drawn. It is not: dollying the camera out to the rig's own limit is the whole of
+what it takes, and the left third of the horizon on route 26,1 is a worked
+example.
+
+Then the card was looked up by the TILE a drawing starts at. A drawing is many
+tiles and only one of them is that corner, so most far cells matched nothing and
+fell back to the tree, and where a tile id did match it matched whatever other
+drawing began at the same id: route 26's conifers came back as its bushes and the
+skyline went flat. A drawing is named by its whole arrangement of tiles, which is
+how `shape/mesher.gd` names every model mesh it builds, or it is not named at all.
+`shape/far_drawings.gd` is what reads that name back off a map nothing resolved.
+
+And naming it was still not enough while the cards were the LOADED map's. A
+quarter of the far foliage in the game is a drawing the loaded map does not hold
+and another sixteenth is on another tileset entirely, and all of it wore the one
+tree. So each map cuts its own: `shape/mesher.gd:far_card_for` takes a drawing's
+tiles, its class and the tile sheet the far ground beside it is already drawn
+with, and hands back the same card the resolve would have cut. `tools/far_drawings.gd`
+is the guard and checks both halves against a real resolve, the boxes and the
+cards, over the 229 outdoor maps of the three cartridges: 0 differ, 174 drawings a
+cartridge, every card pixel for pixel the mesh's own.
+
+Measured at no change in frame time, in draws or in triangles: the same cells are
+standing, in a few more MultiMeshes, and those are kept rather than refilled per
+frame. A map is walked and cut ONE A FRAME, which is what the ground under it
+already does with its sheet.
+
+One simplification is left and is deliberate: a drawing gets one card rather than
+its own bodies, so a cell of four sea rocks is one rock out there.
 
 ## A little out of focus, in pixels
 

@@ -161,10 +161,15 @@ func set_far_tree(mesh: Mesh, material: ShaderMaterial) -> void:
 	_foliage.set_tree(mesh, material)
 
 
-## The card each drawing wears, keyed by the tile it starts at. See
-## `far_foliage.gd:set_cards`.
-func set_far_cards(cards: Dictionary, tileset: int) -> void:
-	_foliage.set_cards(cards, tileset)
+## Whether the maps out there stand anything. See `far_foliage.gd:set_enabled`.
+func set_far_trees(on: bool) -> void:
+	_foliage.set_enabled(on)
+
+
+## How a cut-out becomes a material, handed down to the cards the foliage cuts
+## for itself. See `far_foliage.gd:set_material_maker`.
+func set_foliage_material_maker(maker: Callable) -> void:
+	_foliage.set_material_maker(maker)
 
 
 ## A new map, or none. Everything keyed on a map is dropped with it except the
@@ -191,8 +196,10 @@ func set_time_of_day(time_of_day: int) -> void:
 	if time_of_day == _time_of_day:
 		return
 	_time_of_day = time_of_day
-	# A sheet is the tileset coloured by the hour, so every one of them moves.
+	# A sheet is the tileset coloured by the hour, so every one of them moves,
+	# and so does every card cut out of one.
 	_sheets.clear()
+	_foliage.forget_cards()
 
 
 ## The ground the mesh is drawing, in WORLD PIXELS, which this leaves alone.
@@ -240,9 +247,9 @@ func advance(focus: Vector3, reach: float) -> void:
 		), Vector2(near.width_blocks, near.height_blocks), origin,
 			near.border_block, near.tileset, false)
 		_stand(layer, origin, size, NEAR_DEPTH)
-		# The skyline on the page. See `far_foliage.gd`; it draws nothing until
-		# a tree has been handed to it.
-		_foliage.place(_world.data, near, origin)
+		# The skyline on the page, wearing cards cut from the very sheet the
+		# ground under it is drawn with. See `far_foliage.gd`.
+		_foliage.place(_world.data, near, origin, sheet)
 
 	# The loaded map LAST, over the neighbours, for the reason the host draws it
 	# last too: inside `wOverworldMapBlocks` the connection strips are the
@@ -260,6 +267,12 @@ func advance(focus: Vector3, reach: float) -> void:
 		_dress(layer, _sheet(map, true), here, _tile_texture(tileset), blocks,
 			origin, map.border_block, map.tileset, false)
 		_stand(layer, origin, blocks * BLOCK_PIXELS, HERE_DEPTH)
+		# AND THIS MAP'S OWN TREES PAST THE WINDOW. Most of a route is outside the
+		# mesh at any draw distance, and until this was here that ground was the
+		# only bare page in the frame: the maps beyond it wore a skyline and the
+		# one being walked on did not. The hole is what keeps a card off ground
+		# the mesh has already stood a solid on.
+		_foliage.place(_world.data, map, Vector2.ZERO, _sheet(map, true), _hole)
 	_foliage.end()
 	_hide_from(used)
 

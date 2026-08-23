@@ -1014,7 +1014,6 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_model_meshes.clear()
 	_model_spots.clear()
 	_model_bodies.clear()
-	_card_of_tile.clear()
 	# WITH THE MESHES IT NAMES. A cached chunk holds stamps keyed into
 	# `_model_spots` and meshes keyed into `_model_meshes`, and both are about to
 	# be dropped: a chunk outliving them is a stamp of a drawing from the map that
@@ -4839,15 +4838,8 @@ func _place_model(tx: int, ty: int, atlas: RefCounted, base: float = INF) -> voi
 		for column: int in across.x:
 			tiles.append(_tile_at(start.x + column, start.y + row))
 	var ground: float = base if is_finite(base) else float(_ground_art(tx, ty).y)
-	# WHICH DRAWING STANDS ON THIS TILE, for the maps on the horizon: see
-	# [method far_cards]. The FIRST body of the drawing, because out there a cell
-	# gets one card rather than the drawing's own bodies, and the first is the
-	# one the flood found first, which is stable for a given drawing.
-	var first_tile: int = _tile_at(start.x, start.y)
 	for body: Array in _model_bodies_of(tiles, across, at, atlas):
 		var key: String = body[0]
-		if first_tile >= 0 and not _card_of_tile.has(first_tile):
-			_card_of_tile[first_tile] = key
 		var middle: Vector2 = body[1]
 		# WHERE THE BODY IS DRAWN, on the ground beside it, TURNED AND NUDGED off
 		# the grid it was authored on. The cartridge places its trees on a 16px
@@ -5030,9 +5022,6 @@ static var impostor_models: bool = false
 ## Per model key: the reading the solid was turned from, kept so the FAR mesh of
 ## the same drawing can be turned from the same measurement on demand.
 var _model_measures: Dictionary = {}
-## The drawing standing on each first tile, keyed by tile id. See
-## [method far_cards].
-var _card_of_tile: Dictionary = {}
 ## Per model key: the drawing itself, cut out of the sheet with everything that
 ## is not this body left transparent. What a far stamp wears. See [method _cut_out].
 var _model_cutouts: Dictionary = {}
@@ -5082,45 +5071,80 @@ func _far_key(key: String) -> String:
 	return far
 
 
-## THE DRAWING THE MAPS ON THE HORIZON STAND, as `[mesh, cut-out]`, or empty
-## where this map turned no model at all.
+## THE CARD ONE DRAWING WEARS, cut from a map this mesher never resolved.
+##
+## Every map on the horizon is drawn out of its own tileset in its own palette,
+## so the card a far bush wears has to be cut from THAT map's sheet.
+## `world/far_foliage.gd` used to borrow the loaded map's cards instead, and the
+## arithmetic is why this exists: a quarter of the far foliage in the game is a
+## drawing the loaded map does not hold, and every one of those cells wore
+## [method far_tree] whatever it actually was. That is the fault the whole pass
+## is about, at a quarter of its old size.
+##
+## A BARE INSTANCE IS THE FACTORY. Nothing here reads a resolve's arrays: the
+## drawing's tiles, its class and a sheet are the whole input, which is exactly
+## what `shape/far_drawings.gd` walks a map to hand over. What it does with them
+## is `_model_bodies_of`'s own cutting, and `tools/far_drawings.gd` checks that
+## the two agree pixel for pixel on every drawing of every outdoor map.
+##
+## THE LARGEST BODY stands for the drawing, because out there a drawing wears one
+## card: a cell of four sea rocks is one rock, and a plant whose crown and pot
+## flooded apart is whichever of the two holds more pixels. Empty where the
+## drawing cuts to nothing, which leaves the caller its own fallback.
+func far_card_for(
+	tiles: Array, across: Vector2i, shape: RefCounted, named: StringName,
+	atlas: RefCounted
+) -> Array:
+	if tiles.is_empty() or across.x <= 0 or across.y <= 0 or atlas == null:
+		return []
+	var span: Vector2i = across * int(TILE)
+	var mask: PackedByteArray = _structure_mask(
+		tiles, across, atlas, shape.is_filled(named), shape.outline_shades(named)
+	)
+	var body: PackedInt32Array = _bodies(mask, span)
+	# A POTTED PLANT IS ONE THING AND THE FLOOD CANNOT KNOW IT, `_model_bodies_of`'s
+	# reason and its rule.
+	var potted: bool = shape.is_potted(named)
+	if potted:
+		for pixel: int in body.size():
+			if body[pixel] >= 0:
+				body[pixel] = 0
+	var counts: Dictionary = {}
+	for pixel: int in body.size():
+		if body[pixel] >= 0:
+			counts[body[pixel]] = int(counts.get(body[pixel], 0)) + 1
+	var best: int = -1
+	var widest: int = 0
+	for group: int in counts:
+		if int(counts[group]) >= MODEL_BODY_MIN and int(counts[group]) > widest:
+			widest = int(counts[group])
+			best = group
+	if best < 0:
+		return []
+	var only := PackedByteArray()
+	only.resize(mask.size())
+	for pixel: int in body.size():
+		only[pixel] = 1 if body[pixel] == best else 0
+	var cutout: ImageTexture = _cut_out(only, span, tiles, across, atlas)
+	if cutout == null:
+		return []
+	var measured: RefCounted = Model.measure(only, span, tiles, across, atlas, potted)
+	measured.shrub = shape.is_shrub(named)
+	measured.rock = shape.is_rock(named)
+	measured.potted = potted
+	measured.column = shape.is_column(named)
+	measured.stretch = shape.model_stretch(named)
+	return [Model.new().sprite(measured), cutout]
+
+
+## THE ONE DRAWING A FAR MAP FALLS BACK ON, as `[mesh, cut-out]`, or empty where
+## this map turned no model at all.
 ##
 ## The BIGGEST cut-out this map built, which is the nearest thing to "the tree
 ## of this route" that can be had without counting stamps: a route's tree is
 ## drawn larger than its bushes, and a map whose largest drawing is a bush is a
-## map with no trees to put out there anyway. See `world/far_foliage.gd` for why
-## one drawing serves every map on the horizon.
-## THE CARD EACH DRAWING WEARS, keyed by the TILE its drawing starts at, for the
-## maps drawn past the mesh.
-##
-## `world/far_foliage.gd` stands one card on every modelled cell of every map on
-## the horizon, and until this was here it stood the same card on all of them:
-## [method far_tree], the biggest drawing this map turned. So a bush out there
-## was drawn as a tree and a neighbour's own trees were drawn as this map's,
-## which reads as one uniform mass of canopy the moment the camera is dollied
-## out far enough to see a horizon at all. Inside the mesh the detail ring has
-## always swapped each drawing for ITS OWN card; this is the same answer for the
-## ground past it.
-##
-## KEYED BY TILE and therefore only good for maps on THIS TILESET, which is the
-## caller's to check: a block is numbered in its own tileset and a tile id means
-## nothing without one, exactly as `shape/map_source.gd` refuses a neighbour's
-## block for the same reason. A map on another tileset keeps [method far_tree].
-##
-## Only drawings that CUT to something are offered, since a card is the cut-out;
-## a body that cuts to nothing has a rebuilt silhouette instead and that is a
-## solid, not a card.
-func far_cards() -> Dictionary:
-	var out: Dictionary = {}
-	for tile: int in _card_of_tile:
-		var key: String = _card_of_tile[tile]
-		var cutout: ImageTexture = _model_cutouts.get(key)
-		if cutout == null:
-			continue
-		out[tile] = [_model_meshes[_far_key(key)], cutout]
-	return out
-
-
+## map with no trees to put out there anyway. It is the fallback for a drawing
+## that cuts to nothing and not the rule: see [method far_card_for].
 func far_tree() -> Array:
 	var best: String = ""
 	var widest: int = 0
