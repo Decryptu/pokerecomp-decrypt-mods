@@ -1365,7 +1365,6 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 		(where[tile] as Array).append(at)
 	for house: Dictionary in painted:
 		var pattern: Array = house["tiles"]
-		var paint: Array = house["paint"]
 		var across := Vector2i((pattern[0] as Array).size(), pattern.size())
 		if across.x > _size.x or across.y > _size.y:
 			continue
@@ -5851,7 +5850,6 @@ func _object_stool(
 			last = row
 	if first < 0 or last < first:
 		return
-	var seat_rows: int = last - first + 1
 	var wide: int = widest
 	var radius: float = float(wide) * 0.5
 	# The disc is laid on the lattice the drawing is drawn on, so the near edge of

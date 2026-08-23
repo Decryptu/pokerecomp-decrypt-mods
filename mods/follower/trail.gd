@@ -42,7 +42,7 @@ var _placed: bool = false
 func observe(observation: Dictionary) -> Dictionary:
 	var map: Vector2i = observation.get("map", Vector2i.ZERO)
 	var player_cell: Vector2i = observation.get("cell", Vector2i.ZERO)
-	var facing: int = int(observation.get("facing", Gen2WorldSprite.FACING_DOWN))
+	var player_facing: int = int(observation.get("facing", Gen2WorldSprite.FACING_DOWN))
 	var offset: Vector2 = observation.get("offset", Vector2.ZERO)
 
 	if not _placed or map != _map:
@@ -52,11 +52,11 @@ func observe(observation: Dictionary) -> Dictionary:
 		# script puts two objects down together.
 		_map = map
 		_cell = player_cell
-		_facing = facing
+		_facing = player_facing
 		_direction = Vector2i.ZERO
 		_placed = true
 	elif player_cell != _player_cell:
-		_step_toward(_player_cell, facing)
+		_step_toward(_player_cell, player_facing)
 	if offset == Vector2.ZERO:
 		_direction = Vector2i.ZERO
 	_player_cell = player_cell

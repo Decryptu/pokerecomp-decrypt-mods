@@ -143,8 +143,11 @@ func uv_box(tile: int, box: Rect2i) -> Rect2:
 	var whole: Rect2 = uv(tile)
 	if whole.size == Vector2.ZERO:
 		return whole
-	var texel: Vector2 = whole.size / float(TILE)
-	return Rect2(whole.position + Vector2(box.position) * texel, Vector2(box.size) * texel)
+	var per_pixel: Vector2 = whole.size / float(TILE)
+	return Rect2(
+		whole.position + Vector2(box.position) * per_pixel,
+		Vector2(box.size) * per_pixel
+	)
 
 
 ## The palette index of one pixel of one tile, or -1 outside.

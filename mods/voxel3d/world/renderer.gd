@@ -250,6 +250,7 @@ func clear_transition() -> void:
 ## picture, and the order above has already taken every level of it to white by
 ## the step that runs. Nothing here to do, and reading it would only be a second
 ## answer to the same question.
+@warning_ignore("unused_parameter")
 func set_fade(order: int, white_fill: bool = false) -> void:
 	if order == _fade_order:
 		return
@@ -609,9 +610,12 @@ func _dress_far_field() -> void:
 	# own sheet now, drawing by drawing: see `world/far_foliage.gd`. What is left
 	# for this map to lend is the one tree a drawing that cuts to nothing wears.
 	var tree: Array = _mesher.far_tree()
-	far.set_far_tree(
-		tree[0] as Mesh, _stage.foliage_material(tree[1] as Texture2D)
-	) if tree.size() == 2 else far.set_far_tree(null, null)
+	if tree.size() == 2:
+		far.set_far_tree(
+			tree[0] as Mesh, _stage.foliage_material(tree[1] as Texture2D)
+		)
+	else:
+		far.set_far_tree(null, null)
 
 
 ## Centres the detail ring on the EYE and not on the player.
