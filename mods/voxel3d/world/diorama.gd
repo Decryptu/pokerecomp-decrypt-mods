@@ -538,6 +538,12 @@ func set_look(flat: bool) -> void:
 		set_background(_background, _background_outside, _background_ramp)
 
 
+## Which of the water's three the surface wears: see `water.gd:set_style`. It is
+## a shader parameter and nothing else, so a press costs a frame nothing.
+func set_water_style(style: int) -> void:
+	_water_shader.set_style(style)
+
+
 func set_shore_colors(foam: Color, shallow: Color, deep: Color) -> void:
 	_water_shader.set_shore_colors(foam, shallow, deep)
 
