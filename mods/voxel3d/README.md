@@ -758,6 +758,18 @@ waterline and a shallow against.
 Pressing the row rebuilds nothing. Each file keeps what it was last handed and
 reads it the other way, so the sky changes while you are looking at it.
 
+WHERE YOU CAN SEE IT MATTERS, and the row is honest about the answer: it changes
+the sky and the waterline, so on a map with no water in the frame, at a camera
+that frames no sky, it changes nothing at all. Measured at the default camera on
+one shot each: 28% of the pixels on a shoreline, 9.6% on a route with a river,
+and 0.08% in a city. Which is what the ANGLE row's LEVEL rung is for, below.
+
+A WATER row sits under it with three rungs, and this one is taste rather than
+correctness. CALM is the long, gentle swell the view was tuned to. ROUGH is a
+shorter, steeper one that reads as open sea with weather in it. GLASS flattens
+the surface and takes far more of the sky into it, with the sun gathered to a
+harder point.
+
 ## The sky and the hour
 
 Above that horizon the sky is generated: a ramp of six bands, deepest overhead,
@@ -776,6 +788,13 @@ sunrise colour from the row beside it and its deep end is the blue the water on
 the map is drawn with at that same hour. Where a caller has no hour to offer,
 which is a room and the model turntable, the ramp is made out of the background
 colour alone, the same colour the 2D view fills its margins with.
+
+THE CAMERA HAS TO BE LOW ENOUGH TO SEE ANY OF IT. The eye looks down by its own
+pitch, so with a 42 degree lens the top of the frame sits at 21 degrees minus the
+pitch: at the default 50 that edge is 29 degrees BELOW the horizon, and this
+whole section is invisible. Until the ANGLE row grew a LEVEL rung at 14 degrees,
+no rung on it framed a single pixel of sky and the only way to find one was to
+hold the camera key down to the rig's own floor of 12.
 
 The bands are pinned to ELEVATION rather than to the frame, so pitching the
 camera slides the frame up a sky that stays put. How much elevation they span is

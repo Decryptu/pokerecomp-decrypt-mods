@@ -171,6 +171,7 @@ func _read_options() -> void:
 	_stage.set_render_scale(int(Options.value(Options.SCALE, Options.default_scale())))
 	_arena.set_wheel_sign(int(Options.value(Options.WHEEL, 1)))
 	_stage.set_look(int(Options.value(Options.LOOK, Options.LOOK_DIORAMA)) == Options.LOOK_FLAT)
+	_stage.set_water_style(int(Options.value(Options.WATER, 0)))
 
 
 func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void:
@@ -184,6 +185,8 @@ func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void
 			_stage.set_render_scale(int(value))
 		Options.LOOK:
 			_stage.set_look(int(value) == Options.LOOK_FLAT)
+		Options.WATER:
+			_stage.set_water_style(int(value))
 		Options.WHEEL:
 			_arena.set_wheel_sign(int(value))
 		Options.RECENTRE:

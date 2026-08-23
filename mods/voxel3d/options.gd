@@ -23,6 +23,7 @@ const SCALE: StringName = &"scale"
 const WHEEL: StringName = &"wheel"
 const CAMERA: StringName = &"camera"
 const LOOK: StringName = &"look"
+const WATER: StringName = &"water"
 ## A setting that is a press rather than a ladder: see `register`.
 const RECENTRE: StringName = &"recentre"
 
@@ -58,7 +59,7 @@ const WHEEL_VALUES: Array = [1, -1]
 ## The pitch the overworld camera opens at, in degrees above the horizon.
 ## Near-flat is a street-level shot, near-overhead is the tile page with height
 ## on it, and the middle rung is what the view was framed at.
-const CAMERA_VALUES: Array = [24.0, 50.0, 74.0]
+const CAMERA_VALUES: Array = [14.0, 24.0, 50.0, 74.0]
 
 ## WHICH LOOK THE VIEW WEARS, as one row rather than as a knob per term.
 ##
@@ -78,6 +79,20 @@ const CAMERA_VALUES: Array = [24.0, 50.0, 74.0]
 const LOOK_FLAT: int = 0
 const LOOK_DIORAMA: int = 1
 const LOOK_VALUES: Array = [LOOK_FLAT, LOOK_DIORAMA]
+
+## WHICH SEA, which is the one part of the look that is taste rather than
+## correctness and so is a row of its own. `world/water.gd` holds the three and
+## says what each is made of; CALM is the reviewer's own and the default.
+const WATER_VALUES: Array = [0, 1, 2]
+
+## THE CAMERA'S OWN RUNGS, and the shallowest is not a fourth taste: it is what
+## makes the sky reachable at all. The eye looks DOWN by its own pitch, so with a
+## 42 degree lens the frame's top edge sits at 21 degrees minus the pitch, and
+## every rung this row had put that edge BELOW the horizon: 24 degrees frames
+## three degrees of ground where the sky would be, 50 frames twenty-nine. The
+## hour's own sky, the ramp and the haze were invisible from the menu and could
+## only be found by holding the camera key down. 14 puts seven degrees of sky in
+## the frame, and the rig's own floor is 12.
 
 const REGISTERED: Array[Dictionary] = [
 	{
@@ -99,7 +114,7 @@ const REGISTERED: Array[Dictionary] = [
 		# ANGLE and not CAMERA: the recentre button below is the camera's row and
 		# two rows reading CAMERA is the one thing a player sees of either.
 		"key": CAMERA, "label": "ANGLE",
-		"values": CAMERA_VALUES, "labels": ["LOW", "MID", "HIGH"],
+		"values": CAMERA_VALUES, "labels": ["LEVEL", "LOW", "MID", "HIGH"],
 		"default": 50.0,
 	},
 	{
@@ -108,6 +123,11 @@ const REGISTERED: Array[Dictionary] = [
 		"key": LOOK, "label": "LOOK",
 		"values": LOOK_VALUES, "labels": ["FLAT", "DIORAMA"],
 		"default": LOOK_DIORAMA,
+	},
+	{
+		"key": WATER, "label": "WATER",
+		"values": WATER_VALUES, "labels": ["CALM", "ROUGH", "GLASS"],
+		"default": 0,
 	},
 ]
 

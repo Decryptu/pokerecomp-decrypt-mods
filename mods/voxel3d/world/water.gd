@@ -113,6 +113,35 @@ const DEEP_BEGIN: float = 2.5
 const DEEP_REACH: float = 4.0
 const DEEP_STRENGTH: float = 0.60
 
+## THE THREE THE MENU OFFERS, as one column each: see `options.gd:WATER`.
+##
+## CALM is every number above, which is the reviewer's own reading of three built
+## looks and stays the default. ROUGH and GLASS are the two ends they were shown
+## beside it afterwards and asked to keep as CHOICES rather than as replacements:
+## a shorter, steeper swell that reads as open sea with weather in it, and a
+## flatter one that takes far more of the sky into the water and lets the sun
+## gather to a harder point.
+##
+## A rung sets every one of them, so no press can leave half a look standing.
+const STYLE_CALM: int = 0
+const STYLE_ROUGH: int = 1
+const STYLE_GLASS: int = 2
+const STYLE_TILT: Array[float] = [WAVE_TILT, 0.38, 0.10]
+const STYLE_LENGTH: Array[Vector2] = [
+	Vector2(WAVE_LENGTH_A, WAVE_LENGTH_B),
+	Vector2(14.0, 9.0),
+	Vector2(WAVE_LENGTH_A, WAVE_LENGTH_B),
+]
+const STYLE_SPEED: Array[Vector2] = [
+	Vector2(WAVE_SPEED_A, WAVE_SPEED_B),
+	Vector2(9.0, -6.0),
+	Vector2(WAVE_SPEED_A, WAVE_SPEED_B),
+]
+const STYLE_REFLECT_LEAST: Array[float] = [REFLECT_LEAST, REFLECT_LEAST, 0.25]
+const STYLE_REFLECT_MOST: Array[float] = [REFLECT_MOST, REFLECT_MOST, 0.78]
+const STYLE_GLINT_STRENGTH: Array[float] = [GLINT_STRENGTH, GLINT_STRENGTH, 0.50]
+const STYLE_GLINT_TIGHTNESS: Array[float] = [GLINT_TIGHTNESS, GLINT_TIGHTNESS, 16.0]
+
 const CODE: String = """
 shader_type spatial;
 render_mode specular_disabled, diffuse_lambert;
@@ -246,17 +275,7 @@ func _init() -> void:
 	shader.code = CODE
 	material = ShaderMaterial.new()
 	material.shader = shader
-	material.set_shader_parameter("wave_tilt", WAVE_TILT)
-	material.set_shader_parameter(
-		"wave_length", Vector2(WAVE_LENGTH_A, WAVE_LENGTH_B)
-	)
-	material.set_shader_parameter(
-		"wave_speed", Vector2(WAVE_SPEED_A, WAVE_SPEED_B)
-	)
-	material.set_shader_parameter("reflect_least", REFLECT_LEAST)
-	material.set_shader_parameter("reflect_most", REFLECT_MOST)
-	material.set_shader_parameter("glint_strength", GLINT_STRENGTH)
-	material.set_shader_parameter("glint_tightness", GLINT_TIGHTNESS)
+	set_style(STYLE_CALM)
 	material.set_shader_parameter("foam_reach", FOAM_REACH)
 	material.set_shader_parameter("foam_swell", FOAM_SWELL)
 	material.set_shader_parameter("foam_inner", FOAM_INNER)
@@ -335,3 +354,16 @@ func set_shore_colors(foam: Color, shallow: Color, deep: Color) -> void:
 	material.set_shader_parameter("foam_color", foam)
 	material.set_shader_parameter("shallow_color", shallow)
 	material.set_shader_parameter("deep_color", deep)
+
+
+## Which of the three the surface wears. Every knob the rung owns is set here, so
+## the file states each of them once and a rung cannot half-apply.
+func set_style(style: int) -> void:
+	var rung: int = clampi(style, 0, STYLE_TILT.size() - 1)
+	material.set_shader_parameter("wave_tilt", STYLE_TILT[rung])
+	material.set_shader_parameter("wave_length", STYLE_LENGTH[rung])
+	material.set_shader_parameter("wave_speed", STYLE_SPEED[rung])
+	material.set_shader_parameter("reflect_least", STYLE_REFLECT_LEAST[rung])
+	material.set_shader_parameter("reflect_most", STYLE_REFLECT_MOST[rung])
+	material.set_shader_parameter("glint_strength", STYLE_GLINT_STRENGTH[rung])
+	material.set_shader_parameter("glint_tightness", STYLE_GLINT_TIGHTNESS[rung])
