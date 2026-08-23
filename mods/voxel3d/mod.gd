@@ -16,6 +16,6 @@ func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
 		manifest.id, load("%s/battle/renderer.gd" % manifest.directory), "Voxel 3D"
 	)
 	# Described, not drawn: the host builds the start menu's MODS entry and this
-	# mod's card in the launcher out of these, and both renderers read the same
+	# mod's own page in the launcher out of these, and both renderers read the same
 	# ladders back. `options.gd` is the one place they are written down.
 	(load("%s/options.gd" % manifest.directory) as GDScript).register(host, manifest.id)

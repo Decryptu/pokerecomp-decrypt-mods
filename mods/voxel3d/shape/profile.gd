@@ -417,6 +417,26 @@ const TUFTS: Dictionary = {
 	&"tall_grass": true,
 }
 
+## The classes that BEND IN THE WIND, carved drawing and stem alike.
+##
+## `world/wind.gd` is the weather and `mesher.gd:_tufts` is how a clump reaches
+## it: the standing geometry goes to the tuft sink, which carries how far up its
+## own thing each vertex stands, and the shader leans it by the square of that.
+## A carved cutout can go to the same sink and gets the same bend for nothing.
+##
+## ONLY THE MEADOW FLOWER, and the reason it is the only one is `STEMS`. The
+## bloom is held up on a post one pixel thick, which is the one carved thing in
+## this file that a breeze would visibly move; the class beside it, `flowers`, is
+## a course of brick round a bed and masonry does not sway. Anything standing on
+## its own foot is a bush, a bollard or a sign, and a sign that leans is broken.
+##
+## The whole thing bends together, root pinned at the GROUND rather than at the
+## stem's own head, so the post leans and carries the bloom rather than the bloom
+## sliding off the top of a rigid post.
+const SWAYS: Dictionary = {
+	&"flower": true,
+}
+
 ## The classes built as an AUTHORED MODEL rather than carved from the drawing.
 ##
 ## The drawing still says how big the thing is and what colour it is; what it

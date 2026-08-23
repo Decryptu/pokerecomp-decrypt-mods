@@ -5,10 +5,10 @@
 		{
 			"id": "voxel3d",
 			"name": "Voxel 3D",
-			"version": "0.6.1",
+			"version": "0.6.2",
 			"games": ["gold", "silver", "crystal"],
 			"description": "Rebuilds the overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and carries the ground past the mesh so the maps around this one stand where the connection graph puts them, with their woods and their towns standing on them and the world past every map standing its own. Past a ring around the camera a tree is the cartridge's own drawing stood up rather than a turned solid, each drawing wearing the one it was cut from, and the distance coarsens in whole pixels. A fight is staged on the map it started on and fills the window with it. Choose it on this page to draw both. The keys the flat view already zooms with zoom here too, and I and K raise and lower the camera.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.6.1/voxel3d-0.6.1.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.6.2/voxel3d-0.6.2.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/thumbnail.webp"
 		},
@@ -25,10 +25,10 @@
 		{
 			"id": "follower",
 			"name": "Follower",
-			"version": "0.3.0",
+			"version": "0.3.1",
 			"games": ["gold", "silver", "crystal"],
-			"description": "A Pokemon out of its ball and walking one cell behind you, drawn with the cartridge's own party icon for its species. Pick which slot comes out, whether it stays out on a bike and on the water, and put it away with one press. Face it and press A to pet it: it looks back, cries and wears the cartridge's own heart. It can find hidden items for you too, if you turn that on.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.3.0/follower-0.3.0.zip",
+			"description": "A Pokemon out of its ball and walking one cell behind you, drawn with the cartridge's own party icon for its species. Pick which slot comes out, whether it stays out on a bike and on the water, and put it away with one press, from the key or from its row in the game's own MODS menu. Face it and press A to pet it: it looks back, cries and wears the cartridge's own heart. It can find hidden items for you too, if you turn that on.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.3.1/follower-0.3.1.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/follower/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/follower/thumbnail.webp"
 		},

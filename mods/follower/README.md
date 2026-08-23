@@ -75,7 +75,7 @@ could not be asked for twice anyway.
 
 ## Settings and the control
 
-Three rows in the start menu's MODS entry and on this mod's own page in the
+Five rows in the start menu's MODS entry and on this mod's own page in the
 launcher, built by the host out of one registration in `options.gd`.
 
 | Setting | Rungs | Does |
@@ -84,6 +84,7 @@ launcher, built by the host out of one registration in `options.gd`.
 | ON BIKE | OFF, ON | Whether it stays out while cycling |
 | ON WATER | OFF, ON | Whether it stays out while surfing |
 | FINDS ITEMS | OFF, ON | Whether it picks up hidden items it reaches |
+| FOLLOWER | RECALL | Puts it away, and the next press calls it back |
 
 Opening a healthy Pokemon's own party menu adds FOLLOW. Choosing it updates WHO
 and closes the menu; opening that member again says FOLLOWING. Eggs get no row,
@@ -94,10 +95,13 @@ Both movement rows are off by default: a Pokemon jogging beside a bicycle and
 one walking on the sea are the two places the illusion breaks, and both are one
 press away for anyone who wants them anyway.
 
-RECALL, on `F` by default, puts it away and calls it back. A control rather than
-a setting, DECLARED to the host rather than read as a keycode, so it is
-rebindable in the launcher's controls card and can be carried on the on-screen
-pad. It is per session: a mod's own save namespace exists, but an actor is
+RECALL is both, and deliberately. On `F` by default it is a control, DECLARED to
+the host rather than read as a keycode, so it is rebindable in the launcher's
+controls card and can be carried on the on-screen pad. The FOLLOWER row above is
+the same press with no binding at all, because a control has to be bound to
+something before it exists and the player who most needs to put a follower away
+is the one on a pad, on a phone, or holding a key that no longer reaches. Both
+paths toggle the one state, so the two can never disagree. It is per session: a mod's own save namespace exists, but an actor is
 handed a world rather than a save, so a recall that outlives a reload is a thing
 to ask the host for once anything wants it.
 

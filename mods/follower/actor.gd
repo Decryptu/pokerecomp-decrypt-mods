@@ -191,7 +191,16 @@ func _member() -> Dictionary:
 ## A slot or a movement setting moved. The follower comes back out from under
 ## the player rather than sliding across the map from where the last one stood.
 func _on_option_changed(id: StringName, key: StringName, _value: Variant) -> void:
-	if id != _id or not Options.owns(key):
+	if id != _id:
+		return
+	# The MODS menu's own way in, which is the same press the control makes and
+	# has to stay the same press: two paths that toggled separately would let a
+	# player put the follower away with one and be told by the other that it is
+	# still out. A button setting carries a null value and stores nothing.
+	if key == Options.PUT_AWAY:
+		_toggle_recall()
+		return
+	if not Options.owns(key):
 		return
 	_settings = Options.settings(_host)
 	if key == Options.SLOT:
@@ -201,6 +210,12 @@ func _on_option_changed(id: StringName, key: StringName, _value: Variant) -> voi
 func _on_action_changed(id: StringName, key: StringName, pressed: bool) -> void:
 	if id != _id or key != Options.RECALL or not pressed:
 		return
+	_toggle_recall()
+
+
+## Away, or back out from under the player rather than sliding across the map
+## from wherever the last one stood.
+func _toggle_recall() -> void:
 	_recalled = not _recalled
 	_heart = 0
 	if not _recalled:

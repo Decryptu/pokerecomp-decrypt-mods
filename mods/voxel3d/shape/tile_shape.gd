@@ -111,6 +111,11 @@ func is_tufted(shape_class: StringName) -> bool:
 	return bool(_profile.TUFTS.get(shape_class, false))
 
 
+## Whether the class bends in the wind. See `profile.gd:SWAYS`.
+func is_swaying(shape_class: StringName) -> bool:
+	return bool(_profile.SWAYS.get(shape_class, false))
+
+
 ## Whether the class is built as an authored model rather than carved from its
 ## drawing. See `profile.gd:MODEL`.
 func is_model(shape_class: StringName) -> bool:

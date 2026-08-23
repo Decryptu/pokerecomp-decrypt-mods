@@ -197,6 +197,8 @@ var _span_cut := PackedByteArray()
 var _lying := PackedByteArray()
 ## Per tile: whether the drawing stands on FURNITURE rather than on the ground.
 var _on_furniture := PackedByteArray()
+## Per tile: whether its carved drawing bends in the wind. See `_cutout`.
+var _swaying := PackedByteArray()
 var _klass := PackedInt32Array()
 var _class_ids: Dictionary = {}
 
@@ -239,6 +241,8 @@ const FACT_HEIGHT: int = 28
 ## Whether the modelled class stands in a pot. Last, so the array's own length is
 ## this plus one.
 const FACT_POTTED: int = 29
+## Whether the class bends in the wind. See `profile.gd:SWAYS`.
+const FACT_SWAYS: int = 30
 
 ## THE OBJECTS, which are the one thing here that is not resolved per tile. See
 ## `_measure_objects` and `profile.gd:OBJECTS`. Per tile: whether an object covers
@@ -974,7 +978,7 @@ func _tile_fact(shape: RefCounted, tile: int, permission: int) -> Array:
 		else 0
 	var span: Vector2i = shape.span_cells(shape_class)
 	var fact: Array = []
-	fact.resize(FACT_POTTED + 1)
+	fact.resize(FACT_SWAYS + 1)
 	fact[FACT_ART] = _art_mode(art)
 	fact[FACT_DEPTH] = clampi(shape.depth(shape_class), 1, 16)
 	fact[FACT_ROUND] = 1 if shape.is_round(shape_class) else 0
@@ -989,6 +993,7 @@ func _tile_fact(shape: RefCounted, tile: int, permission: int) -> Array:
 	fact[FACT_COLUMN] = 1 if shape.is_column(shape_class) else 0
 	fact[FACT_STRETCH] = shape.model_stretch(shape_class)
 	fact[FACT_TUFTED] = 1 if shape.is_tufted(shape_class) else 0
+	fact[FACT_SWAYS] = 1 if shape.is_swaying(shape_class) else 0
 	fact[FACT_LYING] = 1 if shape.is_lying(shape_class) else 0
 	fact[FACT_ON_FURNITURE] = 1 if shape_class == &"on_furniture" else 0
 	fact[FACT_SPAN_X] = maxi(span.x, 1)
@@ -1075,6 +1080,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_stretch.resize(count)
 	_tufted.resize(count)
 	_long_grass.resize(count)
+	_swaying.resize(count)
 	_span_x.resize(count)
 	_span_y.resize(count)
 	_span_cut.resize(count)
@@ -1169,6 +1175,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			# tile for it: taller, denser and with a ground line under it, where
 			# tall grass is a sparse tuft. See `_tufts`.
 			_long_grass[at] = 1 if Gen2WorldCollision.is_long_grass(grass_code) else 0
+			_swaying[at] = fact[FACT_SWAYS]
 			_lying[at] = fact[FACT_LYING]
 			_on_furniture[at] = fact[FACT_ON_FURNITURE]
 			_span_x[at] = fact[FACT_SPAN_X]
@@ -1734,6 +1741,7 @@ func _house_tile(shape: RefCounted, at: int, stroke: String) -> void:
 	_column[at] = 0
 	_tufted[at] = 0
 	_long_grass[at] = 0
+	_swaying[at] = 0
 	_lying[at] = 0
 	_on_furniture[at] = 0
 	_span_x[at] = 1
@@ -7877,6 +7885,30 @@ func _cutout(
 	_carve_base = base + float(_stem_rise[at])
 	_carve_lift = _stretch[at] if _stretch[at] > 0.0 else 1.0
 
+	# AND A FLOWER BENDS IN THE SAME WEATHER THE GRASS AROUND IT DOES.
+	#
+	# The whole of it goes to the tuft sink, which is what carries how far up its
+	# own thing a vertex stands, and `world/wind.gd:GRASS_CODE` then leans it by
+	# the square of that off one wave crossing the map. No shader and no geometry
+	# is added: a carved drawing routed to the sink the blades already use gets
+	# the same bend, the same gust and the same phase rule for nothing.
+	#
+	# THE FOOT IS THE GROUND AND NOT THE STEM'S HEAD. `_carve_base` is already
+	# lifted by the stem, and measuring from there would pin the post rigid and
+	# slide the bloom off the top of it; measured from `base` the whole thing
+	# hinges at the soil, which is what a stalk does. The span reaches the top of
+	# the drawing, so the bloom is the 1.0 the square puts all the travel in.
+	#
+	# ONE PHASE PER TILE, hashed exactly as `_tufts` hashes a clump, so a flower
+	# and the grass it stands in are a little out of step with each other rather
+	# than moving as one piece.
+	var swaying: bool = _swaying[at] == 1
+	if swaying:
+		_sink = SINK_TUFT
+		_sink_uv2 = Vector2(0.0, _hash_spot(Vector2i(tx, ty)))
+		_tuft_foot = base
+		_tuft_span = maxf(_carve_y(top) - base, 1.0)
+
 	var taken := PackedByteArray()
 	taken.resize(edge * edge)
 	for row: int in edge:
@@ -7915,6 +7947,10 @@ func _cutout(
 	if _stem[at] > 0:
 		_stem_post(tx, mask, span, origin, mid, base, ground_tile,
 			_stem_shapes[int(_stem[at]) - 1] as Array, atlas)
+	# The stem is inside the sink with the bloom deliberately: a post that stands
+	# still under a head that leans is the fault the square was introduced to fix.
+	if swaying:
+		_sink = SINK_TERRAIN
 
 
 ## THE STEM UNDER A FLOWER, and it is the one piece of geometry in this mod that

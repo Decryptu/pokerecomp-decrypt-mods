@@ -26,10 +26,29 @@ to the default framing, the keypad's own three with them, and the wheel either
 way. Only the eye, which the flat view has no counterpart for, is this mod's
 own.
 
-Turning this view on is one choice and the host owns it: the mod's own page in
-the launcher carries a View switch, and choosing this mod there draws the
-overworld and the fight alike, since both renderers are registered under the one
-id. `V` does the same thing live where the game's development keys are enabled.
+Turning this view on is one choice and the host owns it, and there are three
+ways to it. The start menu's MODS entry carries a VIEW row at the top, stepped
+left and right like any other; the mod's own page in the launcher carries the
+same switch; and `V` cycles views live where the game's development keys are
+enabled. All three are one path, so whichever is used the other two agree.
+Choosing this mod draws the overworld and the fight alike, since both renderers
+are registered under the one id.
+
+THE SWITCH IS COVERED. Standing this view up means resolving a map and meshing a
+window, which is a fifth of a second the game would otherwise spend frozen on the
+press. The host closes the cartridge's own battle-transition scatter over the
+picture, builds the renderer on the frame the screen is fully black, and opens
+the same frames backwards, so the cost is paid behind a wipe rather than in front
+of one. Nothing here draws it: a cover this mod animated would freeze on exactly
+the frames it exists to hide, because the build and the animation are the one
+thread.
+
+What this view owes the wipe is to be FINISHED when it opens. A map is normally
+built a slice a frame, so that what is already on screen keeps being drawn while
+the next map lands; behind a black field there is nothing on screen and a smooth
+frame rate is worth nothing, so the first build of a view is spent whole inside
+the frame the host hands it. Only the first: a warp reuses the same renderer and
+has no wipe over it, and there the map still fills in as it lands.
 
 TAP FOR A NOTCH, HOLD TO GLIDE. A press moves the shot one rung and eases to it,
 which is what a key wants; a stick is not a press, and stepping it a rung per
@@ -77,7 +96,7 @@ about.
 
 ## Settings
 
-Five, in the start menu's MODS entry and on this mod's card in the launcher.
+Five, in the start menu's MODS entry and on this mod's own page in the launcher.
 Both surfaces are built by the host out of one registration in `options.gd`, so
 this mod writes no settings screen. Values are per installation and not per save:
 a draw distance must not change when a slot is loaded.
@@ -812,6 +831,14 @@ Two things are not. A flower is drawn looked down on, so the cartridge draws the
 bloom and no stem at all, and a bloom carved where it is drawn hangs in the air:
 the stem under it is drawn by hand rather than guessed at as a thickness, because
 a stem is thin and it bends and no number says either.
+
+AND IT BENDS. The stem and the bloom over it go to the same sink the standing
+grass does, so a flower leans in the wind the tufts around it are leaning in, off
+the one gust crossing the map and with its own tile's phase on top. It hinges at
+the soil rather than at the stem's head: a post standing rigid under a head that
+moves is exactly the fault that squaring the bend was introduced to fix. No
+shader and no geometry is added, and no triangle is either, since routing a
+carved drawing to the sink the blades already use is the whole of it.
 
 And leaves drift across the daylight while fireflies come out at night. Forty
 motes ride a box around wherever the camera is aimed, each on three drift cycles
