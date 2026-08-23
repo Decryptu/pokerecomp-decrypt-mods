@@ -106,7 +106,7 @@ a draw distance must not change when a slot is loaded.
 | DISTANCE | 12, 16, 24, FULL | How far out the map is meshed, in walk cells |
 | RES | FULL, 1/2, 1/3, 1/4 | How many window pixels the 3D pass draws one of |
 | WHEEL | NORMAL, INVERTED | Which way a wheel notch zooms |
-| CAMERA | LOW, MID, HIGH | The pitch the overworld camera opens at |
+| ANGLE | LOW, MID, HIGH | The pitch the overworld camera opens at |
 | CAMERA | RECENTRE | A press, not a rung: put the shot back the way it opened |
 
 RES is where the frame time is on a device that cannot afford the window it was
