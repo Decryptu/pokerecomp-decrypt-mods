@@ -25,6 +25,9 @@ extends RefCounted
 
 const AtlasScript: GDScript = preload("../shape/atlas.gd")
 const FarFoliageScript: GDScript = preload("far_foliage.gd")
+const FarHousesScript: GDScript = preload("far_houses.gd")
+const FarDrawings: GDScript = preload("../shape/far_drawings.gd")
+const Profile: GDScript = preload("../shape/profile.gd")
 
 const TILE: float = 8.0
 const BLOCK_PIXELS: float = 32.0
@@ -121,6 +124,15 @@ var _fill: MeshInstance3D = null
 var _quad: PlaneMesh = null
 ## The trees standing on the pages. See `far_foliage.gd`.
 var _foliage: RefCounted = null
+## The buildings standing on them. See `far_houses.gd`.
+var _houses: RefCounted = null
+## Per map, keyed "group:number": what the walk found on it, as
+## `shape/far_drawings.gd` answers. ONE MAP A FRAME, which is the rule this
+## already follows for a sheet and for the same reason: the walk is about eleven
+## milliseconds and a warp can bring a dozen maps into view at once. A map not
+## walked yet stands nothing this frame and is walked on the next.
+var _walked: Dictionary = {}
+var _walk_owed: bool = false
 ## Per map, keyed "group:number": its coloured tile sheet, its block bytes.
 ## Built one a frame, because a sheet is a hundred tiles painted a pixel at a
 ## time and twenty four maps of them on the frame of a warp is the stop this
@@ -149,6 +161,8 @@ func _init() -> void:
 	root.add_child(_fill)
 	_foliage = FarFoliageScript.new()
 	root.add_child(_foliage.root)
+	_houses = FarHousesScript.new()
+	root.add_child(_houses.root)
 	# Nothing until a world says there is one: a battle shares this stage and
 	# is staged inside the window it stands in.
 	root.visible = false
@@ -161,9 +175,11 @@ func set_far_tree(mesh: Mesh, material: ShaderMaterial) -> void:
 	_foliage.set_tree(mesh, material)
 
 
-## Whether the maps out there stand anything. See `far_foliage.gd:set_enabled`.
+## Whether the maps out there stand anything. See `far_foliage.gd:set_enabled`
+## and `far_houses.gd:set_enabled`.
 func set_far_trees(on: bool) -> void:
 	_foliage.set_enabled(on)
+	_houses.set_enabled(on)
 
 
 ## How a cut-out becomes a material, handed down to the cards the foliage cuts
@@ -200,6 +216,7 @@ func set_time_of_day(time_of_day: int) -> void:
 	# and so does every card cut out of one.
 	_sheets.clear()
 	_foliage.forget_cards()
+	_houses.forget()
 
 
 ## The ground the mesh is drawing, in WORLD PIXELS, which this leaves alone.
@@ -229,11 +246,24 @@ func advance(focus: Vector3, reach: float) -> void:
 
 	var used: int = 0
 	var owed: bool = false
+	# WHERE A MAP IS ALREADY DRAWN, for the world past them all: see
+	# `far_foliage.gd:place_border`. Every placement rather than every VISIBLE
+	# placement, so the answer does not change as the eye turns, and the loaded
+	# map grown by the margin that covers whatever hole the mesh has cut.
+	var clear: float = FarFoliageScript.BORDER_CLEAR
+	var taken: Array = [Rect2(
+		Vector2(-clear, -clear),
+		Vector2(map.width_blocks, map.height_blocks) * BLOCK_PIXELS
+			+ Vector2(clear, clear) * 2.0
+	)]
 	_foliage.begin()
+	_houses.begin()
+	_walk_owed = false
 	for placement: Dictionary in _world.map_placements().values():
 		var near: Gen2WorldMap = placement["map"]
 		var origin: Vector2 = Vector2(placement["origin"] as Vector2i) * BLOCK_PIXELS
 		var size := Vector2(near.width_blocks, near.height_blocks) * BLOCK_PIXELS
+		taken.append(Rect2(origin, size))
 		if not Rect2(origin, size).intersects(seen):
 			continue
 		var sheet: RefCounted = _sheet(near, not owed)
@@ -247,9 +277,11 @@ func advance(focus: Vector3, reach: float) -> void:
 		), Vector2(near.width_blocks, near.height_blocks), origin,
 			near.border_block, near.tileset, false)
 		_stand(layer, origin, size, NEAR_DEPTH)
-		# The skyline on the page, wearing cards cut from the very sheet the
-		# ground under it is drawn with. See `far_foliage.gd`.
-		_foliage.place(_world.data, near, origin, sheet)
+		# The skyline on the page, and the town on it, both off one walk of that
+		# map and both wearing its own sheet. See `far_foliage.gd`.
+		var found: Dictionary = _walk_of(near)
+		_foliage.place(near, origin, sheet, found.get("drawings", {}))
+		_houses.place(near, origin, sheet, found.get("buildings", []))
 
 	# The loaded map LAST, over the neighbours, for the reason the host draws it
 	# last too: inside `wOverworldMapBlocks` the connection strips are the
@@ -272,14 +304,40 @@ func advance(focus: Vector3, reach: float) -> void:
 		# only bare page in the frame: the maps beyond it wore a skyline and the
 		# one being walked on did not. The hole is what keeps a card off ground
 		# the mesh has already stood a solid on.
-		_foliage.place(_world.data, map, Vector2.ZERO, _sheet(map, true), _hole)
+		var here_found: Dictionary = _walk_of(map)
+		_foliage.place(
+			map, Vector2.ZERO, _sheet(map, true), here_found.get("drawings", {}), _hole
+		)
+		_houses.place(
+			map, Vector2.ZERO, _sheet(map, true), here_found.get("buildings", []), _hole
+		)
+	# AND THE WORLD PAST EVERY MAP, which is this one's border block repeated to
+	# the far plane and was the last flat page in the frame.
+	_foliage.place_border(
+		_world.data, map, _sheet(map, true), Vector2(focus.x, focus.z), taken
+	)
 	_foliage.end()
+	_houses.end()
 	_hide_from(used)
 
 
 ## The border fill: one quad over everything the camera can reach, every pixel
 ## of it this map's own border block, which is what the cartridge surrounds a
 ## map with and what the host fills the far window with.
+## What one map holds, walked once and kept. See [member _walked].
+func _walk_of(map: Gen2WorldMap) -> Dictionary:
+	var key: String = "%d:%d" % [map.group, map.number]
+	if _walked.has(key):
+		return _walked[key]
+	if _walk_owed:
+		return {}
+	_walk_owed = true
+	if _walked.size() >= SHEET_LIMIT:
+		_walked.clear()
+	_walked[key] = FarDrawings.of_map(_world.data, map, Profile)
+	return _walked[key]
+
+
 func _place_fill(map: Gen2WorldMap, tileset: Gen2WorldTileset, seen: Rect2) -> void:
 	_dress(_fill, _sheet(map, true), _one_block(), _tile_texture(tileset),
 		Vector2.ZERO, Vector2.ZERO, map.border_block, map.tileset, true)

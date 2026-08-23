@@ -33,6 +33,10 @@ extends SceneTree
 ##   hold=240        frames held before the shutter. The mesh is built in slices
 ##                   and the far maps' sheets one a frame, so a shot taken early
 ##                   is a picture of a world still arriving
+##   wind=1          0 stills the sway, which is the only way two shots of this
+##                   view can be compared: the foliage bends on the shader's own
+##                   TIME, so two runs of one configuration differ on forty
+##                   thousand pixels and a real change can hide under that
 ##   label=BEFORE    burnt into the top-left corner of the picture. A reviewer
 ##                   gets no filenames, so a plate that does not name itself is
 ##                   a plate that cannot be argued about
@@ -58,6 +62,8 @@ var _frames: int = 0
 var _pitch: float = 18.0
 var _distance: float = 480.0
 var _zoom: float = 1.0
+## Whether the sway is stilled for the shot. See the `wind` option.
+var _still: bool = false
 var _restore: Dictionary = {}
 var _restore_id: StringName = &""
 
@@ -87,6 +93,7 @@ func _initialize() -> void:
 	_out = String(named.get("out", "horizon.png"))
 	_label = String(named.get("label", ""))
 	_hold = maxi(int(named.get("hold", "240")), 1)
+	_still = int(named.get("wind", "1")) == 0
 	_pitch = float(named.get("pitch", "18"))
 	_distance = float(named.get("distance", "480"))
 	_zoom = float(named.get("zoom", "1.0"))
@@ -152,6 +159,11 @@ func _process(_delta: float) -> bool:
 			return true
 		_aim()
 		return false
+	# LATE, and not with the aim: the horizon cuts a card and pools a material for
+	# it as each map comes into view, so a pool stilled on the first frame is a
+	# pool with almost nothing in it yet.
+	if _still and _frames == _hold:
+		_still_the_wind()
 	# The window is built in slices and the far maps are painted one sheet a
 	# frame, so the hold is what the picture is waiting for and not a courtesy.
 	if _frames < 3 + _hold:
@@ -164,8 +176,9 @@ func _process(_delta: float) -> bool:
 
 ## WHAT THE HORIZON IS ACTUALLY STANDING, because a picture of a distant wood and
 ## a picture of a bare page differ by very little on a thumbnail and by
-## everything in the frame. `far_foliage.gd` pools its instances and hides the
-## ones it did not use this frame, so the visible ones are this frame's answer.
+## everything in the frame. `far_foliage.gd` and `far_houses.gd` pool their
+## instances and hide the ones they did not use this frame, so the visible ones
+## are this frame's answer.
 func _report_foliage() -> void:
 	var node: Node = _find_named(root, "FarFoliage")
 	if node == null:
@@ -180,6 +193,20 @@ func _report_foliage() -> void:
 		groups += 1
 		cards += multi.multimesh.instance_count
 	print("foliage    %d drawings, %d cards" % [groups, cards])
+	var houses: Node = _find_named(root, "FarHouses")
+	if houses == null:
+		return
+	var maps: int = 0
+	var faces: int = 0
+	for child: Node in houses.get_children():
+		var mesh: MeshInstance3D = child as MeshInstance3D
+		if mesh == null or not mesh.visible or mesh.mesh == null:
+			continue
+		maps += 1
+		for surface: int in mesh.mesh.get_surface_count():
+			faces += (mesh.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
+				as PackedVector3Array).size() / 3
+	print("houses     %d maps, %d triangles" % [maps, faces])
 
 
 func _find_named(node: Node, wanted: String) -> Node:
@@ -206,6 +233,26 @@ func _aim() -> void:
 	print("camera     pitch %.1f, distance %.0f, zoom %.2f" % [
 		rig.pitch(), rig.distance(), rig.zoom(),
 	])
+
+
+## A sway period of an hour is a still frame for as long as a shot lasts, and it
+## leaves the geometry and the shader exactly as they are: nothing is switched
+## off, the clock is slowed. `tools/stage_bench.gd` does the same, and the SPRITE
+## pool is the addition: the horizon's cards each wear their own material out of
+## it, so stilling only the two named ones leaves the whole distance swaying.
+func _still_the_wind() -> void:
+	var stage: RefCounted = _renderer.get("_stage")
+	if stage == null:
+		return
+	var wind: RefCounted = stage.get("_wind")
+	if wind == null:
+		return
+	var materials: Array = [wind.grass, wind.foliage]
+	materials.append_array((wind.get("_sprites") as Dictionary).values())
+	for material: ShaderMaterial in materials:
+		if material != null:
+			material.set_shader_parameter("period", 3600.0)
+	print("wind       stilled on %d materials" % materials.size())
 
 
 func _capture() -> void:

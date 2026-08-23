@@ -628,6 +628,44 @@ already does with its sheet.
 One simplification is left and is deliberate: a drawing gets one card rather than
 its own bodies, so a cell of four sea rocks is one rock out there.
 
+## And the world past every map
+
+Past the maps the cartridge fills everything with one BORDER BLOCK, repeated to
+the horizon, and on forty of the seventy-seven outdoor maps every tile of that
+block is a tree. So the game's own maps stood a skyline and the ground all round
+them was a flat page with tree art smeared across it.
+
+The same cards stand on it, on a ring round the eye. The ring has to reach the
+horizon or it does nothing, because the page and a standing wood are different
+TONES rather than different shapes: the page shows mostly the light ground the
+trees are drawn on, and a ring that stops short draws a pale band across the
+distance. And it does not have to be thick out there. A card is 16 pixels tall
+and the eye sits about a hundred above the ground, so at three thousand pixels it
+is seen at two degrees and hides four hundred and fifty pixels of ground behind
+it: every eighth block still closes the distance completely. Four rungs doubling
+out to 4800 world pixels come to about 12700 cards against 624000 for the same
+reach paved solid, and photographed against the solid one at four camera pitches
+the two differ by about what two runs of the same shot differ by.
+
+It is rebuilt when the eye has drifted 512 world pixels from where it was built,
+which is a circle and not a lattice: quantising the centre to a grid rebuilds
+every time the player steps back and forth over one of its lines, and that is
+once a second on a walk that turns round.
+
+## And the buildings on them
+
+A town out there was the last flat thing in the frame. `world/far_houses.gd`
+stands one as what the cartridge draws it as: a roof laid over a footprint with a
+wall under the front of it, painted tile for tile off that map's own sheet.
+
+A BOX AND NOT A HOUSE, deliberately. `shape/houses.gd` is a hundred drawings
+painted per pixel and matched by arrangement, and the mesher spends a resolve on
+them; out here a map has to be stood up in milliseconds. What is available is the
+profile's own `facade` and `roof`, which is enough to say where a building is,
+how deep its roof is drawn and how tall its wall is. 203 buildings over the 60
+outdoor maps of Crystal that hold one, a few thousand triangles a town, one mesh
+a map so a town is drawn or culled together.
+
 ## A little out of focus, in pixels
 
 The frame's finishing pass coarsens toward the horizon: the same picture sampled

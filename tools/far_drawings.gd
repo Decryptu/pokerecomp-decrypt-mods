@@ -57,6 +57,7 @@ func _initialize() -> void:
 	var drawings: int = 0
 	var spots: int = 0
 	var cut: int = 0
+	var houses: int = 0
 	var walk_usec: int = 0
 	var cut_usec: int = 0
 	for map: Gen2WorldMap in data.world_maps():
@@ -78,8 +79,10 @@ func _initialize() -> void:
 		mesher.emit(atlas)
 
 		var at: int = Time.get_ticks_usec()
-		var found: Dictionary = walk_script.of_map(data, map, profile)
+		var walked: Dictionary = walk_script.of_map(data, map, profile)
 		walk_usec += Time.get_ticks_usec() - at
+		var found: Dictionary = walked["drawings"]
+		houses += (walked["buildings"] as Array).size()
 
 		var stamped: Dictionary = _stamped(mesher, mesher.get("_margin"), Vector2i(
 			map.width_blocks, map.height_blocks
@@ -130,10 +133,10 @@ func _initialize() -> void:
 		if only.x >= 0:
 			_report_map(found, stamped)
 
-	print("maps %d, differ %d, drawings %d, spots %d, cards cut %d, walk %.1f ms, cut %.1f ms" % [
-		maps, differ, drawings, spots, cut,
-		float(walk_usec) / 1000.0, float(cut_usec) / 1000.0,
-	])
+	print("maps %d, differ %d, drawings %d, spots %d, cards cut %d, buildings %d,"
+		% [maps, differ, drawings, spots, cut, houses]
+		+ " walk %.1f ms, cut %.1f ms"
+		% [float(walk_usec) / 1000.0, float(cut_usec) / 1000.0])
 	quit(1 if differ > 0 else 0)
 
 

@@ -34,22 +34,29 @@ const MapSourceScript: GDScript = preload("map_source.gd")
 ## Pixels across one tile, and tiles across one walk cell.
 const TILE: int = 8
 const CELL_TILES: int = 2
+## Tiles across one block, which is what the world past the maps is tiled with.
+## See [method of_border].
+const BLOCK_TILES: int = 4
 ## The most drawings one map may stand, so a pathological tileset cannot fill
 ## memory. Route 32, the thickest wood in the game, comes out near 1200.
 const SPOT_LIMIT: int = 4096
 
 
-## Where each drawing stands on [param map], and what it is.
+## WHAT STANDS ON [param map], as `{ drawings, buildings }`.
 ##
-## `str(tiles) -> { spots, class, tiles, across }`. The spots are in that map's
-## own world pixels and there is ONE PER DRAWING rather than one per cell: a
-## conifer is one card standing between the two cells it is drawn over, exactly
-## as the mesh stamps one model there. The rest is what
+## `drawings` is `str(tiles) -> { spots, class, tiles, across }`. The spots are in
+## that map's own world pixels and there is ONE PER DRAWING rather than one per
+## cell: a conifer is one card standing between the two cells it is drawn over,
+## exactly as the mesh stamps one model there. The rest is what
 ## `shape/mesher.gd:far_card_for` needs to cut that drawing out of this map's own
 ## sheet: the tiles themselves, how many of them the drawing runs across, and the
 ## class whose facts say how it is masked and how it stands.
+##
+## `buildings` is what `world/far_houses.gd` stands, one entry a building. Both
+## come off ONE pass over the map, because reading its tiles is what the walk
+## actually costs.
 static func of_map(data: GameData, map: Gen2WorldMap, profile: GDScript) -> Dictionary:
-	var out: Dictionary = {}
+	var out: Dictionary = {"drawings": {}, "buildings": []}
 	if data == null or map == null:
 		return out
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
@@ -97,13 +104,157 @@ static func of_map(data: GameData, map: Gen2WorldMap, profile: GDScript) -> Dict
 							ids[named] = ids.size()
 						known[pair] = ids[named]
 					klass[at] = known[pair]
-	var named_by_id: Array = []
-	named_by_id.resize(ids.size())
-	for named: StringName in ids:
-		named_by_id[ids[named]] = named
+	var named_by_id: Array = _named_by_id(ids)
+	out["drawings"] = _walk(shape, tiles, klass, named_by_id, size)
+	out["buildings"] = _buildings(shape, tiles, klass, named_by_id, size)
+	return out
 
-	# One entry per BOX rather than per tile: every tile of a drawing resolves to
-	# the same box, and the box is what wears a card.
+
+## EVERY BUILDING ON THE MAP, as `{ rect, rows, tiles }`: the rectangle it covers
+## in TILES, what each of its rows draws, and the tile ids inside it, which is
+## what a box is painted from.
+##
+## A ROW IS ROOF, WALL OR NEITHER, and it is answered per row rather than as two
+## counts: a flood joins two houses that touch, and a rectangle that holds them
+## both has rows of each in whatever order they stand. `world/far_houses.gd` is
+## where that is read, and it is the only place that has to care.
+##
+## A building is found by its CLASS and not by the arrangement `shape/houses.gd`
+## paints: the painted table is the near view's, it is an override on a hundred
+## drawings of the several hundred placed, and reading it needs the resolve's own
+## matching pass. Out here a rectangle is all that is standing, so the profile's
+## own `facade` and `roof` are enough to find one and to say which of its rows is
+## which. See `world/far_houses.gd` for what is built from it.
+##
+## Connected by the four sides, because a town draws its houses with a tile of
+## ground between them and a terrace as one run.
+static func _buildings(
+	shape: RefCounted, tiles: PackedInt32Array, klass: PackedInt32Array,
+	named_by_id: Array, size: Vector2i
+) -> Array:
+	var part := PackedByteArray()
+	part.resize(size.x * size.y)
+	var any: bool = false
+	var known: Dictionary = {}
+	for at: int in klass.size():
+		if klass[at] < 0:
+			continue
+		if not known.has(klass[at]):
+			var built: StringName = shape.building_part(named_by_id[klass[at]])
+			known[klass[at]] = 2 if built == &"roof" else (1 if built == &"wall" else 0)
+		part[at] = known[klass[at]]
+		any = any or part[at] > 0
+	var out: Array = []
+	if not any:
+		return out
+	var seen := PackedByteArray()
+	seen.resize(size.x * size.y)
+	for ty: int in size.y:
+		for tx: int in size.x:
+			var at: int = ty * size.x + tx
+			if part[at] == 0 or seen[at] == 1:
+				continue
+			seen[at] = 1
+			var stack: Array = [Vector2i(tx, ty)]
+			var box := Rect2i(tx, ty, 1, 1)
+			var roofs: Dictionary = {}
+			var walls: Dictionary = {}
+			while not stack.is_empty():
+				var here: Vector2i = stack.pop_back()
+				box = box.expand(here).expand(here + Vector2i.ONE)
+				if part[here.y * size.x + here.x] == 2:
+					roofs[here.y] = true
+				else:
+					walls[here.y] = true
+				for way: Vector2i in [
+					Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
+				]:
+					var next: Vector2i = here + way
+					if next.x < 0 or next.y < 0 or next.x >= size.x or next.y >= size.y:
+						continue
+					var index: int = next.y * size.x + next.x
+					if part[index] == 0 or seen[index] == 1:
+						continue
+					seen[index] = 1
+					stack.append(next)
+			var drawn: Array = []
+			var rows := PackedByteArray()
+			rows.resize(box.size.y)
+			for row: int in box.size.y:
+				rows[row] = 2 if roofs.has(box.position.y + row) \
+					else (1 if walls.has(box.position.y + row) else 0)
+				for column: int in box.size.x:
+					drawn.append(_tile_at(
+						tiles, size, box.position.x + column, box.position.y + row
+					))
+			out.append({"rect": box, "rows": rows, "tiles": drawn})
+	return out
+
+
+## THE DRAWINGS IN A MAP'S BORDER BLOCK, which is the whole of the world past the
+## maps: `world/far_field.gd` fills everything the camera can reach with that one
+## block, so out there the same thirty-two pixels repeat for ever, and on forty of
+## the seventy-seven outdoor maps every tile of them is a tree.
+##
+## Answered in the BLOCK'S own pixels and otherwise exactly as [method of_map]
+## answers, so the same card is cut for it and the same stamp stands it.
+##
+## The box rule needs no more than the block: a drawing is two or four tiles
+## across and a block is four, and both align on the same lattice, so nothing
+## straddles two of them.
+static func of_border(
+	data: GameData, map: Gen2WorldMap, profile: GDScript
+) -> Dictionary:
+	var out: Dictionary = {}
+	if data == null or map == null:
+		return out
+	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
+	if tileset == null:
+		return out
+	var shape: RefCounted = TileShapeScript.new(profile, map.tileset)
+	var size := Vector2i(BLOCK_TILES, BLOCK_TILES)
+	var tiles := PackedInt32Array()
+	var klass := PackedInt32Array()
+	tiles.resize(size.x * size.y)
+	klass.resize(size.x * size.y)
+	var ids: Dictionary = {}
+	for ty: int in size.y:
+		for tx: int in size.x:
+			var at: int = ty * size.x + tx
+			var tile: int = tileset.tile_index(map.border_block, ty * BLOCK_TILES + tx)
+			tiles[at] = tile
+			if tile < 0:
+				klass[at] = -1
+				continue
+			@warning_ignore("integer_division")
+			var permission: int = tileset.collision_index(
+				map.border_block, tx / CELL_TILES, ty / CELL_TILES
+			)
+			var named: StringName = shape.at(tile, permission)
+			if not ids.has(named):
+				ids[named] = ids.size()
+			klass[at] = ids[named]
+	return _walk(shape, tiles, klass, _named_by_id(ids), size)
+
+
+static func _named_by_id(ids: Dictionary) -> Array:
+	var out: Array = []
+	out.resize(ids.size())
+	for named: StringName in ids:
+		out[ids[named]] = named
+	return out
+
+
+## Every drawing standing on a grid of tiles already resolved to classes, as
+## `str(tiles) -> { spots, class, tiles, across }`.
+##
+## One entry per BOX rather than per tile: every tile of a drawing resolves to
+## the same box, and the box is what wears a card.
+static func _walk(
+	shape: RefCounted, tiles: PackedInt32Array, klass: PackedInt32Array,
+	named_by_id: Array, size: Vector2i
+) -> Dictionary:
+	var out: Dictionary = {}
 	var seen: Dictionary = {}
 	var placed: int = 0
 	for ty: int in size.y:
