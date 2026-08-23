@@ -244,6 +244,9 @@ func _init() -> void:
 	viewport.add_child(actors)
 
 	_far = FarField3D.new()
+	# The cards the horizon's foliage cuts for itself go through the same pool
+	# the near stamps' materials do, so two maps drawing the same tree share one.
+	_far.set_foliage_material_maker(foliage_material)
 	viewport.add_child(_far.root)
 
 	# The drifting leaves and the fireflies. Last in, and one node: see

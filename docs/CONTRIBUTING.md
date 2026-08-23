@@ -13,6 +13,8 @@ tools/package.sh      mods/<id>/ -> dist/<id>-<version>.zip
 tools/check.sh        parses every script; `tools` and `all` widen what it reads
 tools/walk_bench.gd   what a frame costs while the player walks, in the game
 tools/stage_bench.gd  the same for the diorama alone, with each part priceable
+tools/horizon_shot.gd photographs the horizon through the game's own screen
+tools/far_drawings.gd checks the horizon's drawings and cards against a resolve
 tools/mod_icons.sh    repaints every icon from one cartridge; see icon_art.gd
 docs/icons/<id>.png   the same icon at 4x, for the README table only
 ```

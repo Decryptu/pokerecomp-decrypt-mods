@@ -25,6 +25,9 @@ extends RefCounted
 
 const AtlasScript: GDScript = preload("../shape/atlas.gd")
 const FarFoliageScript: GDScript = preload("far_foliage.gd")
+const FarHousesScript: GDScript = preload("far_houses.gd")
+const FarDrawings: GDScript = preload("../shape/far_drawings.gd")
+const Profile: GDScript = preload("../shape/profile.gd")
 
 const TILE: float = 8.0
 const BLOCK_PIXELS: float = 32.0
@@ -38,9 +41,22 @@ const ATLAS_TILES_PER_ROW: float = 16.0
 ## owns everything from zero up; these are only ever seen where it drew nothing,
 ## and they are stacked rather than sorted so the depth buffer decides which is
 ## in front and no render priority has to.
+##
+## THE LOADED MAP'S PAGE IS FLUSH WITH THE GROUND and the two beneath it are not.
+## It is the only one that ever meets the MESH: the hole is cut to what the mesh
+## emitted, so the page carries on from exactly there, and sunk two pixels it left
+## a step whose face nothing draws. Looking north across it, which is the only way
+## the overworld's camera looks, that step is a hole in the floor running the
+## width of the window, and it was there at every draw distance.
+##
+## The other two stay sunk, because they meet each other and this page rather
+## than the mesh, and a step of a quarter pixel between pages a thousand pixels
+## out is under what the depth buffer can tell apart at that range. Their own
+## seam, where this page ends at the map's buffer, sits inside `drawn_bounds` and
+## is covered by the mesh whenever the window reaches it.
 const FILL_DEPTH: float = -6.0
 const NEAR_DEPTH: float = -4.0
-const HERE_DEPTH: float = -2.0
+const HERE_DEPTH: float = 0.0
 
 ## How far past the camera's own reach the border fill is laid, as a multiple of
 ## it. The quad is centred on what the camera looks at rather than on the map,
@@ -121,6 +137,20 @@ var _fill: MeshInstance3D = null
 var _quad: PlaneMesh = null
 ## The trees standing on the pages. See `far_foliage.gd`.
 var _foliage: RefCounted = null
+## The buildings standing on them. See `far_houses.gd`.
+var _houses: RefCounted = null
+## Per map, keyed "group:number": what the walk found on it, as
+## `shape/far_drawings.gd` answers. ONE MAP A FRAME, which is the rule this
+## already follows for a sheet and for the same reason: the walk is about eleven
+## milliseconds and a warp can bring a dozen maps into view at once. A map not
+## walked yet stands nothing this frame and is walked on the next.
+var _walked: Dictionary = {}
+var _walk_owed: bool = false
+## EVERYTHING THE MESH CAN STAND A MODEL ON, in world pixels: the loaded map
+## inside its border ring. See `shape/mesher.gd:stamped_bounds_tiles`. The line
+## everything out here is drawn from: the loaded map's own cards cover it, and
+## nothing else stands on it.
+var _stamped := Rect2()
 ## Per map, keyed "group:number": its coloured tile sheet, its block bytes.
 ## Built one a frame, because a sheet is a hundred tiles painted a pixel at a
 ## time and twenty four maps of them on the frame of a warp is the stop this
@@ -149,6 +179,8 @@ func _init() -> void:
 	root.add_child(_fill)
 	_foliage = FarFoliageScript.new()
 	root.add_child(_foliage.root)
+	_houses = FarHousesScript.new()
+	root.add_child(_houses.root)
 	# Nothing until a world says there is one: a battle shares this stage and
 	# is staged inside the window it stands in.
 	root.visible = false
@@ -161,10 +193,17 @@ func set_far_tree(mesh: Mesh, material: ShaderMaterial) -> void:
 	_foliage.set_tree(mesh, material)
 
 
-## The card each drawing wears, keyed by the tile it starts at. See
-## `far_foliage.gd:set_cards`.
-func set_far_cards(cards: Dictionary, tileset: int) -> void:
-	_foliage.set_cards(cards, tileset)
+## Whether the maps out there stand anything. See `far_foliage.gd:set_enabled`
+## and `far_houses.gd:set_enabled`.
+func set_far_trees(on: bool) -> void:
+	_foliage.set_enabled(on)
+	_houses.set_enabled(on)
+
+
+## How a cut-out becomes a material, handed down to the cards the foliage cuts
+## for itself. See `far_foliage.gd:set_material_maker`.
+func set_foliage_material_maker(maker: Callable) -> void:
+	_foliage.set_material_maker(maker)
 
 
 ## A new map, or none. Everything keyed on a map is dropped with it except the
@@ -191,13 +230,22 @@ func set_time_of_day(time_of_day: int) -> void:
 	if time_of_day == _time_of_day:
 		return
 	_time_of_day = time_of_day
-	# A sheet is the tileset coloured by the hour, so every one of them moves.
+	# A sheet is the tileset coloured by the hour, so every one of them moves,
+	# and so does every card cut out of one.
 	_sheets.clear()
+	_foliage.forget_cards()
+	_houses.forget()
 
 
 ## The ground the mesh is drawing, in WORLD PIXELS, which this leaves alone.
 func set_hole(rect: Rect2) -> void:
 	_hole = rect
+
+
+## All the ground the mesh can stamp a model into, in WORLD PIXELS. See
+## [member _stamped].
+func set_stamped_bounds(rect: Rect2) -> void:
+	_stamped = rect
 
 
 ## Lays the layers out for this frame, and pays for at most one map's sheet.
@@ -222,11 +270,19 @@ func advance(focus: Vector3, reach: float) -> void:
 
 	var used: int = 0
 	var owed: bool = false
+	# WHERE A MAP IS ALREADY DRAWN, for the world past them all: see
+	# `far_foliage.gd:place_border`. Every placement rather than every VISIBLE
+	# placement, so the answer does not change as the eye turns, and the loaded
+	# map grown by the margin that covers whatever hole the mesh has cut.
+	var taken: Array = [_stamped]
 	_foliage.begin()
+	_houses.begin()
+	_walk_owed = false
 	for placement: Dictionary in _world.map_placements().values():
 		var near: Gen2WorldMap = placement["map"]
 		var origin: Vector2 = Vector2(placement["origin"] as Vector2i) * BLOCK_PIXELS
 		var size := Vector2(near.width_blocks, near.height_blocks) * BLOCK_PIXELS
+		taken.append(Rect2(origin, size))
 		if not Rect2(origin, size).intersects(seen):
 			continue
 		var sheet: RefCounted = _sheet(near, not owed)
@@ -240,9 +296,14 @@ func advance(focus: Vector3, reach: float) -> void:
 		), Vector2(near.width_blocks, near.height_blocks), origin,
 			near.border_block, near.tileset, false)
 		_stand(layer, origin, size, NEAR_DEPTH)
-		# The skyline on the page. See `far_foliage.gd`; it draws nothing until
-		# a tree has been handed to it.
-		_foliage.place(_world.data, near, origin)
+		# The skyline on the page, and the town on it, both off one walk of that
+		# map and both wearing its own sheet. See `far_foliage.gd`.
+		# THE MESH'S OWN GROUND IS KEPT CLEAR, and a neighbour overlaps it: the
+		# loaded map's border ring is the neighbour's own map, so its cards would
+		# stand where the mesh has already stood a solid.
+		var found: Dictionary = _walk_of(near, 0)
+		_foliage.place(near, origin, sheet, found.get("drawings", {}), _stamped)
+		_houses.place(near, origin, sheet, found.get("buildings", []), _stamped)
 
 	# The loaded map LAST, over the neighbours, for the reason the host draws it
 	# last too: inside `wOverworldMapBlocks` the connection strips are the
@@ -260,13 +321,60 @@ func advance(focus: Vector3, reach: float) -> void:
 		_dress(layer, _sheet(map, true), here, _tile_texture(tileset), blocks,
 			origin, map.border_block, map.tileset, false)
 		_stand(layer, origin, blocks * BLOCK_PIXELS, HERE_DEPTH)
+		# AND THIS MAP'S OWN TREES PAST THE WINDOW. Most of a route is outside the
+		# mesh at any draw distance, and until this was here that ground was the
+		# only bare page in the frame: the maps beyond it wore a skyline and the
+		# one being walked on did not. The hole is what keeps a card off ground
+		# the mesh has already stood a solid on.
+		# WALKED INTO ITS OWN BORDER RING, which is what closes the band between
+		# what the mesh stamps and what the ring outside stands: see
+		# [member _stamped].
+		var here_found: Dictionary = _walk_of(map, _ring_tiles())
+		_foliage.place(
+			map, Vector2.ZERO, _sheet(map, true), here_found.get("drawings", {}), _hole
+		)
+		_houses.place(
+			map, Vector2.ZERO, _sheet(map, true), here_found.get("buildings", []), _hole
+		)
+	# AND THE WORLD PAST EVERY MAP, which is this one's border block repeated to
+	# the far plane and was the last flat page in the frame.
+	_foliage.place_border(
+		_world.data, map, _sheet(map, true), Vector2(focus.x, focus.z), taken
+	)
 	_foliage.end()
+	_houses.end()
 	_hide_from(used)
 
 
 ## The border fill: one quad over everything the camera can reach, every pixel
 ## of it this map's own border block, which is what the cartridge surrounds a
 ## map with and what the host fills the far window with.
+## What one map holds, walked once and kept. See [member _walked].
+##
+## The MARGIN is part of the key: the loaded map is walked into its border ring
+## and the same map as a neighbour is not, so the two answers are different and
+## a map that becomes the loaded one is walked again.
+func _walk_of(map: Gen2WorldMap, margin: int) -> Dictionary:
+	var key: String = "%d:%d:%d" % [map.group, map.number, margin]
+	if _walked.has(key):
+		return _walked[key]
+	if _walk_owed:
+		return {}
+	_walk_owed = true
+	if _walked.size() >= SHEET_LIMIT:
+		_walked.clear()
+	_walked[key] = FarDrawings.of_map(_world.data, map, Profile, margin)
+	return _walked[key]
+
+
+## How deep the loaded map's border ring is, in tiles, read off the bounds the
+## renderer pushed rather than guessed at.
+func _ring_tiles() -> int:
+	if not _stamped.has_area():
+		return 0
+	return int(-_stamped.position.x / TILE)
+
+
 func _place_fill(map: Gen2WorldMap, tileset: Gen2WorldTileset, seen: Rect2) -> void:
 	_dress(_fill, _sheet(map, true), _one_block(), _tile_texture(tileset),
 		Vector2.ZERO, Vector2.ZERO, map.border_block, map.tileset, true)

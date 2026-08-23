@@ -86,6 +86,18 @@ func tile_at(tile_x: int, tile_y: int) -> int:
 	)
 
 
+## The block drawn at a block position, inside the map or past its edge, which is
+## what [method tile_at] resolves a tile through.
+##
+## Public for a caller reading a whole BLOCK rather than a tile: sixteen
+## `tile_at` calls answer the same block sixteen times, and a walk over a map and
+## its ring is ten thousand tiles. `shape/far_drawings.gd` is the caller.
+func block_at(block_x: int, block_y: int) -> int:
+	if _map == null or _tileset == null:
+		return -1
+	return _block_at(block_x, block_y)
+
+
 ## The block drawn at a block position, inside the map or past its edge, with
 ## the carry below spent on it.
 ##

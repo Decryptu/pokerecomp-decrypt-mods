@@ -580,35 +580,113 @@ all.
 
 ## And trees on the horizon
 
-The pages past the mesh carry the same drawing. A map out there is walked once,
-cell by cell, asking the tileset whether a tile is a model, which is a question
-about the tile and the permission and nothing else and so costs 2 ms a map
-against the quarter of a second a real resolve does. Every map it finds them on
-stands them.
+The pages past the mesh carry the same drawings. A map out there is walked once,
+tile by tile, asking the tileset which drawing stands where, which is a question
+about the tile ids and the collision and nothing else and so costs about 11 ms a
+map against the quarter of a second a real resolve does. Every map it finds them
+on stands them, the loaded one past its own window included.
 
 It is four per cent of the frame's triangles on the widest horizon in the game,
 and it is the difference between a neighbour reading as a landmass and reading as
 a green rug laid on the sea.
 
-EACH CELL WEARS ITS OWN DRAWING. The detail ring inside the mesh has always
-swapped a drawing for its own card, tree and bush alike, and the horizon used to
-wear ONE card for all of it: the biggest drawing this map turned. So a bush out
-there was drawn as a tree and a neighbour's own trees were drawn as this map's,
-and a whole coast of low scrub came out as a wall of tall canopy with the water
-behind it hidden. That was written down as invisible at the distance it is drawn.
-It is not: dollying the camera out to the rig's own limit is the whole of what it
-takes, and the left third of the horizon on route 26,1 is a worked example.
-`shape/mesher.gd:far_cards` hands over the card each drawing was cut to, keyed by
-the tile it starts at, and the walk groups its spots by card. Measured at no
-change in draws or triangles: the same cells are standing, in a few more
-MultiMeshes.
+EACH DRAWING WEARS ITS OWN CARD, CUT FROM ITS OWN MAP'S SHEET. The detail ring
+inside the mesh has always swapped a drawing for its own card, tree and bush
+alike, and the horizon has been wrong about it three times over.
 
-A map on ANOTHER TILESET still wears the one tree, and that is not laziness: a
-tile is numbered in its own tileset and means nothing in another, which is the
-same reason the border ring refuses a neighbour's block. Nine of the seventy-seven
-outdoor maps have such a neighbour. One simplification is left and is deliberate:
-a cell gets one card rather than its drawing's own bodies, so a cell of four sea
-rocks is one rock out there.
+First it wore ONE card for all of it, the biggest drawing the loaded map turned:
+a bush out there was drawn as a tree, a neighbour's own trees were drawn as this
+map's, and a whole coast of low scrub came out as a wall of tall canopy with the
+water behind it hidden. That was written down as invisible at the distance it is
+drawn. It is not: dollying the camera out to the rig's own limit is the whole of
+what it takes, and the left third of the horizon on route 26,1 is a worked
+example.
+
+Then the card was looked up by the TILE a drawing starts at. A drawing is many
+tiles and only one of them is that corner, so most far cells matched nothing and
+fell back to the tree, and where a tile id did match it matched whatever other
+drawing began at the same id: route 26's conifers came back as its bushes and the
+skyline went flat. A drawing is named by its whole arrangement of tiles, which is
+how `shape/mesher.gd` names every model mesh it builds, or it is not named at all.
+`shape/far_drawings.gd` is what reads that name back off a map nothing resolved.
+
+And naming it was still not enough while the cards were the LOADED map's. A
+quarter of the far foliage in the game is a drawing the loaded map does not hold
+and another sixteenth is on another tileset entirely, and all of it wore the one
+tree. So each map cuts its own: `shape/mesher.gd:far_card_for` takes a drawing's
+tiles, its class and the tile sheet the far ground beside it is already drawn
+with, and hands back the same card the resolve would have cut. `tools/far_drawings.gd`
+is the guard and checks both halves against a real resolve, the boxes and the
+cards, over the 229 outdoor maps of the three cartridges: 0 differ, 174 drawings a
+cartridge, every card pixel for pixel the mesh's own.
+
+Measured at no change in frame time, in draws or in triangles: the same cells are
+standing, in a few more MultiMeshes, and those are kept rather than refilled per
+frame. A map is walked and cut ONE A FRAME, which is what the ground under it
+already does with its sheet.
+
+One simplification is left and is deliberate: a drawing gets one card rather than
+its own bodies, so a cell of four sea rocks is one rock out there.
+
+## And the world past every map
+
+Past the maps the cartridge fills everything with one BORDER BLOCK, repeated to
+the horizon, and on forty of the seventy-seven outdoor maps every tile of that
+block is a tree. So the game's own maps stood a skyline and the ground all round
+them was a flat page with tree art smeared across it.
+
+The same cards stand on it, on a ring round the eye. The ring has to reach the
+horizon or it does nothing, because the page and a standing wood are different
+TONES rather than different shapes: the page shows mostly the light ground the
+trees are drawn on, and a ring that stops short draws a pale band across the
+distance. And it does not have to be thick out there. A card is 16 pixels tall
+and the eye sits about a hundred above the ground, so at three thousand pixels it
+is seen at two degrees and hides four hundred and fifty pixels of ground behind
+it: every eighth block still closes the distance completely. Four rungs doubling
+out to 4800 world pixels come to about 12700 cards against 624000 for the same
+reach paved solid, and photographed against the solid one at four camera pitches
+the two differ by about what two runs of the same shot differ by.
+
+It is rebuilt when the eye has drifted 512 world pixels from where it was built,
+which is a circle and not a lattice: quantising the centre to a grid rebuilds
+every time the player steps back and forth over one of its lines, and that is
+once a second on a walk that turns round.
+
+WHERE IT STARTS IS THE MESHER'S OWN ANSWER. `shape/mesher.gd:stamped_bounds_tiles`
+is all the ground the mesh can stamp a model into, which is the map inside its
+border ring: the ring stands from exactly there, the loaded map's own walk covers
+everything inside it, and a neighbouring map is kept out of it. A constant
+clearance instead left a flat band two cells wide between the two, and a
+neighbour standing its own cards over the mesh's ring solids drew the same tree
+twice.
+
+## And the floor has no hole in it
+
+The loaded map's flat page sat two world pixels under the ground plane, with the
+two layers beneath it sunk further so the depth buffer could sort them. The hole
+in the page is cut to what the MESH emitted, so the page carried on from exactly
+there, two pixels lower, and nothing draws the face of that step: at the window's
+edge it read as a hole in the floor running the width of the frame, at every
+draw distance. The overworld's camera only ever looks north and that is the one
+direction the step faces.
+
+The page is flush with the ground now. The two under it stay sunk, because they
+meet each other and this page rather than the mesh, and their own seam sits
+inside the mesh's own bounds.
+
+## And the buildings on them
+
+A town out there was the last flat thing in the frame. `world/far_houses.gd`
+stands one as what the cartridge draws it as: a roof laid over a footprint with a
+wall under the front of it, painted tile for tile off that map's own sheet.
+
+A BOX AND NOT A HOUSE, deliberately. `shape/houses.gd` is a hundred drawings
+painted per pixel and matched by arrangement, and the mesher spends a resolve on
+them; out here a map has to be stood up in milliseconds. What is available is the
+profile's own `facade` and `roof`, which is enough to say where a building is,
+how deep its roof is drawn and how tall its wall is. 203 buildings over the 60
+outdoor maps of Crystal that hold one, a few thousand triangles a town, one mesh
+a map so a town is drawn or culled together.
 
 ## A little out of focus, in pixels
 
