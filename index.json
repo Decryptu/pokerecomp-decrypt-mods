@@ -5,10 +5,10 @@
 		{
 			"id": "voxel3d",
 			"name": "Voxel 3D",
-			"version": "0.6.4",
+			"version": "0.6.5",
 			"games": ["gold", "silver", "crystal"],
-			"description": "Rebuilds the overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and carries the ground past the mesh so the maps around this one stand where the connection graph puts them, with their woods and their towns standing on them and the world past every map standing its own. Past a ring around the camera a tree is the cartridge's own drawing stood up rather than a turned solid, each drawing wearing the one it was cut from, and the distance coarsens in whole pixels. A fight is staged on the map it started on and fills the window with it. Choose it on this page to draw both. The sky takes the hour's own colours out of the cartridge's palette rows, and water draws a waterline where it meets its bank. One row in the MODS menu switches the whole look between that and the flat one. The keys the flat view already zooms with zoom here too, and I and K raise and lower the camera.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.6.4/voxel3d-0.6.4.zip",
+			"description": "Rebuilds the overworld as a voxel diorama, textured from the cartridge's own tileset and drawn at the window's resolution, and carries the ground past the mesh so the maps around this one stand where the connection graph puts them, with their woods and their towns standing on them and the world past every map standing its own. Past a ring around the camera a tree is the cartridge's own drawing stood up rather than a turned solid, each drawing wearing the one it was cut from, and the distance coarsens in whole pixels. A fight is staged on the map it started on and fills the window with it. Choose it on this page to draw both. The sky takes the hour's own colours out of the cartridge's palette rows, and water draws a waterline where it meets its bank. One row in the MODS menu switches the whole look between that and the flat one, a WATER row picks between a calm sea, a rough one and a glassy one, and the ANGLE row's LEVEL rung drops the camera low enough to put that sky in the frame. The keys the flat view already zooms with zoom here too, and I and K raise and lower the camera.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.6.5/voxel3d-0.6.5.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/thumbnail.webp"
 		},
