@@ -739,21 +739,57 @@ intuition is so strong the other way: drawing the whole frame at a quarter of it
 resolution, sixteen times fewer fragments, changes the frame time by nothing at
 all. Fragments are free here and triangles are not.
 
+## One row for the whole look
+
+The MODS menu carries a LOOK row with two rungs, and DIORAMA is the default.
+
+FLAT is what this view drew before the sky and the water were given anything
+extra to read: a sky made out of the map's own background colour taken down
+twice over four bands, and water with a swell, the sky in it and the sun on it
+and no bank. It is not a second renderer and not a reduced one. It is the path
+both files fall back to whenever a caller hands them nothing, which is what a
+cave pool and every tool that meshes without a field already take, so both rungs
+are code the view needs anyway.
+
+DIORAMA is those same two files given what the cartridge and the mesher can tell
+them: the hour's own two sky colours over six bands, and a bank to draw a
+waterline and a shallow against.
+
+Pressing the row rebuilds nothing. Each file keeps what it was last handed and
+reads it the other way, so the sky changes while you are looking at it.
+
 ## The sky and the hour
 
-Above that horizon the sky is generated: a ramp of four bands, deepest overhead,
+Above that horizon the sky is generated: a ramp of six bands, deepest overhead,
 with a checkerboard of the next band down dithered into the bottom of each. That
 dither is how a machine with four colours to a palette got a fifth and a sixth
-out of them, and it is what makes four bands read as a gradient rather than as
-four stripes. The colours are the map's own background colour taken down in
-steps, the same colour the 2D view fills its margins with, so nothing here is
-authored art.
+out of them, and it is what makes the bands read as a gradient rather than as
+stripes.
+
+THE RAMP'S TWO ENDS ARE THE HOUR'S OWN. Generation II has no sky palette, but it
+does keep a blue pair in one of its background slots at every hour, and reading
+that pair from the row itself, before the map loader hands those two slots to a
+town's roof colours, is a sky that follows the clock and that nothing here
+authored. Morning is the one exception, because its pair is byte for byte day's
+and taking it would leave the two hours sharing one sky: morning's horizon is the
+sunrise colour from the row beside it and its deep end is the blue the water on
+the map is drawn with at that same hour. Where a caller has no hour to offer,
+which is a room and the model turntable, the ramp is made out of the background
+colour alone, the same colour the 2D view fills its margins with.
 
 The bands are pinned to ELEVATION rather than to the frame, so pitching the
 camera slides the frame up a sky that stays put. How much elevation they span is
 measured off the rig and not chosen: the eye looks down by its own pitch, so with
 a 42 degree lens the shallowest shot in the ladder frames sixteen degrees of sky
 and every steeper one frames none.
+
+EVERYTHING FOLLOWS THAT CLOCK, including the things that carry their own
+colours. The terrain is textured from the sheet, so repainting the sheet for a
+new hour moves it; a tree, a bush and every other stamped drawing read their
+colours when they were measured and carry them in their vertices, so each is
+measured again against the repainted sheet and its mesh rewritten in place. It is
+spread over frames on the same budget the mesh build spends, because crossing an
+hour is not a reason to drop a frame.
 
 The sun moves with the hour, not just its colour. It rises in the east, climbs,
 and sets in the west, so shadows swing about a hundred degrees between morning
@@ -803,6 +839,32 @@ way up the sky lands off the top of the frame at every hour: what is asked is ho
 nearly a piece of water is tilted to bounce the sun into the eye, which is a fact
 about the swell, so the glitter rides the waves and goes out at night with the
 light.
+
+THE BANK IS BAKED, BECAUSE A FRAGMENT CANNOT SEE IT. A piece of water knows
+where it is in the world and what the sheet paints there, and both say the same
+thing in the middle of a lake as they do a tile from the beach, so foam and a
+shallow are not things the water can work out for itself. The mesher already
+owns the answer: the same test that lifted the surface out of the terrain is
+walked outward from every piece of land, once with the resolve, and how far each
+tile of water lies from the nearest bank goes to the shader as one texel a tile.
+
+A white line sits where that distance is about half a tile, and the crest of the
+swell carries it up the beach while the trough takes it back. It is THRESHOLDED
+against a checkerboard rather than faded, because the hardware has two colours to
+put on a waterline and so does this. The same number takes the water toward the
+palest colour of its own row near the bank and toward the deepest away from it,
+both held under half strength: a canal and a river are two tiles wide, and at
+full strength every one of them turns to sand. The foam is the hour's own white,
+which is the colour the 2D view fills its margins with, so it is cream at sunrise
+and violet at night and goes out with the light.
+
+Past the edge of that field, which is what a camera standing outside the mesh
+looks across, the answer is open water: what is off the field is unknown, and the
+honest answer to unknown here is the one that draws nothing.
+
+The ground past the mesh gets none of it. Those maps are drawings rather than
+surfaces and carry no swell and no glint either, so a far island has the beach
+its own art draws and nothing added.
 
 WATER IS STOOD IN AND NOT ON. It lies eight pixels below the land it is recessed
 from, and everything the map stands on it, a surfing player, a swimmer, a wild

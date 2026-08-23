@@ -161,7 +161,7 @@ func _initialize() -> void:
 	if atlas.build(data, map, tileset, Gen2WorldPalette.TIME_DAY, animation):
 		_stage.set_texture(atlas.texture)
 		if source.outside():
-			_stage.set_background(atlas.background(), true)
+			_stage.set_background(atlas.background(), true, atlas.sky_ramp())
 		else:
 			_stage.set_background(atlas.void_color(), false)
 	_mesher.resolve(source, shape)
@@ -187,6 +187,13 @@ func _initialize() -> void:
 	# run it a second time.
 	_stage.set_terrain(_mesher.emit(atlas, window_tiles))
 	_stage.set_water(_mesher.take_water())
+	var shore: PackedColorArray = atlas.shore_colors()
+	if shore.size() == 2:
+		_stage.set_shore_colors(atlas.background(), shore[0], shore[1])
+	_stage.set_bank(
+		_mesher.bank_field(), _mesher.bank_world(), _mesher.bank_origin(),
+		_mesher.bank_span()
+	)
 	_stage.set_tufts(_mesher.take_tufts())
 	_stage.set_models(_mesher.take_models())
 	print("map        %s,%s at %s, window %s, distance %d" % [

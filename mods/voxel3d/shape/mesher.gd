@@ -1126,6 +1126,11 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_model_meshes.clear()
 	_model_spots.clear()
 	_model_bodies.clear()
+	# WITH THE MESHES THEY MEASURE: an input list outliving the mesh it built is a
+	# repaint of a drawing from the map that has been left.
+	_model_measures.clear()
+	_model_inputs.clear()
+	_model_cutouts.clear()
 	# WITH THE MESHES IT NAMES. A cached chunk holds stamps keyed into
 	# `_model_spots` and meshes keyed into `_model_meshes`, and both are about to
 	# be dropped: a chunk outliving them is a stamp of a drawing from the map that
@@ -5133,6 +5138,7 @@ func _model_bodies_of(
 			measured.stretch = _stretch[at]
 			_model_meshes[key] = _model_mesh_of(measured)
 			_model_measures[key] = measured
+			_model_inputs[key] = [only, span, tiles, across]
 			_model_cutouts[key] = _cut_out(only, span, tiles, across, atlas)
 			_model_spots[key] = {}
 			_built_model = true
@@ -5165,6 +5171,16 @@ static var impostor_models: bool = false
 ## Per model key: the reading the solid was turned from, kept so the FAR mesh of
 ## the same drawing can be turned from the same measurement on demand.
 var _model_measures: Dictionary = {}
+## What each of those was measured FROM, as `[mask, span, tiles, across]`, kept
+## so the hour can be answered without a resolve. See [method recolour_models].
+## A mask is one byte a pixel of one drawing, so the whole of a wooded route is
+## tens of kilobytes.
+var _model_inputs: Dictionary = {}
+## The repaint in flight: which keys are left and the sheet they are being
+## measured against. See [method begin_recolour].
+var _recolour_queue: PackedStringArray = PackedStringArray()
+var _recolour_at: int = 0
+var _recolour_atlas: RefCounted = null
 ## Per model key: the drawing itself, cut out of the sheet with everything that
 ## is not this body left transparent. What a far stamp wears. See [method _cut_out].
 var _model_cutouts: Dictionary = {}
@@ -5191,6 +5207,107 @@ func set_detail_ring(at: Vector3, reach: float) -> void:
 
 ## The mesh one stamped drawing is worn by, at whichever level of detail this
 ## build is running at.
+## REPAINTS EVERY MODEL FOR A NEW HOUR, in place.
+##
+## A model reads its colours off the atlas when it is MEASURED and carries them
+## in its own vertices, which is what makes it free to draw and what made it the
+## one thing in this view that did not follow the clock. The terrain is textured
+## FROM the sheet, so repainting the sheet moves it; a tree carries its own
+## colours and stayed in daylight until the map was rebuilt, which on a route is
+## whenever the player next walks out of a mesh window. Crossing 18:00 standing
+## still left a wood in full sun. Photographed with `--clock=22:00`.
+##
+## So each one is measured AGAIN against the repainted sheet, and the mesh and
+## the cut-out are rewritten INTO the objects the stage already holds. Nothing is
+## re-emitted, no chunk is rebuilt and no MultiMesh has to be told: the same
+## trick `atlas.gd:build` plays with its own texture, and for the same reason.
+## SPREAD OVER FRAMES like the emit it mirrors, and for the same reason: one
+## model is about two and a half milliseconds of measuring and mesh building, and
+## a wooded route holds a handful, so doing the lot in the frame the clock turns
+## on is the largest single stall this view would have. `emit_step`'s contract,
+## down to the budget the renderer already spends on the mesh.
+##
+## A map part way through wears the new hour on some of its trees and the old on
+## the rest for a frame or two. That is the right failure: the cartridge changes
+## its own palettes on those boundaries too, and nothing about it reads as broken.
+func begin_recolour(atlas: RefCounted) -> void:
+	_recolour_atlas = atlas
+	_recolour_queue = PackedStringArray(_model_inputs.keys()) if atlas != null \
+		else PackedStringArray()
+	_recolour_at = 0
+
+
+func recolour_step(budget_usec: int) -> bool:
+	if _recolour_atlas == null or _recolour_at >= _recolour_queue.size():
+		_recolour_atlas = null
+		return true
+	var until: int = Time.get_ticks_usec() + budget_usec
+	while _recolour_at < _recolour_queue.size():
+		_recolour_one(_recolour_queue[_recolour_at], _recolour_atlas)
+		_recolour_at += 1
+		if Time.get_ticks_usec() >= until:
+			return _recolour_at >= _recolour_queue.size()
+	_recolour_atlas = null
+	return true
+
+
+## The whole repaint in one call, which is what a tool wants and what the game
+## never does: see [method begin_recolour]. The same pairing as `emit`.
+func recolour_models(atlas: RefCounted) -> void:
+	begin_recolour(atlas)
+	while not recolour_step(1 << 30):
+		pass
+
+
+## One model measured again against the repainted sheet, and its mesh, its
+## cut-out and its far twin rewritten into the objects the stage is holding.
+func _recolour_one(key: String, atlas: RefCounted) -> void:
+	var was: RefCounted = _model_measures.get(key)
+	if was == null:
+		return
+	var input: Array = _model_inputs[key]
+	var measured: RefCounted = Model.measure(
+		input[0], input[1], input[2], input[3], atlas, was.potted
+	)
+	# The flags are the CLASS's and not the drawing's, so they are carried across
+	# rather than measured again: see `_model_bodies_of`.
+	measured.shrub = was.shrub
+	measured.rock = was.rock
+	measured.potted = was.potted
+	measured.column = was.column
+	measured.stretch = was.stretch
+	_model_measures[key] = measured
+	_rewrite_mesh(_model_meshes.get(key), _model_mesh_of(measured))
+	var cutout: ImageTexture = _model_cutouts.get(key)
+	if cutout != null:
+		var fresh: ImageTexture = _cut_out(
+			input[0], input[1], input[2], input[3], atlas
+		)
+		if fresh != null:
+			cutout.set_image(fresh.get_image())
+	# And the far twin, which is the same measurement seen from far enough away to
+	# be a card: see `_far_key`.
+	var far: String = key + IMPOSTOR_SUFFIX
+	if _model_meshes.has(far):
+		var model: RefCounted = Model.new()
+		_rewrite_mesh(
+			_model_meshes[far],
+			model.sprite(measured) if cutout != null else model.impostor(measured)
+		)
+
+
+## The surfaces of [param fresh] written into [param into], which is what keeps
+## every holder of the old object pointing at something that is now right.
+func _rewrite_mesh(into: ArrayMesh, fresh: ArrayMesh) -> void:
+	if into == null or fresh == null:
+		return
+	into.clear_surfaces()
+	for surface: int in fresh.get_surface_count():
+		into.add_surface_from_arrays(
+			Mesh.PRIMITIVE_TRIANGLES, fresh.surface_get_arrays(surface)
+		)
+
+
 func _model_mesh_of(measured: RefCounted) -> ArrayMesh:
 	var model: RefCounted = Model.new()
 	return model.impostor(measured) if impostor_models else model.tree(measured)

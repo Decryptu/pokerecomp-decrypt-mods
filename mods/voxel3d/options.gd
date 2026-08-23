@@ -22,6 +22,7 @@ const DISTANCE: StringName = &"distance"
 const SCALE: StringName = &"scale"
 const WHEEL: StringName = &"wheel"
 const CAMERA: StringName = &"camera"
+const LOOK: StringName = &"look"
 ## A setting that is a press rather than a ladder: see `register`.
 const RECENTRE: StringName = &"recentre"
 
@@ -59,6 +60,25 @@ const WHEEL_VALUES: Array = [1, -1]
 ## on it, and the middle rung is what the view was framed at.
 const CAMERA_VALUES: Array = [24.0, 50.0, 74.0]
 
+## WHICH LOOK THE VIEW WEARS, as one row rather than as a knob per term.
+##
+## The two rungs are not two implementations. FLAT is the path both
+## `world/sky.gd` and `world/water.gd` already fall back to when they are handed
+## nothing extra, which is a sky made out of the map's background colour alone
+## and water with a swell, the sky in it and the sun on it; a cave pool and the
+## model turntable take that same path and always did. DIORAMA is those two files
+## given what the cartridge and the mesher can tell them: the hour's own two sky
+## colours over six bands, and a bank to draw a waterline and a shallow against.
+##
+## ONE ROW AND NOT TWELVE, deliberately. Every number either look is made of was
+## argued from a photograph and belongs to the file that owns it; a settings page
+## that hands each of them to a player is a page nobody can reason about, and it
+## would make every one of those arguments unfalsifiable. What a player wants is
+## the picture they liked, and there are two of them.
+const LOOK_FLAT: int = 0
+const LOOK_DIORAMA: int = 1
+const LOOK_VALUES: Array = [LOOK_FLAT, LOOK_DIORAMA]
+
 const REGISTERED: Array[Dictionary] = [
 	{
 		"key": DISTANCE, "label": "DISTANCE",
@@ -81,6 +101,13 @@ const REGISTERED: Array[Dictionary] = [
 		"key": CAMERA, "label": "ANGLE",
 		"values": CAMERA_VALUES, "labels": ["LOW", "MID", "HIGH"],
 		"default": 50.0,
+	},
+	{
+		# Both labels are inside the eight cells a rung is drawn in. See
+		# `docs/MODS.md` in pokerecomp for that budget.
+		"key": LOOK, "label": "LOOK",
+		"values": LOOK_VALUES, "labels": ["FLAT", "DIORAMA"],
+		"default": LOOK_DIORAMA,
 	},
 ]
 

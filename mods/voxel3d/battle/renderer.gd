@@ -170,6 +170,7 @@ func _read_options() -> void:
 	_draw_cells = int(Options.value(Options.DISTANCE, 0))
 	_stage.set_render_scale(int(Options.value(Options.SCALE, Options.default_scale())))
 	_arena.set_wheel_sign(int(Options.value(Options.WHEEL, 1)))
+	_stage.set_look(int(Options.value(Options.LOOK, Options.LOOK_DIORAMA)) == Options.LOOK_FLAT)
 
 
 func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void:
@@ -181,6 +182,8 @@ func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void
 			_build_arena()
 		Options.SCALE:
 			_stage.set_render_scale(int(value))
+		Options.LOOK:
+			_stage.set_look(int(value) == Options.LOOK_FLAT)
 		Options.WHEEL:
 			_arena.set_wheel_sign(int(value))
 		Options.RECENTRE:
@@ -317,7 +320,7 @@ func _build_arena() -> void:
 		_stage.set_texture(_atlas.texture)
 		# A fight indoors is shot against the room's own walls, not against sky.
 		if source.outside():
-			_stage.set_background(_atlas.background(), true)
+			_stage.set_background(_atlas.background(), true, _atlas.sky_ramp())
 		else:
 			_stage.set_background(_atlas.void_color(), false)
 	# Resolved whole and emitted around the fight. A fight does not move, so the
@@ -331,6 +334,7 @@ func _build_arena() -> void:
 	# clearing on a blue floor: neither is in the terrain mesh, a tree because it
 	# is instanced and a lake because it is drawn with its own material.
 	_stage.set_water(_mesher.take_water())
+	_bank()
 	_stage.set_tufts(_mesher.take_tufts())
 	_stage.set_models(_mesher.take_models())
 	# Staged AFTER the mesh, because choosing where the fight goes asks how tall
@@ -1086,3 +1090,17 @@ func _hp_palette(hp: int, max_hp: int) -> PackedColorArray:
 		hp, max_hp, Gen2BattleHud.HP_BAR_TILES * Gen2BattleHud.TILE
 	)
 	return _data.bar_palette(GameData.hp_bar_palette_name(lit))
+
+
+## THE BANK AND THE SHORE'S COLOURS, handed over together because they are one
+## look: `world/water.gd` is where they are read and `shape/mesher.gd:bank_field`
+## is where the field is baked, with the resolve rather than per frame. This costs
+## a texture handle and three colours.
+func _bank() -> void:
+	var shore: PackedColorArray = _atlas.shore_colors()
+	if shore.size() == 2:
+		_stage.set_shore_colors(_atlas.background(), shore[0], shore[1])
+	_stage.set_bank(
+		_mesher.bank_field(), _mesher.bank_world(), _mesher.bank_origin(),
+		_mesher.bank_span()
+	)
