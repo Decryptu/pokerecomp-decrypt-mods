@@ -16,10 +16,21 @@
 # installer puts it: a stock install leaves no `godot` on the path at all, so
 # the one-word command this file's own instructions promise failed there.
 #
-#   tools/check.sh [pokerecomp path]
+# The MODS are what it parses, because the mods are what is live and six seconds
+# is what makes it a command an agent runs after every edit. `tools` parses the
+# thirty odd probes and shot drivers instead, which is half a minute and is worth
+# it before touching one: `tools/linking_cord_probe.gd` shipped naming a constant
+# that does not exist and this said nothing, and two benchmark runs were spent on
+# a duplicate declaration for the same reason. `all` is both.
+#
+#   tools/check.sh [mods|tools|all] [pokerecomp path]
 
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
+WHAT="mods"
+case "${1:-}" in
+	mods|tools|all) WHAT="$1"; shift ;;
+esac
 HOST="${1:-${POKERECOMP:-$HERE/.references/pokerecomp}}"
 if [ ! -d "$HOST" ]; then
 	echo "no pokerecomp checkout at $HOST; pass one or set POKERECOMP" >&2
@@ -39,8 +50,16 @@ if [ -z "$GODOT" ]; then
 	exit 2
 fi
 
+scripts=()
+if [ "$WHAT" != "tools" ]; then
+	scripts+=("$HERE"/mods/*/**/*.gd "$HERE"/mods/*/*.gd)
+fi
+if [ "$WHAT" != "mods" ]; then
+	scripts+=("$HERE"/tools/*.gd)
+fi
+
 status=0
-for script in "$HERE"/mods/*/**/*.gd "$HERE"/mods/*/*.gd; do
+for script in "${scripts[@]}"; do
 	[ -e "$script" ] || continue
 	# --check-only parses and resolves without running, and prints nothing at all
 	# when the script is sound. The engine's own no-scene-tree noise is dropped.

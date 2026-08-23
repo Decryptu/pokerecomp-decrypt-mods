@@ -161,6 +161,12 @@ func set_far_tree(mesh: Mesh, material: ShaderMaterial) -> void:
 	_foliage.set_tree(mesh, material)
 
 
+## The card each drawing wears, keyed by the tile it starts at. See
+## `far_foliage.gd:set_cards`.
+func set_far_cards(cards: Dictionary, tileset: int) -> void:
+	_foliage.set_cards(cards, tileset)
+
+
 ## A new map, or none. Everything keyed on a map is dropped with it except the
 ## sheets, which are keyed by map and shared with whatever the next one connects
 ## to: walking from a route into the town at the end of it keeps the route's.

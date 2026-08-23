@@ -111,6 +111,28 @@ resolved once and only the geometry is emitted again, so a recentre is the cheap
 two thirds of a build, and the margin is a third of the distance so it is not
 most steps.
 
+AND MOST OF THAT REBUILD IS WORK ALREADY DONE. A window that has moved by the
+margin shares four fifths of its chunks with the one before it, and until the
+mesher kept them, every one was built again: a recentre on a wooded route was
+about eighty milliseconds of geometry, spread over nineteen frames at the slice
+budget, every six cells walked. It is the whole of this view's frame-time tail.
+So a chunk is cut to the MAP rather than to the window, which makes its
+rectangle a fact about the map instead of about where the player was standing,
+and one already built is handed straight back. A recentre is three to thirty
+milliseconds now instead of eighty to a hundred and fifty, and in the game the
+frames that rebuild fall from sixty-six in twelve seconds to sixteen. The cost is
+a fringe of up to fifteen tiles past the window, which the frustum rejects, and
+half a megabyte of video memory.
+
+What a cached chunk may not depend on is its neighbours, and a house, an object,
+a flight of stairs or a fence can each cross a chunk edge. Each such structure
+has one owner, the chunk that reached it first, and a chunk sharing one with
+another chunk is never cached, so what it holds can never be a house drawn twice
+or not at all. `tools/mesh_cache_probe.gd` is the proof: a window reached by
+walking, and a window built by a mesher carried from another map, both have to
+draw exactly what a mesher that has never seen the map draws, on every map of
+every cartridge.
+
 The map is built in CHUNKS of 16 tiles square, one mesh each, because the engine
 culls per instance: as one mesh a map can only be accepted or rejected whole, and
 at any camera angle most of it is behind the eye. Measured on the default shot,
@@ -566,9 +588,27 @@ stands them.
 
 It is four per cent of the frame's triangles on the widest horizon in the game,
 and it is the difference between a neighbour reading as a landmass and reading as
-a green rug laid on the sea. Two simplifications, both deliberate: every far map
-wears this map's tree rather than its own, and a cell gets one tree rather than
-its drawing's own bodies.
+a green rug laid on the sea.
+
+EACH CELL WEARS ITS OWN DRAWING. The detail ring inside the mesh has always
+swapped a drawing for its own card, tree and bush alike, and the horizon used to
+wear ONE card for all of it: the biggest drawing this map turned. So a bush out
+there was drawn as a tree and a neighbour's own trees were drawn as this map's,
+and a whole coast of low scrub came out as a wall of tall canopy with the water
+behind it hidden. That was written down as invisible at the distance it is drawn.
+It is not: dollying the camera out to the rig's own limit is the whole of what it
+takes, and the left third of the horizon on route 26,1 is a worked example.
+`shape/mesher.gd:far_cards` hands over the card each drawing was cut to, keyed by
+the tile it starts at, and the walk groups its spots by card. Measured at no
+change in draws or triangles: the same cells are standing, in a few more
+MultiMeshes.
+
+A map on ANOTHER TILESET still wears the one tree, and that is not laziness: a
+tile is numbered in its own tileset and means nothing in another, which is the
+same reason the border ring refuses a neighbour's block. Nine of the seventy-seven
+outdoor maps have such a neighbour. One simplification is left and is deliberate:
+a cell gets one card rather than its drawing's own bodies, so a cell of four sea
+rocks is one rock out there.
 
 ## A little out of focus, in pixels
 
@@ -616,6 +656,22 @@ drawing in the game into its own shadow. A low sun rakes, landing less light on
 flat ground and more on the upright faces, so morning carries more energy than
 day to stand the same ground up; all four rows are metered the same way the
 energies are, and the frame still tops out just under 255.
+
+ITS SHADOW IS NOT SPLIT INTO CASCADES while it has no distance to cover, and that
+is a third of the frame. A parallel-split shadow spends its map where the eye is
+by drawing the scene once per cascade: it is the answer to a shadow that has to
+reach a landscape, and it costs four passes over the geometry to get it. This
+shadow reaches six hundred world pixels at the most and the DISTANCE setting caps
+it again at the mesh window, which at the default is 256, and one orthogonal map
+over 256 world pixels of Game Boy art is already finer than the art. Measured on
+route 26,1 at the lowest camera, one split against four, counting the pixels that
+differ by more than a level of eight: 0.64% at DISTANCE 12, which is the noise
+between two runs, 1.17% at 16 and all of it a pixel of movement on a shadow's
+edge, then 8.50% at 24 and 12.40% at FULL, where the far shadows start to go. So
+the split is kept where it earns its four passes and dropped where it does not.
+At the default that is 4.55 ms a frame to 3.03 on a 2560x1440 window with the
+same picture, and in the game a walk on a wooded route goes 5.43 ms at the median
+to 4.17.
 
 ## Water, and the sun in it
 
