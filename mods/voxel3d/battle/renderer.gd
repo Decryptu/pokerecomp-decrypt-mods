@@ -249,6 +249,10 @@ func refresh() -> void:
 	_frame_camera()
 	# Before the battlers are placed, since it is what they are drawn through.
 	_stage.set_flash(_view.get("bg_palette_maps", []))
+	# `LostBattle`'s wash: the cartridge greys every background palette for the
+	# length of the intro, so it is the STAGE that wears it here rather than the
+	# two battlers, which are only two of the things inside it.
+	_stage.set_grayscale(bool(_view.get("grayscale", false)))
 	_place_battlers()
 	_measure_anim_drift()
 	_draw_hud()
@@ -493,8 +497,8 @@ func _place_settled() -> int:
 			slot, _trainer_pic(int(_view.get("trainer_class", 0))),
 			_arena.enemy_trainer_ground()
 		)
-	slot = _pin(slot, _pic(int(_view.get("enemy_species", 0)), false), _arena.enemy_ground())
-	return _pin(slot, _pic(int(_view.get("player_species", 0)), true), _arena.player_ground())
+	slot = _pin(slot, _battler_pic(false), _arena.enemy_ground())
+	return _pin(slot, _battler_pic(true), _arena.player_ground())
 
 
 ## What one side's square holds. `none` is the stretch between a trainer walking
@@ -529,9 +533,9 @@ func _backpic(kind: String) -> Texture2D:
 	var colors: String = String(_view.get("player_backpic_palette", kind))
 	var dmg: int = _palette_map(PAL_BG_PLAYER)
 	return _texture(
-		"b%s:%s:%d" % [kind, colors, dmg],
+		"b%s:%s:%d:%d" % [kind, colors, dmg, 1 if _graying() else 0],
 		_data.player_backpic(kind),
-		_remap(_data.player_palette(colors), dmg),
+		_battler_palette(_data.player_palette(colors), dmg),
 	)
 
 
@@ -630,6 +634,21 @@ func _palette_map(slot: int) -> int:
 	return PALETTE_IDENTITY
 
 
+## What a battler's picture is actually drawn in: `_CGB_BattleGrayscale`'s own
+## four levels for the length of the intro, and the pristine palette permuted by
+## the animation's last `BattleAnimRequestPals` byte after it. The stage wears
+## the grey as a pass over the whole picture; the cards are a layer above that
+## pass and so carry it in their own colours instead.
+func _battler_palette(pristine: PackedColorArray, dmg: int) -> PackedColorArray:
+	if _graying():
+		return _data.battle_grayscale_palette()
+	return _remap(pristine, dmg)
+
+
+func _graying() -> bool:
+	return bool(_view.get("grayscale", false)) and _data != null
+
+
 ## `CopyPals`: colour i of the result is colour `(byte >> i * 2) & 3` of the
 ## pristine palette, which is why a remap never compounds.
 static func _remap(palette: PackedColorArray, dmg: int) -> PackedColorArray:
@@ -651,12 +670,65 @@ static func _remap(palette: PackedColorArray, dmg: int) -> PackedColorArray:
 func _pic(species: int, back: bool) -> Texture2D:
 	if _data == null or species <= 0:
 		return null
+	var form: int = int(_view.get("player_unown_form" if back else "enemy_unown_form", 0))
 	var dmg: int = _palette_map(PAL_BG_PLAYER if back else PAL_BG_ENEMY)
+	# `_GetFrontpic`'s own branch: Unown is drawn out of its own atlas by letter
+	# and everything else out of the species table. That atlas counts from zero
+	# and a letter counts from one, which is the subtraction.
+	var unown: bool = species == RomLayout.UNOWN_SPECIES and form > 0
 	return _texture(
-		"%d:%d:%d" % [species, 1 if back else 0, dmg],
-		_data.species_pic(species, back),
-		_remap(_data.palette(species), dmg),
+		"%d:%d:%d:%d:%d" % [species, form, 1 if back else 0, dmg, 1 if _graying() else 0],
+		_data.unown_pic(form - 1, back) if unown else _data.species_pic(species, back),
+		_battler_palette(_data.palette(species), dmg),
 	)
+
+
+## One settled side's picture, which is the doll rather than the animal while a
+## substitute is up. `SPRITE_MONSTER`'s own overworld strip is what the cartridge
+## builds that doll out of, so the battle draws a walking sprite.
+func _battler_pic(back: bool) -> Texture2D:
+	var species: int = int(_view.get("player_species" if back else "enemy_species", 0))
+	if bool(_view.get("player_substitute" if back else "enemy_substitute", false)):
+		return _substitute_pic(species, back)
+	return _pic(species, back)
+
+
+## `GetSubstitutePic`: four tiles of the monster sprite in an otherwise blank
+## box. The doll is drawn in whichever battler palette its box sits in, since
+## the cartridge writes none of its own for it, so the species it stands in for
+## is part of the key.
+func _substitute_pic(species: int, back: bool) -> Texture2D:
+	if _data == null:
+		return null
+	var dmg: int = _palette_map(PAL_BG_PLAYER if back else PAL_BG_ENEMY)
+	var key: String = "sub:%d:%d:%d:%d" % [
+		species, 1 if back else 0, dmg, 1 if _graying() else 0
+	]
+	if _pic_textures.has(key):
+		return _pic_textures[key]
+
+	var side: int = Gen2BattleScreenMap.PLAYER_SIDE if back \
+		else Gen2BattleScreenMap.ENEMY_SIDE
+	var box: int = side * SUBSTITUTE_TILE
+	var pixels: PackedByteArray = Gen2BattleRenderer.substitute_pixels(
+		_data.overworld_sprite_indices(SUBSTITUTE_SPRITE), back
+	)
+	if pixels.size() < box * box:
+		return null
+	var image: Image = _image(
+		pixels, box, box, _battler_palette(_data.palette(species), dmg)
+	)
+	if image == null:
+		return null
+	var texture: Texture2D = ImageTexture.create_from_image(image)
+	_pic_textures[key] = texture
+	return texture
+
+
+## `SPRITE_MONSTER` in `constants/sprite_constants.asm`, the same number in both
+## pins, and the tile the doll's box is measured in.
+const SUBSTITUTE_SPRITE: int = 0x4C
+const SUBSTITUTE_TILE: int = 8
 
 
 ## The opposing trainer's own picture, in the cartridge's art. A class number is
@@ -667,9 +739,9 @@ func _trainer_pic(trainer_class: int) -> Texture2D:
 		return null
 	var dmg: int = _palette_map(PAL_BG_ENEMY)
 	return _texture(
-		"t%d:%d" % [trainer_class, dmg],
+		"t%d:%d:%d" % [trainer_class, dmg, 1 if _graying() else 0],
 		_data.trainer_pic(trainer_class),
-		_remap(_data.trainer_palette(trainer_class), dmg),
+		_battler_palette(_data.trainer_palette(trainer_class), dmg),
 	)
 
 
@@ -727,6 +799,17 @@ func _cut_out(pic: Dictionary, palette: PackedColorArray) -> Image:
 		for x: int in width:
 			pixels[y * width + x] = indices[from + x]
 
+	return _image(pixels, width, height, palette)
+
+
+## An index buffer coloured, its field cut away and the result trimmed to what
+## is actually drawn. A pic sits in the top-left of a cell sized for the largest
+## of its kind, and the doll sits in the middle of a box that is otherwise
+## empty, so a card standing on its cell would stand on blank rows and the
+## figure would float above the ground.
+func _image(
+	pixels: PackedByteArray, width: int, height: int, palette: PackedColorArray
+) -> Image:
 	var field: PackedByteArray = _field(pixels, width, height)
 	var image: Image = Image.create(width, height, false, Image.FORMAT_RGBA8)
 	for y: int in height:
@@ -738,10 +821,6 @@ func _cut_out(pic: Dictionary, palette: PackedColorArray) -> Image:
 				color.a = 0.0
 			image.set_pixel(x, y, color)
 
-	# Trimmed to what is actually drawn. A pic sits in the top-left of a cell
-	# sized for the largest of its kind, and a trainer's own drawing rarely
-	# reaches the bottom of one, so a card standing on its cell stands on blank
-	# rows and the figure floats above the ground.
 	var used: Rect2i = image.get_used_rect()
 	if used.size.x <= 0 or used.size.y <= 0:
 		return null

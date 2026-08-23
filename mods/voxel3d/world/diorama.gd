@@ -294,6 +294,11 @@ func set_flash(maps: Variant) -> void:
 	_frame.set_flash(maps)
 
 
+## The whole picture in grey, which is the battle intro's own wash.
+func set_grayscale(graying: bool) -> void:
+	_frame.set_grayscale(graying)
+
+
 ## Closes the surround around the hardware screen's own rectangle, or opens it.
 ## [param screen] is that rectangle in the container's own pixels, which is what
 ## `Gen2ModHost.RENDERER_SCREEN_RECT_METHOD` pushes. See `frame.gd`.

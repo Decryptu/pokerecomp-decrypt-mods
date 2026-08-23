@@ -114,6 +114,14 @@ uniform bool flashing = false;
 uniform vec4 screen_uv = vec4(0.0, 0.0, 1.0, 1.0);
 uniform bool masking = false;
 
+// `LoadBattleGrayscalePals`, which the cartridge writes over every background
+// palette for the length of the intro. Its own four levels are 2bpp and this
+// picture is not, so the world takes the CONTINUOUS grey rather than a
+// quantisation to them: the same approximation the tint and the flash make, and
+// for the same reason. It reaches the battlers as well as the ground, because
+// they are cards inside this surface and the cartridge greys them too.
+uniform bool graying = false;
+
 // DEPTH OF FIELD, and the distance it is spent against is WORKED OUT rather
 // than sampled. A canvas shader has no depth buffer, and this one is composited
 // over a viewport rather than inside it, so there is nothing to read. What there
@@ -189,6 +197,9 @@ void fragment() {
 		}
 	}
 	COLOR.rgb *= tint;
+	if (graying) {
+		COLOR.rgb = vec3(dot(COLOR.rgb, vec3(0.2126, 0.7152, 0.0722)));
+	}
 	if (flashing) {
 		float luma = dot(COLOR.rgb, vec3(0.2126, 0.7152, 0.0722));
 		// Where this pixel sits on the hardware's four levels, brightest first,
@@ -225,6 +236,7 @@ var _time_of_day: int = 1
 var _outside: bool = true
 var _flash: Vector4 = FLASH_LEVELS
 var _flashing: bool = false
+var _graying: bool = false
 ## The hardware screen's rectangle in this surface's own 0 to 1, and whether the
 ## surround is closed around it. See CODE.
 var _screen_uv := Vector4(0.0, 0.0, 1.0, 1.0)
@@ -296,6 +308,15 @@ func set_eye(height: float, pitch: float, fov: float) -> void:
 	_apply()
 
 
+## Whether the whole picture is drawn in grey, which is the battle intro and
+## nothing else. See CODE.
+func set_grayscale(graying: bool) -> void:
+	if graying == _graying:
+		return
+	_graying = graying
+	_apply()
+
+
 func set_outside(outside: bool) -> void:
 	_outside = outside
 	_apply()
@@ -339,6 +360,7 @@ func _apply() -> void:
 	material.set_shader_parameter("tint", Vector3(tint.r, tint.g, tint.b))
 	material.set_shader_parameter("flash", _flash)
 	material.set_shader_parameter("flashing", _flashing)
+	material.set_shader_parameter("graying", _graying)
 	material.set_shader_parameter("screen_uv", _screen_uv)
 	material.set_shader_parameter("masking", _masking)
 	material.set_shader_parameter("dof_mode", _dof_mode)

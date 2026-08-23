@@ -88,7 +88,10 @@ fi
 
 mkdir -p "$OUT"
 LOG="$OUT/pack.txt"
-: > "$LOG"
+# KEPT ACROSS RUNS, because a pack shot in two goes keeps every picture and
+# truncating here left two thirds of them unnamed. A map re-shot replaces its
+# own line rather than gaining a second one.
+touch "$LOG"
 
 # An explicit list is anything holding a comma that is not one of the words, and
 # it is taken as given. Everything else is asked of `maps.gd`, whose own last
@@ -130,7 +133,6 @@ if [ -z "$rows" ]; then
 	exit 1
 fi
 
-count=0
 printf '%s\n' "$rows" | while IFS="$(printf '\t')" read -r map centre fit; do
 	[ -n "$map" ] || continue
 	group="${map%%,*}"
@@ -146,8 +148,12 @@ printf '%s\n' "$rows" | while IFS="$(printf '\t')" read -r map centre fit; do
 		"$PITCH" "$stand" "$TIME_OF_DAY" "" 6 "$BEARING" \
 		< /dev/null > /dev/null 2>&1
 	if [ -f "$file" ]; then
+		name="${group}_${number}.png"
+		if grep -q "^$name	" "$LOG" 2> /dev/null; then
+			grep -v "^$name	" "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
+		fi
 		printf '%s\tmap %s\taimed at %s from %s\n' \
-			"${group}_${number}.png" "$map" "$centre" "$stand" >> "$LOG"
+			"$name" "$map" "$centre" "$stand" >> "$LOG"
 		echo "${group}_${number}.png"
 	else
 		echo "${group}_${number}.png FAILED" >&2
