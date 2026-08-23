@@ -86,13 +86,6 @@ const BORDER_RUNGS: Array = [[600.0, 1], [1200.0, 2], [2400.0, 4], [4800.0, 8]]
 ## turns round is once a second; a circle round the last centre has no lines to
 ## cross.
 const BORDER_STEP: float = 512.0
-## How far past the loaded map the ring stays clear, in world pixels. The mesh
-## window is clipped to the map inside its own border ring, which is sixteen
-## tiles, so this covers every hole the mesh can cut whatever the draw distance:
-## see `shape/mesher.gd:emitted_bounds_tiles`. Reading the hole itself instead
-## rebuilt the ring on every recentre, which is every six cells walked.
-const BORDER_CLEAR: float = 160.0
-
 ## How many maps' worth of cards and stamps are held at once. Past it the lot is
 ## dropped and cut again as they are asked for, one map a frame, which is
 ## `far_field.gd:SHEET_LIMIT`'s rule and its number.
@@ -170,11 +163,12 @@ func begin() -> void:
 ## cards cut from [param sheet], which is the tile sheet `far_field.gd` painted
 ## to draw that map's ground.
 ##
-## [param hole] is the ground the MESH is drawing, in world pixels, and nothing
-## stands inside it. Empty for a neighbour, which the mesh never reaches; the
-## LOADED map is the one that needs it, and it needs it badly: its own ground
-## carries on past the window for most of a route, and a card standing where a
-## turned solid already stands is the same tree drawn twice.
+## [param clear] is ground somebody else is already standing on, in world pixels,
+## and nothing stands inside it. For the LOADED map it is the hole the mesh cut,
+## since its own ground carries on past the window for most of a route and a card
+## where a solid already stands is the same tree drawn twice. For a NEIGHBOUR it
+## is everything the mesh can stamp into, which its map overlaps: the loaded map's
+## border ring is the neighbour's own ground and the mesh has already built it.
 ##
 ## THE MULTIMESHES ARE KEPT, not rebuilt. Filling one is a transform, a colour
 ## and a wind phase per card, and a wood on the horizon is two thousand of them:
@@ -184,7 +178,7 @@ func begin() -> void:
 ## on.
 func place(
 	map: Gen2WorldMap, origin: Vector2, sheet: RefCounted, drawings: Dictionary,
-	hole: Rect2 = Rect2()
+	clear: Rect2 = Rect2()
 ) -> void:
 	if not root.visible or map == null or drawings.is_empty():
 		return
@@ -194,12 +188,12 @@ func place(
 		var worn: Dictionary = dressing[drawing]
 		if worn["mesh"] == null or worn["material"] == null:
 			continue
-		# On the PLACEMENT and not on the answer: a drawing the hole swallows
+		# On the PLACEMENT and not on the answer: a drawing the clearance swallows
 		# whole answers null, and testing that instead rebuilt it every frame.
-		if worn["at"] != origin or worn["hole"] != hole:
+		if worn["at"] != origin or worn["hole"] != clear:
 			worn["at"] = origin
-			worn["hole"] = hole
-			worn["multi"] = _multi(worn["mesh"], worn["spots"], origin, hole)
+			worn["hole"] = clear
+			worn["multi"] = _multi(worn["mesh"], worn["spots"], origin, clear)
 		var multi: MultiMesh = worn["multi"]
 		if multi == null:
 			continue
@@ -212,11 +206,11 @@ func place(
 ## The stamps of one drawing on one map, or null where the hole swallowed them
 ## all. See [method place] for what is rebuilt and when.
 func _multi(
-	mesh: Mesh, spots: PackedVector2Array, origin: Vector2, hole: Rect2
+	mesh: Mesh, spots: PackedVector2Array, origin: Vector2, clear: Rect2
 ) -> MultiMesh:
 	var stood := PackedVector2Array()
 	for spot: Vector2 in spots:
-		if not hole.has_area() or not hole.has_point(origin + spot):
+		if not clear.has_area() or not clear.has_point(origin + spot):
 			stood.push_back(spot)
 	if stood.is_empty():
 		return null
@@ -247,9 +241,9 @@ func _multi(
 ## one thing a horizon is for read the other way round.
 ##
 ## A RING, for the reason `BORDER_RUNGS` gives. [param blocked] is every
-## rectangle a map is already drawn on, in world pixels, the loaded one grown by
-## [constant BORDER_CLEAR]: nothing stands on any of them, since the maps stand
-## their own trees and the mesh stands solids.
+## rectangle a map is already drawn on, in world pixels, the loaded one grown to
+## everything the mesh can stamp into: nothing stands on any of them, since the
+## maps stand their own trees and the mesh stands solids.
 func place_border(
 	data: GameData, map: Gen2WorldMap, sheet: RefCounted, focus: Vector2,
 	blocked: Array

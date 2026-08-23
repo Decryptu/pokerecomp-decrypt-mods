@@ -41,9 +41,22 @@ const ATLAS_TILES_PER_ROW: float = 16.0
 ## owns everything from zero up; these are only ever seen where it drew nothing,
 ## and they are stacked rather than sorted so the depth buffer decides which is
 ## in front and no render priority has to.
+##
+## THE LOADED MAP'S PAGE IS FLUSH WITH THE GROUND and the two beneath it are not.
+## It is the only one that ever meets the MESH: the hole is cut to what the mesh
+## emitted, so the page carries on from exactly there, and sunk two pixels it left
+## a step whose face nothing draws. Looking north across it, which is the only way
+## the overworld's camera looks, that step is a hole in the floor running the
+## width of the window, and it was there at every draw distance.
+##
+## The other two stay sunk, because they meet each other and this page rather
+## than the mesh, and a step of a quarter pixel between pages a thousand pixels
+## out is under what the depth buffer can tell apart at that range. Their own
+## seam, where this page ends at the map's buffer, sits inside `drawn_bounds` and
+## is covered by the mesh whenever the window reaches it.
 const FILL_DEPTH: float = -6.0
 const NEAR_DEPTH: float = -4.0
-const HERE_DEPTH: float = -2.0
+const HERE_DEPTH: float = 0.0
 
 ## How far past the camera's own reach the border fill is laid, as a multiple of
 ## it. The quad is centred on what the camera looks at rather than on the map,
@@ -133,6 +146,11 @@ var _houses: RefCounted = null
 ## walked yet stands nothing this frame and is walked on the next.
 var _walked: Dictionary = {}
 var _walk_owed: bool = false
+## EVERYTHING THE MESH CAN STAND A MODEL ON, in world pixels: the loaded map
+## inside its border ring. See `shape/mesher.gd:stamped_bounds_tiles`. The line
+## everything out here is drawn from: the loaded map's own cards cover it, and
+## nothing else stands on it.
+var _stamped := Rect2()
 ## Per map, keyed "group:number": its coloured tile sheet, its block bytes.
 ## Built one a frame, because a sheet is a hundred tiles painted a pixel at a
 ## time and twenty four maps of them on the frame of a warp is the stop this
@@ -224,6 +242,12 @@ func set_hole(rect: Rect2) -> void:
 	_hole = rect
 
 
+## All the ground the mesh can stamp a model into, in WORLD PIXELS. See
+## [member _stamped].
+func set_stamped_bounds(rect: Rect2) -> void:
+	_stamped = rect
+
+
 ## Lays the layers out for this frame, and pays for at most one map's sheet.
 ##
 ## [param focus] is what the camera is looking at and [param reach] its far
@@ -250,12 +274,7 @@ func advance(focus: Vector3, reach: float) -> void:
 	# `far_foliage.gd:place_border`. Every placement rather than every VISIBLE
 	# placement, so the answer does not change as the eye turns, and the loaded
 	# map grown by the margin that covers whatever hole the mesh has cut.
-	var clear: float = FarFoliageScript.BORDER_CLEAR
-	var taken: Array = [Rect2(
-		Vector2(-clear, -clear),
-		Vector2(map.width_blocks, map.height_blocks) * BLOCK_PIXELS
-			+ Vector2(clear, clear) * 2.0
-	)]
+	var taken: Array = [_stamped]
 	_foliage.begin()
 	_houses.begin()
 	_walk_owed = false
@@ -279,9 +298,12 @@ func advance(focus: Vector3, reach: float) -> void:
 		_stand(layer, origin, size, NEAR_DEPTH)
 		# The skyline on the page, and the town on it, both off one walk of that
 		# map and both wearing its own sheet. See `far_foliage.gd`.
-		var found: Dictionary = _walk_of(near)
-		_foliage.place(near, origin, sheet, found.get("drawings", {}))
-		_houses.place(near, origin, sheet, found.get("buildings", []))
+		# THE MESH'S OWN GROUND IS KEPT CLEAR, and a neighbour overlaps it: the
+		# loaded map's border ring is the neighbour's own map, so its cards would
+		# stand where the mesh has already stood a solid.
+		var found: Dictionary = _walk_of(near, 0)
+		_foliage.place(near, origin, sheet, found.get("drawings", {}), _stamped)
+		_houses.place(near, origin, sheet, found.get("buildings", []), _stamped)
 
 	# The loaded map LAST, over the neighbours, for the reason the host draws it
 	# last too: inside `wOverworldMapBlocks` the connection strips are the
@@ -304,7 +326,10 @@ func advance(focus: Vector3, reach: float) -> void:
 		# only bare page in the frame: the maps beyond it wore a skyline and the
 		# one being walked on did not. The hole is what keeps a card off ground
 		# the mesh has already stood a solid on.
-		var here_found: Dictionary = _walk_of(map)
+		# WALKED INTO ITS OWN BORDER RING, which is what closes the band between
+		# what the mesh stamps and what the ring outside stands: see
+		# [member _stamped].
+		var here_found: Dictionary = _walk_of(map, _ring_tiles())
 		_foliage.place(
 			map, Vector2.ZERO, _sheet(map, true), here_found.get("drawings", {}), _hole
 		)
@@ -325,8 +350,12 @@ func advance(focus: Vector3, reach: float) -> void:
 ## of it this map's own border block, which is what the cartridge surrounds a
 ## map with and what the host fills the far window with.
 ## What one map holds, walked once and kept. See [member _walked].
-func _walk_of(map: Gen2WorldMap) -> Dictionary:
-	var key: String = "%d:%d" % [map.group, map.number]
+##
+## The MARGIN is part of the key: the loaded map is walked into its border ring
+## and the same map as a neighbour is not, so the two answers are different and
+## a map that becomes the loaded one is walked again.
+func _walk_of(map: Gen2WorldMap, margin: int) -> Dictionary:
+	var key: String = "%d:%d:%d" % [map.group, map.number, margin]
 	if _walked.has(key):
 		return _walked[key]
 	if _walk_owed:
@@ -334,8 +363,16 @@ func _walk_of(map: Gen2WorldMap) -> Dictionary:
 	_walk_owed = true
 	if _walked.size() >= SHEET_LIMIT:
 		_walked.clear()
-	_walked[key] = FarDrawings.of_map(_world.data, map, Profile)
+	_walked[key] = FarDrawings.of_map(_world.data, map, Profile, margin)
 	return _walked[key]
+
+
+## How deep the loaded map's border ring is, in tiles, read off the bounds the
+## renderer pushed rather than guessed at.
+func _ring_tiles() -> int:
+	if not _stamped.has_area():
+		return 0
+	return int(-_stamped.position.x / TILE)
 
 
 func _place_fill(map: Gen2WorldMap, tileset: Gen2WorldTileset, seen: Rect2) -> void:

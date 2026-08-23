@@ -652,6 +652,28 @@ which is a circle and not a lattice: quantising the centre to a grid rebuilds
 every time the player steps back and forth over one of its lines, and that is
 once a second on a walk that turns round.
 
+WHERE IT STARTS IS THE MESHER'S OWN ANSWER. `shape/mesher.gd:stamped_bounds_tiles`
+is all the ground the mesh can stamp a model into, which is the map inside its
+border ring: the ring stands from exactly there, the loaded map's own walk covers
+everything inside it, and a neighbouring map is kept out of it. A constant
+clearance instead left a flat band two cells wide between the two, and a
+neighbour standing its own cards over the mesh's ring solids drew the same tree
+twice.
+
+## And the floor has no hole in it
+
+The loaded map's flat page sat two world pixels under the ground plane, with the
+two layers beneath it sunk further so the depth buffer could sort them. The hole
+in the page is cut to what the MESH emitted, so the page carried on from exactly
+there, two pixels lower, and nothing draws the face of that step: at the window's
+edge it read as a hole in the floor running the width of the frame, at every
+draw distance. The overworld's camera only ever looks north and that is the one
+direction the step faces.
+
+The page is flush with the ground now. The two under it stay sunk, because they
+meet each other and this page rather than the mesh, and their own seam sits
+inside the mesh's own bounds.
+
 ## And the buildings on them
 
 A town out there was the last flat thing in the frame. `world/far_houses.gd`

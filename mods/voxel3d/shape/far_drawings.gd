@@ -37,6 +37,8 @@ const CELL_TILES: int = 2
 ## Tiles across one block, which is what the world past the maps is tiled with.
 ## See [method of_border].
 const BLOCK_TILES: int = 4
+## Walk cells across one block.
+const CELLS_PER_BLOCK: int = 2
 ## The most drawings one map may stand, so a pathological tileset cannot fill
 ## memory. Route 32, the thickest wood in the game, comes out near 1200.
 const SPOT_LIMIT: int = 4096
@@ -55,7 +57,17 @@ const SPOT_LIMIT: int = 4096
 ## `buildings` is what `world/far_houses.gd` stands, one entry a building. Both
 ## come off ONE pass over the map, because reading its tiles is what the walk
 ## actually costs.
-static func of_map(data: GameData, map: Gen2WorldMap, profile: GDScript) -> Dictionary:
+##
+## [param margin] widens the walk past the map's own edge, in tiles, which is
+## what the LOADED map wants: the mesh resolves the map inside a border ring and
+## stamps models out there too, so a view standing its own cards past the mesh
+## has to cover the same ring or leave a band with nothing on it. `map_source.gd`
+## answers past the edge already, with the connection strip and the neighbouring
+## maps folded in, so the ring reads exactly as the mesh reads it. Spots come back
+## in the MAP'S own pixels either way, negative inside the ring.
+static func of_map(
+	data: GameData, map: Gen2WorldMap, profile: GDScript, margin: int = 0
+) -> Dictionary:
 	var out: Dictionary = {"drawings": {}, "buildings": []}
 	if data == null or map == null:
 		return out
@@ -64,8 +76,9 @@ static func of_map(data: GameData, map: Gen2WorldMap, profile: GDScript) -> Dict
 		return out
 	var shape: RefCounted = TileShapeScript.new(profile, map.tileset)
 	var source: RefCounted = MapSourceScript.new(null, map, tileset, data)
+	var origin := Vector2i(-margin, -margin)
 	var size := Vector2i(map.width_blocks, map.height_blocks) \
-		* RomLayout.MAP_BLOCK_TILE_WIDTH
+		* RomLayout.MAP_BLOCK_TILE_WIDTH + Vector2i(margin, margin) * 2
 	if size.x <= 0 or size.y <= 0:
 		return out
 
@@ -79,34 +92,51 @@ static func of_map(data: GameData, map: Gen2WorldMap, profile: GDScript) -> Dict
 	klass.resize(size.x * size.y)
 	var ids: Dictionary = {}
 	var known: Dictionary = {}
-	# Asked per CELL and spent on its four tiles, because the permission is the
-	# cell's: asking it per tile is the same answer fetched four times, and this
-	# walk is paid for on the frame a map comes into view.
+	# READ A BLOCK AT A TIME. Resolving a tile means resolving the block it sits
+	# in, and a block holds sixteen of them: asked per tile, a walk over a map and
+	# its border ring resolves the same block sixteen times over and costs 66 ms
+	# on route 26 against 24. The PERMISSION is still asked per cell, because
+	# inside the map it is the map's own collision and not the block's.
 	@warning_ignore("integer_division")
-	var cells := Vector2i(size.x / CELL_TILES, size.y / CELL_TILES)
-	for cy: int in cells.y:
-		for cx: int in cells.x:
-			var permission: int = source.permission_at(Vector2i(cx, cy))
-			for down: int in CELL_TILES:
-				for right: int in CELL_TILES:
-					var tx: int = cx * CELL_TILES + right
-					var ty: int = cy * CELL_TILES + down
-					var at: int = ty * size.x + tx
-					var tile: int = source.tile_at(tx, ty)
-					tiles[at] = tile
-					if tile < 0:
-						klass[at] = -1
-						continue
-					var pair: int = tile * 256 + permission + 1
-					if not known.has(pair):
-						var named: StringName = shape.at(tile, permission)
-						if not ids.has(named):
-							ids[named] = ids.size()
-						known[pair] = ids[named]
-					klass[at] = known[pair]
+	var blocks := Vector2i(
+		size.x / BLOCK_TILES, size.y / BLOCK_TILES
+	)
+	@warning_ignore("integer_division")
+	var block_origin: Vector2i = origin / BLOCK_TILES
+	for by: int in blocks.y:
+		for bx: int in blocks.x:
+			var block: int = source.block_at(
+				block_origin.x + bx, block_origin.y + by
+			)
+			for cy: int in CELLS_PER_BLOCK:
+				for cx: int in CELLS_PER_BLOCK:
+					var permission: int = source.permission_at(Vector2i(
+						block_origin.x * CELLS_PER_BLOCK + bx * CELLS_PER_BLOCK + cx,
+						block_origin.y * CELLS_PER_BLOCK + by * CELLS_PER_BLOCK + cy
+					))
+					for down: int in CELL_TILES:
+						for right: int in CELL_TILES:
+							var slot_x: int = cx * CELL_TILES + right
+							var slot_y: int = cy * CELL_TILES + down
+							var at: int = (by * BLOCK_TILES + slot_y) * size.x \
+								+ bx * BLOCK_TILES + slot_x
+							var tile: int = -1 if block < 0 else tileset.tile_index(
+								block, slot_y * BLOCK_TILES + slot_x
+							)
+							tiles[at] = tile
+							if tile < 0:
+								klass[at] = -1
+								continue
+							var pair: int = tile * 256 + permission + 1
+							if not known.has(pair):
+								var named: StringName = shape.at(tile, permission)
+								if not ids.has(named):
+									ids[named] = ids.size()
+								known[pair] = ids[named]
+							klass[at] = known[pair]
 	var named_by_id: Array = _named_by_id(ids)
-	out["drawings"] = _walk(shape, tiles, klass, named_by_id, size)
-	out["buildings"] = _buildings(shape, tiles, klass, named_by_id, size)
+	out["drawings"] = _walk(shape, tiles, klass, named_by_id, size, origin)
+	out["buildings"] = _buildings(shape, tiles, klass, named_by_id, size, origin)
 	return out
 
 
@@ -130,7 +160,7 @@ static func of_map(data: GameData, map: Gen2WorldMap, profile: GDScript) -> Dict
 ## ground between them and a terrace as one run.
 static func _buildings(
 	shape: RefCounted, tiles: PackedInt32Array, klass: PackedInt32Array,
-	named_by_id: Array, size: Vector2i
+	named_by_id: Array, size: Vector2i, origin: Vector2i
 ) -> Array:
 	var part := PackedByteArray()
 	part.resize(size.x * size.y)
@@ -187,7 +217,10 @@ static func _buildings(
 					drawn.append(_tile_at(
 						tiles, size, box.position.x + column, box.position.y + row
 					))
-			out.append({"rect": box, "rows": rows, "tiles": drawn})
+			out.append({
+				"rect": Rect2i(box.position + origin, box.size),
+				"rows": rows, "tiles": drawn,
+			})
 	return out
 
 
@@ -234,7 +267,7 @@ static func of_border(
 			if not ids.has(named):
 				ids[named] = ids.size()
 			klass[at] = ids[named]
-	return _walk(shape, tiles, klass, _named_by_id(ids), size)
+	return _walk(shape, tiles, klass, _named_by_id(ids), size, Vector2i.ZERO)
 
 
 static func _named_by_id(ids: Dictionary) -> Array:
@@ -252,10 +285,14 @@ static func _named_by_id(ids: Dictionary) -> Array:
 ## the same box, and the box is what wears a card.
 static func _walk(
 	shape: RefCounted, tiles: PackedInt32Array, klass: PackedInt32Array,
-	named_by_id: Array, size: Vector2i
+	named_by_id: Array, size: Vector2i, origin: Vector2i
 ) -> Dictionary:
 	var out: Dictionary = {}
 	var seen: Dictionary = {}
+	# WHAT EACH DECLARED BOX CAME TO, kept because every tile of a drawing asks
+	# the same question and the answer costs a flood of row tests and a string a
+	# cell. Asked per tile it was most of the walk: 62 ms on route 26 against 24.
+	var decided: Dictionary = {}
 	var placed: int = 0
 	for ty: int in size.y:
 		for tx: int in size.x:
@@ -265,12 +302,16 @@ static func _walk(
 			var named: StringName = named_by_id[klass[at]]
 			if not shape.is_model(named):
 				continue
-			var box: Rect2i = _box(shape, named, tiles, klass, size, tx, ty, klass[at])
+			var box: Rect2i = _box(
+				shape, named, tiles, klass, size, origin, tx, ty, klass[at], decided
+			)
 			# The box AND the class it was cut for. A box start belongs to one
 			# box of one class, but a cell-sized fallback and a taller drawing
 			# above it can start on the same tile, and keying on the position
-			# alone would drop whichever was reached second.
-			var mark: int = (box.position.y * size.x + box.position.x) * 1024 + klass[at]
+			# alone would drop whichever was reached second. Offset, because a
+			# box inside the border ring starts at a NEGATIVE tile.
+			var mark: int = ((box.position.y + 4096) * 8192
+				+ box.position.x + 4096) * 1024 + klass[at]
 			if seen.has(mark):
 				continue
 			seen[mark] = true
@@ -294,8 +335,10 @@ static func _walk(
 			var entry: Dictionary = out[key]
 			var spots: PackedVector2Array = entry["spots"]
 			spots.push_back(Vector2(
-				float(box.position.x * TILE) + float(box.size.x * TILE) * 0.5,
-				float(box.position.y * TILE) + float(box.size.y * TILE) * 0.5
+				float((origin.x + box.position.x) * TILE)
+					+ float(box.size.x * TILE) * 0.5,
+				float((origin.y + box.position.y) * TILE)
+					+ float(box.size.y * TILE) * 0.5
 			))
 			entry["spots"] = spots
 			placed += 1
@@ -315,13 +358,47 @@ static func _walk(
 ## from a pair of short ones, which is the same cell twice.
 static func _box(
 	shape: RefCounted, named: StringName, tiles: PackedInt32Array,
-	klass: PackedInt32Array, size: Vector2i, tx: int, ty: int, want: int
+	klass: PackedInt32Array, size: Vector2i, origin: Vector2i,
+	tx: int, ty: int, want: int, decided: Dictionary
 ) -> Rect2i:
 	var span: Vector2i = shape.span_cells(named)
 	var across := Vector2i(maxi(span.x, 1), maxi(span.y, 1)) * CELL_TILES
-	var start := Vector2i(tx - posmod(tx, across.x), ty - posmod(ty, across.y))
+	# ALIGNED ON THE MAP AND NOT ON THE WALK. `mesher._box_start` takes a map
+	# coordinate modulo the box, and a walk that starts inside the border ring is
+	# offset from the map by however deep the ring is: aligning on the walk's own
+	# origin boxes every drawing in the ring half a cell out.
+	var here := Vector2i(origin.x + tx, origin.y + ty)
+	var start := Vector2i(
+		here.x - posmod(here.x, across.x), here.y - posmod(here.y, across.y)
+	) - origin
 	if across == Vector2i(CELL_TILES, CELL_TILES) or shape.art(named) != &"cutout":
 		return Rect2i(start, across)
+	# ASKED ONCE PER DECLARED BOX. Whether the box is whole and how far it is cut
+	# back follow from the box and the class alone, so every tile of a drawing
+	# gets the same answer and only the first pays for it.
+	var mark: int = ((start.y + 4096) * 8192 + start.x + 4096) * 1024 + want
+	var answer: Array = decided.get(mark, [])
+	if answer.is_empty():
+		answer = _decide(shape, named, span, across, tiles, klass, size, start, want)
+		decided[mark] = answer
+	if not bool(answer[0]):
+		return Rect2i(
+			Vector2i(
+				here.x - posmod(here.x, CELL_TILES),
+				here.y - posmod(here.y, CELL_TILES)
+			) - origin,
+			Vector2i(CELL_TILES, CELL_TILES)
+		)
+	return Rect2i(start, Vector2i(across.x, int(answer[1])))
+
+
+## Whether one declared box is the whole drawing, and how many tile rows of it
+## are, as `[whole, rows]`. `mesher._measure_cutouts`' own two tests.
+static func _decide(
+	shape: RefCounted, named: StringName, span: Vector2i, across: Vector2i,
+	tiles: PackedInt32Array, klass: PackedInt32Array, size: Vector2i,
+	start: Vector2i, want: int
+) -> Array:
 	var lying: bool = shape.is_lying(named)
 	var rows: int = across.y
 	if not lying:
@@ -340,12 +417,7 @@ static func _box(
 		whole = not _repeats(tiles, size, start, Vector2i(
 			maxi(span.x, 1), maxi(span.y, 1)
 		))
-	if not whole:
-		return Rect2i(
-			Vector2i(tx - posmod(tx, CELL_TILES), ty - posmod(ty, CELL_TILES)),
-			Vector2i(CELL_TILES, CELL_TILES)
-		)
-	return Rect2i(start, Vector2i(across.x, rows))
+	return [whole, rows]
 
 
 ## Whether every tile of one row of the box carries the class.

@@ -870,6 +870,21 @@ func emitted_bounds_tiles() -> Rect2i:
 	return Rect2i(_emitted.position - _margin, _emitted.size)
 
 
+## THE GROUND THIS MESHER CAN STAND A MODEL ON, in MAP tiles: the map inside its
+## border ring, which is the whole of what the resolve reads tiles from. The
+## skirt past it is flat ground carried out to [method drawn_bounds_tiles] and
+## never holds a stamp.
+##
+## For a view that stands its own things past the mesh, this is the line to stand
+## them from: inside it the mesh stamps its own, outside it nothing ever will.
+## `drawn_bounds_tiles` is the wrong line for that and left a flat band two cells
+## wide between the two. See `world/far_field.gd`.
+func stamped_bounds_tiles() -> Rect2i:
+	if _size == Vector2i.ZERO:
+		return Rect2i()
+	return Rect2i(-_margin, _map_size + _margin * 2)
+
+
 ## All the ground this mesher could ever emit, in MAP tiles: the map, the border
 ## ring around it and the skirt past that. The box `begin_emit` clips every chunk
 ## against, so a chunk is what is DRAWN and this is what COULD be.

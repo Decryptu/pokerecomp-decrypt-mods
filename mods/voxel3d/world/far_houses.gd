@@ -29,8 +29,8 @@ const TILE: float = 8.0
 const MAP_LIMIT: int = 32
 
 var root: Node3D = null
-## Per map, keyed `group,number`: `[mesh, material, hole]`, the mesh null for a
-## map whose buildings all state a flat drawing or all fall inside the hole.
+## Per map, keyed `group,number`: `[mesh, material, clear]`, the mesh null for a
+## map whose buildings all state a flat drawing or all fall inside the clearance.
 var _built: Dictionary = {}
 var _pool: Array[MeshInstance3D] = []
 var _used: int = 0
@@ -57,16 +57,16 @@ func begin() -> void:
 
 ## One far map's buildings, standing at [param origin] in world pixels.
 ##
-## [param hole] is the ground the mesh is drawing, and a building whose
-## footprint touches it is left out: inside the window the real house stands.
-## Empty for a neighbour, which the mesh never reaches.
+## [param clear] is ground somebody else is already standing on, and a building
+## whose footprint touches it is left out. `far_foliage.gd:place` takes the same
+## rectangle and for the same reasons.
 func place(
 	map: Gen2WorldMap, origin: Vector2, sheet: RefCounted, buildings: Array,
-	hole: Rect2 = Rect2()
+	clear: Rect2 = Rect2()
 ) -> void:
 	if not root.visible or map == null or sheet == null or buildings.is_empty():
 		return
-	var made: Array = _mesh_of(map, sheet, buildings, hole, origin)
+	var made: Array = _mesh_of(map, sheet, buildings, clear, origin)
 	if made.size() != 2:
 		return
 	var node: MeshInstance3D = _instance()
@@ -97,16 +97,15 @@ func _instance() -> MeshInstance3D:
 
 ## One map's buildings as one mesh, built once and kept.
 ##
-## KEYED ON THE HOLE AS WELL, because the loaded map's own buildings past the
-## window are in here and the window moves. A neighbour's hole is empty and never
-## changes, so a neighbour is built once for the session.
+## KEYED ON THE CLEARANCE AS WELL, because the loaded map's own buildings past
+## the window are in here and the window moves under them.
 func _mesh_of(
-	map: Gen2WorldMap, sheet: RefCounted, buildings: Array, hole: Rect2,
+	map: Gen2WorldMap, sheet: RefCounted, buildings: Array, clear: Rect2,
 	origin: Vector2
 ) -> Array:
 	var key: String = "%d,%d" % [map.group, map.number]
 	var held: Array = _built.get(key, [])
-	if held.size() == 3 and held[2] == hole:
+	if held.size() == 3 and held[2] == clear:
 		return [] if held[0] == null else [held[0], held[1]]
 	if _built.size() >= MAP_LIMIT:
 		_built.clear()
@@ -118,11 +117,11 @@ func _mesh_of(
 		var stood := Rect2(
 			origin + Vector2(rect.position) * TILE, Vector2(rect.size) * TILE
 		)
-		if hole.has_area() and hole.intersects(stood):
+		if clear.has_area() and clear.intersects(stood):
 			continue
 		any = _box(surface, sheet, building) or any
 	if not any:
-		_built[key] = [null, null, hole]
+		_built[key] = [null, null, clear]
 		return []
 	surface.generate_tangents()
 	var mesh: ArrayMesh = surface.commit()
@@ -132,7 +131,7 @@ func _mesh_of(
 	material.vertex_color_use_as_albedo = true
 	material.roughness = 1.0
 	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	_built[key] = [mesh, material, hole]
+	_built[key] = [mesh, material, clear]
 	return [mesh, material]
 
 

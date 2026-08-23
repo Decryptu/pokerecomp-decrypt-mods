@@ -79,14 +79,16 @@ func _initialize() -> void:
 		mesher.emit(atlas)
 
 		var at: int = Time.get_ticks_usec()
-		var walked: Dictionary = walk_script.of_map(data, map, profile)
+		# WALKED INTO THE BORDER RING, which is where the mesher stamps too: route
+		# 26 alone puts 798 conifers out there against the 240 on the map, and
+		# comparing only the map left three quarters of the answer untested.
+		var ring: int = (mesher.get("_margin") as Vector2i).x
+		var walked: Dictionary = walk_script.of_map(data, map, profile, ring)
 		walk_usec += Time.get_ticks_usec() - at
 		var found: Dictionary = walked["drawings"]
 		houses += (walked["buildings"] as Array).size()
 
-		var stamped: Dictionary = _stamped(mesher, mesher.get("_margin"), Vector2i(
-			map.width_blocks, map.height_blocks
-		) * RomLayout.MAP_BLOCK_TILE_WIDTH)
+		var stamped: Dictionary = _stamped(mesher, mesher.get("_margin"))
 		var cutouts: Dictionary = mesher.get("_model_cutouts")
 		var bodies: Dictionary = mesher.get("_model_bodies")
 		maps += 1
@@ -143,10 +145,11 @@ func _initialize() -> void:
 ## A walked spot back to the tile its box starts at. The walk answers the box's
 ## MIDDLE in world pixels, and a drawing's box is one size wherever it stands.
 func _start(spot: Vector2, across: Vector2i) -> Vector2i:
-	@warning_ignore("integer_division")
+	# FLOORED and not truncated: a box in the border ring starts at a negative
+	# tile, and integer division rounds those the wrong way.
 	return Vector2i(
-		int(spot.x - float(across.x * TILE) * 0.5) / TILE,
-		int(spot.y - float(across.y * TILE) * 0.5) / TILE
+		floori((spot.x - float(across.x * TILE) * 0.5) / float(TILE)),
+		floori((spot.y - float(across.y * TILE) * 0.5) / float(TILE))
 	)
 
 
@@ -189,16 +192,14 @@ func _all_null(drawn: Array, cutouts: Dictionary) -> bool:
 ## flooded into two bodies and swapped one of them for its far twin holds the
 ## same box under four keys. The box is what is being compared, so they collapse.
 ##
-## THE BORDER RING IS LEFT OUT. The mesher resolves the map inside a ring and
-## stamps models out there too, where route 26 alone puts 798 conifers against
-## the 240 on the map; the horizon draws each map's own page with its neighbours'
-## beside it, so the ring is somebody else's ground.
+## THE BORDER RING IS IN, since the walk covers it now: what is compared is every
+## box the mesher stamped anywhere in its grid.
 ##
-## A DECLARED OBJECT IS LEFT OUT with it. `_object_model` names its meshes
+## A DECLARED OBJECT IS LEFT OUT. `_object_model` names its meshes
 ## `<object>:<tiles>`, and an object is found by an arrangement of tile ids
 ## rather than by a class, which is not a question the horizon walk asks or ever
 ## asked: the fountain and the ship have never stood out there.
-func _stamped(mesher: RefCounted, margin: Vector2i, size: Vector2i) -> Dictionary:
+func _stamped(mesher: RefCounted, margin: Vector2i) -> Dictionary:
 	var out: Dictionary = {}
 	var spots: Dictionary = mesher.get("_model_spots")
 	for key: String in spots:
@@ -212,10 +213,7 @@ func _stamped(mesher: RefCounted, margin: Vector2i, size: Vector2i) -> Dictionar
 		if not out.has(drawing):
 			out[drawing] = {}
 		for start: String in (spots[key] as Dictionary):
-			var box: Vector2i = _vector(start) - margin
-			if box.x < 0 or box.y < 0 or box.x >= size.x or box.y >= size.y:
-				continue
-			(out[drawing] as Dictionary)[str(box)] = true
+			(out[drawing] as Dictionary)[str(_vector(start) - margin)] = true
 	return out
 
 

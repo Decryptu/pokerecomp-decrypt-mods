@@ -637,6 +637,10 @@ func _begin_terrain(window: Rect2i) -> void:
 	# window, so what lands is the window rounded out; a hole cut to the window
 	# would leave the far field's own flat ground under that fringe at the same
 	# height as the mesh's. See `shape/mesher.gd:emitted_bounds_tiles`.
+	# AND THE LINE EVERYTHING PAST THE MESH IS STOOD FROM, which is not the hole:
+	# the hole is what the window has emitted so far and this is what the mesher
+	# could ever stamp, emit or no emit. See `shape/mesher.gd:stamped_bounds_tiles`.
+	_stage.far_field().set_stamped_bounds(_stamped_pixels())
 	if not _mesher.begin_emit(_atlas, window):
 		_pending_hole = Rect2()
 		_stage.set_terrain([])
@@ -697,6 +701,15 @@ func _frame_camera() -> void:
 ## is the window rounded out to whole chunks: see
 ## `shape/mesher.gd:emitted_bounds_tiles`. At FULL distance it is everything the
 ## mesher has, which is the map, its border ring and the skirt past that.
+## All the ground the mesher can stamp a model into, in world pixels. See
+## `world/far_field.gd:set_stamped_bounds`.
+func _stamped_pixels() -> Rect2:
+	var bounds: Rect2i = _mesher.stamped_bounds_tiles()
+	if bounds.size.x <= 0 or bounds.size.y <= 0:
+		return Rect2()
+	return Rect2(Vector2(bounds.position) * TILE, Vector2(bounds.size) * TILE)
+
+
 func _hole_pixels() -> Rect2:
 	var bounds: Rect2i = _mesher.emitted_bounds_tiles()
 	if bounds.size.x <= 0 or bounds.size.y <= 0:
