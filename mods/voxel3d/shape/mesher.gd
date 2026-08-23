@@ -149,6 +149,13 @@ const FENCE_THICK: float = 3.0
 var _size := Vector2i.ZERO
 var _map_size := Vector2i.ZERO
 var _margin := Vector2i.ZERO
+## How far the bank field counts outward before every tile past it is open water,
+## in tiles, and what its texture's 0 to 1 stands for. Six is well past the widest
+## line either term in `world/water.gd` draws from it.
+const BANK_SPAN: int = 6
+## Distance to the nearest bank, one texel per resolved tile. Null indoors, and
+## null on a map holding no water at all: see [method bank_field].
+var _bank: ImageTexture = null
 var _tiles := PackedInt32Array()
 var _art := PackedByteArray()
 var _depths := PackedByteArray()
@@ -752,6 +759,91 @@ func take_chunks() -> Array:
 
 ## The WATER chunks finished since this was last asked. Same contract, own list,
 ## because water is drawn with its own material: see `_close_chunk`.
+## HOW FAR EVERY TILE OF WATER IS FROM THE NEAREST BANK, as a texture.
+##
+## A fragment cannot see the shore. It knows where it is in the world and what
+## the sheet paints there, and both say the same thing in the middle of a lake as
+## they do a tile from the beach, so foam and a shallow are not things the water
+## shader can work out for itself. This file already has the answer: `_is_water`
+## is what lifted the surface out of the terrain in the first place, and walking
+## it outward from every piece of land is one breadth first pass over a grid that
+## is at most a couple of hundred tiles on a side.
+##
+## The unit is TILES and the span is [constant BANK_SPAN]. Sampled with a linear
+## filter, so the value between two tiles is the distance between them rather
+## than a step, which is what lets the foam line sit anywhere on a tile instead
+## of on its edge.
+func bank_field() -> ImageTexture:
+	return _bank
+
+
+## Where that field lies, both in world pixels: the whole resolved grid, and the
+## offset from the map's own corner to the grid's, which is the border ring.
+func bank_world() -> Vector2:
+	return Vector2(_size) * TILE
+
+
+func bank_origin() -> Vector2:
+	return Vector2(_margin) * TILE
+
+
+## The span the field's 0 to 1 stands for, in tiles. Read rather than repeated,
+## since `world/water.gd` has to scale by the same number the walk counted to.
+func bank_span() -> float:
+	return float(BANK_SPAN)
+
+
+func _measure_bank() -> void:
+	_bank = null
+	var count: int = _size.x * _size.y
+	if not _outside or count <= 0:
+		return
+	var field := PackedByteArray()
+	field.resize(count)
+	# LAND IS THE SOURCE AND WATER COUNTS AWAY FROM IT, so the walk starts full
+	# and every piece of land pulls its own neighbourhood down.
+	var queue := PackedInt32Array()
+	var wet: bool = false
+	for at: int in count:
+		if _is_water(at):
+			field[at] = BANK_SPAN
+			wet = true
+		else:
+			field[at] = 0
+			queue.push_back(at)
+	# A map with no water at all owes no field, and most of them have none.
+	if not wet:
+		return
+	var head: int = 0
+	while head < queue.size():
+		var at: int = queue[head]
+		head += 1
+		var next: int = int(field[at]) + 1
+		if next > BANK_SPAN:
+			continue
+		@warning_ignore("integer_division")
+		var y: int = at / _size.x
+		var x: int = at - y * _size.x
+		if x > 0 and int(field[at - 1]) > next:
+			field[at - 1] = next
+			queue.push_back(at - 1)
+		if x < _size.x - 1 and int(field[at + 1]) > next:
+			field[at + 1] = next
+			queue.push_back(at + 1)
+		if y > 0 and int(field[at - _size.x]) > next:
+			field[at - _size.x] = next
+			queue.push_back(at - _size.x)
+		if y < _size.y - 1 and int(field[at + _size.x]) > next:
+			field[at + _size.x] = next
+			queue.push_back(at + _size.x)
+	# One byte a tile, the span scaled onto the whole of it.
+	for at: int in count:
+		field[at] = int(round(float(field[at]) / float(BANK_SPAN) * 255.0))
+	_bank = ImageTexture.create_from_image(
+		Image.create_from_data(_size.x, _size.y, false, Image.FORMAT_R8, field)
+	)
+
+
 func take_water() -> Array:
 	var out: Array = _water_ready
 	_water_ready = []
@@ -1264,6 +1356,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_measure_shores()
 	# Last of all: it reads the heights every pass above may still have moved.
 	_measure_surfaces()
+	# After it, since what counts as water is a height and the pass above is the
+	# last that can move one.
+	_measure_bank()
 
 
 ## The floors a PERSON painted, where they painted any.
