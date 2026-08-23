@@ -149,6 +149,13 @@ const FENCE_THICK: float = 3.0
 var _size := Vector2i.ZERO
 var _map_size := Vector2i.ZERO
 var _margin := Vector2i.ZERO
+## How far the bank field counts outward before every tile past it is open water,
+## in tiles, and what its texture's 0 to 1 stands for. Six is well past the widest
+## line either term in `world/water.gd` draws from it.
+const BANK_SPAN: int = 6
+## Distance to the nearest bank, one texel per resolved tile. Null indoors, and
+## null on a map holding no water at all: see [method bank_field].
+var _bank: ImageTexture = null
 var _tiles := PackedInt32Array()
 var _art := PackedByteArray()
 var _depths := PackedByteArray()
@@ -752,6 +759,91 @@ func take_chunks() -> Array:
 
 ## The WATER chunks finished since this was last asked. Same contract, own list,
 ## because water is drawn with its own material: see `_close_chunk`.
+## HOW FAR EVERY TILE OF WATER IS FROM THE NEAREST BANK, as a texture.
+##
+## A fragment cannot see the shore. It knows where it is in the world and what
+## the sheet paints there, and both say the same thing in the middle of a lake as
+## they do a tile from the beach, so foam and a shallow are not things the water
+## shader can work out for itself. This file already has the answer: `_is_water`
+## is what lifted the surface out of the terrain in the first place, and walking
+## it outward from every piece of land is one breadth first pass over a grid that
+## is at most a couple of hundred tiles on a side.
+##
+## The unit is TILES and the span is [constant BANK_SPAN]. Sampled with a linear
+## filter, so the value between two tiles is the distance between them rather
+## than a step, which is what lets the foam line sit anywhere on a tile instead
+## of on its edge.
+func bank_field() -> ImageTexture:
+	return _bank
+
+
+## Where that field lies, both in world pixels: the whole resolved grid, and the
+## offset from the map's own corner to the grid's, which is the border ring.
+func bank_world() -> Vector2:
+	return Vector2(_size) * TILE
+
+
+func bank_origin() -> Vector2:
+	return Vector2(_margin) * TILE
+
+
+## The span the field's 0 to 1 stands for, in tiles. Read rather than repeated,
+## since `world/water.gd` has to scale by the same number the walk counted to.
+func bank_span() -> float:
+	return float(BANK_SPAN)
+
+
+func _measure_bank() -> void:
+	_bank = null
+	var count: int = _size.x * _size.y
+	if not _outside or count <= 0:
+		return
+	var field := PackedByteArray()
+	field.resize(count)
+	# LAND IS THE SOURCE AND WATER COUNTS AWAY FROM IT, so the walk starts full
+	# and every piece of land pulls its own neighbourhood down.
+	var queue := PackedInt32Array()
+	var wet: bool = false
+	for at: int in count:
+		if _is_water(at):
+			field[at] = BANK_SPAN
+			wet = true
+		else:
+			field[at] = 0
+			queue.push_back(at)
+	# A map with no water at all owes no field, and most of them have none.
+	if not wet:
+		return
+	var head: int = 0
+	while head < queue.size():
+		var at: int = queue[head]
+		head += 1
+		var next: int = int(field[at]) + 1
+		if next > BANK_SPAN:
+			continue
+		@warning_ignore("integer_division")
+		var y: int = at / _size.x
+		var x: int = at - y * _size.x
+		if x > 0 and int(field[at - 1]) > next:
+			field[at - 1] = next
+			queue.push_back(at - 1)
+		if x < _size.x - 1 and int(field[at + 1]) > next:
+			field[at + 1] = next
+			queue.push_back(at + 1)
+		if y > 0 and int(field[at - _size.x]) > next:
+			field[at - _size.x] = next
+			queue.push_back(at - _size.x)
+		if y < _size.y - 1 and int(field[at + _size.x]) > next:
+			field[at + _size.x] = next
+			queue.push_back(at + _size.x)
+	# One byte a tile, the span scaled onto the whole of it.
+	for at: int in count:
+		field[at] = int(round(float(field[at]) / float(BANK_SPAN) * 255.0))
+	_bank = ImageTexture.create_from_image(
+		Image.create_from_data(_size.x, _size.y, false, Image.FORMAT_R8, field)
+	)
+
+
 func take_water() -> Array:
 	var out: Array = _water_ready
 	_water_ready = []
@@ -1034,6 +1126,11 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_model_meshes.clear()
 	_model_spots.clear()
 	_model_bodies.clear()
+	# WITH THE MESHES THEY MEASURE: an input list outliving the mesh it built is a
+	# repaint of a drawing from the map that has been left.
+	_model_measures.clear()
+	_model_inputs.clear()
+	_model_cutouts.clear()
 	# WITH THE MESHES IT NAMES. A cached chunk holds stamps keyed into
 	# `_model_spots` and meshes keyed into `_model_meshes`, and both are about to
 	# be dropped: a chunk outliving them is a stamp of a drawing from the map that
@@ -1264,6 +1361,9 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_measure_shores()
 	# Last of all: it reads the heights every pass above may still have moved.
 	_measure_surfaces()
+	# After it, since what counts as water is a height and the pass above is the
+	# last that can move one.
+	_measure_bank()
 
 
 ## The floors a PERSON painted, where they painted any.
@@ -5038,6 +5138,7 @@ func _model_bodies_of(
 			measured.stretch = _stretch[at]
 			_model_meshes[key] = _model_mesh_of(measured)
 			_model_measures[key] = measured
+			_model_inputs[key] = [only, span, tiles, across]
 			_model_cutouts[key] = _cut_out(only, span, tiles, across, atlas)
 			_model_spots[key] = {}
 			_built_model = true
@@ -5070,6 +5171,16 @@ static var impostor_models: bool = false
 ## Per model key: the reading the solid was turned from, kept so the FAR mesh of
 ## the same drawing can be turned from the same measurement on demand.
 var _model_measures: Dictionary = {}
+## What each of those was measured FROM, as `[mask, span, tiles, across]`, kept
+## so the hour can be answered without a resolve. See [method recolour_models].
+## A mask is one byte a pixel of one drawing, so the whole of a wooded route is
+## tens of kilobytes.
+var _model_inputs: Dictionary = {}
+## The repaint in flight: which keys are left and the sheet they are being
+## measured against. See [method begin_recolour].
+var _recolour_queue: PackedStringArray = PackedStringArray()
+var _recolour_at: int = 0
+var _recolour_atlas: RefCounted = null
 ## Per model key: the drawing itself, cut out of the sheet with everything that
 ## is not this body left transparent. What a far stamp wears. See [method _cut_out].
 var _model_cutouts: Dictionary = {}
@@ -5096,6 +5207,107 @@ func set_detail_ring(at: Vector3, reach: float) -> void:
 
 ## The mesh one stamped drawing is worn by, at whichever level of detail this
 ## build is running at.
+## REPAINTS EVERY MODEL FOR A NEW HOUR, in place.
+##
+## A model reads its colours off the atlas when it is MEASURED and carries them
+## in its own vertices, which is what makes it free to draw and what made it the
+## one thing in this view that did not follow the clock. The terrain is textured
+## FROM the sheet, so repainting the sheet moves it; a tree carries its own
+## colours and stayed in daylight until the map was rebuilt, which on a route is
+## whenever the player next walks out of a mesh window. Crossing 18:00 standing
+## still left a wood in full sun. Photographed with `--clock=22:00`.
+##
+## So each one is measured AGAIN against the repainted sheet, and the mesh and
+## the cut-out are rewritten INTO the objects the stage already holds. Nothing is
+## re-emitted, no chunk is rebuilt and no MultiMesh has to be told: the same
+## trick `atlas.gd:build` plays with its own texture, and for the same reason.
+## SPREAD OVER FRAMES like the emit it mirrors, and for the same reason: one
+## model is about two and a half milliseconds of measuring and mesh building, and
+## a wooded route holds a handful, so doing the lot in the frame the clock turns
+## on is the largest single stall this view would have. `emit_step`'s contract,
+## down to the budget the renderer already spends on the mesh.
+##
+## A map part way through wears the new hour on some of its trees and the old on
+## the rest for a frame or two. That is the right failure: the cartridge changes
+## its own palettes on those boundaries too, and nothing about it reads as broken.
+func begin_recolour(atlas: RefCounted) -> void:
+	_recolour_atlas = atlas
+	_recolour_queue = PackedStringArray(_model_inputs.keys()) if atlas != null \
+		else PackedStringArray()
+	_recolour_at = 0
+
+
+func recolour_step(budget_usec: int) -> bool:
+	if _recolour_atlas == null or _recolour_at >= _recolour_queue.size():
+		_recolour_atlas = null
+		return true
+	var until: int = Time.get_ticks_usec() + budget_usec
+	while _recolour_at < _recolour_queue.size():
+		_recolour_one(_recolour_queue[_recolour_at], _recolour_atlas)
+		_recolour_at += 1
+		if Time.get_ticks_usec() >= until:
+			return _recolour_at >= _recolour_queue.size()
+	_recolour_atlas = null
+	return true
+
+
+## The whole repaint in one call, which is what a tool wants and what the game
+## never does: see [method begin_recolour]. The same pairing as `emit`.
+func recolour_models(atlas: RefCounted) -> void:
+	begin_recolour(atlas)
+	while not recolour_step(1 << 30):
+		pass
+
+
+## One model measured again against the repainted sheet, and its mesh, its
+## cut-out and its far twin rewritten into the objects the stage is holding.
+func _recolour_one(key: String, atlas: RefCounted) -> void:
+	var was: RefCounted = _model_measures.get(key)
+	if was == null:
+		return
+	var input: Array = _model_inputs[key]
+	var measured: RefCounted = Model.measure(
+		input[0], input[1], input[2], input[3], atlas, was.potted
+	)
+	# The flags are the CLASS's and not the drawing's, so they are carried across
+	# rather than measured again: see `_model_bodies_of`.
+	measured.shrub = was.shrub
+	measured.rock = was.rock
+	measured.potted = was.potted
+	measured.column = was.column
+	measured.stretch = was.stretch
+	_model_measures[key] = measured
+	_rewrite_mesh(_model_meshes.get(key), _model_mesh_of(measured))
+	var cutout: ImageTexture = _model_cutouts.get(key)
+	if cutout != null:
+		var fresh: ImageTexture = _cut_out(
+			input[0], input[1], input[2], input[3], atlas
+		)
+		if fresh != null:
+			cutout.set_image(fresh.get_image())
+	# And the far twin, which is the same measurement seen from far enough away to
+	# be a card: see `_far_key`.
+	var far: String = key + IMPOSTOR_SUFFIX
+	if _model_meshes.has(far):
+		var model: RefCounted = Model.new()
+		_rewrite_mesh(
+			_model_meshes[far],
+			model.sprite(measured) if cutout != null else model.impostor(measured)
+		)
+
+
+## The surfaces of [param fresh] written into [param into], which is what keeps
+## every holder of the old object pointing at something that is now right.
+func _rewrite_mesh(into: ArrayMesh, fresh: ArrayMesh) -> void:
+	if into == null or fresh == null:
+		return
+	into.clear_surfaces()
+	for surface: int in fresh.get_surface_count():
+		into.add_surface_from_arrays(
+			Mesh.PRIMITIVE_TRIANGLES, fresh.surface_get_arrays(surface)
+		)
+
+
 func _model_mesh_of(measured: RefCounted) -> ArrayMesh:
 	var model: RefCounted = Model.new()
 	return model.impostor(measured) if impostor_models else model.tree(measured)

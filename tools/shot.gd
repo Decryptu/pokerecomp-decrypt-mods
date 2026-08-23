@@ -8,7 +8,7 @@ extends SceneTree
 ##
 ##   Godot --path <pokerecomp> -s tools/shot.gd -- <cache> <group> <number> \
 ##       <tile x> <tile y> <out.png> [pitch] [back] [time 0-3] [sky] [hold]
-##       [bearing]
+##       [bearing] [look flat|diorama]
 ##
 ## HOLD is how many frames to run before the shutter, and it is how MOTION is
 ## photographed: everything that moves in this view moves on the shader clock, so
@@ -35,7 +35,7 @@ func _initialize() -> void:
 	if args.size() < 6:
 		print("usage: <cache> <group> <number> <tile x> <tile y> <out.png>"
 			+ " [pitch] [back] [time 0-3] [sky #rrggbb] [hold frames]"
-			+ " [bearing east of south]")
+			+ " [bearing east of south] [look flat|diorama]")
 		quit(1)
 		return
 	var data: GameData = GameData.open_directory(args[0])
@@ -97,6 +97,10 @@ func _initialize() -> void:
 	# Only the container is sized: it stretches, so it owns its SubViewport.
 	_stage.container.size = Vector2(VIEW)
 
+	# WHICH LOOK, because the setting that carries it lives in the MODS menu and
+	# this tool registers nothing: see `options.gd:LOOK`. The default is the row's
+	# own, so a shot with no argument is what a player opens the view to.
+	_stage.set_look(args.size() > 12 and args[12] == "flat")
 	# The hour is an argument because the light now MOVES with it: the sun's
 	# bearing is what a shot at one time says and a shot at another cannot.
 	var time_of_day: int = clampi(int(args[8]) if args.size() > 8 else 1, 0, 3)
@@ -120,11 +124,18 @@ func _initialize() -> void:
 		if args.size() > 9 and not args[9].is_empty():
 			_stage.set_background(Color(args[9]))
 		elif source.outside():
-			_stage.set_background(atlas.background(), true)
+			_stage.set_background(atlas.background(), true, atlas.sky_ramp())
 		else:
 			_stage.set_background(atlas.void_color(), false)
 	_stage.set_terrain(mesher.build(source, shape, atlas))
 	_stage.set_water(mesher.take_water())
+	var shore: PackedColorArray = atlas.shore_colors()
+	if shore.size() == 2:
+		_stage.set_shore_colors(atlas.background(), shore[0], shore[1])
+	_stage.set_bank(
+		mesher.bank_field(), mesher.bank_world(), mesher.bank_origin(),
+		mesher.bank_span()
+	)
 	_stage.set_tufts(mesher.take_tufts())
 	_stage.set_models(mesher.take_models())
 	_actors(data, map, mesher, time_of_day)

@@ -140,6 +140,12 @@ var actors: Node3D = null
 var _light: DirectionalLight3D = null
 var _environment: Environment = null
 var _sky: RefCounted = null
+## What [method set_background] was last handed, so [method set_look] can put the
+## sky up again in the other look without the caller saying it a second time.
+var _background: Color = Color.BLACK
+var _background_outside: bool = true
+var _background_ramp: PackedColorArray = PackedColorArray()
+var _background_set: bool = false
 var _terrain: Array[MeshInstance3D] = []
 var _material: StandardMaterial3D = null
 ## The water surface and what draws it. Its own instances because it is its own
@@ -511,6 +517,31 @@ func set_models(models: Array) -> void:
 		_models[index].visible = false
 
 
+## Where the bank is, and the three colours the shore is drawn in. Both go
+## straight to `water.gd`, which is where what reads them is written: the field
+## is `mesher.gd:bank_field` and the colours are the atlas's, so the foam moves
+## with the hour and goes out with the light. A caller that hands no field, which
+## is a cave pool and the model turntable, switches every term off.
+func set_bank(field: Texture2D, world: Vector2, origin: Vector2, span: float) -> void:
+	_water_shader.set_bank(field, world, origin, span)
+
+
+## WHICH LOOK IS UP, which is one press in the MODS menu: see `options.gd:LOOK`.
+## Both files it reaches already carry the two paths and need them anyway, so
+## nothing is built here for the setting alone. The sky is re-applied because the
+## haze and the water's own reflection are read off the ramp it answers with, and
+## a player pressing the row is looking at the sky while they press it.
+func set_look(flat: bool) -> void:
+	_sky.set_look(flat)
+	_water_shader.set_look(flat)
+	if _background_set:
+		set_background(_background, _background_outside, _background_ramp)
+
+
+func set_shore_colors(foam: Color, shallow: Color, deep: Color) -> void:
+	_water_shader.set_shore_colors(foam, shallow, deep)
+
+
 ## The WATER surface, as one instance per chunk that holds any.
 ##
 ## Same pooling as the terrain and for the same reason. Water is drawn after the
@@ -565,11 +596,19 @@ func set_texture(texture: Texture2D) -> void:
 	_wind.set_atlas(texture)
 
 
-## The sky takes the palette's own background, which is the colour the 2D view
-## fills its margins with, so the two end at the same place. `sky.gd` is what
-## makes a ramp of it, and out of doors is the only place a ramp belongs.
-func set_background(color: Color, outside: bool = true) -> void:
-	_sky.set_background(color, outside)
+## The sky's colour, out of doors as a ramp between the hour's own two ends and
+## indoors as the one colour behind a wall. `atlas.gd:sky_ramp` is what picks the
+## pair and `sky.gd` is what paints between them; handed none, the ramp is made
+## out of the background colour alone, which is what the 2D view fills its
+## margins with.
+func set_background(
+	color: Color, outside: bool = true, ramp: PackedColorArray = PackedColorArray()
+) -> void:
+	_background = color
+	_background_outside = outside
+	_background_ramp = ramp
+	_background_set = true
+	_sky.set_background(color, outside, ramp)
 	# The haze fades the ground into the sky, so it is the sky that says what
 	# colour it is, and a room has neither.
 	_environment.fog_enabled = outside

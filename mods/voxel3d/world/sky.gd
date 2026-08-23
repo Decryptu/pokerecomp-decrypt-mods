@@ -15,9 +15,10 @@ extends RefCounted
 ## read as a gradient instead of as four stripes.
 ##
 ## THE COLOURS ARE THE CARTRIDGE'S. Generation II has no sky palette to read, so
-## the ramp is the map's own background colour taken down in steps: the horizon
-## keeps it nearly as the 2D view fills its margins with it, and the zenith is the
-## same colour deep. Nothing here is authored art.
+## the ramp's two ends are read out of the hour's own background rows instead:
+## `atlas.gd:sky_ramp` is what picks them and says why those rows. Handed none,
+## which is what a room and the model turntable do, this falls back to the map's
+## own background colour taken down twice. Nothing here is authored art.
 ##
 ## BANDED BY ELEVATION, not by frame row. The bands are a fact about the sky and
 ## the camera looks around inside it, so a pitch keypress slides the frame up a
@@ -32,8 +33,13 @@ const DITHER_START: float = 0.6
 ## The checkerboard cell, in screen pixels. Two keeps the sky's grain in the same
 ## register as the world's own texels at the framing this view opens at.
 const DITHER_CELL: float = 2.0
-## Bands in the ramp. Four is what the hardware's own palettes hold.
-const BANDS: float = 4.0
+## Bands in the ramp, and the FLAT look's own count. Four is what the hardware's
+## palettes hold and is right while both ends are one colour twice; six is for
+## the hour's own pair, because a four band ramp between two HUES shows every step
+## it takes and lands one of them on the muddy middle of the two. See
+## [method set_look].
+const BANDS: float = 6.0
+const BANDS_FLAT: float = 4.0
 ## How much elevation the ramp spans before it is all zenith, in radians.
 ##
 ## MEASURED off the rig rather than picked: the eye sits between 12 and 88 degrees
@@ -45,9 +51,10 @@ const BANDS: float = 4.0
 ## right angle and drew one flat colour, which is what it replaced.
 const ELEVATION_SPAN: float = 0.28
 
-## How far the ramp's two ends are taken down from the map's background colour.
-## Their mean is about the single darkening the flat fill used, so a shot at the
-## default pitch is neither brighter nor darker than it was, only graded.
+## How far the ramp's two ends are taken down when there is only the map's
+## background colour to make one of. Their mean is about the single darkening the
+## flat fill used, so a shot at the default pitch is neither brighter nor darker
+## than it was, only graded.
 const HORIZON_DARKEN: float = 0.12
 const ZENITH_DARKEN: float = 0.52
 
@@ -100,6 +107,14 @@ var sky: Sky = null
 var horizon: Color = Color.BLACK
 var zenith: Color = Color.BLACK
 var _material: ShaderMaterial = null
+## Whether the FLAT look is up: see [method set_look]. What it changes is which
+## of the two ramps below is built, so both paths are the ones already here.
+var _flat: bool = false
+## What [method set_background] was last handed, so a look changing under a
+## standing map repaints the sky without the caller having to say it again.
+var _source: Color = Color.BLACK
+var _source_outside: bool = true
+var _source_ramp: PackedColorArray = PackedColorArray()
 
 
 func _init() -> void:
@@ -120,22 +135,48 @@ func _init() -> void:
 	sky.radiance_size = Sky.RADIANCE_SIZE_32
 
 
-## The map's own background colour, as the two ends of the ramp.
+## The two ends of the ramp: the hour's own pair where the caller has one, and
+## the map's background colour taken down twice where it has not.
 ##
 ## INDOORS THERE IS NO SKY. A room or a cave ends at its walls and what shows
 ## past them is not air, so the ramp collapses to one colour and the bands and
 ## the dither vanish with it: both ends of a gradient being the same colour is a
 ## flat fill, and it needs no second path through the shader to say so. The
-## caller passes the colour it wants there, which is `atlas.gd:void_color`.
-func set_background(color: Color, outside: bool = true) -> void:
+## caller passes the colour it wants there, which is `atlas.gd:void_color`, and
+## the pair is ignored: a room takes no hour.
+func set_background(
+	color: Color, outside: bool = true, ramp: PackedColorArray = PackedColorArray()
+) -> void:
+	_source = color
+	_source_outside = outside
+	_source_ramp = ramp
 	if not outside:
 		horizon = color
 		zenith = color
+	elif ramp.size() == 2 and not _flat:
+		horizon = ramp[0]
+		zenith = ramp[1]
 	else:
 		horizon = color.darkened(HORIZON_DARKEN)
 		zenith = color.darkened(ZENITH_DARKEN)
 	_material.set_shader_parameter("horizon_color", horizon)
 	_material.set_shader_parameter("zenith_color", zenith)
+
+
+## THE FLAT LOOK IS NOT A SECOND SKY, it is the one this file already falls back
+## to: the map's background colour taken down twice, over four bands, which is
+## what a caller handing no pair gets and what this drew before the hour's own
+## rows were read. So the setting picks between two paths that both have to work
+## anyway rather than adding a third.
+##
+## The ramp is rebuilt here rather than at the next map, since a player pressing
+## the row is looking at the sky while they press it.
+func set_look(flat: bool) -> void:
+	if _flat == flat:
+		return
+	_flat = flat
+	_material.set_shader_parameter("bands", BANDS_FLAT if flat else BANDS)
+	set_background(_source, _source_outside, _source_ramp)
 
 
 ## The frame the checkerboard is measured against. A dither cell is screen pixels,

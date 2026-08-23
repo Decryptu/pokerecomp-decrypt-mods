@@ -86,6 +86,33 @@ const REFLECT_MOST: float = 0.45
 const GLINT_STRENGTH: float = 0.30
 const GLINT_TIGHTNESS: float = 8.0
 
+## THE BANK, which a fragment cannot see and the mesher can. `mesher.gd` walks
+## its own water test outward from every piece of land and bakes how far each
+## tile of water is from the nearest one; what arrives here is that field as a
+## texture, in tiles, and the three terms below are what read it. Handed none,
+## which is a cave pool and the model turntable, `bank_ready` is zero and every
+## one of them switches off.
+##
+## FOAM is the reach in tiles at which the line sits, how far the swell's own
+## crest carries it in and out, and the two ends of the fade across it. It is
+## then THRESHOLDED against a checkerboard rather than drawn faded, because a
+## soft white edge on a Game Boy lake is the one thing here that would read as a
+## modern effect: the hardware has two colours to put on that line and so does
+## this.
+const FOAM_REACH: float = 0.60
+const FOAM_SWELL: float = 0.30
+const FOAM_INNER: float = -0.35
+const FOAM_OUTER: float = 0.55
+## SHALLOW AND DEEP, in tiles and as a share. Both are held well under full
+## strength and the shallow reach is short, and that is the reviewer's own
+## reading of the pair built at full: a canal and a river are two tiles wide, so
+## a shallow that reaches three turns every one of them to sand.
+const SHALLOW_REACH: float = 1.5
+const SHALLOW_STRENGTH: float = 0.45
+const DEEP_BEGIN: float = 2.5
+const DEEP_REACH: float = 4.0
+const DEEP_STRENGTH: float = 0.60
+
 const CODE: String = """
 shader_type spatial;
 render_mode specular_disabled, diffuse_lambert;
@@ -102,6 +129,24 @@ uniform vec3 sun_direction;
 uniform vec3 sun_color : source_color;
 uniform float glint_strength;
 uniform float glint_tightness;
+uniform sampler2D bank_field : filter_linear, repeat_disable;
+// The field's extent and origin in WORLD pixels, so the lookup is one divide.
+uniform vec2 bank_world;
+uniform vec2 bank_origin;
+uniform float bank_span;
+uniform float bank_ready;
+uniform vec3 foam_color : source_color;
+uniform vec3 shallow_color : source_color;
+uniform vec3 deep_color : source_color;
+uniform float foam_reach;
+uniform float foam_swell;
+uniform float foam_inner;
+uniform float foam_outer;
+uniform float shallow_reach;
+uniform float shallow_strength;
+uniform float deep_begin;
+uniform float deep_reach;
+uniform float deep_strength;
 
 // The surface's own height field, in world pixels, and its slope. Two travelling
 // waves crossing at an angle: one alone lays parallel bars across a lake.
@@ -124,7 +169,23 @@ void fragment() {
 	// `wave_speed` are already expressed and where the sun's own half vector
 	// below is already worked out.
 	vec3 world_at = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	swell(world_at.xz, slope);
+	// The crest's own height, which the foam line rides: see `bank` below.
+	float height = swell(world_at.xz, slope);
+	// HOW FAR THIS WATER IS FROM ITS BANK, in tiles. Open sea where there is no
+	// field, so a caller that hands none gets the water it had before.
+	float bank = bank_span;
+	if (bank_ready > 0.5) {
+		vec2 bank_uv = (world_at.xz + bank_origin) / bank_world;
+		// PAST THE FIELD IS OPEN WATER AND NOT THE OTHER EDGE OF THE MAP. A
+		// sampler answers something for every coordinate, and left to wrap it
+		// answered the far side of the map: a shot standing outside the mesh read
+		// LAND under the sea behind the camera and foamed the whole of it. What is
+		// off the field is unknown, and the honest answer to unknown here is the
+		// one that draws nothing.
+		if (bank_uv == clamp(bank_uv, vec2(0.0), vec2(1.0))) {
+			bank = texture(bank_field, bank_uv).r * bank_span;
+		}
+	}
 	// The wave's normal in view space. The surface is flat and horizontal, so its
 	// tangent frame is the world axes and the tilt goes straight in.
 	vec3 tilted = normalize(vec3(-slope.x * wave_tilt, 1.0, -slope.y * wave_tilt));
@@ -132,6 +193,14 @@ void fragment() {
 
 	vec4 texel = texture(atlas, UV);
 	vec3 water = texel.rgb * COLOR.rgb;
+	// SHALLOW OVER ITS BANK AND DEEP AWAY FROM IT, in the water row's own palest
+	// and deepest colours rather than in a tint of this one.
+	float near = 1.0 - clamp(bank / shallow_reach, 0.0, 1.0);
+	water = mix(water, shallow_color, near * shallow_strength * bank_ready);
+	water = mix(
+		water, deep_color,
+		clamp((bank - deep_begin) / deep_reach, 0.0, 1.0) * deep_strength * bank_ready
+	);
 
 	// FRESNEL off the tilted normal, so the reflection travels with the swell
 	// rather than sitting in a fixed band across the lake.
@@ -151,10 +220,25 @@ void fragment() {
 	float glint = pow(clamp(dot(tilted, half_way), 0.0, 1.0), glint_tightness);
 
 	ALBEDO = mix(water, sky, mirror) + sun_color * (glint * glint_strength);
+	// THE LINE THE SWELL DRAWS ON THE BANK. The crest carries it up the beach and
+	// the trough takes it back, and the checkerboard is what keeps it two colours
+	// wide instead of a soft modern edge.
+	float edge = bank - foam_reach - height * foam_swell;
+	float band = 1.0 - smoothstep(foam_inner, foam_outer, edge);
+	float cell = mod(floor(FRAGCOORD.x / 2.0) + floor(FRAGCOORD.y / 2.0), 2.0);
+	ALBEDO = mix(ALBEDO, foam_color, step(0.30 + cell * 0.30, band) * bank_ready);
 }
 """
 
 var material: ShaderMaterial = null
+## Whether the FLAT look is up: see [method set_look].
+var _flat: bool = false
+## What [method set_bank] was last handed, so a look changing under a standing
+## map needs no rebuild of anything.
+var _field: Texture2D = null
+var _world: Vector2 = Vector2.ZERO
+var _origin: Vector2 = Vector2.ZERO
+var _span: float = 0.0
 
 
 func _init() -> void:
@@ -173,6 +257,16 @@ func _init() -> void:
 	material.set_shader_parameter("reflect_most", REFLECT_MOST)
 	material.set_shader_parameter("glint_strength", GLINT_STRENGTH)
 	material.set_shader_parameter("glint_tightness", GLINT_TIGHTNESS)
+	material.set_shader_parameter("foam_reach", FOAM_REACH)
+	material.set_shader_parameter("foam_swell", FOAM_SWELL)
+	material.set_shader_parameter("foam_inner", FOAM_INNER)
+	material.set_shader_parameter("foam_outer", FOAM_OUTER)
+	material.set_shader_parameter("shallow_reach", SHALLOW_REACH)
+	material.set_shader_parameter("shallow_strength", SHALLOW_STRENGTH)
+	material.set_shader_parameter("deep_begin", DEEP_BEGIN)
+	material.set_shader_parameter("deep_reach", DEEP_REACH)
+	material.set_shader_parameter("deep_strength", DEEP_STRENGTH)
+	material.set_shader_parameter("bank_ready", 0.0)
 	set_sun(Vector3(0.0, 1.0, 0.0), Color.BLACK)
 
 
@@ -196,3 +290,48 @@ func set_atlas(texture: Texture2D) -> void:
 func set_sky(horizon: Color, zenith: Color) -> void:
 	material.set_shader_parameter("horizon_color", horizon)
 	material.set_shader_parameter("zenith_color", zenith)
+
+
+## The bank field and where it lies, both in world pixels, with the tile span the
+## texture's 0 to 1 stands for. A null texture switches every term that reads it
+## off, which is what a cave pool and every tool that meshes without one get.
+func set_bank(
+	field: Texture2D, world: Vector2, origin: Vector2, span: float
+) -> void:
+	_field = field
+	_world = world
+	_origin = origin
+	_span = span
+	material.set_shader_parameter("bank_field", field)
+	material.set_shader_parameter("bank_world", world)
+	material.set_shader_parameter("bank_origin", origin)
+	material.set_shader_parameter("bank_span", span)
+	material.set_shader_parameter("bank_ready", _bank_ready())
+
+
+## THE FLAT LOOK IS THE WATER WITHOUT ITS BANK: the swell, the sky in it and the
+## sun on it, which is every term this file had before the field existed, and no
+## foam and no shallows. It is the same switch a cave pool and the model
+## turntable already take, so nothing here is a look built only to be offered.
+func set_look(flat: bool) -> void:
+	if _flat == flat:
+		return
+	_flat = flat
+	material.set_shader_parameter("bank_ready", _bank_ready())
+
+
+## Whether the terms that read the field are switched on at all: there has to be
+## a field, and the look has to be the one that draws a bank.
+func _bank_ready() -> float:
+	var have: bool = _field != null and _world.x > 0.0 and _world.y > 0.0
+	return 1.0 if have and not _flat else 0.0
+
+
+## The three colours the bank is drawn in: the foam's, which is the hardware's own
+## white and the same colour the 2D view fills a margin with, and the water row's
+## palest and deepest. All three come off `atlas.gd`, so they move with the hour
+## and the foam goes out with the light.
+func set_shore_colors(foam: Color, shallow: Color, deep: Color) -> void:
+	material.set_shader_parameter("foam_color", foam)
+	material.set_shader_parameter("shallow_color", shallow)
+	material.set_shader_parameter("deep_color", deep)

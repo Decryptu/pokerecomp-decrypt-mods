@@ -106,6 +106,9 @@ const FIRST_BUILD_BUDGET_USEC: int = 12000
 ## a warp shows each chunk as it lands and the map fills in rather than showing a
 ## hole.
 var _building: bool = false
+## Whether the models are still being repainted for an hour that has just turned:
+## see `mesher.gd:begin_recolour` and [method _advance_recolour].
+var _recolouring: bool = false
 var _standing: bool = false
 ## Whether this instance has ever finished a map. THE FIRST BUILD OF A RENDERER
 ## IS THE ONE THE HOST COVERS: a view switch constructs a new renderer node and
@@ -371,6 +374,22 @@ func set_time_of_day(time_of_day: int) -> void:
 	# and the geometry is not touched.
 	if _build_atlas():
 		_stage.set_texture(_atlas.texture)
+		# AND EVERYTHING ELSE THAT IS READ OFF THE ATLAS RATHER THAN SAMPLED FROM
+		# IT. The sky's two ends and the shore's three colours are values handed
+		# over once, not texels, so a sheet repainted for a new hour left both at
+		# the hour before: the sky caught up only when a palette command happened
+		# to run through `refresh_animation`, and the foam never did. Found with
+		# the clock pinned, which is the only way to stand in one place and cross
+		# an hour.
+		_apply_background()
+		if _mesher != null:
+			# And the models, which carry their colours rather than sampling them.
+			# Begun rather than done: it is spread over frames on the same budget
+			# the mesh build spends, since the clock turning is not a reason to
+			# drop a frame. See `mesher.gd:begin_recolour`.
+			_mesher.begin_recolour(_atlas)
+			_recolouring = true
+			_bank()
 
 
 ## A tileset animation command rewrote one or two atlas slots. Repainting them
@@ -414,6 +433,7 @@ func _process(delta: float) -> void:
 	_glide(delta)
 	_rig.advance(delta)
 	_advance_build()
+	_advance_recolour()
 	_recentre_window()
 	_frame_camera()
 	_rebuild_actors()
@@ -427,6 +447,7 @@ func _read_options() -> void:
 	_stage.set_render_scale(int(Options.value(Options.SCALE, Options.default_scale())))
 	_rig.set_wheel_sign(int(Options.value(Options.WHEEL, 1)))
 	_rig.set_default_pitch(float(Options.value(Options.CAMERA, Options.CAMERA_VALUES[1])))
+	_stage.set_look(int(Options.value(Options.LOOK, Options.LOOK_DIORAMA)) == Options.LOOK_FLAT)
 	_stage.set_depth_of_field(dof_mode, dof_radius, dof_near, dof_far)
 
 
@@ -446,6 +467,10 @@ func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void
 			_rig.set_wheel_sign(int(value))
 		Options.CAMERA:
 			_rig.set_default_pitch(float(value))
+		Options.LOOK:
+			# Nothing is rebuilt: both files keep what they were last handed and
+			# read it the other way. See `world/sky.gd:set_look`.
+			_stage.set_look(int(value) == Options.LOOK_FLAT)
 		Options.RECENTRE:
 			# A button-kind setting carries no value: the press IS the message.
 			_rig.steer(Steering.RESET)
@@ -495,7 +520,7 @@ func _build_atlas() -> bool:
 ## it is what lies past a wall, which is not air: see `atlas.gd:void_color`.
 func _apply_background() -> void:
 	if _outside:
-		_stage.set_background(_atlas.background(), true)
+		_stage.set_background(_atlas.background(), true, _atlas.sky_ramp())
 	else:
 		_stage.set_background(_atlas.void_color(), false)
 
@@ -705,6 +730,7 @@ func _advance_build() -> void:
 		_stage.far_field().set_hole(_pending_hole)
 		_stage.set_terrain(_chunks)
 		_stage.set_water(_water)
+		_bank()
 		_stage.set_tufts(_tufts)
 		_stage.set_models(_mesher.take_models())
 	if done:
@@ -712,6 +738,17 @@ func _advance_build() -> void:
 		_standing = true
 		_first_build = false
 		_dress_far_field()
+
+
+## One slice of the models' repaint, on the same budget as one slice of the mesh.
+##
+## Nothing is re-handed when it finishes: the meshes and the cut-out textures are
+## rewritten in place, so every MultiMesh already points at the repainted thing.
+func _advance_recolour() -> void:
+	if not _recolouring:
+		return
+	if _mesher == null or _mesher.recolour_step(BUILD_BUDGET_USEC):
+		_recolouring = false
 
 
 func _frame_camera() -> void:
@@ -1056,3 +1093,17 @@ func _pulse_texture(
 	var texture: Texture2D = ImageTexture.create_from_image(image)
 	_pulse_textures[key] = texture
 	return texture
+
+
+## THE BANK AND THE SHORE'S COLOURS, handed over together because they are one
+## look: `world/water.gd` is where they are read and `shape/mesher.gd:bank_field`
+## is where the field is baked, with the resolve rather than per frame. This costs
+## a texture handle and three colours.
+func _bank() -> void:
+	var shore: PackedColorArray = _atlas.shore_colors()
+	if shore.size() == 2:
+		_stage.set_shore_colors(_atlas.background(), shore[0], shore[1])
+	_stage.set_bank(
+		_mesher.bank_field(), _mesher.bank_world(), _mesher.bank_origin(),
+		_mesher.bank_span()
+	)
