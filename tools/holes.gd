@@ -58,7 +58,11 @@ func _initialize() -> void:
 			continue
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		var atlas: RefCounted = atlas_script.new()
-		if not atlas.build(data, map, tileset, 1):
+		# THE SEQUENCE, so the rims counted here are the rims the game draws.
+		# See `atlas.gd:frame_count`.
+		var animation := Gen2WorldAnimation.new()
+		animation.configure_tileset(data, tileset, 1)
+		if not atlas.build(data, map, tileset, 1, animation):
 			continue
 		var shape: RefCounted = shape_script.new(profile, map.tileset)
 		var source: RefCounted = source_script.new(null, map, tileset, data)

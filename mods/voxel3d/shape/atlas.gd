@@ -31,6 +31,12 @@ var _source: PackedByteArray = PackedByteArray()
 var _background: Color = Color("#f5f1d8")
 ## tile -> its drawn indices darkest first, worked out once. See `shade_order`.
 var _shades: Dictionary = {}
+## The sequence this sheet is following, kept so a mesh can ask what a tile is
+## drawn as on the frames it is NOT showing. See [method frame_pixel].
+var _animation: Gen2WorldAnimation = null
+## tile -> `Gen2WorldAnimation.tile_frames`, which is a walk of the whole command
+## list and so is asked once per tile and kept. Empty for a still tile.
+var _frames: Dictionary = {}
 
 
 ## Rebuilds the whole sheet. Called when the map, the palette or the time of day
@@ -51,6 +57,11 @@ func build(
 	_source = PackedByteArray()
 	# Kept per tile and re-coloured by the hour, so it cannot outlive a rebuild.
 	_shades.clear()
+	# The frames are the tileset's own drawings and carry no colour, so they
+	# survive an hour change; a different tileset is a different set of them.
+	if _animation != animation:
+		_frames.clear()
+	_animation = animation
 	if data == null or map == null or tileset == null:
 		return false
 
@@ -150,6 +161,46 @@ func pixel(tile: int, x: int, y: int) -> int:
 		return -1
 	var at: int = y * _tile_count * TILE + tile * TILE + x
 	return int(_source[at]) if at < _source.size() else -1
+
+
+## HOW MANY DISTINCT DRAWINGS a run of tiles is ever shown as, which is one for
+## anything the sequence does not touch.
+##
+## A BILLBOARD CUT OUT OF AN ANIMATED TILE IS A MASK OF WHICHEVER FRAME the
+## sheet happened to be built on, so a row a later frame draws further out is
+## missing from the geometry and a row only an earlier frame drew stands with
+## nothing on it. Spanning the union of the frames is what closes both, and the
+## texture, which follows the sequence, trims the rest.
+func frame_count(tiles: Array) -> int:
+	var most: int = 1
+	for tile: Variant in tiles:
+		most = maxi(most, tile_frames(int(tile)).size())
+	return most
+
+
+## Every drawing one tile is shown as, each entry its sixty-four indices row by
+## row. Empty for a tile no command touches.
+func tile_frames(tile: int) -> Array[PackedByteArray]:
+	if _frames.has(tile):
+		return _frames[tile]
+	var frames: Array[PackedByteArray] = []
+	if _animation != null:
+		frames = _animation.tile_frames(tile)
+	_frames[tile] = frames
+	return frames
+
+
+## [method pixel] on one frame of the sequence rather than on the frame the sheet
+## is showing. A still tile answers the same index whatever is asked for, and a
+## frame past the end of a shorter cycle wraps, so tiles of unequal periods can
+## be walked together.
+func frame_pixel(tile: int, x: int, y: int, frame: int) -> int:
+	var frames: Array[PackedByteArray] = tile_frames(tile)
+	if frames.is_empty():
+		return pixel(tile, x, y)
+	if x < 0 or y < 0 or x >= TILE or y >= TILE:
+		return -1
+	return int(frames[frame % frames.size()][y * TILE + x])
 
 
 ## The palette indices a tile is drawn with, DARKEST FIRST.

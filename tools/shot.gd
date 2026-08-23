@@ -101,7 +101,13 @@ func _initialize() -> void:
 	# bearing is what a shot at one time says and a shot at another cannot.
 	var time_of_day: int = clampi(int(args[8]) if args.size() > 8 else 1, 0, 3)
 	_stage.set_time_of_day(time_of_day)
-	if atlas.build(data, map, tileset, time_of_day):
+	# THE SEQUENCE, so a still picture is cut from the same union the game cuts
+	# from: `atlas.gd:frame_count` spans every frame an animated tile is drawn
+	# as, and without one here a shot of a water tile or a bending flower is the
+	# mask of whichever frame the strip loaded with.
+	var animation := Gen2WorldAnimation.new()
+	animation.configure_tileset(data, tileset, time_of_day)
+	if atlas.build(data, map, tileset, time_of_day, animation):
 		_stage.set_texture(atlas.texture)
 		# The map's own background, so a shot shows the sky the player would see
 		# rather than a fixed blue that belongs to no map. Overridable, because

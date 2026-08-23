@@ -55,7 +55,13 @@ func _initialize() -> void:
 			continue
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		var atlas: RefCounted = atlas_script.new()
-		if not atlas.build(data, map, tileset, 1):
+		# THE SEQUENCE, so this measures the mesh the game actually builds:
+		# `atlas.gd:frame_count` spans every frame an animated tile is drawn as,
+		# and without one here the union is never walked and the cost of it never
+		# appears.
+		var animation := Gen2WorldAnimation.new()
+		animation.configure_tileset(data, tileset, 1)
+		if not atlas.build(data, map, tileset, 1, animation):
 			continue
 		var shape: RefCounted = shape_script.new(profile, map.tileset)
 		var source: RefCounted = source_script.new(null, map, tileset, data)

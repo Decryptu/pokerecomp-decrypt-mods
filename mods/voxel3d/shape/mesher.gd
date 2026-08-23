@@ -4572,6 +4572,31 @@ func _structure_mask(
 	if _masks.has(key):
 		return _masks[key]
 
+	# THE UNION OF THE FRAMES AND NOT THE ONE THE SHEET IS SHOWING. See
+	# `atlas.gd:frame_count`: a drawing the sequence animates is cut from
+	# whichever frame the atlas happened to be built on otherwise, and the
+	# geometry then misses whatever a later frame draws further out. A still
+	# drawing is one frame and takes the same path as before.
+	var mask := PackedByteArray()
+	for frame: int in atlas.frame_count(tiles):
+		var one: PackedByteArray = _mask_frame(
+			tiles, across, atlas, filled, outline, frame
+		)
+		if mask.is_empty():
+			mask = one
+			continue
+		for at: int in mask.size():
+			if one[at] == 1:
+				mask[at] = 1
+	_masks[key] = mask
+	return mask
+
+
+## One frame's own mask, unremembered: the union above is what is kept.
+func _mask_frame(
+	tiles: Array, across: Vector2i, atlas: RefCounted, filled: bool,
+	outline: int, frame: int
+) -> PackedByteArray:
 	var size := Vector2i(across.x * int(TILE), across.y * int(TILE))
 	var indices := PackedInt32Array()
 	indices.resize(size.x * size.y)
@@ -4583,13 +4608,15 @@ func _structure_mask(
 		for px: int in size.x:
 			@warning_ignore("integer_division")
 			var tile: int = tiles[(py / int(TILE)) * across.x + px / int(TILE)]
-			var index: int = atlas.pixel(tile, px % int(TILE), py % int(TILE))
+			var index: int = atlas.frame_pixel(
+				tile, px % int(TILE), py % int(TILE), frame
+			)
 			indices[py * size.x + px] = index
 			if outline > 0:
 				open[py * size.x + px] = 0 if atlas.is_dark(tile, index, outline) else 1
 
 	if outline > 0:
-		return _flood(size, open, filled, key)
+		return _flood(size, open, filled)
 
 	var ring: Dictionary = {}
 	var ring_count: int = 0
@@ -4613,7 +4640,7 @@ func _structure_mask(
 
 	for at: int in indices.size():
 		open[at] = 1 if ground.has(indices[at]) else 0
-	return _flood(size, open, filled, key)
+	return _flood(size, open, filled)
 
 
 ## What the flood cannot reach from the border, as a mask of the drawing.
@@ -4621,7 +4648,7 @@ func _structure_mask(
 ## [param open] says which pixels it may pass through, which is the whole of the
 ## difference between the two rules above.
 func _flood(
-	size: Vector2i, open: PackedByteArray, filled: bool, key: String
+	size: Vector2i, open: PackedByteArray, filled: bool
 ) -> PackedByteArray:
 	var mask := PackedByteArray()
 	mask.resize(size.x * size.y)
@@ -4668,7 +4695,6 @@ func _flood(
 				if first >= 0:
 					mask[py * size.x + px] = 1
 
-	_masks[key] = mask
 	return mask
 
 

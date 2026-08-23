@@ -154,7 +154,11 @@ func _initialize() -> void:
 	DisplayServer.window_set_size(window)
 
 	_stage.set_time_of_day(Gen2WorldPalette.TIME_DAY)
-	if atlas.build(data, map, tileset, Gen2WorldPalette.TIME_DAY):
+	# THE SEQUENCE, so this benches the mesh the game builds. See
+	# `atlas.gd:frame_count`.
+	var animation := Gen2WorldAnimation.new()
+	animation.configure_tileset(data, tileset, Gen2WorldPalette.TIME_DAY)
+	if atlas.build(data, map, tileset, Gen2WorldPalette.TIME_DAY, animation):
 		_stage.set_texture(atlas.texture)
 		if source.outside():
 			_stage.set_background(atlas.background(), true)
