@@ -107,6 +107,12 @@ const FIRST_BUILD_BUDGET_USEC: int = 12000
 ## hole.
 var _building: bool = false
 var _standing: bool = false
+## Whether this instance has ever finished a map. THE FIRST BUILD OF A RENDERER
+## IS THE ONE THE HOST COVERS: a view switch constructs a new renderer node and
+## plays `Gen2Screen.play_view_cover` over the whole of it, calling `set_world`
+## on the frame the screen is fully black. A warp reuses the node and calls
+## `set_world` again, which is why this is per instance and not per map.
+var _first_build: bool = true
 var _chunks: Array = []
 ## The water chunks of the same slice, kept apart because they are drawn with
 ## their own material: see `mesher.gd:take_water`.
@@ -654,15 +660,35 @@ func _begin_terrain(window: Rect2i) -> void:
 	_advance_build()
 
 
+## THE FIRST BUILD IS SPENT WHOLE, and it is the one build in this view that has
+## somewhere to hide. The host closes a wipe over a view switch, builds the
+## renderer on the frame the screen is fully black, and opens the wipe again on a
+## fixed twenty-six frames, so an emit still sliced across those frames is
+## uncovered half done: the reviewer read it off a plate as the ground standing
+## flat and empty with the world popping in over it a moment later. Behind a full
+## black field a smooth frame rate is worth nothing at all and a finished picture
+## is worth everything, which is the same argument FIRST_BUILD_BUDGET_USEC
+## already makes and stops one rung short of.
+##
+## ONLY THE FIRST, and that is what keeps a WARP filling in. A warp reuses the
+## renderer and has no wipe over it, so its own progressive fill is deliberate
+## and a hundred and fifty milliseconds spent in one frame there would be the
+## stall this whole seam exists to remove.
 func _advance_build() -> void:
 	if not _building:
 		return
-	var done: bool = _mesher.emit_step(
-		BUILD_BUDGET_USEC if _standing else FIRST_BUILD_BUDGET_USEC
-	)
-	_chunks.append_array(_mesher.take_chunks())
-	_water.append_array(_mesher.take_water())
-	_tufts.append_array(_mesher.take_tufts())
+	var done: bool = false
+	while true:
+		done = _mesher.emit_step(
+			BUILD_BUDGET_USEC if _standing else FIRST_BUILD_BUDGET_USEC
+		)
+		_chunks.append_array(_mesher.take_chunks())
+		_water.append_array(_mesher.take_water())
+		_tufts.append_array(_mesher.take_tufts())
+		# Nothing is published mid-loop: a whole build has no frame between its
+		# slices for anyone to see one in.
+		if done or not _first_build:
+			break
 	# Mid-build the new chunks are shown only when there is nothing else to look
 	# at, because a half-built map swapped in over a whole one is a hole opening
 	# in the middle of the frame rather than a map arriving.
@@ -675,6 +701,7 @@ func _advance_build() -> void:
 	if done:
 		_building = false
 		_standing = true
+		_first_build = false
 		_dress_far_field()
 
 

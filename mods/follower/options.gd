@@ -38,6 +38,20 @@ const PICKUP: StringName = &"pickup"
 ## one thing a default has to clear.
 const RECALL: StringName = &"recall"
 
+## The same recall again as a SETTING, which is not a duplicate of the control
+## above. A control has to be BOUND to something before it exists, and the player
+## who most needs to put a follower away is the one who has not opened the
+## controls card, is on a pad with no F on it, or has rebound the key onto
+## something that no longer reaches. A press in the MODS menu needs no binding at
+## all, so there is always one way in that a keyboard cannot take away.
+##
+## A button rather than a rung, because what it toggles is per SESSION and a rung
+## would be written to `user://mod_options.json` and outlive the walk it belongs
+## to. It toggles exactly as the control does: the label says RECALL because that
+## is the press a player reaches for, and pressing it again sends the follower
+## back out.
+const PUT_AWAY: StringName = &"put_away"
+
 
 static func register(host: Gen2ModHost, id: StringName) -> void:
 	host.register_option(id, {
@@ -59,6 +73,10 @@ static func register(host: Gen2ModHost, id: StringName) -> void:
 	host.register_action(id, {
 		"key": RECALL, "label": "Recall the follower",
 		"default": [{"kind": "key", "code": KEY_F}],
+	})
+	host.register_option(id, {
+		"key": PUT_AWAY, "label": "FOLLOWER",
+		"kind": &"button", "press_label": "RECALL",
 	})
 
 

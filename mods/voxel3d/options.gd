@@ -5,8 +5,8 @@ extends RefCounted
 ## The entry script registers them and both renderers read them back, so a key
 ## or a rung written out three times is three chances to disagree. A setting is
 ## DESCRIBED here and never drawn: the host builds the start menu's MODS entry
-## and this mod's card in the launcher out of the same registration, which is why
-## no menu is written here. See `docs/MODS.md` in pokerecomp.
+## and this mod's own page in the launcher out of the same registration, which is
+## why no menu is written here. See `docs/MODS.md` in pokerecomp.
 ##
 ## Values live per installation in `user://mod_options.json`, not in a save: a
 ## draw distance is a property of this machine and must not change when a slot is
@@ -46,7 +46,7 @@ const DISTANCE_VALUES: Array = [12, 16, 24, 0]
 ## The default is chosen by PLATFORM and not by taste: a desktop draws the whole
 ## window and a phone starts at a half, because there is no benchmarking a phone
 ## from here and the player who most needs this rung is the one who has not
-## found the settings card. Either way it is one press from the other.
+## found the settings page. Either way it is one press from the other.
 const SCALE_VALUES: Array = [1, 2, 3, 4]
 
 ## Which way a wheel notch zooms. The only part of the binding that is a
