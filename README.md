@@ -14,6 +14,7 @@ Silver and Crystal recompilation. Each one is interpreted GDScript under
 | <img src="docs/icons/overworld_encounters.png" alt="" width="64" height="64"> | [`overworld_encounters`](mods/overworld_encounters/) | 0.2.0 | A bounded population of wild Pokemon roaming where random grass, cave and surf encounters used to be, up to sixteen a map for a screen that shows the whole of one. Shiny Pokemon are visible before battle and announce themselves with the cartridge's own animation and sound. |
 | <img src="docs/icons/hidden_stats.png" alt="" width="64" height="64"> | [`hidden_stats`](mods/hidden_stats/) | 0.1.0 | A fourth page on a Pokemon's stats screen, in the cartridge's own two-column shape: the DVs it was born with and the stat experience each stat has trained. |
 | <img src="docs/icons/linking_cord.png" alt="" width="64" height="64"> | [`linking_cord`](mods/linking_cord/) | 0.1.0 | An item that evolves a Pokemon which otherwise only evolves by being traded. Buy it on Goldenrod Dept Store's second floor, use it from the pack, pick who it is for. |
+| <img src="docs/icons/quality_of_life.png" alt="" width="64" height="64"> | [`quality_of_life`](mods/quality_of_life/) | 0.1.1 | Seven independent, off-by-default conveniences: field moves from owned HMs, automatic Repel renewal, experience from catches, direct PC access, move-effectiveness hints, battle stat stages and weather indicators. |
 
 ## Installing
 

@@ -61,6 +61,16 @@
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/linking_cord-0.1.0/linking_cord-0.1.0.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/linking_cord/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/linking_cord/thumbnail.webp"
+		},
+		{
+			"id": "quality_of_life",
+			"name": "Quality of Life",
+			"version": "0.1.1",
+			"games": ["gold", "silver", "crystal"],
+			"description": "Seven independent conveniences from later Pokemon games, each off until the player enables it: field moves from owned HMs and badges, automatic Repel renewal, experience from catches, direct PC access, move-effectiveness hints for seen opponents, battle stat-stage summaries and weather indicators.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/quality_of_life-0.1.1/quality_of_life-0.1.1.zip",
+			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/quality_of_life/icon.png",
+			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/quality_of_life/thumbnail.webp"
 		}
 	]
 }
