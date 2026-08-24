@@ -110,7 +110,8 @@ func _initialize() -> void:
 	])
 	print("a glow reaches only an excellent Pokemon: %s, on %d rungs: %s" % [
 		"yes" if bool(glow["only_excellent"]) else "NO",
-		glow["rungs"], "yes" if int(glow["rungs"]) <= provider_script.GLOW_RUNGS + 1 else "NO",
+		glow["rungs"],
+		"yes" if int(glow["rungs"]) <= Gen2WorldEncounters.GLOW_RUNGS + 1 else "NO",
 	])
 	for entry: Dictionary in first:
 		print("  id %s cell %s species %d level %d dvs %04x%s" % [
@@ -120,7 +121,7 @@ func _initialize() -> void:
 	quit(0 if first_text == again_text and first_text != other_text \
 		and before_pose == after_pose and clear_spawn and clear_roam and spread \
 		and int(glow["both"]) == 0 and bool(glow["only_excellent"]) \
-		and int(glow["rungs"]) <= provider_script.GLOW_RUNGS + 1 else 1)
+		and int(glow["rungs"]) <= Gen2WorldEncounters.GLOW_RUNGS + 1 else 1)
 
 
 ## The two marks over every DV word there is, and one whole glow cycle out of a
@@ -144,7 +145,11 @@ func _glow_survey(
 				continue
 			if not plan.is_excellent(int(entry.get("dvs", 0))):
 				only_excellent = false
-			rungs[snappedf(float((entry["glow"] as Dictionary)["amount"]), 0.0001)] = true
+			# THROUGH THE HOST'S OWN ROUNDING, not the raw amount the mod sends:
+			# what bounds the textures a glow spends is `_glow`, so that is what
+			# the count has to be taken over.
+			var landed: Dictionary = Gen2WorldEncounters._glow(entry["glow"])
+			rungs[landed.get("amount", 0.0)] = true
 	out["only_excellent"] = only_excellent
 	out["rungs"] = rungs.size()
 	return out

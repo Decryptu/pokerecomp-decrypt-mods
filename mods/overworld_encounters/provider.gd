@@ -10,14 +10,14 @@ const SHINY_PULSE_FRAMES: int = 600
 ## walked toward a light and back rather than anything drawn over it: see
 ## `README.md`. A shiny never wears one, which `plan.gd:is_excellent` decides.
 ##
-## `GLOW_RUNGS` is not a matter of taste. Both renderers cache one sprite
-## texture per distinct set of four colours and neither evicts, so a glow that
-## interpolated freely would leave a texture behind on every frame for as long
-## as the map was up. Rounding half the cycle onto four rungs bounds it at five
-## textures a species, and the hardware had no colour between two rungs anyway.
+## THE CURVE IS SENT WHOLE AND THE HOST ROUNDS IT. `Gen2WorldEncounters` bounds
+## the sprite textures a glow may spend by snapping the amount onto its own
+## `GLOW_RUNGS`, so quantizing here as well would be the same policy written
+## twice and the host's is the one that binds. This peak walks half the way to
+## the light, which the host's eighths carry as the five distinct steps the
+## breath was chosen for.
 const GLOW_PERIOD_FRAMES: int = 48
 const GLOW_PEAK: float = 0.45
-const GLOW_RUNGS: int = 4
 const GLOW_COLOR := Color(1.0, 0.87, 0.35)
 ## A full cell every 1.6 seconds at the hardware's 60 frames per second. The
 ## actor seam names integer encounter cells, so moving faster reads as a chain
@@ -85,13 +85,11 @@ func _on_option_changed(id: StringName, key: StringName, _value: Variant) -> voi
 		_rebuild()
 
 
-## One frame of the breath, on the rungs the note above `GLOW_PEAK` explains. A
-## raised cosine, so a Pokemon spends most of the cycle near its own colours and
-## only passes through the top of it.
+## One frame of the breath: a raised cosine, so a Pokemon spends most of the
+## cycle near its own colours and only passes through the top of it.
 func _glow_amount() -> float:
 	var phase: float = TAU * float(_frame % GLOW_PERIOD_FRAMES) / float(GLOW_PERIOD_FRAMES)
-	var raw: float = 0.5 * (1.0 - cos(phase))
-	return roundf(raw * float(GLOW_RUNGS)) / float(GLOW_RUNGS) * GLOW_PEAK
+	return GLOW_PEAK * 0.5 * (1.0 - cos(phase))
 
 
 ## The ladder is `options.gd`'s and is read from it, so a rung added there is a
