@@ -44,6 +44,10 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_output_path = args[3]
+	if not absolute_output(_output_path):
+		print("output path must be absolute: %s would be written inside the game project" % _output_path)
+		quit(2)
+		return
 	var host: Gen2ModHost = Gen2ModHost.instance()
 	if not host.world_renderer_ids().has(&"voxel3d"):
 		host.discover()
@@ -140,3 +144,13 @@ func _process(_delta: float) -> bool:
 ## absolute path, since no path from one machine belongs in a tracked file.
 func _chrome() -> GDScript:
 	return load("%s/clean_frame.gd" % (get_script() as Script).resource_path.get_base_dir())
+
+
+## A RELATIVE OUTPUT PATH LANDS IN THE GAME PROJECT, NOT WHERE THE COMMAND WAS
+## RUN. These tools run with `--path <pokerecomp>`, so Godot resolves a bare name
+## against that project, and the picture is written into somebody else's checkout
+## along with the `.import` file the editor then makes for it. Refusing is the
+## whole fix: there is no reason for a photograph to go there.
+static func absolute_output(path: String) -> bool:
+	return path.is_absolute_path() or path.begins_with("user://") \
+		or path.begins_with("res://")
