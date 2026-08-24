@@ -63,6 +63,9 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_out = args[1]
+	if Gen2ToolPath.refuses(_out):
+		quit(2)
+		return
 	var species: int = int(args[2]) if args.size() > 2 else 155
 	var level: int = clampi(int(args[3]) if args.size() > 3 else 34, 1, 100)
 	_scale = maxi(int(args[4]) if args.size() > 4 else 1, 1)

@@ -34,6 +34,9 @@ func _initialize() -> void:
 		print("usage: <cache> <group> <number> <out.png> [scale]")
 		quit(1)
 		return
+	if Gen2ToolPath.refuses(args[3]):
+		quit(2)
+		return
 	var data: GameData = GameData.open_directory(args[0])
 	if data == null:
 		print("no cache at ", args[0])

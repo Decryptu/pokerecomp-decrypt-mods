@@ -29,6 +29,9 @@ func _initialize() -> void:
 		print("usage: <cache> [tileset|all] [out.json]")
 		quit(1)
 		return
+	if args.size() > 2 and Gen2ToolPath.refuses(args[2]):
+		quit(2)
+		return
 	var data: GameData = GameData.open_directory(args[0])
 	if data == null:
 		print("no cache at ", args[0])

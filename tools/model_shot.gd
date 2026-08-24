@@ -32,6 +32,9 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_out = args[1]
+	if Gen2ToolPath.refuses(_out):
+		quit(2)
+		return
 
 	_stage = (load("%s/world/diorama.gd" % MOD) as GDScript).new()
 	var holder := Control.new()

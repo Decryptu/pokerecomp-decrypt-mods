@@ -61,6 +61,9 @@ func _initialize() -> void:
 		return
 
 	var out: String = args[rest]
+	if Gen2ToolPath.refuses(out):
+		quit(2)
+		return
 	var repeat: int = int(args[rest + 1]) if args.size() > rest + 1 else 4
 	var scale: int = int(args[rest + 2]) if args.size() > rest + 2 else 4
 

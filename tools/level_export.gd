@@ -66,6 +66,9 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var out: String = args[1]
+	if Gen2ToolPath.refuses(out):
+		quit(2)
+		return
 	DirAccess.make_dir_recursive_absolute(out)
 
 	var profile: GDScript = load("%s/shape/profile.gd" % MOD)

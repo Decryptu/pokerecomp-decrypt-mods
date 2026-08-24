@@ -79,6 +79,9 @@ func _capture() -> void:
 		push_error("Usage: linking_cord_shot.gd -- <game> <output.png> [list|menu|party] [presses]")
 		quit(1)
 		return
+	if Gen2ToolPath.refuses(args[1]):
+		quit(2)
+		return
 	Gen2ModHost.reset()
 	var mods: Gen2ModHost = Gen2ModHost.instance()
 	mods.set_target_game(StringName(args[0]))

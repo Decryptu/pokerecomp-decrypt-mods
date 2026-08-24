@@ -77,6 +77,9 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_out = args[5]
+	if Gen2ToolPath.refuses(_out):
+		quit(2)
+		return
 
 	var map: Gen2WorldMap = null
 	for candidate: Gen2WorldMap in data.world_maps():

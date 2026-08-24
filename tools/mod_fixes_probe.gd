@@ -27,8 +27,8 @@ func _initialize() -> void:
 
 
 func _ledge_corner(data: GameData) -> bool:
-	var root: String = (get_script() as Script).resource_path.get_base_dir().get_base_dir()
-	var voxel: String = root.path_join("mods/voxel3d")
+	var repo: String = (get_script() as Script).resource_path.get_base_dir().get_base_dir()
+	var voxel: String = repo.path_join("mods/voxel3d")
 	var map: Gen2WorldMap = data.world_map(24, 3)
 	if map == null:
 		print("ledge map 24,3 missing")
@@ -73,8 +73,8 @@ func _ledge_corner(data: GameData) -> bool:
 
 
 func _jump_offset() -> bool:
-	var root: String = (get_script() as Script).resource_path.get_base_dir().get_base_dir()
-	var renderer: Node = (load(root.path_join("mods/voxel3d/world/renderer.gd")) as GDScript).new()
+	var repo: String = (get_script() as Script).resource_path.get_base_dir().get_base_dir()
+	var renderer: Node = (load(repo.path_join("mods/voxel3d/world/renderer.gd")) as GDScript).new()
 	var ground := Vector3(24.0, 7.0, 40.0)
 	var lifted: Vector3 = renderer._actor_position(ground, 8.0)
 	var ok: bool = lifted == Vector3(24.0, 15.0, 40.0)
@@ -86,7 +86,7 @@ func _jump_offset() -> bool:
 
 
 func _population(data: GameData, first_seed: int, second_seed: int) -> bool:
-	var root: String = (get_script() as Script).resource_path.get_base_dir().get_base_dir()
+	var repo: String = (get_script() as Script).resource_path.get_base_dir().get_base_dir()
 	var map: Gen2WorldMap = null
 	for candidate: Gen2WorldMap in data.world_maps():
 		if not data.world_encounter(&"grass", candidate.group, candidate.number).is_empty():
@@ -96,7 +96,7 @@ func _population(data: GameData, first_seed: int, second_seed: int) -> bool:
 		print("no encounter map")
 		return false
 	var context: Dictionary = _encounter_context(data, map)
-	var plan: GDScript = load(root.path_join("mods/overworld_encounters/plan.gd"))
+	var plan: GDScript = load(repo.path_join("mods/overworld_encounters/plan.gd"))
 	var first_population: Array = plan.build(context, first_seed, 8)
 	var first: String = JSON.stringify(first_population)
 	var again: String = JSON.stringify(plan.build(context, first_seed, 8))
@@ -110,7 +110,7 @@ func _population(data: GameData, first_seed: int, second_seed: int) -> bool:
 	print("population seeds %d and %d differ: %s" % [
 		first_seed, second_seed, "yes" if first != other else "NO",
 	])
-	var provider_script: GDScript = load(root.path_join("mods/overworld_encounters/provider.gd"))
+	var provider_script: GDScript = load(repo.path_join("mods/overworld_encounters/provider.gd"))
 	context["run_seed"] = first_seed
 	var provider: RefCounted = provider_script.new()
 	provider.set_context(context)

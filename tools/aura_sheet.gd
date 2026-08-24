@@ -93,8 +93,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_output_path = args[1]
-	if not absolute_output(_output_path):
-		print("output path must be absolute: %s would be written inside the game project" % _output_path)
+	if Gen2ToolPath.refuses(_output_path):
 		quit(2)
 		return
 	var species: int = int(args[2]) if args.size() > 2 else 21
@@ -155,16 +154,6 @@ func _process(_delta: float) -> bool:
 	print("wrote %s (%dx%d)" % [_output_path, image.get_width(), image.get_height()])
 	quit(0)
 	return true
-
-
-## A RELATIVE OUTPUT PATH LANDS IN THE GAME PROJECT, NOT WHERE THE COMMAND WAS
-## RUN. These tools run with `--path <pokerecomp>`, so Godot resolves a bare name
-## against that project, and the picture is written into somebody else's checkout
-## along with the `.import` file the editor then makes for it. Refusing is the
-## whole fix: there is no reason for a photograph to go there.
-static func absolute_output(path: String) -> bool:
-	return path.is_absolute_path() or path.begins_with("user://") \
-		or path.begins_with("res://")
 
 
 ## The sheet itself. Every candidate is composed into one plate-sized image at
@@ -246,8 +235,8 @@ class Sheet extends Node2D:
 	## rather than guessed.
 	func _ground_cells() -> Array:
 		var out: Array = []
-		for name: String in ["shadow", "boulder_dust", "grass_rustle", "rod"]:
-			var sheet: Dictionary = data.overworld_effect(name)
+		for effect: String in ["shadow", "boulder_dust", "grass_rustle", "rod"]:
+			var sheet: Dictionary = data.overworld_effect(effect)
 			if sheet.is_empty():
 				continue
 			var plate := Image.create(PLATE, PLATE, false, Image.FORMAT_RGBA8)

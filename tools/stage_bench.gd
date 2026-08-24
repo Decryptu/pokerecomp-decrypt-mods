@@ -115,6 +115,10 @@ func _initialize() -> void:
 	_seconds = maxf(float(named.get("seconds", "8")), 1.0)
 	_shot = String(named.get("shot", ""))
 	_out = String(named.get("out", ""))
+	for path: String in [_shot, _out]:
+		if not path.is_empty() and Gen2ToolPath.refuses(path):
+			quit(2)
+			return
 	_pitch = float(named.get("pitch", "50"))
 	_walking = int(named.get("walk", "1")) != 0
 	var window: Vector2i = _size(String(named.get("window", "")))

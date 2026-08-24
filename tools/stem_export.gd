@@ -30,6 +30,9 @@ func _initialize() -> void:
 		print("usage: <cache> <out.json> [group] [number]")
 		quit(1)
 		return
+	if Gen2ToolPath.refuses(args[1]):
+		quit(2)
+		return
 	var data: GameData = GameData.open_directory(args[0])
 	if data == null:
 		print("no cache at ", args[0])
@@ -62,8 +65,8 @@ func _initialize() -> void:
 	var found := Vector2i(-1, -1)
 	for ty: int in mesher._size.y:
 		for tx: int in mesher._size.x:
-			var at: int = ty * mesher._size.x + tx
-			if mesher._stem[at] > 0:
+			var scan: int = ty * mesher._size.x + tx
+			if mesher._stem[scan] > 0:
 				found = Vector2i(tx, ty)
 				break
 		if found.x >= 0:

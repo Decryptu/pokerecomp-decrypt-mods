@@ -10,7 +10,8 @@ mods/<id>/            one installable mod; the archive root
   thumbnail.webp      optional 1280x720 thumbnail, shown on the mod library site
 index.json            the published feed; one row per mod
 tools/package.sh      mods/<id>/ -> dist/<id>-<version>.zip
-tools/check.sh        parses every script; `tools` and `all` widen what it reads
+tools/check.sh        parses every script; `tools` and `all` widen what it reads,
+                      and `warnings` reads the analyser instead of the parser
 tools/walk_bench.gd   what a frame costs while the player walks, in the game
 tools/stage_bench.gd  the same for the diorama alone, with each part priceable
 tools/horizon_shot.gd photographs the horizon through the game's own screen
@@ -82,6 +83,26 @@ godot --path /path/to/pokerecomp
 The launcher lists what loaded and names anything it refused. A mod that fails
 is skipped and reported through `Gen2ModHost.failures()`; it never stops the
 game or the other mods.
+
+## Where a tool writes
+
+A tool runs with `--path <pokerecomp>`, so the game project is what a path
+resolves against, not the directory the command was run from. A bare `out.png`
+is written into that checkout, and the editor makes an `.import` file beside it.
+
+The game project owns that hazard, since it is what `--path` points at, and it
+owns the guard with it. A tool that takes an output path checks it before doing
+any work, and every one of them does:
+
+```gdscript
+if Gen2ToolPath.refuses(_out):
+	quit(2)
+	return
+```
+
+The test is where the path ends up rather than how it is spelt, because
+`res://out.png` reads as absolute and lands in the game project all the same.
+Give an absolute path outside the checkout, or a `user://` one.
 
 ## The boundary
 

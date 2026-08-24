@@ -78,6 +78,9 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_out = args[2]
+	if Gen2ToolPath.refuses(_out):
+		quit(2)
+		return
 	DirAccess.make_dir_recursive_absolute(_out)
 
 	_profile = load("%s/shape/profile.gd" % MOD)
@@ -374,8 +377,8 @@ func _process(_delta: float) -> bool:
 		if _queue.is_empty():
 			print("done")
 			return true
-		var number: int = _queue.pop_front()
-		if not _build(number):
+		var next: int = _queue.pop_front()
+		if not _build(next):
 			return false
 		_frames = 0
 		return false

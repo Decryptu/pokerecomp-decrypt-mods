@@ -68,6 +68,9 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var out: String = args[1]
+	if Gen2ToolPath.refuses(out):
+		quit(2)
+		return
 	var only: int = int(args[2]) if args.size() > 2 else -1
 	DirAccess.make_dir_recursive_absolute(out)
 
@@ -85,7 +88,7 @@ func _initialize() -> void:
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		if tileset == null:
 			continue
-		_walk(data, map, tileset, profile, shape_script, source_script, drawings)
+		_walk(map, tileset, profile, shape_script, source_script, drawings)
 
 	var keys: Array = drawings.keys()
 	keys.sort_custom(func(a: String, b: String) -> bool:
@@ -139,7 +142,7 @@ func _initialize() -> void:
 ## drawing is the flood's whole bounding rectangle INCLUDING its holes: a door is
 ## a hole and it is part of the house.
 func _walk(
-	data: GameData, map: Gen2WorldMap, tileset: Gen2WorldTileset,
+	map: Gen2WorldMap, tileset: Gen2WorldTileset,
 	profile: GDScript, shape_script: GDScript, source_script: GDScript,
 	drawings: Dictionary
 ) -> void:
@@ -235,11 +238,11 @@ func _walk(
 ## The connected group of building tiles reached from one seed, and its whole
 ## bounding rectangle.
 func _flood(
-	part: PackedByteArray, seen: PackedByteArray, w: int, h: int, seed: Vector2i
+	part: PackedByteArray, seen: PackedByteArray, w: int, h: int, from: Vector2i
 ) -> Rect2i:
-	var stack: Array[Vector2i] = [seed]
-	var box := Rect2i(seed, Vector2i.ONE)
-	seen[seed.y * w + seed.x] = 1
+	var stack: Array[Vector2i] = [from]
+	var box := Rect2i(from, Vector2i.ONE)
+	seen[from.y * w + from.x] = 1
 	while not stack.is_empty():
 		var at: Vector2i = stack.pop_back()
 		box = box.expand(at).expand(at + Vector2i.ONE)

@@ -73,6 +73,9 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_output_path = args[3]
+	if Gen2ToolPath.refuses(_output_path):
+		quit(2)
+		return
 	var species: int = int(args[4]) if args.size() > 4 else 155
 	_steps = int(args[5]) if args.size() > 5 else 2
 	# Comma-separated, so `pet` alone still means what it always did.

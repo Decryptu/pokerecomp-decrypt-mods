@@ -69,6 +69,9 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_out = args[2]
+	if Gen2ToolPath.refuses(_out):
+		quit(2)
+		return
 	_every = args.size() > 3 and args[3] == "all"
 	DirAccess.make_dir_recursive_absolute(_out)
 
