@@ -1,7 +1,7 @@
 {
 	"id": "hidden_stats",
 	"name": "Hidden Stats",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"api_version": 8,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
