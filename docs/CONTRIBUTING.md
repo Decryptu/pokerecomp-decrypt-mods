@@ -117,8 +117,11 @@ in the game repository first. It is the contract, and it is enforced.
   have to agree, which is what makes `V` able to switch between them mid-step.
 - iOS forbids JIT and loading native code at runtime, so a distributed mod is
   interpreted GDScript. No GDExtension, no compiled anything.
-- `api_version` in a manifest must equal `Gen2ModManifest.API_VERSION`. A
-  mismatch is refused before any mod code runs.
+- `api_version` in a manifest is the contract the mod was written against, and
+  the host answers a range: `Gen2ModManifest.MIN_API_VERSION` to
+  `API_VERSION`, 1 to 15 today. Outside it the mod is refused before any of its
+  code runs. Declaring a number you do not use buys nothing, so it moves when
+  the mod starts asking for something newer, not with every release.
 
 ## Writing rules
 

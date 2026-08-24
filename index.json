@@ -15,10 +15,10 @@
 		{
 			"id": "randomizer",
 			"name": "Randomizer",
-			"version": "0.3.0",
+			"version": "0.3.1",
 			"games": ["gold", "silver", "crystal"],
 			"description": "A save-bound run generated from a four-digit seed: Pokemon, wild sources, items, badges, shops, species, moves and trainer teams. Critical placements are accepted only after the host finds no visible self-lock.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/randomizer-0.3.0/randomizer-0.3.0.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/randomizer-0.3.1/randomizer-0.3.1.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/randomizer/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/randomizer/thumbnail.webp"
 		},
@@ -45,20 +45,20 @@
 		{
 			"id": "hidden_stats",
 			"name": "Hidden Stats",
-			"version": "0.1.0",
+			"version": "0.1.1",
 			"games": ["gold", "silver", "crystal"],
 			"description": "A fourth page on a Pokemon's stats screen, in the cartridge's own two-column shape: the four DVs the species was born with, HP's own derived from them, and the stat experience each of the five has trained.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/hidden_stats-0.1.0/hidden_stats-0.1.0.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/hidden_stats-0.1.1/hidden_stats-0.1.1.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/hidden_stats/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/hidden_stats/thumbnail.webp"
 		},
 		{
 			"id": "linking_cord",
 			"name": "Linking Cord",
-			"version": "0.1.0",
+			"version": "0.1.1",
 			"games": ["gold", "silver", "crystal"],
 			"description": "The item the later games sell instead of asking for a friend: use it on a Pokemon that only evolves by being traded and it evolves where it stands. Sold on Goldenrod Dept Store's second floor, and spent by the evolution it causes.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/linking_cord-0.1.0/linking_cord-0.1.0.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/linking_cord-0.1.1/linking_cord-0.1.1.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/linking_cord/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/linking_cord/thumbnail.webp"
 		},
