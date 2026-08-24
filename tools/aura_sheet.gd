@@ -93,8 +93,9 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_output_path = args[1]
-	if not absolute_output(_output_path):
-		print("output path must be absolute: %s would be written inside the game project" % _output_path)
+	var guard: GDScript = load("%s/out_path.gd"
+		% (get_script() as Script).resource_path.get_base_dir())
+	if guard.refuses(_output_path):
 		quit(2)
 		return
 	var species: int = int(args[2]) if args.size() > 2 else 21
@@ -155,16 +156,6 @@ func _process(_delta: float) -> bool:
 	print("wrote %s (%dx%d)" % [_output_path, image.get_width(), image.get_height()])
 	quit(0)
 	return true
-
-
-## A RELATIVE OUTPUT PATH LANDS IN THE GAME PROJECT, NOT WHERE THE COMMAND WAS
-## RUN. These tools run with `--path <pokerecomp>`, so Godot resolves a bare name
-## against that project, and the picture is written into somebody else's checkout
-## along with the `.import` file the editor then makes for it. Refusing is the
-## whole fix: there is no reason for a photograph to go there.
-static func absolute_output(path: String) -> bool:
-	return path.is_absolute_path() or path.begins_with("user://") \
-		or path.begins_with("res://")
 
 
 ## The sheet itself. Every candidate is composed into one plate-sized image at

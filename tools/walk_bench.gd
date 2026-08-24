@@ -160,6 +160,12 @@ func _initialize() -> void:
 	_seconds = maxf(float(named.get("seconds", "10")), 1.0)
 	_out = String(named.get("out", ""))
 	_shot = String(named.get("shot", ""))
+	var guard: GDScript = load("%s/out_path.gd"
+		% (get_script() as Script).resource_path.get_base_dir())
+	for path: String in [_out, _shot]:
+		if not path.is_empty() and guard.refuses(path):
+			quit(2)
+			return
 	_span = int(named.get("span", str(SPAN_CELLS_DEFAULT)))
 	_time_refresh = named.has("refresh")
 	var window: Vector2i = _size(String(named.get("window", "")))

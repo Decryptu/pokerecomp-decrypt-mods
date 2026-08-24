@@ -40,7 +40,9 @@ extends SceneTree
 ##   label=BEFORE    burnt into the top-left corner of the picture. A reviewer
 ##                   gets no filenames, so a plate that does not name itself is
 ##                   a plate that cannot be argued about
-##   out=horizon.png where the picture is saved
+##   out=            where the picture is saved, user://horizon.png by default.
+##                   It may not land inside the game project, which is what a
+##                   bare name resolves against here
 ##
 ## The camera is aimed due south, which is where the overworld's own is: a shot
 ## off to one side shows more of the skyline and less of what a player sees.
@@ -90,7 +92,12 @@ func _initialize() -> void:
 		quit(1)
 		return
 
-	_out = String(named.get("out", "horizon.png"))
+	_out = String(named.get("out", "user://horizon.png"))
+	var guard: GDScript = load("%s/out_path.gd"
+		% (get_script() as Script).resource_path.get_base_dir())
+	if guard.refuses(_out):
+		quit(2)
+		return
 	_label = String(named.get("label", ""))
 	_hold = maxi(int(named.get("hold", "240")), 1)
 	_still = int(named.get("wind", "1")) == 0

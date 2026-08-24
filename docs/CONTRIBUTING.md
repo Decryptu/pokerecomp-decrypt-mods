@@ -16,6 +16,8 @@ tools/stage_bench.gd  the same for the diorama alone, with each part priceable
 tools/horizon_shot.gd photographs the horizon through the game's own screen
 tools/far_drawings.gd checks the horizon's drawings and cards against a resolve
 tools/mod_icons.sh    repaints every icon from one cartridge; see icon_art.gd
+tools/out_path.gd     refuses an output path that lands in the game project
+tools/warning_coverage.gd  which scripts a run of the editor's analyser covered
 docs/icons/<id>.png   the same icon at 4x, for the README table only
 ```
 
@@ -82,6 +84,27 @@ godot --path /path/to/pokerecomp
 The launcher lists what loaded and names anything it refused. A mod that fails
 is skipped and reported through `Gen2ModHost.failures()`; it never stops the
 game or the other mods.
+
+## Where a tool writes
+
+A tool runs with `--path <pokerecomp>`, so the game project is what a path
+resolves against, not the directory the command was run from. A bare `out.png`
+is written into that checkout, and the editor makes an `.import` file beside it.
+
+So a tool that takes an output path checks it before doing any work, and every
+one of them does:
+
+```gdscript
+var guard: GDScript = load("%s/out_path.gd"
+	% (get_script() as Script).resource_path.get_base_dir())
+if guard.refuses(_out):
+	quit(2)
+	return
+```
+
+The test is where the path ends up rather than how it is spelt, because
+`res://out.png` reads as absolute and lands in the game project all the same.
+Give an absolute path outside the checkout, or a `user://` one.
 
 ## The boundary
 

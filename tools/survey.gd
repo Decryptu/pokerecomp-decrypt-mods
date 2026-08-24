@@ -78,6 +78,11 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_out = args[2]
+	var guard: GDScript = load("%s/out_path.gd"
+		% (get_script() as Script).resource_path.get_base_dir())
+	if guard.refuses(_out):
+		quit(2)
+		return
 	DirAccess.make_dir_recursive_absolute(_out)
 
 	_profile = load("%s/shape/profile.gd" % MOD)

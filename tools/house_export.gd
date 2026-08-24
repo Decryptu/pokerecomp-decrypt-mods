@@ -68,6 +68,11 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var out: String = args[1]
+	var guard: GDScript = load("%s/out_path.gd"
+		% (get_script() as Script).resource_path.get_base_dir())
+	if guard.refuses(out):
+		quit(2)
+		return
 	var only: int = int(args[2]) if args.size() > 2 else -1
 	DirAccess.make_dir_recursive_absolute(out)
 

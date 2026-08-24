@@ -61,6 +61,11 @@ func _initialize() -> void:
 		return
 
 	var out: String = args[rest]
+	var guard: GDScript = load("%s/out_path.gd"
+		% (get_script() as Script).resource_path.get_base_dir())
+	if guard.refuses(out):
+		quit(2)
+		return
 	var repeat: int = int(args[rest + 1]) if args.size() > rest + 1 else 4
 	var scale: int = int(args[rest + 2]) if args.size() > rest + 2 else 4
 

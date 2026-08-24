@@ -44,6 +44,11 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_out = args[5]
+	var guard: GDScript = load("%s/out_path.gd"
+		% (get_script() as Script).resource_path.get_base_dir())
+	if guard.refuses(_out):
+		quit(2)
+		return
 
 	var map: Gen2WorldMap = null
 	for candidate: Gen2WorldMap in data.world_maps():

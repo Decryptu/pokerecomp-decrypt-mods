@@ -40,6 +40,11 @@ func _capture() -> void:
 		print("usage: -- <game> <out.png> [presses] [scale]")
 		quit(2)
 		return
+	var guard: GDScript = load("%s/out_path.gd"
+		% (get_script() as Script).resource_path.get_base_dir())
+	if guard.refuses(args[1]):
+		quit(2)
+		return
 	Gen2ModHost.reset()
 	var mods: Gen2ModHost = Gen2ModHost.instance()
 	mods.set_target_game(StringName(args[0]))
