@@ -160,10 +160,8 @@ func _initialize() -> void:
 	_seconds = maxf(float(named.get("seconds", "10")), 1.0)
 	_out = String(named.get("out", ""))
 	_shot = String(named.get("shot", ""))
-	var guard: GDScript = load("%s/out_path.gd"
-		% (get_script() as Script).resource_path.get_base_dir())
 	for path: String in [_out, _shot]:
-		if not path.is_empty() and guard.refuses(path):
+		if not path.is_empty() and Gen2ToolPath.refuses(path):
 			quit(2)
 			return
 	_span = int(named.get("span", str(SPAN_CELLS_DEFAULT)))
@@ -263,7 +261,9 @@ func _apply_statics(spec: String) -> void:
 			continue
 		var name: String = parts[0].strip_edges()
 		var text: String = parts[1].strip_edges()
-		var value: Variant = float(text) if text.contains(".") else int(text)
+		var value: Variant = int(text)
+		if text.contains("."):
+			value = float(text)
 		if script.get(name) is bool:
 			value = bool(value)
 		script.set(name, value)
@@ -285,7 +285,9 @@ func _apply_options(host: Gen2ModHost, id: StringName, spec: String) -> void:
 			continue
 		var key := StringName(parts[0].strip_edges())
 		var text: String = parts[1].strip_edges()
-		var value: Variant = float(text) if text.contains(".") else int(text)
+		var value: Variant = int(text)
+		if text.contains("."):
+			value = float(text)
 		_restore[key] = host.option(id, key)
 		print("option     %s = %s %s" % [
 			String(key), str(value), str(host.set_option(id, key, value)),

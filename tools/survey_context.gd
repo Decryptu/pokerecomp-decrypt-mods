@@ -69,9 +69,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_out = args[2]
-	var guard: GDScript = load("%s/out_path.gd"
-		% (get_script() as Script).resource_path.get_base_dir())
-	if guard.refuses(_out):
+	if Gen2ToolPath.refuses(_out):
 		quit(2)
 		return
 	_every = args.size() > 3 and args[3] == "all"

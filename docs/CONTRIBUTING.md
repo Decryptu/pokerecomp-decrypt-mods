@@ -10,14 +10,13 @@ mods/<id>/            one installable mod; the archive root
   thumbnail.webp      optional 1280x720 thumbnail, shown on the mod library site
 index.json            the published feed; one row per mod
 tools/package.sh      mods/<id>/ -> dist/<id>-<version>.zip
-tools/check.sh        parses every script; `tools` and `all` widen what it reads
+tools/check.sh        parses every script; `tools` and `all` widen what it reads,
+                      and `warnings` reads the analyser instead of the parser
 tools/walk_bench.gd   what a frame costs while the player walks, in the game
 tools/stage_bench.gd  the same for the diorama alone, with each part priceable
 tools/horizon_shot.gd photographs the horizon through the game's own screen
 tools/far_drawings.gd checks the horizon's drawings and cards against a resolve
 tools/mod_icons.sh    repaints every icon from one cartridge; see icon_art.gd
-tools/out_path.gd     refuses an output path that lands in the game project
-tools/warning_coverage.gd  which scripts a run of the editor's analyser covered
 docs/icons/<id>.png   the same icon at 4x, for the README table only
 ```
 
@@ -91,13 +90,12 @@ A tool runs with `--path <pokerecomp>`, so the game project is what a path
 resolves against, not the directory the command was run from. A bare `out.png`
 is written into that checkout, and the editor makes an `.import` file beside it.
 
-So a tool that takes an output path checks it before doing any work, and every
-one of them does:
+The game project owns that hazard, since it is what `--path` points at, and it
+owns the guard with it. A tool that takes an output path checks it before doing
+any work, and every one of them does:
 
 ```gdscript
-var guard: GDScript = load("%s/out_path.gd"
-	% (get_script() as Script).resource_path.get_base_dir())
-if guard.refuses(_out):
+if Gen2ToolPath.refuses(_out):
 	quit(2)
 	return
 ```

@@ -31,13 +31,20 @@
 #
 #   godot --headless --editor --path /path/to/pokerecomp --quit
 #
-#   tools/check.sh [mods|tools|all] [pokerecomp path]
+# `warnings` IS A DIFFERENT QUESTION AND A SLOWER ONE. Parsing says a script is
+# sound; the GDScript ANALYSER says whether it is clean, and it runs inside the
+# editor and nowhere else. The game project's `addons/warning_scan` reads it
+# without a person driving menus, so this mode drives that over the mods and the
+# tools: about a minute, against six seconds. Run it before a release rather than
+# after every edit. Silence means clean, because the scan is given the paths.
+#
+#   tools/check.sh [mods|tools|all|warnings] [pokerecomp path]
 
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 WHAT="mods"
 case "${1:-}" in
-	mods|tools|all) WHAT="$1"; shift ;;
+	mods|tools|all|warnings) WHAT="$1"; shift ;;
 esac
 HOST="${1:-${POKERECOMP:-$HERE/.references/pokerecomp}}"
 if [ ! -d "$HOST" ]; then
@@ -56,6 +63,17 @@ done
 if [ -z "$GODOT" ]; then
 	echo "no Godot found; set GODOT to the binary" >&2
 	exit 2
+fi
+
+if [ "$WHAT" = "warnings" ]; then
+	# The mods are reached as `user://`, which is where they are installed; the
+	# tools have no project path and are given as they sit.
+	mods=()
+	for mod in "$HERE"/mods/*/; do
+		mods+=("user://mods/$(basename "$mod")")
+	done
+	exec "$GODOT" --headless --editor --path "$HOST" -- --warning-scan \
+		"${mods[@]}" "$HERE/tools"
 fi
 
 scripts=()

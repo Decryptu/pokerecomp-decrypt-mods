@@ -35,10 +35,10 @@ func _initialize() -> void:
 		print("no cache at %s" % args[0])
 		quit(1)
 		return
-	var root: String = (get_script() as Script).resource_path.get_base_dir().get_base_dir()
-	var plan: GDScript = load(root.path_join("mods/overworld_encounters/plan.gd"))
-	var provider_script: GDScript = load(root.path_join("mods/overworld_encounters/provider.gd"))
-	var rng: GDScript = load(root.path_join("mods/overworld_encounters/rng.gd"))
+	var repo: String = (get_script() as Script).resource_path.get_base_dir().get_base_dir()
+	var plan: GDScript = load(repo.path_join("mods/overworld_encounters/plan.gd"))
+	var provider_script: GDScript = load(repo.path_join("mods/overworld_encounters/provider.gd"))
+	var rng: GDScript = load(repo.path_join("mods/overworld_encounters/rng.gd"))
 	var map: Gen2WorldMap = _first_map(data)
 	if plan == null or provider_script == null or rng == null or map == null:
 		print("no encounter plan or cartridge map")

@@ -93,9 +93,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_output_path = args[1]
-	var guard: GDScript = load("%s/out_path.gd"
-		% (get_script() as Script).resource_path.get_base_dir())
-	if guard.refuses(_output_path):
+	if Gen2ToolPath.refuses(_output_path):
 		quit(2)
 		return
 	var species: int = int(args[2]) if args.size() > 2 else 21
@@ -237,8 +235,8 @@ class Sheet extends Node2D:
 	## rather than guessed.
 	func _ground_cells() -> Array:
 		var out: Array = []
-		for name: String in ["shadow", "boulder_dust", "grass_rustle", "rod"]:
-			var sheet: Dictionary = data.overworld_effect(name)
+		for effect: String in ["shadow", "boulder_dust", "grass_rustle", "rod"]:
+			var sheet: Dictionary = data.overworld_effect(effect)
 			if sheet.is_empty():
 				continue
 			var plate := Image.create(PLATE, PLATE, false, Image.FORMAT_RGBA8)

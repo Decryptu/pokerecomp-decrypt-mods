@@ -34,9 +34,7 @@ func _initialize() -> void:
 		print("usage: <cache> <group> <number> <out.png> [scale]")
 		quit(1)
 		return
-	var guard: GDScript = load("%s/out_path.gd"
-		% (get_script() as Script).resource_path.get_base_dir())
-	if guard.refuses(args[3]):
+	if Gen2ToolPath.refuses(args[3]):
 		quit(2)
 		return
 	var data: GameData = GameData.open_directory(args[0])

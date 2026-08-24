@@ -93,9 +93,7 @@ func _initialize() -> void:
 		return
 
 	_out = String(named.get("out", "user://horizon.png"))
-	var guard: GDScript = load("%s/out_path.gd"
-		% (get_script() as Script).resource_path.get_base_dir())
-	if guard.refuses(_out):
+	if Gen2ToolPath.refuses(_out):
 		quit(2)
 		return
 	_label = String(named.get("label", ""))
@@ -378,7 +376,9 @@ func _apply_statics(spec: String) -> void:
 			continue
 		var name: String = parts[0].strip_edges()
 		var text: String = parts[1].strip_edges()
-		var value: Variant = float(text) if text.contains(".") else int(text)
+		var value: Variant = int(text)
+		if text.contains("."):
+			value = float(text)
 		if script.get(name) is bool:
 			value = bool(value)
 		script.set(name, value)
@@ -392,7 +392,9 @@ func _apply_options(host: Gen2ModHost, id: StringName, spec: String) -> void:
 			continue
 		var key := StringName(parts[0].strip_edges())
 		var text: String = parts[1].strip_edges()
-		var value: Variant = float(text) if text.contains(".") else int(text)
+		var value: Variant = int(text)
+		if text.contains("."):
+			value = float(text)
 		_restore[key] = host.option(id, key)
 		print("option     %s = %s %s" % [
 			String(key), str(value), str(host.set_option(id, key, value)),

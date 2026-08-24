@@ -115,10 +115,8 @@ func _initialize() -> void:
 	_seconds = maxf(float(named.get("seconds", "8")), 1.0)
 	_shot = String(named.get("shot", ""))
 	_out = String(named.get("out", ""))
-	var guard: GDScript = load("%s/out_path.gd"
-		% (get_script() as Script).resource_path.get_base_dir())
 	for path: String in [_shot, _out]:
-		if not path.is_empty() and guard.refuses(path):
+		if not path.is_empty() and Gen2ToolPath.refuses(path):
 			quit(2)
 			return
 	_pitch = float(named.get("pitch", "50"))

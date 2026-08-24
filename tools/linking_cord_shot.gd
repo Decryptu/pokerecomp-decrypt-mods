@@ -79,9 +79,7 @@ func _capture() -> void:
 		push_error("Usage: linking_cord_shot.gd -- <game> <output.png> [list|menu|party] [presses]")
 		quit(1)
 		return
-	var guard: GDScript = load("%s/out_path.gd"
-		% (get_script() as Script).resource_path.get_base_dir())
-	if guard.refuses(args[1]):
+	if Gen2ToolPath.refuses(args[1]):
 		quit(2)
 		return
 	Gen2ModHost.reset()

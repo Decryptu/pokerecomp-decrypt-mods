@@ -63,9 +63,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_out = args[1]
-	var guard: GDScript = load("%s/out_path.gd"
-		% (get_script() as Script).resource_path.get_base_dir())
-	if guard.refuses(_out):
+	if Gen2ToolPath.refuses(_out):
 		quit(2)
 		return
 	var species: int = int(args[2]) if args.size() > 2 else 155
