@@ -1,12 +1,22 @@
 extends SceneTree
 
 ## Builds visible populations from real cartridge encounter tables and PRINTS
-## them. One seed twice must be byte-identical and two seeds must differ.
+## them. One seed twice must be byte-identical, two seeds must differ, nobody
+## may stand where an object is, and the placement must be spread over the map
+## rather than gathered at one end of it.
 
 const DEFAULT_SEED: int = 1234
 const OTHER_SEED: int = 5678
 ## How many moves to walk the population through when testing the refusal.
 const ROAM_STEPS: int = 40
+## The spread check: how many seeds it builds, and how far the busiest eighth of
+## the candidate list may stand above the quietest before the placement is
+## called clustered. A population that favours one end of the collision walk is
+## a population standing in one patch of grass, which is what a weak generator
+## did here once: see `mods/overworld_encounters/rng.gd`.
+const SPREAD_RUNS: int = 200
+const SPREAD_OCTILES: int = 8
+const SPREAD_RATIO: float = 1.5
 
 
 func _initialize() -> void:
@@ -79,13 +89,41 @@ func _initialize() -> void:
 		taken.size(), "yes" if clear_spawn else "NO",
 		ROAM_STEPS, "yes" if clear_roam else "NO",
 	])
+	var octiles: Array[int] = _octiles(plan, context)
+	var busiest: int = octiles.max()
+	var quietest: int = maxi(octiles.min(), 1)
+	var spread: bool = float(busiest) / float(quietest) <= SPREAD_RATIO
+	print("%d seeds by eighth of the map: %s, evenly spread %s" % [
+		SPREAD_RUNS, str(octiles), "yes" if spread else "NO",
+	])
 	for entry: Dictionary in first:
 		print("  id %s cell %s species %d level %d dvs %04x%s" % [
 			String(entry["id"]), entry["cell"], int(entry["species"]), int(entry["level"]),
 			int(entry["dvs"]), " shiny" if plan.is_shiny(int(entry["dvs"])) else "",
 		])
 	quit(0 if first_text == again_text and first_text != other_text \
-		and before_pose == after_pose and clear_spawn and clear_roam else 1)
+		and before_pose == after_pose and clear_spawn and clear_roam and spread else 1)
+
+
+## Where the picks land inside the candidate list, in eighths. The list is the
+## collision walk in map order, so an eighth of it is a band of the map and a
+## histogram of it is what clustering shows up in.
+func _octiles(plan: GDScript, context: Dictionary) -> Array[int]:
+	var cells: PackedVector2Array = (context["eligible"] as Dictionary)[&"grass"]
+	var out: Array[int] = []
+	out.resize(SPREAD_OCTILES)
+	out.fill(0)
+	if cells.size() < SPREAD_OCTILES:
+		return out
+	var at: Dictionary = {}
+	for index: int in cells.size():
+		at[cells[index]] = index
+	for run: int in SPREAD_RUNS:
+		for entry: Dictionary in plan.build(context, DEFAULT_SEED + run, 16):
+			var index: int = int(at.get(Vector2(entry["cell"]), -1))
+			if index >= 0:
+				out[mini(index * SPREAD_OCTILES / cells.size(), SPREAD_OCTILES - 1)] += 1
+	return out
 
 
 ## Cells an object is standing on, made out of the eligible list so the refusal

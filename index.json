@@ -35,10 +35,10 @@
 		{
 			"id": "overworld_encounters",
 			"name": "Overworld Encounters",
-			"version": "0.2.0",
+			"version": "0.2.1",
 			"games": ["gold", "silver", "crystal"],
 			"description": "Replaces random steps with a bounded population of visible roaming wild Pokemon drawn from each map's own encounter tables, with visible shiny Pokemon. Up to sixteen a map, for a screen that shows the whole of one.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.2.0/overworld_encounters-0.2.0.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.2.1/overworld_encounters-0.2.1.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/overworld_encounters/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/overworld_encounters/thumbnail.webp"
 		},

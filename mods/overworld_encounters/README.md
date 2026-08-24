@@ -8,6 +8,11 @@ population after its battle ends, whatever the battle result; the map does not
 refill until its next generation.
 Each moves at most one cell every 1.6 seconds, leaving time to route around it.
 
+A population is spread over the whole of a map. Where a wild is put is drawn
+uniformly from every eligible cell the map has, so a route with grass at both
+ends holds Pokemon at both ends rather than a crowd in whichever patch the
+collision walk reached first.
+
 Nobody stands on anybody. A wild is never put on, and never steps onto, a cell
 someone else holds: the player, another wild, or one of the map's own objects,
 which is every NPC and every item ball. The host answers who is standing where
@@ -40,6 +45,7 @@ wild is not put where somebody already is, and that is the cartridge's own
 deterministic state at the moment the map is entered. Changing `VISIBLE` while
 standing on a map rebuilds against wherever people have walked to.
 `tools/overworld_encounters_probe.gd` prints two equal builds and a different
-seed against a real cartridge cache, and walks a population through a map with a
-quarter of its cells held to prove that neither a spawn nor a move lands on
-one.
+seed against a real cartridge cache, walks a population through a map with a
+quarter of its cells held to prove that neither a spawn nor a move lands on one,
+and counts two hundred populations by eighth of the map to prove the placement
+is spread rather than gathered.
