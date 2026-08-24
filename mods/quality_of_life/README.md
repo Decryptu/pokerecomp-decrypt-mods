@@ -21,7 +21,8 @@ feature has its own switch and every switch defaults to OFF.
 The move guide uses the spare cell at the right of each move row. Stage summaries
 use the empty lower-left command panel for the player and the space above the
 enemy picture for the opponent; they yield while the move list's type box owns
-that panel. Weather keeps one isolated corner cell.
+that panel. Enemy stages and weather carry the same light interface field as the
+battle's name cards, so they stay legible over a 3D arena.
 
 ## Vanilla boundaries
 
@@ -37,7 +38,8 @@ opponent.
 
 ## What it needs
 
-`api_version` 13, which keeps every changed transaction in the host: field
+`api_version` 14, which keeps every changed transaction in the host: field
 moves, Repel use, capture experience and PC storage all run through the game's
 existing paths. The battle provider receives exact, read-only state and returns
-only text and 8x8 tiles on the cartridge grid.
+only text and 8x8 tiles on the cartridge grid, with a host-owned interface field
+where bare scenery would make black ink unreadable.

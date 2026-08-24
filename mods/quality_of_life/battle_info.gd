@@ -86,16 +86,16 @@ func _stages(snapshot: Dictionary) -> Array:
 	var out: Array = []
 	if bool(snapshot.get("enemy_hud_visible", false)):
 		out.append_array(_stage_side(
-			snapshot.get("enemy_stages", {}) as Dictionary, ENEMY_STAGES_AT
+			snapshot.get("enemy_stages", {}) as Dictionary, ENEMY_STAGES_AT, true
 		))
 	if bool(snapshot.get("player_hud_visible", false)):
 		out.append_array(_stage_side(
-			snapshot.get("player_stages", {}) as Dictionary, PLAYER_STAGES_AT
+			snapshot.get("player_stages", {}) as Dictionary, PLAYER_STAGES_AT, false
 		))
 	return out
 
 
-func _stage_side(stages: Dictionary, start: Vector2i) -> Array:
+func _stage_side(stages: Dictionary, start: Vector2i, field: bool) -> Array:
 	var out: Array = []
 	var at: Vector2i = start
 	for key: StringName in STAGE_ORDER:
@@ -104,10 +104,13 @@ func _stage_side(stages: Dictionary, start: Vector2i) -> Array:
 			continue
 		## The cartridge font has no plus sign. A bare positive number and a
 		## printed minus preserve one compact, unambiguous row per active stage.
-		out.append({
+		var placement: Dictionary = {
 			"text": "%s%d" % [String(STAGE_LABELS[key]), stage],
 			"at": at,
-		})
+		}
+		if field:
+			placement["field"] = true
+		out.append(placement)
 		at += Vector2i(0, 1)
 	return out
 
@@ -125,4 +128,4 @@ func _weather(snapshot: Dictionary) -> Array:
 			tile = WEATHER_SAND
 	if tile.is_empty():
 		return []
-	return [{"tile": tile, "at": WEATHER_AT}]
+	return [{"tile": tile, "at": WEATHER_AT, "field": true}]
