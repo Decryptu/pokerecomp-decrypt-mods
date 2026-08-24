@@ -112,8 +112,12 @@ func _stages() -> void:
 	_expect(rows.size() == 3, "only three non-zero stat stages are shown")
 	_expect((rows[0] as Dictionary).get("text", "") == "ATK2", "positive stage text")
 	_expect((rows[1] as Dictionary).get("text", "") == "DEF-1", "negative stage text")
+	_expect(bool((rows[0] as Dictionary).get("field", false)),
+		"enemy stages ask for an interface field")
 	_expect((rows[2] as Dictionary).get("at", Vector2i.ZERO) == Vector2i(1, 13),
 		"player stages stay inside the lower-left panel")
+	_expect(not bool((rows[2] as Dictionary).get("field", false)),
+		"player stages reuse the command panel field")
 	snapshot["hud_visible"] = false
 	_expect(_placements(snapshot).is_empty(), "stages hide with the battle HUD")
 	_switch(&"stat_stages", false)
@@ -124,7 +128,10 @@ func _weather() -> void:
 	_switch(&"weather", true)
 	for weather: int in [Gen2Weather.RAIN, Gen2Weather.SUN, Gen2Weather.SANDSTORM]:
 		snapshot["weather"] = weather
-		_expect(_placements(snapshot).size() == 1, "weather %d has one icon" % weather)
+		var placements: Array = _placements(snapshot)
+		_expect(placements.size() == 1, "weather %d has one icon" % weather)
+		_expect(bool((placements[0] as Dictionary).get("field", false)),
+			"weather %d asks for an interface field" % weather)
 	snapshot["weather"] = 0
 	_expect(_placements(snapshot).is_empty(), "clear weather has no icon")
 	_switch(&"weather", false)

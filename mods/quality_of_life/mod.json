@@ -1,8 +1,8 @@
 {
 	"id": "quality_of_life",
 	"name": "Quality of Life",
-	"version": "0.1.1",
-	"api_version": 13,
+	"version": "0.1.2",
+	"api_version": 14,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
 	"description": "Independent switches for field moves without an HM user, automatic Repel renewal, experience from catches, direct PC access, move effectiveness hints, stat-stage summaries and weather indicators. Every feature is off until the player turns it on."
