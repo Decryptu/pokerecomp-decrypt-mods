@@ -43,3 +43,4 @@ paint hidden_stats "text:DV"
 paint linking_cord art:cord
 paint randomizer effect:question
 paint overworld_encounters "world:1:12:4,4,4,4:2" "species:19@8,6"
+paint quality_of_life effect:happy
