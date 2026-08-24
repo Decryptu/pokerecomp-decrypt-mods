@@ -3,6 +3,7 @@ extends RefCounted
 ## Population policy for the host's visible-encounter seam. Sprites, collision,
 ## battle transfer, shiny palettes, animation and audio remain host work.
 
+const Options := preload("options.gd")
 const Plan := preload("plan.gd")
 const SHINY_PULSE_FRAMES: int = 600
 ## A full cell every 1.6 seconds at the hardware's 60 frames per second. The
@@ -64,13 +65,14 @@ func battle_finished(id: StringName, _result: Dictionary) -> void:
 
 
 func _on_option_changed(id: StringName, key: StringName, _value: Variant) -> void:
-	if id == _id and key == &"maximum" and not _context.is_empty():
+	if id == _id and key == Options.MAXIMUM and not _context.is_empty():
 		_rebuild()
 
 
+## The ladder is `options.gd`'s and is read from it, so a rung added there is a
+## rung the population actually reaches.
 func _maximum() -> int:
-	var value: Variant = _host.option(_id, &"maximum") if _host != null else null
-	return 6 if value == null else clampi(int(value), 2, 8)
+	return Options.maximum(_host, _id)
 
 
 ## One step each, into a cell that is eligible and empty.
