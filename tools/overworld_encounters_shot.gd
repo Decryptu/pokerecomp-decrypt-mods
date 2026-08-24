@@ -6,12 +6,17 @@ extends SceneTree
 ##
 ## A ninth argument is comma-separated options: `clean` photographs the
 ## cartridge screen alone rather than the development harness around it, `x4`
-## enlarges it by whole pixels, and `natural` leaves the population to the mod
+## enlarges it by whole pixels, `natural` leaves the population to the mod
 ## instead of forcing the shiny preview, which is the only way to see the map as
-## a player meets it.
+## a player meets it, and `glow` forces the host's glowing preview instead of
+## the shiny one, which is how the excellent-DV mark is looked at without
+## waiting for a wild in the top one and a half percent of DV rolls.
 ##
 ##   Godot --path <pokerecomp> --mods -s tools/overworld_encounters_shot.gd -- \
 ##       crystal 24 3 <out.png> [gen2|voxel3d] [cell x] [cell y] [pulse frames] \
+##
+## A negative cell keeps the map's own start, which is how a later argument is
+## reached without moving the player.
 ##       [clean,x4,natural]
 
 const WINDOW_SIZE := Vector2i(1152, 648)
@@ -24,6 +29,7 @@ var _frames: int = 0
 var _clean: bool = false
 var _scale: int = 1
 var _natural: bool = false
+var _glow: bool = false
 
 
 func _initialize() -> void:
@@ -57,7 +63,11 @@ func _initialize() -> void:
 	_screen = (load("res://game/world/world_screen.tscn") as PackedScene).instantiate()
 	_screen.map_group = int(args[1])
 	_screen.map_number = int(args[2])
-	if args.size() > 6:
+	## A negative cell leaves the map's own start alone, which is how the later
+	## arguments are reached without teleporting the player: `0 0` is a real cell
+	## and on most maps it is inside the border, so passing it as a placeholder
+	## put the player in a wall and the preview had nowhere to stand.
+	if args.size() > 6 and int(args[5]) >= 0 and int(args[6]) >= 0:
 		_screen.start_cell = Vector2i(int(args[5]), int(args[6]))
 	_screen.encounter_seed = 1
 	_screen.set_data(data)
@@ -68,6 +78,7 @@ func _initialize() -> void:
 		else PackedStringArray()
 	_clean = options.has("clean")
 	_natural = options.has("natural")
+	_glow = options.has("glow")
 	for option: String in options:
 		if option.begins_with("x"):
 			_scale = maxi(int(option.substr(1)), 1)
@@ -84,8 +95,17 @@ func _process(_delta: float) -> bool:
 	if _frames == 2:
 		_screen.advance_frames(SETTLE_FRAMES)
 		if not _natural:
-			_screen.preview_visible_encounter()
+			if _glow:
+				_screen.preview_visible_encounter_glow()
+			else:
+				_screen.preview_visible_encounter()
 		var args: PackedStringArray = OS.get_cmdline_user_args()
+		# A PICTURE WITH NO POKEMON IN IT IS OTHERWISE SILENT, and twice the map
+		# rather than the population was what was wrong.
+		var population: Variant = _screen.get("_encounters")
+		print("population: %d entries" % [
+			population.entries().size() if population != null else -1,
+		])
 		var pulse_frames: int = int(args[7]) if args.size() > 7 else 0
 		for pulse_frame: int in pulse_frames:
 			_screen.advance_frame()

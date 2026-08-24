@@ -6,6 +6,19 @@ extends RefCounted
 const Options := preload("options.gd")
 const Plan := preload("plan.gd")
 const SHINY_PULSE_FRAMES: int = 600
+## The glow a Pokemon with excellent DVs wears, which is its OWN four colours
+## walked toward a light and back rather than anything drawn over it: see
+## `README.md`. A shiny never wears one, which `plan.gd:is_excellent` decides.
+##
+## THE CURVE IS SENT WHOLE AND THE HOST ROUNDS IT. `Gen2WorldEncounters` bounds
+## the sprite textures a glow may spend by snapping the amount onto its own
+## `GLOW_RUNGS`, so quantizing here as well would be the same policy written
+## twice and the host's is the one that binds. This peak walks half the way to
+## the light, which the host's eighths carry as the five distinct steps the
+## breath was chosen for.
+const GLOW_PERIOD_FRAMES: int = 48
+const GLOW_PEAK: float = 0.45
+const GLOW_COLOR := Color(1.0, 0.87, 0.35)
 ## A full cell every 1.6 seconds at the hardware's 60 frames per second. The
 ## actor seam names integer encounter cells, so moving faster reads as a chain
 ## of teleports and gives the player no practical route around one.
@@ -49,8 +62,11 @@ func advance_frame() -> void:
 	if _frame % MOVE_FRAMES == 0:
 		_roam()
 	var pulse: bool = _frame % SHINY_PULSE_FRAMES == 0
+	var amount: float = _glow_amount()
 	for entry: Dictionary in _entries:
 		entry["pulse"] = pulse
+		if Plan.is_excellent(int(entry.get("dvs", 0))):
+			entry["glow"] = {"color": GLOW_COLOR, "amount": amount}
 
 
 func encounters() -> Array:
@@ -67,6 +83,13 @@ func battle_finished(id: StringName, _result: Dictionary) -> void:
 func _on_option_changed(id: StringName, key: StringName, _value: Variant) -> void:
 	if id == _id and key == Options.MAXIMUM and not _context.is_empty():
 		_rebuild()
+
+
+## One frame of the breath: a raised cosine, so a Pokemon spends most of the
+## cycle near its own colours and only passes through the top of it.
+func _glow_amount() -> float:
+	var phase: float = TAU * float(_frame % GLOW_PERIOD_FRAMES) / float(GLOW_PERIOD_FRAMES)
+	return GLOW_PEAK * 0.5 * (1.0 - cos(phase))
 
 
 ## The ladder is `options.gd`'s and is read from it, so a rung added there is a

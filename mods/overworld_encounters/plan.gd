@@ -8,6 +8,11 @@ const Rng := preload("rng.gd")
 const GRASS_WEIGHTS: Array[int] = [30, 30, 20, 10, 5, 4, 1]
 const SURF_WEIGHTS: Array[int] = [60, 30, 10]
 const SHINY_ATTACK: Array[int] = [2, 3, 6, 7, 10, 11, 14, 15]
+## What a Pokemon has to total over the four DVs the hardware stores to be worth
+## a glow, out of the sixty they can reach. A shiny cannot get here: its own
+## three DVs are pinned at ten and its ATTACK caps at fifteen, so forty-five is
+## the most a shiny totals, and the two marks can never be worn at once.
+const EXCELLENT_TOTAL: int = 50
 
 
 static func build(
@@ -50,6 +55,18 @@ static func is_shiny(dvs: int) -> bool:
 	var speed: int = (dvs >> 4) & 0xf
 	var special: int = dvs & 0xf
 	return defense == 10 and speed == 10 and special == 10 and attack in SHINY_ATTACK
+
+
+## Whether this one wears the glow: high enough over the four stored DVs, and
+## not a shiny, which has a mark of its own. HP's DV is assembled from the low
+## bits of these four and is not a fifth number to add; see `hidden_stats`.
+static func is_excellent(dvs: int) -> bool:
+	if is_shiny(dvs):
+		return false
+	var total: int = 0
+	for shift: int in [12, 8, 4, 0]:
+		total += (dvs >> shift) & 0xf
+	return total >= EXCELLENT_TOTAL
 
 
 ## Where a wild may be PUT, which is every eligible cell with nobody in it. The

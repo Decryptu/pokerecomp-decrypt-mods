@@ -24,6 +24,25 @@ A shiny is shiny before the battle starts: its overworld icon uses the shiny
 palette and the cartridge's own shiny animation and sound play over it on spawn,
 then every ten seconds while it remains on the map.
 
+## The glow
+
+A wild whose four stored DVs total 50 or more of 60 breathes gold, so one worth
+a battle can be told from across a route. About one wild in sixty-five has it.
+
+The mark is the Pokemon's own four colours walked toward a light and back over
+eight tenths of a second, not anything drawn over it, which is why it can never
+be mistaken for the shiny sparkle and why both the pixel view and a mod's own
+renderer draw it through the palette path a shiny already takes.
+
+A shiny never wears it. Shininess pins three DVs at ten and caps ATTACK at
+fifteen, so forty-five is the most a shiny can total and the two marks are
+disjoint by the cartridge's own arithmetic rather than by a rule on top of it.
+`tools/overworld_encounters_probe.gd` reads all 65536 DV words and proves it.
+
+The glow changes nothing else. The DVs are the ones carried into the battle,
+the roll that made them is untouched, and a Pokemon caught without noticing its
+glow is the same Pokemon.
+
 ## Setting
 
 `VISIBLE` caps one map at 2, 4, 6, 8, 12 or 16 Pokemon. Six is the default. The
@@ -35,7 +54,9 @@ route when the whole of it is drawn.
 
 Species, levels, time-of-day rows, swarms, collision eligibility, DVs, palettes,
 animation and audio all come from the cartridge through the host. This mod owns
-only the deterministic population cap and roaming policy. Fishing, headbutt,
+only the deterministic population cap, the roaming policy, and which Pokemon is
+worth a glow; how far a glow is allowed to walk the colours is the host's, which
+is what bounds the sprite textures one costs. Fishing, headbutt,
 rock smash, the Bug Catching Contest, scripted encounters and stationary
 Pokemon keep their own paths.
 
