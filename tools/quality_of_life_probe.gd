@@ -112,6 +112,8 @@ func _stages() -> void:
 	_expect(rows.size() == 3, "only three non-zero stat stages are shown")
 	_expect((rows[0] as Dictionary).get("text", "") == "ATK2", "positive stage text")
 	_expect((rows[1] as Dictionary).get("text", "") == "DEF-1", "negative stage text")
+	_expect((rows[2] as Dictionary).get("at", Vector2i.ZERO) == Vector2i(1, 13),
+		"player stages stay inside the lower-left panel")
 	snapshot["hud_visible"] = false
 	_expect(_placements(snapshot).is_empty(), "stages hide with the battle HUD")
 	_switch(&"stat_stages", false)

@@ -37,7 +37,7 @@ const STAGE_LABELS: Dictionary = {
 ## above the enemy picture and inside the blank lower-left panel. The summaries
 ## yield those cells to the move list, whose type box occupies the lower panel.
 const ENEMY_STAGES_AT: Vector2i = Vector2i(13, 0)
-const PLAYER_STAGES_AT: Vector2i = Vector2i(1, 12)
+const PLAYER_STAGES_AT: Vector2i = Vector2i(1, 13)
 
 var _host: Gen2ModHost
 
@@ -81,7 +81,7 @@ func _effectiveness(snapshot: Dictionary) -> Array:
 
 func _stages(snapshot: Dictionary) -> Array:
 	if not bool(snapshot.get("hud_visible", false)) \
-		or String(snapshot.get("menu_stage", "")) == "move":
+		or String(snapshot.get("menu_stage", "")) != "main":
 		return []
 	var out: Array = []
 	if bool(snapshot.get("enemy_hud_visible", false)):
