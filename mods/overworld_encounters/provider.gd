@@ -6,6 +6,19 @@ extends RefCounted
 const Options := preload("options.gd")
 const Plan := preload("plan.gd")
 const SHINY_PULSE_FRAMES: int = 600
+## The glow a Pokemon with excellent DVs wears, which is its OWN four colours
+## walked toward a light and back rather than anything drawn over it: see
+## `README.md`. A shiny never wears one, which `plan.gd:is_excellent` decides.
+##
+## `GLOW_RUNGS` is not a matter of taste. Both renderers cache one sprite
+## texture per distinct set of four colours and neither evicts, so a glow that
+## interpolated freely would leave a texture behind on every frame for as long
+## as the map was up. Rounding half the cycle onto four rungs bounds it at five
+## textures a species, and the hardware had no colour between two rungs anyway.
+const GLOW_PERIOD_FRAMES: int = 48
+const GLOW_PEAK: float = 0.45
+const GLOW_RUNGS: int = 4
+const GLOW_COLOR := Color(1.0, 0.87, 0.35)
 ## A full cell every 1.6 seconds at the hardware's 60 frames per second. The
 ## actor seam names integer encounter cells, so moving faster reads as a chain
 ## of teleports and gives the player no practical route around one.
@@ -49,8 +62,11 @@ func advance_frame() -> void:
 	if _frame % MOVE_FRAMES == 0:
 		_roam()
 	var pulse: bool = _frame % SHINY_PULSE_FRAMES == 0
+	var amount: float = _glow_amount()
 	for entry: Dictionary in _entries:
 		entry["pulse"] = pulse
+		if Plan.is_excellent(int(entry.get("dvs", 0))):
+			entry["glow"] = {"color": GLOW_COLOR, "amount": amount}
 
 
 func encounters() -> Array:
@@ -67,6 +83,15 @@ func battle_finished(id: StringName, _result: Dictionary) -> void:
 func _on_option_changed(id: StringName, key: StringName, _value: Variant) -> void:
 	if id == _id and key == Options.MAXIMUM and not _context.is_empty():
 		_rebuild()
+
+
+## One frame of the breath, on the rungs the note above `GLOW_PEAK` explains. A
+## raised cosine, so a Pokemon spends most of the cycle near its own colours and
+## only passes through the top of it.
+func _glow_amount() -> float:
+	var phase: float = TAU * float(_frame % GLOW_PERIOD_FRAMES) / float(GLOW_PERIOD_FRAMES)
+	var raw: float = 0.5 * (1.0 - cos(phase))
+	return roundf(raw * float(GLOW_RUNGS)) / float(GLOW_RUNGS) * GLOW_PEAK
 
 
 ## The ladder is `options.gd`'s and is read from it, so a rung added there is a

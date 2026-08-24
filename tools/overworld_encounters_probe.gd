@@ -2,8 +2,9 @@ extends SceneTree
 
 ## Builds visible populations from real cartridge encounter tables and PRINTS
 ## them. One seed twice must be byte-identical, two seeds must differ, nobody
-## may stand where an object is, and the placement must be spread over the map
-## rather than gathered at one end of it.
+## may stand where an object is, the placement must be spread over the map
+## rather than gathered at one end of it, and no Pokemon may ever wear both the
+## shiny mark and the excellent-DV glow.
 
 const DEFAULT_SEED: int = 1234
 const OTHER_SEED: int = 5678
@@ -17,6 +18,10 @@ const ROAM_STEPS: int = 40
 const SPREAD_RUNS: int = 200
 const SPREAD_OCTILES: int = 8
 const SPREAD_RATIO: float = 1.5
+## Every DV word there is. The two marks are decided from this one number, so
+## the claim that they cannot be worn at once is settled by reading all of them
+## rather than by sampling.
+const DV_WORDS: int = 0x10000
 
 
 func _initialize() -> void:
@@ -89,6 +94,10 @@ func _initialize() -> void:
 		taken.size(), "yes" if clear_spawn else "NO",
 		ROAM_STEPS, "yes" if clear_roam else "NO",
 	])
+	# NO POKEMON WEARS BOTH MARKS. Every DV word is read, so this is the claim
+	# settled rather than sampled, and the provider is walked a whole cycle to
+	# prove it puts a glow on nobody else and stays on its own rungs.
+	var glow: Dictionary = _glow_survey(plan, provider_script, crowd)
 	var octiles: Array[int] = _octiles(plan, context)
 	var busiest: int = octiles.max()
 	var quietest: int = maxi(octiles.min(), 1)
@@ -96,13 +105,49 @@ func _initialize() -> void:
 	print("%d seeds by eighth of the map: %s, evenly spread %s" % [
 		SPREAD_RUNS, str(octiles), "yes" if spread else "NO",
 	])
+	print("%d DV words: %d shiny, %d excellent, both %d" % [
+		DV_WORDS, glow["shiny"], glow["excellent"], glow["both"],
+	])
+	print("a glow reaches only an excellent Pokemon: %s, on %d rungs: %s" % [
+		"yes" if bool(glow["only_excellent"]) else "NO",
+		glow["rungs"], "yes" if int(glow["rungs"]) <= provider_script.GLOW_RUNGS + 1 else "NO",
+	])
 	for entry: Dictionary in first:
 		print("  id %s cell %s species %d level %d dvs %04x%s" % [
 			String(entry["id"]), entry["cell"], int(entry["species"]), int(entry["level"]),
 			int(entry["dvs"]), " shiny" if plan.is_shiny(int(entry["dvs"])) else "",
 		])
 	quit(0 if first_text == again_text and first_text != other_text \
-		and before_pose == after_pose and clear_spawn and clear_roam and spread else 1)
+		and before_pose == after_pose and clear_spawn and clear_roam and spread \
+		and int(glow["both"]) == 0 and bool(glow["only_excellent"]) \
+		and int(glow["rungs"]) <= provider_script.GLOW_RUNGS + 1 else 1)
+
+
+## The two marks over every DV word there is, and one whole glow cycle out of a
+## live provider: who it reaches, and how many distinct strengths it spends.
+func _glow_survey(
+	plan: GDScript, provider_script: GDScript, provider: RefCounted
+) -> Dictionary:
+	var out: Dictionary = {"shiny": 0, "excellent": 0, "both": 0}
+	for dvs: int in DV_WORDS:
+		var shiny: bool = plan.is_shiny(dvs)
+		var excellent: bool = plan.is_excellent(dvs)
+		out["shiny"] = int(out["shiny"]) + (1 if shiny else 0)
+		out["excellent"] = int(out["excellent"]) + (1 if excellent else 0)
+		out["both"] = int(out["both"]) + (1 if shiny and excellent else 0)
+	var rungs: Dictionary = {}
+	var only_excellent: bool = true
+	for frame: int in int(provider_script.GLOW_PERIOD_FRAMES):
+		provider.advance_frame()
+		for entry: Dictionary in provider.encounters():
+			if not entry.has("glow"):
+				continue
+			if not plan.is_excellent(int(entry.get("dvs", 0))):
+				only_excellent = false
+			rungs[snappedf(float((entry["glow"] as Dictionary)["amount"]), 0.0001)] = true
+	out["only_excellent"] = only_excellent
+	out["rungs"] = rungs.size()
+	return out
 
 
 ## Where the picks land inside the candidate list, in eighths. The list is the
