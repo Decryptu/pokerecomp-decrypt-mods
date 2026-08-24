@@ -23,6 +23,14 @@
 # that does not exist and this said nothing, and two benchmark runs were spent on
 # a duplicate declaration for the same reason. `all` is both.
 #
+# A FAILURE NAMING A `game/` FILE IS NOT A MOD FAULT. Parsing resolves against
+# the game project's class index, which is a build cache and not committed, so a
+# `class_name` added to the game since the last editor scan does not resolve yet.
+# The error surfaces while parsing a mod and names the mod's file, which reads as
+# breakage here and is not. One scan of the game project clears it:
+#
+#   godot --headless --editor --path /path/to/pokerecomp --quit
+#
 #   tools/check.sh [mods|tools|all] [pokerecomp path]
 
 set -u
