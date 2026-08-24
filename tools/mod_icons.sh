@@ -44,3 +44,6 @@ paint linking_cord art:cord
 paint randomizer effect:question
 paint overworld_encounters "world:1:12:4,4,4,4:2" "species:19@8,6"
 paint quality_of_life effect:happy
+# One bold sparkle out of the battle animations' own SHINE sheet, with the
+# smaller twinkles trailing off it.
+paint shiny_charm "anim:17:0@13,9" "anim:15:0@8,16"

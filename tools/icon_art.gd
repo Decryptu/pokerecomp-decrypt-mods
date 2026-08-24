@@ -19,6 +19,7 @@ extends SceneTree
 ##   species:<number>         a party menu icon, first frame
 ##   sprite:<number>[:pal]    an overworld sprite's first frame, 16x16
 ##   tiles:<sheet>:<a,b,c>[:cols]   tiles out of a 1bpp strip by index
+##   anim:<gfx>:<a,b,c>[:cols]      tiles out of one `AnimObjGFX` row, by index
 ##   world:<group>:<number>:<a,b,c>[:cols]  map tiles, in that map's own colours
 ##   art:<name>               `tools/icon_art/<name>.txt`, drawn by hand
 ##
@@ -178,7 +179,23 @@ func _paint_layer(layer: String, side: int) -> bool:
 			var wanted: PackedStringArray = spec[2].split(",")
 			var cols: int = int(spec[3]) if spec.size() > 3 else wanted.size()
 			return _paint_picked(
-				_data.tile_indices(spec[1]), int(sheet["width"]), wanted, cols,
+				# The sheet's TILES, not its width: `_paint_picked` multiplies by
+				# TILE to reach the row stride, and `width` is already pixels.
+				_data.tile_indices(spec[1]), int(sheet["tiles"]), wanted, cols,
+				_bg, false, offset, side
+			)
+		"anim":
+			if spec.size() < 3:
+				return false
+			var strip: PackedByteArray = _data.battle_anim_gfx_indices(int(spec[1]))
+			if strip.is_empty():
+				return false
+			var picked: PackedStringArray = spec[2].split(",")
+			@warning_ignore("integer_division")
+			var held: int = int(strip.size() / (TILE * TILE))
+			return _paint_picked(
+				strip, held, picked,
+				int(spec[3]) if spec.size() > 3 else picked.size(),
 				_bg, false, offset, side
 			)
 		"world":
