@@ -47,8 +47,12 @@ It is off by default because the cartridge hides these to be looked for.
 
 The mod names a cell and never takes anything. The host writes the bag, the
 event flag and the save, and runs its own `verbosegiveitem` with the FOUND text,
-the fanfare and the pack-full branch. A cell the world refused is not asked for
-again until the map changes; a cell it accepted answers `taken` from then on.
+the fanfare and the pack-full branch.
+
+It asks once each time the follower arrives somewhere, which is the cartridge's
+own unit: one attempt per step. So an item it found while the pack was full is
+found again the next time the follower walks there, rather than being lost for
+the rest of the map.
 
 ## Settings and the control
 
