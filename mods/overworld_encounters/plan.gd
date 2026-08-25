@@ -7,7 +7,6 @@ extends RefCounted
 const Rng := preload("rng.gd")
 const GRASS_WEIGHTS: Array[int] = [30, 30, 20, 10, 5, 4, 1]
 const SURF_WEIGHTS: Array[int] = [60, 30, 10]
-const SHINY_ATTACK: Array[int] = [2, 3, 6, 7, 10, 11, 14, 15]
 ## What a Pokemon has to total over its four stored DVs to be worth a glow, out
 ## of sixty. A shiny cannot reach it: three of its DVs are pinned at ten and its
 ## ATTACK caps at fifteen, so forty-five is the most a shiny totals.
@@ -48,12 +47,13 @@ static func build(
 	return out
 
 
+## `CheckShininess`, which is the HOST's answer and not a rule this mod may hold
+## a copy of: the same call `Gen2WorldEncounters` stamps each entry's `shiny`
+## with, so what this file exempts and what the player is shown a sparkle for
+## can never come apart. It read the four DVs itself until 0.3.1 and agreed by
+## luck rather than by construction.
 static func is_shiny(dvs: int) -> bool:
-	var attack: int = (dvs >> 12) & 0xf
-	var defense: int = (dvs >> 8) & 0xf
-	var speed: int = (dvs >> 4) & 0xf
-	var special: int = dvs & 0xf
-	return defense == 10 and speed == 10 and special == 10 and attack in SHINY_ATTACK
+	return Gen2Stats.is_shiny(dvs)
 
 
 ## Whether this one wears the glow: high enough over the four stored DVs and not
