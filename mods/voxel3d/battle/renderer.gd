@@ -389,16 +389,38 @@ func _frame_camera() -> void:
 
 ## A move animation's scanline wobble, read as one displacement.
 ##
-## `raster_scy` is the background's vertical scroll, one value per scanline, asked
-## for only by a battle animation. A flat screen answers it row by row; a diorama
-## has no rows, so what is taken is how far the picture has moved, which the arena
-## shakes the whole shot by.
+## `raster_scx` and `raster_scy` are the background's own scroll, one value per
+## scanline, asked for only by a battle animation. A flat screen answers them row
+## by row; a diorama has no rows, so what is taken is how far the picture has
+## moved, which the arena shakes the whole shot by.
 ##
-## An offset is a distance to look down into a background map 256 pixels tall, so
-## the top half of that range is a shift up and the rest wraps as a shift down. The
-## mean over the rows the window covers is the displacement.
-func _raster_shake() -> float:
-	var rows: PackedInt32Array = PackedInt32Array(_view.get("raster_scy", []))
+## Both axes, because most of the screen shakes are sideways: `WobbleScreen`,
+## `Tackle` and `BodySlam` all write `raster_scx` and nothing else, and reading
+## only the vertical left them moving nothing at all.
+##
+## This is the WHOLE screen. A deformation of one battler is not in it: the
+## `battlers` block carries that in its own `offset_pixels`, already spent per
+## picture in [method _pin].
+##
+## Nothing is spent during the opening. There `raster_scx` is the intro's own
+## bands, which is the two pictures sliding in opposite directions, and the
+## `battlers` block is already carrying that slide per picture: shaking the camera
+## by it as well would move the shot AND slide each battler twice. `grayscale` is
+## true for exactly that stretch, which is what marks it.
+func _raster_shake() -> Vector2:
+	if _graying():
+		return Vector2.ZERO
+	return Vector2(
+		_raster_mean(_view.get("raster_scx", [])),
+		_raster_mean(_view.get("raster_scy", []))
+	)
+
+
+## An offset is a distance to look further into a background map 256 pixels each
+## way, so the top half of that range is a shift one way and the rest wraps as a
+## shift the other. The mean over the rows the window covers is the displacement.
+func _raster_mean(supplied: Variant) -> float:
+	var rows := PackedInt32Array(supplied)
 	if rows.is_empty():
 		return 0.0
 	var total: int = 0
@@ -426,82 +448,88 @@ func _frame_stretch() -> float:
 ## crisp, and the rig was solved to land those patches in the hardware's own picture
 ## slots, so nothing here wanders under a panel.
 ##
-## What stands on each square is the host's answer: see [method _place_entrance].
-## A view built by a probe or a tool carries no entrance and takes the settled
-## pair.
+## What stands on each square is the host's answer: see [method _place_pair].
 func _place_battlers() -> void:
 	_stage.begin_shadow_casters()
-	var entrance: Variant = _view.get("entrance", null)
-	var slot: int = _place_entrance(entrance as Dictionary) \
-		if entrance is Dictionary else _place_settled()
+	var slot: int = _place_pair(_battlers_block())
 	for index: int in range(slot, _battlers.size()):
 		_battlers[index].visible = false
 	_stage.end_shadow_casters()
 
 
-## The fight does not open with two Pokemon on the field, and for one release this
-## view opened with exactly that.
-##
-## Two trainers slide in from opposite sides, the opponent sends out first, the
-## player's picture walks off, and a ball puts a Pokemon where each was standing.
-## `view["entrance"]` is that state resolved for a renderer with no background plane
-## to read it off: what each square holds and how far the picture stands from its
-## resting place. See `docs/MODS.md` in pokerecomp.
+## `view["battlers"]`, or the settled pair a hand-built view means by carrying
+## none. One block and one drawing path: staging the pair any other way is how
+## the substitute doll went unreachable for a release, since the block is in
+## every view a live fight ever pushes.
+func _battlers_block() -> Dictionary:
+	var supplied: Variant = _view.get("battlers", null)
+	if supplied is Dictionary:
+		return supplied
+	return {
+		"enemy": _settled_side(int(_view.get("enemy_species", 0))),
+		"player": _settled_side(int(_view.get("player_species", 0))),
+	}
+
+
+func _settled_side(species: int) -> Dictionary:
+	return {"kind": KIND_MON, "species": species, "visible": true}
+
+
+## The fight does not open with two Pokemon on the field, and nothing that
+## happens to a battler after that opening is any different: a faint sinks the
+## picture, a Fly blanks it, a recall shrinks it into a ball and a Tackle lunges
+## it. `view["battlers"]` is all of that resolved for a renderer with no
+## background plane to read it off. See `docs/MODS.md` in pokerecomp.
 ##
 ## The displacement is spent in hardware pixels across the screen rather than as a
-## walk over the ground: the cartridge slides a picture, not a person.
+## walk over the ground: the cartridge moves a picture, not a person.
 ##
 ## The opponent standing behind their Pokemon for the rest of the fight is this
 ## view's own staging and waits for the send-out, since during the entrance the
 ## class picture is on the square the Pokemon will take.
-func _place_entrance(entrance: Dictionary) -> int:
-	var enemy: Dictionary = entrance.get("enemy", {})
-	var player: Dictionary = entrance.get("player", {})
+func _place_pair(battlers: Dictionary) -> int:
+	var enemy: Dictionary = battlers.get("enemy", {})
+	var player: Dictionary = battlers.get("player", {})
 	var slot: int = 0
-	if StringName(enemy.get("kind", ENTRANCE_NONE)) == ENTRANCE_MON \
+	if StringName(enemy.get("kind", KIND_NONE)) == KIND_MON \
 			and StringName(_view.get("battle_kind", &"wild")) == &"trainer":
 		slot = _pin(
 			slot, _trainer_pic(int(_view.get("trainer_class", 0))),
 			_arena.enemy_trainer_ground()
 		)
-	slot = _pin(
-		slot, _entrance_pic(enemy, false), _arena.enemy_ground(),
-		Vector2(enemy.get("offset_pixels", Vector2.ZERO))
-	)
+	slot = _pin_side(slot, enemy, false, _arena.enemy_ground())
+	return _pin_side(slot, player, true, _arena.player_ground())
+
+
+## One side of the block, pinned with everything it says about its picture.
+## `visible` is not `kind`: `none` is a square nobody stands on and invisible is a
+## picture taken off one somebody does, which is a Fly or a recall.
+func _pin_side(slot: int, side: Dictionary, back: bool, ground: Vector3) -> int:
+	if not bool(side.get("visible", true)):
+		return slot
 	return _pin(
-		slot, _entrance_pic(player, true), _arena.player_ground(),
-		Vector2(player.get("offset_pixels", Vector2.ZERO))
+		slot, _side_pic(side, back), ground,
+		Vector2(side.get("offset_pixels", Vector2.ZERO)),
+		Vector2(side.get("scale", Vector2.ONE))
 	)
-
-
-## Both Pokemon on their squares and the opponent behind theirs, which is every
-## frame of a fight past its entrance and the whole of what a hand-built view
-## from `tools/battle_shot.gd` ever asks for.
-func _place_settled() -> int:
-	var slot: int = 0
-	if StringName(_view.get("battle_kind", &"wild")) == &"trainer":
-		slot = _pin(
-			slot, _trainer_pic(int(_view.get("trainer_class", 0))),
-			_arena.enemy_trainer_ground()
-		)
-	slot = _pin(slot, _battler_pic(false), _arena.enemy_ground())
-	return _pin(slot, _battler_pic(true), _arena.player_ground())
 
 
 ## What one side's square holds. `none` is the stretch between a trainer walking
 ## off and the ball arriving, and it is a state only the opponent's side reaches
 ## at a frame boundary: `SendOutMonText` ends in `done`, so the player's last
 ## slide column and the stamp land in one frame.
-const ENTRANCE_NONE: StringName = &"none"
-const ENTRANCE_TRAINER: StringName = &"trainer"
-const ENTRANCE_MON: StringName = &"mon"
+const KIND_NONE: StringName = &"none"
+const KIND_TRAINER: StringName = &"trainer"
+const KIND_MON: StringName = &"mon"
 
 
-func _entrance_pic(side: Dictionary, back: bool) -> Texture2D:
-	match StringName(side.get("kind", ENTRANCE_NONE)):
-		ENTRANCE_MON:
-			return _pic(int(side.get("species", 0)), back)
-		ENTRANCE_TRAINER:
+## `species` here is the same field the substitute flag is keyed against, so the
+## doll is reachable from the one path that draws anything.
+func _side_pic(side: Dictionary, back: bool) -> Texture2D:
+	match StringName(side.get("kind", KIND_NONE)):
+		KIND_MON:
+			return _battler_pic(back) if int(side.get("species", 0)) > 0 else null
+		KIND_TRAINER:
 			if back:
 				return _backpic(String(side.get("backpic", "")))
 			return _trainer_pic(int(side.get("trainer_class", 0)))
@@ -535,23 +563,47 @@ func _backpic(kind: String) -> Texture2D:
 ## in the hardware slot the rig was solved for.
 ##
 ## [param offset] is how far the picture stands from that patch, in hardware pixels
-## across the screen, and is zero outside an entrance. A picture part way off the
-## field casts nothing, since the sun sees a card standing on the ground.
+## across the screen, and [param picture_scale] is how much of itself the picture is: the
+## resize script's ball shrink of a recall and grow of a send-out. Both come
+## straight out of the view's `battlers` block.
+##
+## A shrink is anchored where a card is, feet on the ground and middle over it, so
+## a recall collapses onto the point the ball is thrown at.
 func _pin(
-	slot: int, texture: Texture2D, ground: Vector3, offset: Vector2 = Vector2.ZERO
+	slot: int, texture: Texture2D, ground: Vector3,
+	offset: Vector2 = Vector2.ZERO, picture_scale: Vector2 = Vector2.ONE
 ) -> int:
 	if texture == null:
 		return slot
 	var at: Vector2 = _stage.camera.unproject_position(ground)
-	var drawn := Vector2(texture.get_size()) * float(_hud_scale())
+	var drawn := Vector2(texture.get_size()) * float(_hud_scale()) * picture_scale
+	if drawn.x < 1.0 or drawn.y < 1.0:
+		return slot
 	var rect: TextureRect = _battler(slot)
 	rect.texture = texture
 	rect.size = drawn
 	rect.position = at - Vector2(drawn.x * 0.5, drawn.y) + offset * float(_hud_scale())
 	rect.visible = true
-	if offset.is_zero_approx():
+	if _stands_on_its_square(offset, picture_scale):
+		# Scale one is the only state that casts, so this is the picture's own
+		# height either way.
 		_stage.add_shadow_caster(texture, ground, _caster_scale(ground, texture.get_height()))
 	return slot + 1
+
+
+## Whether the sun should see a card there at all.
+##
+## The window effects throw a picture a few pixels and it keeps its footing: a
+## Tackle lunges, a Wobble shakes, a Psychic stretches. The opening slide, a faint
+## sink and a `RemoveMon` push carry it tens of pixels off instead, and a shadow
+## left standing under a picture that has gone is a shadow under nothing. One tile
+## is the line between them, since a faint's first step is exactly one.
+const SHADOW_OFFSET_LIMIT: float = float(Gen2Tiles.TILE_WIDTH)
+
+
+func _stands_on_its_square(offset: Vector2, picture_scale: Vector2) -> bool:
+	return offset.length() < SHADOW_OFFSET_LIMIT \
+		and picture_scale.is_equal_approx(Vector2.ONE)
 
 
 ## How big a card standing on [param ground] has to be for the sun to see the same
@@ -658,14 +710,24 @@ func _pic(species: int, back: bool) -> Texture2D:
 	# and everything else out of the species table. That atlas counts from zero
 	# and a letter counts from one, which is the subtraction.
 	var unown: bool = species == RomLayout.UNOWN_SPECIES and form > 0
+	var shiny: bool = _shiny(back)
 	return _texture(
-		"%d:%d:%d:%d:%d" % [species, form, 1 if back else 0, dmg, 1 if _graying() else 0],
+		"%d:%d:%d:%d:%d:%d" % [
+			species, form, 1 if back else 0, dmg,
+			1 if _graying() else 0, 1 if shiny else 0,
+		],
 		_data.unown_pic(form - 1, back) if unown else _data.species_pic(species, back),
-		_battler_palette(_data.palette(species), dmg),
+		_battler_palette(_data.palette(species, shiny), dmg),
 	)
 
 
-## One settled side's picture, which is the doll rather than the animal while a
+## `CGB_BattleColors` reads `CheckShininess` on both sides, so a shiny is drawn
+## in its own palette rather than the species table's.
+func _shiny(back: bool) -> bool:
+	return bool(_view.get("player_shiny" if back else "enemy_shiny", false))
+
+
+## One side's picture, which is the doll rather than the animal while a
 ## substitute is up. `SPRITE_MONSTER`'s own overworld strip is what the cartridge
 ## builds that doll out of, so the battle draws a walking sprite.
 func _battler_pic(back: bool) -> Texture2D:
@@ -683,8 +745,9 @@ func _substitute_pic(species: int, back: bool) -> Texture2D:
 	if _data == null:
 		return null
 	var dmg: int = _palette_map(PAL_BG_PLAYER if back else PAL_BG_ENEMY)
-	var key: String = "sub:%d:%d:%d:%d" % [
-		species, 1 if back else 0, dmg, 1 if _graying() else 0
+	var shiny: bool = _shiny(back)
+	var key: String = "sub:%d:%d:%d:%d:%d" % [
+		species, 1 if back else 0, dmg, 1 if _graying() else 0, 1 if shiny else 0
 	]
 	if _pic_textures.has(key):
 		return _pic_textures[key]
@@ -698,7 +761,7 @@ func _substitute_pic(species: int, back: bool) -> Texture2D:
 	if pixels.size() < box * box:
 		return null
 	var image: Image = _image(
-		pixels, box, box, _battler_palette(_data.palette(species), dmg)
+		pixels, box, box, _battler_palette(_data.palette(species, shiny), dmg)
 	)
 	if image == null:
 		return null
@@ -850,12 +913,18 @@ func _field(pixels: PackedByteArray, width: int, height: int) -> PackedByteArray
 ## the ball has landed. `enemy_hud_visible` and `player_hud_visible` are the host's
 ## answer per side, against `hud_visible`'s summary of both. A view carrying neither
 ## is a settled fight and takes both.
+##
+## The last two are `BattleStart_TrainerHuds`, the party balls and the frame they
+## hang in, which are up only while a trainer fight is opening and are how a
+## player reads how much of each team is left before the first move.
 const HUD_ENEMY_PANEL: int = 0
 const HUD_PLAYER_PANEL: int = 1
 const HUD_ENEMY_BAR: int = 2
 const HUD_PLAYER_BAR: int = 3
 const HUD_EXP_BAR: int = 4
-const HUD_LAYERS: int = 5
+const HUD_TRAINER_BORDER: int = 5
+const HUD_TRAINER_BALLS: int = 6
+const HUD_LAYERS: int = 7
 
 
 func _draw_hud() -> void:
@@ -910,6 +979,76 @@ func _draw_hud() -> void:
 		_hud_layers[HUD_PLAYER_PANEL].texture = null
 		_hud_layers[HUD_PLAYER_BAR].texture = null
 		_hud_layers[HUD_EXP_BAR].texture = null
+
+	_draw_trainer_hud(up, ink)
+
+
+## `DrawPlayerPartyIconHUDBorder`, `DrawEnemyHUDBorder` and `LoadTrainerHudOAM`:
+## six ball icons a side saying how much of each team is well, and the frame they
+## hang in. Both are empty once the fight has started, so this draws nothing for
+## all but the opening of a trainer battle.
+##
+## The frame is background tiles, in the panels' own ink. The balls are OBJECTS,
+## on `PAL_BATTLE_OB_YELLOW`, which is why they are a layer of their own: an
+## object is not part of the background plane and carries neither its palette nor
+## its scroll.
+func _draw_trainer_hud(up: bool, ink: PackedColorArray) -> void:
+	var border: Array = _view.get("trainer_hud_border", []) as Array
+	if up and not border.is_empty():
+		var frame: PackedByteArray = _buffer()
+		for entry: Variant in border:
+			if entry is Dictionary:
+				var cell: Dictionary = entry
+				_hud.tiles.draw(
+					int(cell.get("tile", 0)), frame, Gen2Screen.WIDTH,
+					int(cell.get("x", 0)) * TILE, int(cell.get("y", 0)) * TILE
+				)
+		_show(HUD_TRAINER_BORDER, frame, ink)
+	else:
+		_hud_layers[HUD_TRAINER_BORDER].texture = null
+
+	var balls: Array = _view.get("trainer_hud_balls", []) as Array
+	if not up or balls.is_empty() or _data == null:
+		_hud_layers[HUD_TRAINER_BALLS].texture = null
+		return
+	var sheet: PackedByteArray = _data.tile_indices(BALL_ICON_SHEET)
+	var width: int = int(_data.tile_sheet(BALL_ICON_SHEET).get("width", 0))
+	if width <= 0:
+		_hud_layers[HUD_TRAINER_BALLS].texture = null
+		return
+	var into: PackedByteArray = _buffer()
+	for entry: Variant in balls:
+		if entry is Dictionary:
+			_blit_ball(into, entry, sheet, width)
+	_show(
+		HUD_TRAINER_BALLS, into,
+		_data.battle_object_palette(Gen2BattleAnimBackground.PAL_OB_YELLOW)
+	)
+
+
+## `LoadBallIconGFX`' four tiles: well, fainted, statused and the empty slot.
+const BALL_ICON_SHEET: String = "ball_icons"
+const TILE: int = 8
+
+
+## One ball, at the pixel position the OAM entry names.
+func _blit_ball(
+	into: PackedByteArray, ball: Dictionary, sheet: PackedByteArray, width: int
+) -> void:
+	var tile: int = int(ball.get("tile", 0))
+	var left: int = int(ball.get("x", 0))
+	var top: int = int(ball.get("y", 0))
+	for row: int in TILE:
+		var y: int = top + row
+		if y < 0 or y >= Gen2Screen.HEIGHT:
+			continue
+		var from: int = row * width + tile * TILE
+		var to: int = y * Gen2Screen.WIDTH + left
+		for column: int in TILE:
+			var x: int = left + column
+			if x < 0 or x >= Gen2Screen.WIDTH or from + column >= sheet.size():
+				continue
+			into[to + column] = sheet[from + column]
 
 
 ## The move animation, over everything. `anim.gd` turns the view's OAM into one

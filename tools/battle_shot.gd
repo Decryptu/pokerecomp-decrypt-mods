@@ -16,12 +16,16 @@ extends SceneTree
 ##       <number> <cell x> <cell y> <out.png> [facing 0-3] [time 0-3] \
 ##       [player species] [enemy species] [hold frames] [hp 0-1] \
 ##       [anim index] [anim frame] [enemy turn 0-1] [background half 0-1] \
-##       [entrance] [doll none|enemy|player|both] [unown form 1-26]
+##       [moment] [doll none|enemy|player|both] [unown form 1-26] \
+##       [shiny none|enemy|player|both]
 ##
-## AN ENTRANCE IS A MOMENT, not a frame count: `slide` is both pictures part way
-## in, `stand` is both standing, `walkoff` is the player's picture leaving with
-## the opponent's Pokemon already out, and `sent` is the stretch with the
-## opponent's square empty. See [method _entrance].
+## A MOMENT IS A STATE, not a frame count: `fight` is the settled pair and
+## the default, `slide` is both pictures part way in, `stand` is both standing,
+## `walkoff` is the player's picture leaving with the opponent's Pokemon already
+## out, `sent` is the stretch with the opponent's square empty, and `faint`,
+## `gone` and `recall` are the three states past the entrance: the sink of
+## `MonFaintedAnimation`, the blank of `BattleBGEffect_HideMon` that a Fly or a
+## Dig leaves, and the ball shrink of a resize script. See [method _battlers].
 ##
 ## A MOVE ANIMATION IS RUN HEADLESS rather than mocked up, which is what makes
 ## open work 7 checkable at all. `Gen2BattleAnimPlayer` is the cartridge's own
@@ -67,7 +71,7 @@ func _initialize() -> void:
 		print("usage: <cache> <group> <number> <cell x> <cell y> <out.png>"
 			+ " [facing 0-3] [time 0-3] [player species] [enemy species]"
 			+ " [hold frames] [hp 0-1] [anim index] [anim frame]"
-			+ " [enemy turn 0-1] [background half 0-1] [entrance]"
+			+ " [enemy turn 0-1] [background half 0-1] [moment]"
 			+ " [doll none|enemy|player|both] [unown form 1-26]")
 		quit(1)
 		return
@@ -137,6 +141,10 @@ func _initialize() -> void:
 	_view["enemy_substitute"] = doll == "enemy" or doll == "both"
 	_view["player_substitute"] = doll == "player" or doll == "both"
 
+	var shiny: String = args[19] if args.size() > 19 else "none"
+	_view["enemy_shiny"] = shiny == "enemy" or shiny == "both"
+	_view["player_shiny"] = shiny == "player" or shiny == "both"
+
 	var form: int = clampi(int(args[18]) if args.size() > 18 else 0, 0, 26)
 	if form > 0:
 		_view["enemy_species"] = RomLayout.UNOWN_SPECIES
@@ -146,14 +154,16 @@ func _initialize() -> void:
 	_view["enemy_unown_form"] = form
 	_view["player_unown_form"] = form
 
-	var moment: String = args[16] if args.size() > 16 else ""
-	if not moment.is_empty():
-		var entrance: Dictionary = _entrance(moment, data)
-		if entrance.is_empty():
-			print("no entrance moment ", moment)
-			quit(1)
-			return
-		_view["entrance"] = entrance
+	var moment: String = args[16] if args.size() > 16 else "fight"
+	var battlers: Dictionary = _battlers(moment, data)
+	if battlers.is_empty():
+		print("no battler moment ", moment)
+		quit(1)
+		return
+	_view["battlers"] = battlers
+	# The intro's own staging, and only the intro's: a state past the entrance is
+	# a fight in colour with nobody standing behind the opponent's square.
+	if moment in INTRO_MOMENTS:
 		# True for the whole of the intro, which is what the screen answers.
 		_view["grayscale"] = true
 		_view["battle_kind"] = &"trainer"
@@ -162,9 +172,13 @@ func _initialize() -> void:
 		# The two panels arrive with the Pokemon they describe, so neither is up
 		# while a trainer is still standing on the square.
 		_view["enemy_hud_visible"] = \
-			StringName(entrance["enemy"]["kind"]) == &"mon"
+			StringName(battlers["enemy"]["kind"]) == &"mon"
 		_view["player_hud_visible"] = \
-			StringName(entrance["player"]["kind"]) == &"mon"
+			StringName(battlers["player"]["kind"]) == &"mon"
+		# `BattleStart_TrainerHuds`, which is up for the whole opening of a
+		# trainer fight and empty the moment it starts.
+		_view["trainer_hud_balls"] = _hud_balls()
+		_view["trainer_hud_border"] = _hud_border()
 
 	var anim_index: int = int(args[12]) if args.size() > 12 else 0
 	if anim_index > 0:
@@ -179,13 +193,59 @@ func _initialize() -> void:
 ## The player's own picture, and a class to stand opposite it. Neither is read
 ## off a save here: this tool builds a view rather than running a battle.
 const PLAYER_BACKPIC: String = "chris"
+## The moments `Gen2BattleScreen` runs before the fight starts.
+const INTRO_MOMENTS: PackedStringArray = ["slide", "stand", "sent", "walkoff"]
 const TRAINER_CLASS: int = 1
 
 
-## One named moment of `view["entrance"]`, which is `Gen2BattleScreen`'s own
+## `BattleStart_TrainerHuds`' party balls and the frame they hang in, off
+## `Gen2BattleScreen`'s own constants rather than a second copy of them. A full
+## team of six a side, since a tool has no party to count.
+func _hud_balls() -> Array:
+	var out: Array = []
+	for player_side: bool in [false, true]:
+		var at: Vector2i = Gen2BattleScreen.HUD_BALL_AT[player_side]
+		var step: int = int(Gen2BattleScreen.HUD_BALL_STEP[player_side])
+		for slot: int in Gen2Party.MAX_SIZE:
+			out.append({
+				"x": at.x + slot * step, "y": at.y,
+				"tile": Gen2BattleScreen.HUD_BALL_NORMAL,
+			})
+	return out
+
+
+func _hud_border() -> Array:
+	var out: Array = []
+	for player_side: bool in [false, true]:
+		var at: Vector2i = Gen2BattleScreen.HUD_BORDER_AT[player_side]
+		var tiles: Array = Gen2BattleScreen.HUD_BORDER_TILES[player_side]
+		var direction: int = 1 if player_side else -1
+		var edge: int = Gen2BattleScreen.HUD_BORDER_EDGE
+		out.append({"x": at.x, "y": at.y, "tile": int(tiles[0])})
+		out.append({"x": at.x, "y": at.y + 1, "tile": int(tiles[1])})
+		for index: int in edge:
+			out.append({
+				"x": at.x - (index + 1) * direction, "y": at.y + 1,
+				"tile": int(tiles[3]),
+			})
+		out.append({
+			"x": at.x - (edge + 1) * direction, "y": at.y + 1, "tile": int(tiles[2]),
+		})
+	return out
+
+
+## One settled side of the block, which every moment builds from.
+func _mon_side(species: int) -> Dictionary:
+	return {
+		"kind": &"mon", "backpic": "", "trainer_class": 0, "species": species,
+		"visible": true, "offset_pixels": Vector2.ZERO, "scale": Vector2.ONE,
+	}
+
+
+## One named moment of `view["battlers"]`, which is `Gen2BattleScreen`'s own
 ## shape. The slide's displacement comes from `Gen2BattleIntro` rather than from
 ## a number chosen here, so a picture is where the cartridge would have put it.
-func _entrance(moment: String, data: GameData) -> Dictionary:
+func _battlers(moment: String, data: GameData) -> Dictionary:
 	var trainer := {
 		"kind": &"trainer", "backpic": PLAYER_BACKPIC, "trainer_class": 0,
 		"species": 0, "offset_pixels": Vector2.ZERO,
@@ -199,6 +259,14 @@ func _entrance(moment: String, data: GameData) -> Dictionary:
 		"species": int(_view["enemy_species"]), "offset_pixels": Vector2.ZERO,
 	}
 	match moment:
+		"fight":
+			# Every view of a live fight carries a battlers block, settled or
+			# not, so this is the default: photographing the pair any other way
+			# takes a path the game never reaches.
+			return {
+				"player": _mon_side(int(_view["player_species"])),
+				"enemy": mon,
+			}
 		"slide":
 			var intro: Gen2BattleIntro = Gen2BattleIntro.for_data(data)
 			for _step: int in intro.frames() / 2:
@@ -216,6 +284,23 @@ func _entrance(moment: String, data: GameData) -> Dictionary:
 					"species": 0, "offset_pixels": Vector2.ZERO,
 				},
 			}
+		"faint":
+			# `MonFaintedAnimation`: seven steps of one tile row, and the whole
+			# sink is the picture's own seven rows.
+			mon["offset_pixels"] = Vector2(
+				0.0, float(Gen2BattleScreenMap.FAINT_ROWS * Gen2Tiles.TILE_WIDTH) * 0.5
+			)
+			return {"player": _mon_side(int(_view["player_species"])), "enemy": mon}
+		"gone":
+			# `BattleBGEffect_HideMon`, which is what a Fly or a Dig leaves behind.
+			var hidden: Dictionary = _mon_side(int(_view["player_species"]))
+			hidden["visible"] = false
+			return {"player": hidden, "enemy": mon}
+		"recall":
+			# `BattleBGEffect_RunPicResizeScript` part way through a return.
+			var shrinking: Dictionary = _mon_side(int(_view["player_species"]))
+			shrinking["scale"] = Vector2(0.4, 0.4)
+			return {"player": shrinking, "enemy": mon}
 		"walkoff":
 			trainer["offset_pixels"] = Vector2(
 				-float(Gen2Tiles.TILE_WIDTH * 4), 0.0
@@ -281,25 +366,21 @@ func _load_anim(
 		_view["bg_palette_maps"] = maps
 		_view["ob_palette_maps"] = player.background().ob_palette_maps
 	# THE SCANLINE WOBBLE, built the way `battle_screen.gd:_anim_raster` builds
-	# it: the animation's own `hSCY` on every line, replaced by the scanline
-	# table wherever it has opened a window on that register. Without it the view
-	# says no move ever wobbles, and the camera shake this drives cannot be
-	# checked at all. A still cannot SHOW a shake; what it can show is that the
+	# it: the animation's own `hSCX` and `hSCY` on every line, replaced by the
+	# scanline table wherever it has opened a window on that register. Without it
+	# the view says no move ever wobbles, and the camera shake this drives cannot
+	# be checked at all. A still cannot SHOW a shake; what it can show is that the
 	# shot moved between two frames of the same move, which is the whole of what
 	# there is to verify.
-	var wobble := PackedInt32Array()
+	#
+	# Both axes, because most of the screen shakes are sideways: `WobbleScreen`,
+	# `Tackle` and `BodySlam` write `hSCX` and leave `hSCY` alone.
 	var scene: Gen2BattleAnimBackground = player.background()
-	var windowed: bool = scene.lcdc_pointer == Gen2BattleAnimBackground.LCDC_SCY
-	if scene.scy != 0 or windowed:
-		wobble.resize(Gen2BattleAnimBackground.SCREEN_LINES)
-		for line: int in Gen2BattleAnimBackground.SCREEN_LINES:
-			wobble[line] = int(scene.ly_overrides[line]) if windowed else scene.scy
-	_view["raster_scy"] = wobble
-	var shake: float = 0.0
-	for line: int in wobble.size():
-		shake += float(wobble[line] if wobble[line] < 128 else wobble[line] - 256)
-	if not wobble.is_empty():
-		shake = -shake / float(wobble.size())
+	var across: PackedInt32Array = _wobble(scene, Gen2BattleAnimBackground.LCDC_SCX)
+	var down: PackedInt32Array = _wobble(scene, Gen2BattleAnimBackground.LCDC_SCY)
+	_view["raster_scx"] = across
+	_view["raster_scy"] = down
+	var shake := Vector2(_shake_of(across), _shake_of(down))
 	# `BattleAnimClearHud` takes the panels and both bars off for the length of a
 	# move, so a shot of one that leaves them up is not a picture of the game.
 	_view["hud_visible"] = false
@@ -308,7 +389,33 @@ func _load_anim(
 		written += "%02x " % maps[slot]
 	print("anim ", index, " frame ", frame, ": ",
 		(player.sprites() as Array).size(), " sprites, bg pals ", written,
-		", shake ", "%.2f" % shake, " hardware px")
+		", shake ", "%.2f, %.2f" % [shake.x, shake.y], " hardware px")
+
+
+## One register's scanline table: the animation's own scroll on every line,
+## replaced by the window wherever it has opened one on that register.
+func _wobble(scene: Gen2BattleAnimBackground, register: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	var base: int = scene.scx if register == Gen2BattleAnimBackground.LCDC_SCX \
+		else scene.scy
+	var windowed: bool = scene.lcdc_pointer == register
+	if base == 0 and not windowed:
+		return out
+	out.resize(Gen2BattleAnimBackground.SCREEN_LINES)
+	for line: int in Gen2BattleAnimBackground.SCREEN_LINES:
+		out[line] = int(scene.ly_overrides[line]) if windowed else base
+	return out
+
+
+## The same mean the renderer takes, so the number printed here is the number the
+## camera is shaken by.
+func _shake_of(rows: PackedInt32Array) -> float:
+	if rows.is_empty():
+		return 0.0
+	var total: float = 0.0
+	for row: int in rows:
+		total += float(row if row < 128 else row - 256)
+	return -total / float(rows.size())
 
 
 func _process(_delta: float) -> bool:
