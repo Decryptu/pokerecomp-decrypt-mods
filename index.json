@@ -25,20 +25,20 @@
 		{
 			"id": "follower",
 			"name": "Follower",
-			"version": "0.3.2",
+			"version": "0.3.3",
 			"games": ["gold", "silver", "crystal"],
 			"description": "One of your Pokemon walks behind you, drawn with its own party icon. Pick which one from its party menu, choose whether it stays out on a bike or on water, and put it away with one key. Face it and press A to pet it. It can also pick up hidden items.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.3.2/follower-0.3.2.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.3.3/follower-0.3.3.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/follower/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/follower/thumbnail.webp"
 		},
 		{
 			"id": "overworld_encounters",
 			"name": "Overworld Encounters",
-			"version": "0.3.0",
+			"version": "0.4.0",
 			"games": ["gold", "silver", "crystal"],
-			"description": "Wild Pokemon walk around on the map instead of appearing during random steps. Up to sixteen per map, taken from that map's own encounter table. Shinies are visible before the battle, and Pokemon with very high DVs glow gold.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.3.0/overworld_encounters-0.3.0.zip",
+			"description": "Wild Pokemon walk around on the map instead of appearing during random steps. Up to sixteen per map, taken from that map's own encounter table. Each one leaves after half a minute and another takes its place, so a route keeps rolling new Pokemon while you stand on it. Shinies never leave, and Pokemon with very high DVs glow gold.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.4.0/overworld_encounters-0.4.0.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/overworld_encounters/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/overworld_encounters/thumbnail.webp"
 		},
@@ -65,10 +65,10 @@
 		{
 			"id": "quality_of_life",
 			"name": "Quality of Life",
-			"version": "0.1.2",
+			"version": "0.1.3",
 			"games": ["gold", "silver", "crystal"],
 			"description": "Seven conveniences, each with its own switch and all off by default: field moves without a Pokemon that knows them, Repel renewal, EXP from catches, PC in the start menu, type effectiveness hints, stat stages and a weather indicator.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/quality_of_life-0.1.2/quality_of_life-0.1.2.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/quality_of_life-0.1.3/quality_of_life-0.1.3.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/quality_of_life/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/quality_of_life/thumbnail.webp"
 		},
