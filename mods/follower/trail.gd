@@ -2,17 +2,14 @@ extends RefCounted
 
 ## Where the follower stands, as one pure function of what the player did.
 ##
-## Nothing here touches a host, a node or the clock: it is fed one observation
-## per frame and answers the pose to draw. That is what lets `tools/follower_probe.gd`
-## walk a whole route with no game running and get the poses the game would.
+## It touches no host, node or clock: one observation per frame in, one pose out.
+## That is what lets `tools/follower_probe.gd` walk a route with no game running.
 ##
-## THE RULE IS ONE LINE: the follower stands on the cell the player has just
-## left. The player's logical cell commits at the START of a step, so the moment
-## the player commits A to B the cell behind them is A, and the follower begins
-## its own step into it. Both steps then draw with the same fraction, which is
-## why the follower needs no frame counter of its own and can never drift a
-## frame ahead of or behind the player: `player_step_offset_cells()` is the one
-## clock for both.
+## The rule: the follower stands on the cell the player has just left. The
+## player's logical cell commits at the start of a step, so the moment they
+## commit A to B the cell behind them is A and the follower steps into it. Both
+## steps draw with the same fraction, so the follower needs no frame counter and
+## cannot drift.
 
 const STEPS: Dictionary = {
 	Vector2i.DOWN: Gen2WorldSprite.FACING_DOWN,
@@ -46,10 +43,9 @@ func observe(observation: Dictionary) -> Dictionary:
 	var offset: Vector2 = observation.get("offset", Vector2.ZERO)
 
 	if not _placed or map != _map:
-		# A warp, a fly or the first frame of a session. The follower comes back
-		# out from under the player rather than walking across the new map to
-		# find them, which is also what the cartridge's own `follow` does when a
-		# script puts two objects down together.
+		# A warp, a Fly or the first frame of a session: come back out from under
+		# the player rather than walking across the new map, which is what the
+		# cartridge's own `follow` does.
 		_map = map
 		_cell = player_cell
 		_facing = player_facing
@@ -72,17 +68,14 @@ func observe(observation: Dictionary) -> Dictionary:
 	}
 
 
-## Into the cell the player left. A single cardinal step is walked; anything
-## else is a jump the follower cannot walk, so it is taken at once.
-##
-## More than one cell commits together whenever a script applies a movement
-## stream, and a ledge hop lands two cells away in one commit, so this is the
-## ordinary case rather than the strange one.
+## Into the cell the player left. A single cardinal step is walked; anything else
+## is taken at once, which is the ordinary case: a scripted movement stream and a
+## ledge hop both commit more than one cell together.
 func _step_toward(target: Vector2i, player_facing: int) -> void:
 	var delta: Vector2i = target - _cell
 	if delta == Vector2i.ZERO:
-		# The player stepped out from on top of the follower, which is the frame
-		# after it was placed. It has not walked, so it takes their facing.
+		# The player stepped off the follower, the frame after it was placed. It
+		# has not walked, so it takes their facing.
 		_facing = player_facing
 		_direction = Vector2i.ZERO
 		return
@@ -94,26 +87,21 @@ func _step_toward(target: Vector2i, player_facing: int) -> void:
 	_direction = Vector2i.ZERO
 
 
-## Turns the follower to look back at the player, which is what being petted
-## asks of it. The player is facing the follower, so the follower faces the way
-## they came from; a pose and nothing else, so the cell and the step it is
-## drawing are both left where they are.
+## Turns the follower to look back at the player, which is what petting asks of
+## it. A pose and nothing else: the cell and the step being drawn stay put.
 ##
-## The mirror of a facing rather than a table of its own: DOWN and UP are 0 and
-## 1, LEFT and RIGHT are 2 and 3, so the opposite of any of the four is its own
-## index with the low bit flipped.
+## DOWN and UP are 0 and 1 and LEFT and RIGHT are 2 and 3, so the opposite facing
+## is the same index with the low bit flipped.
 func face_back(player_facing: int) -> void:
 	_facing = clampi(player_facing, Gen2WorldSprite.FACING_DOWN, Gen2WorldSprite.FACING_RIGHT) ^ 1
 
 
-## The facing the next pose will carry, for a caller that has just turned it and
-## is answering a read taken on the same frame.
+## The facing the next pose will carry, for a caller that just turned it.
 func facing() -> int:
 	return _facing
 
 
-## Puts the follower back under the player on the next frame, which is what a
-## recall and a party change both want: it walks out again rather than sliding
-## across the map from wherever it was standing.
+## Puts the follower back under the player next frame, so a recall or a party
+## change walks it out again rather than sliding it across the map.
 func reset() -> void:
 	_placed = false

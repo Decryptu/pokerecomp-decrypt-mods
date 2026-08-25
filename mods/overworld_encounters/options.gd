@@ -3,13 +3,10 @@ extends RefCounted
 const MAXIMUM: StringName = &"maximum"
 ## How many wild Pokemon one map may hold at once.
 ##
-## THE TOP TWO RUNGS ARE THE SEAMLESS WORLD'S. The ladder stopped at eight when
-## the screen was ten walk cells by nine and a route was walked a screen at a
-## time: eight spread over a whole route was more than a player ever saw at once.
-## The overworld now draws to the edge of the window and zooms out past that, so
-## the same eight read as an empty route with a few Pokemon on it. Twelve and
-## sixteen are for the window a player is actually looking at, and the default
-## does not move: a population is a rebalance, and choosing one is theirs.
+## The top two rungs are for a screen that fills the window. The ladder stopped
+## at eight when the screen was ten walk cells by nine; drawn to the edge of the
+## window the same eight read as an empty route. The default does not move, since
+## a population is a rebalance and choosing one is the player's.
 ##
 ## `plan.gd:build` clamps at 32, which is the host's own ceiling and where this
 ## ladder must stop.

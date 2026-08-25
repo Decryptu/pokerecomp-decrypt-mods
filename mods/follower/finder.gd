@@ -1,23 +1,16 @@
 extends RefCounted
 
 ## Which hidden item the follower can reach, as one pure function of where it
-## stands.
+## stands. It touches no host and no node, so `tools/follower_probe.gd` can ask
+## the rule of a made-up map.
 ##
-## Nothing here touches a host or a node: it is handed the map's own hidden-item
-## records, the cell the follower is on and a test for whether a cell can be
-## walked into, and answers the record to ask the host for. That is what lets
-## `tools/follower_probe.gd` ask the rule of a made-up map with no game running.
-##
-## THE RULE IS TWO LINES. The follower takes what it is standing on, which is
-## what a player pressing A on that cell would get. Failing that it reaches ONE
-## cardinal step into a cell it could not have walked into, which is the item
-## under a rock, inside a wall or across a ledge; a hidden item on open floor
-## beside it is left alone, because the follower can simply walk over that one
-## and reaching for it would empty a route from a cell away.
+## The rule: take what it is standing on. Failing that, reach one cardinal step
+## into a cell it could not have walked into, which is the item under a rock,
+## inside a wall or across a ledge. A hidden item on open floor beside it is left
+## alone, since the follower can simply walk over that one.
 
-## The four, in the order a tie between two of them is settled: the same order
-## `trail.gd` names its steps in, so the answer is the map's and never the order
-## the cartridge happened to write its background events in.
+## The four, in the order that settles a tie. Same order as `trail.gd`'s steps,
+## so the answer never depends on the order the cartridge wrote its events in.
 const AROUND: Array[Vector2i] = [
 	Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT,
 ]
@@ -44,8 +37,8 @@ static func reach(records: Array, cell: Vector2i, walkable: Callable) -> Diction
 	return {}
 
 
-## The first untaken record on [param cell]. A map with two on one cell is not a
-## thing the cartridge has, and taking the first is what a player would get.
+## The first untaken record on [param cell]. No cartridge map has two on one
+## cell, and the first is what a player would get.
 static func _at(records: Array, cell: Vector2i) -> Dictionary:
 	for record: Variant in records:
 		if not record is Dictionary:
