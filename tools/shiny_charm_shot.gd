@@ -36,11 +36,21 @@ extends SceneTree
 const THUMBNAIL_SIZE := Vector2i(1280, 720)
 ## `Gen2Stats.is_shiny`'s own word: ATTACK 2, and 10 in each of the other three.
 const SHINY_DVS: int = (2 << 12) | (10 << 8) | (10 << 4) | 10
-## The red GYARADOS, which is the one shiny the cartridge itself puts in front of
-## a player.
-const DEFAULT_SPECIES: int = 130
+## SNEASEL, whose shiny is hot pink against a normal one's blue-black and which
+## is wild in the Ice Path, so it is a Pokemon somebody actually hunts. The red
+## GYARADOS is the obvious pick and the wrong one: it is shiny by script, so a
+## picture of it says nothing about odds.
+const DEFAULT_SPECIES: int = 215
 const DEFAULT_LEVEL: int = 30
+## What the mod's own thumbnail was taken at, and therefore the default: a bold
+## sparkle above the ear with two smaller ones under it, and the face clear.
+## Chosen by looking at a range, which is what the range argument is for: the
+## sweep crosses the whole picture and most frames of it land on the eyes.
+const DEFAULT_FRAME: int = 80
 const DEFAULT_PLAYER: int = 157
+## Any fixed number. What matters is that it is fixed: see `set_random_seed`
+## below.
+const SEED: int = 20250825
 ## Enough frames for the scene to lay out before anything is driven, and enough
 ## after it for the viewport to draw what was driven.
 const SETTLE_FRAMES: int = 4
@@ -51,7 +61,7 @@ var _out: String = ""
 var _species: int = DEFAULT_SPECIES
 var _level: int = DEFAULT_LEVEL
 var _player: int = DEFAULT_PLAYER
-var _at: int = 0
+var _at: int = DEFAULT_FRAME
 var _lo: int = -1
 var _hi: int = -1
 var _cursor: int = 0
@@ -73,11 +83,14 @@ func _initialize() -> void:
 	if Gen2ToolPath.refuses(_out):
 		quit(2)
 		return
-	if args.size() > 2:
+	# An EMPTY argument keeps the default, so a later one can be reached without
+	# restating the ones in front of it. Reading `int("")` as 0 would stage a
+	# battle against species 0 and photograph nothing.
+	if args.size() > 2 and not args[2].is_empty():
 		_species = int(args[2])
-	if args.size() > 3:
+	if args.size() > 3 and not args[3].is_empty():
 		_level = int(args[3])
-	if args.size() > 4:
+	if args.size() > 4 and not args[4].is_empty():
 		if args[4].contains("-"):
 			var span: PackedStringArray = args[4].split("-", false)
 			_lo = int(span[0])
@@ -102,14 +115,28 @@ func _initialize() -> void:
 	var packed: PackedScene = load("res://game/battle/battle_screen.tscn")
 	_screen = packed.instantiate() as Gen2BattleScreen
 	_screen.set_data(data)
+	# A battle with no world behind it SEEDS ITSELF RANDOMLY, which is right for a
+	# development fight and wrong for a photograph: the sparkle is placed off this
+	# generator, so three runs of one command put it in three places and the frame
+	# somebody chose by looking is not the frame they get back. Measured before
+	# this line existed, on the frame this tool's own default names.
+	_screen.set_random_seed(SEED)
 	root.add_child(_screen)
 	current_scene = _screen
-	# The screen counts hardware frames off its own `_process` deltas, and every
-	# frame here is counted rather than timed so two runs are the same run.
+	# Taken away here for the frames before this driver's own `_process` runs, and
+	# again on every one of them: see there.
 	_screen.set_process(false)
 
 
 func _process(_delta: float) -> bool:
+	# TAKEN AWAY EVERY FRAME, not once in `_initialize`. Godot turns processing
+	# back on for a node whose script has a `_process`, and the screen counts
+	# HARDWARE FRAMES OFF ITS OWN DELTAS: left on, it spends a number of them
+	# between two of this driver's that depends on how fast the machine ran, so
+	# the sparkle lands somewhere new on every run and the frame somebody chose by
+	# looking is not the frame they get back. Measured: three runs of one command,
+	# three different pictures.
+	_screen.set_process(false)
 	_frames += 1
 	if _frames < SETTLE_FRAMES:
 		return false
@@ -147,7 +174,6 @@ func _stage() -> bool:
 
 
 func _shoot_range() -> bool:
-	_screen.set_process(false)
 	if _settle > 0:
 		_settle -= 1
 		return false
