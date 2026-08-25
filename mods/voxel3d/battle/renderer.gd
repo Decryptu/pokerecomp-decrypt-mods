@@ -497,10 +497,13 @@ const ENTRANCE_TRAINER: StringName = &"trainer"
 const ENTRANCE_MON: StringName = &"mon"
 
 
+## `entrance` is in every view of a live fight, so this is the path a settled
+## frame takes as well and the doll has to be reachable from it: `species` here
+## is the same field the substitute flag is keyed against.
 func _entrance_pic(side: Dictionary, back: bool) -> Texture2D:
 	match StringName(side.get("kind", ENTRANCE_NONE)):
 		ENTRANCE_MON:
-			return _pic(int(side.get("species", 0)), back)
+			return _battler_pic(back) if int(side.get("species", 0)) > 0 else null
 		ENTRANCE_TRAINER:
 			if back:
 				return _backpic(String(side.get("backpic", "")))
@@ -658,14 +661,24 @@ func _pic(species: int, back: bool) -> Texture2D:
 	# and everything else out of the species table. That atlas counts from zero
 	# and a letter counts from one, which is the subtraction.
 	var unown: bool = species == RomLayout.UNOWN_SPECIES and form > 0
+	var shiny: bool = _shiny(back)
 	return _texture(
-		"%d:%d:%d:%d:%d" % [species, form, 1 if back else 0, dmg, 1 if _graying() else 0],
+		"%d:%d:%d:%d:%d:%d" % [
+			species, form, 1 if back else 0, dmg,
+			1 if _graying() else 0, 1 if shiny else 0,
+		],
 		_data.unown_pic(form - 1, back) if unown else _data.species_pic(species, back),
-		_battler_palette(_data.palette(species), dmg),
+		_battler_palette(_data.palette(species, shiny), dmg),
 	)
 
 
-## One settled side's picture, which is the doll rather than the animal while a
+## `CGB_BattleColors` reads `CheckShininess` on both sides, so a shiny is drawn
+## in its own palette rather than the species table's.
+func _shiny(back: bool) -> bool:
+	return bool(_view.get("player_shiny" if back else "enemy_shiny", false))
+
+
+## One side's picture, which is the doll rather than the animal while a
 ## substitute is up. `SPRITE_MONSTER`'s own overworld strip is what the cartridge
 ## builds that doll out of, so the battle draws a walking sprite.
 func _battler_pic(back: bool) -> Texture2D:
@@ -683,8 +696,9 @@ func _substitute_pic(species: int, back: bool) -> Texture2D:
 	if _data == null:
 		return null
 	var dmg: int = _palette_map(PAL_BG_PLAYER if back else PAL_BG_ENEMY)
-	var key: String = "sub:%d:%d:%d:%d" % [
-		species, 1 if back else 0, dmg, 1 if _graying() else 0
+	var shiny: bool = _shiny(back)
+	var key: String = "sub:%d:%d:%d:%d:%d" % [
+		species, 1 if back else 0, dmg, 1 if _graying() else 0, 1 if shiny else 0
 	]
 	if _pic_textures.has(key):
 		return _pic_textures[key]
@@ -698,7 +712,7 @@ func _substitute_pic(species: int, back: bool) -> Texture2D:
 	if pixels.size() < box * box:
 		return null
 	var image: Image = _image(
-		pixels, box, box, _battler_palette(_data.palette(species), dmg)
+		pixels, box, box, _battler_palette(_data.palette(species, shiny), dmg)
 	)
 	if image == null:
 		return null

@@ -16,12 +16,14 @@ extends SceneTree
 ##       <number> <cell x> <cell y> <out.png> [facing 0-3] [time 0-3] \
 ##       [player species] [enemy species] [hold frames] [hp 0-1] \
 ##       [anim index] [anim frame] [enemy turn 0-1] [background half 0-1] \
-##       [entrance] [doll none|enemy|player|both] [unown form 1-26]
+##       [entrance] [doll none|enemy|player|both] [unown form 1-26] \
+##       [shiny none|enemy|player|both]
 ##
-## AN ENTRANCE IS A MOMENT, not a frame count: `slide` is both pictures part way
-## in, `stand` is both standing, `walkoff` is the player's picture leaving with
-## the opponent's Pokemon already out, and `sent` is the stretch with the
-## opponent's square empty. See [method _entrance].
+## AN ENTRANCE IS A MOMENT, not a frame count: `fight` is the settled pair and
+## the default, `slide` is both pictures part way in, `stand` is both standing,
+## `walkoff` is the player's picture leaving with the opponent's Pokemon already
+## out, and `sent` is the stretch with the opponent's square empty. See
+## [method _entrance].
 ##
 ## A MOVE ANIMATION IS RUN HEADLESS rather than mocked up, which is what makes
 ## open work 7 checkable at all. `Gen2BattleAnimPlayer` is the cartridge's own
@@ -137,6 +139,10 @@ func _initialize() -> void:
 	_view["enemy_substitute"] = doll == "enemy" or doll == "both"
 	_view["player_substitute"] = doll == "player" or doll == "both"
 
+	var shiny: String = args[19] if args.size() > 19 else "none"
+	_view["enemy_shiny"] = shiny == "enemy" or shiny == "both"
+	_view["player_shiny"] = shiny == "player" or shiny == "both"
+
 	var form: int = clampi(int(args[18]) if args.size() > 18 else 0, 0, 26)
 	if form > 0:
 		_view["enemy_species"] = RomLayout.UNOWN_SPECIES
@@ -146,14 +152,14 @@ func _initialize() -> void:
 	_view["enemy_unown_form"] = form
 	_view["player_unown_form"] = form
 
-	var moment: String = args[16] if args.size() > 16 else ""
-	if not moment.is_empty():
-		var entrance: Dictionary = _entrance(moment, data)
-		if entrance.is_empty():
-			print("no entrance moment ", moment)
-			quit(1)
-			return
-		_view["entrance"] = entrance
+	var moment: String = args[16] if args.size() > 16 else "fight"
+	var entrance: Dictionary = _entrance(moment, data)
+	if entrance.is_empty():
+		print("no entrance moment ", moment)
+		quit(1)
+		return
+	_view["entrance"] = entrance
+	if moment != "fight":
 		# True for the whole of the intro, which is what the screen answers.
 		_view["grayscale"] = true
 		_view["battle_kind"] = &"trainer"
@@ -199,6 +205,18 @@ func _entrance(moment: String, data: GameData) -> Dictionary:
 		"species": int(_view["enemy_species"]), "offset_pixels": Vector2.ZERO,
 	}
 	match moment:
+		"fight":
+			# Every view of a live fight carries an entrance, settled or not, so
+			# this is the default: photographing the pair any other way takes a
+			# path the game never reaches.
+			return {
+				"player": {
+					"kind": &"mon", "backpic": "", "trainer_class": 0,
+					"species": int(_view["player_species"]),
+					"offset_pixels": Vector2.ZERO,
+				},
+				"enemy": mon,
+			}
 		"slide":
 			var intro: Gen2BattleIntro = Gen2BattleIntro.for_data(data)
 			for _step: int in intro.frames() / 2:
