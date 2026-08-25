@@ -16,14 +16,16 @@ extends SceneTree
 ##       <number> <cell x> <cell y> <out.png> [facing 0-3] [time 0-3] \
 ##       [player species] [enemy species] [hold frames] [hp 0-1] \
 ##       [anim index] [anim frame] [enemy turn 0-1] [background half 0-1] \
-##       [entrance] [doll none|enemy|player|both] [unown form 1-26] \
+##       [moment] [doll none|enemy|player|both] [unown form 1-26] \
 ##       [shiny none|enemy|player|both]
 ##
-## AN ENTRANCE IS A MOMENT, not a frame count: `fight` is the settled pair and
+## A MOMENT IS A STATE, not a frame count: `fight` is the settled pair and
 ## the default, `slide` is both pictures part way in, `stand` is both standing,
 ## `walkoff` is the player's picture leaving with the opponent's Pokemon already
-## out, and `sent` is the stretch with the opponent's square empty. See
-## [method _entrance].
+## out, `sent` is the stretch with the opponent's square empty, and `faint`,
+## `gone` and `recall` are the three states past the entrance: the sink of
+## `MonFaintedAnimation`, the blank of `BattleBGEffect_HideMon` that a Fly or a
+## Dig leaves, and the ball shrink of a resize script. See [method _battlers].
 ##
 ## A MOVE ANIMATION IS RUN HEADLESS rather than mocked up, which is what makes
 ## open work 7 checkable at all. `Gen2BattleAnimPlayer` is the cartridge's own
@@ -69,7 +71,7 @@ func _initialize() -> void:
 		print("usage: <cache> <group> <number> <cell x> <cell y> <out.png>"
 			+ " [facing 0-3] [time 0-3] [player species] [enemy species]"
 			+ " [hold frames] [hp 0-1] [anim index] [anim frame]"
-			+ " [enemy turn 0-1] [background half 0-1] [entrance]"
+			+ " [enemy turn 0-1] [background half 0-1] [moment]"
 			+ " [doll none|enemy|player|both] [unown form 1-26]")
 		quit(1)
 		return
@@ -153,13 +155,15 @@ func _initialize() -> void:
 	_view["player_unown_form"] = form
 
 	var moment: String = args[16] if args.size() > 16 else "fight"
-	var entrance: Dictionary = _entrance(moment, data)
-	if entrance.is_empty():
-		print("no entrance moment ", moment)
+	var battlers: Dictionary = _battlers(moment, data)
+	if battlers.is_empty():
+		print("no battler moment ", moment)
 		quit(1)
 		return
-	_view["entrance"] = entrance
-	if moment != "fight":
+	_view["battlers"] = battlers
+	# The intro's own staging, and only the intro's: a state past the entrance is
+	# a fight in colour with nobody standing behind the opponent's square.
+	if moment in INTRO_MOMENTS:
 		# True for the whole of the intro, which is what the screen answers.
 		_view["grayscale"] = true
 		_view["battle_kind"] = &"trainer"
@@ -168,9 +172,9 @@ func _initialize() -> void:
 		# The two panels arrive with the Pokemon they describe, so neither is up
 		# while a trainer is still standing on the square.
 		_view["enemy_hud_visible"] = \
-			StringName(entrance["enemy"]["kind"]) == &"mon"
+			StringName(battlers["enemy"]["kind"]) == &"mon"
 		_view["player_hud_visible"] = \
-			StringName(entrance["player"]["kind"]) == &"mon"
+			StringName(battlers["player"]["kind"]) == &"mon"
 
 	var anim_index: int = int(args[12]) if args.size() > 12 else 0
 	if anim_index > 0:
@@ -185,13 +189,23 @@ func _initialize() -> void:
 ## The player's own picture, and a class to stand opposite it. Neither is read
 ## off a save here: this tool builds a view rather than running a battle.
 const PLAYER_BACKPIC: String = "chris"
+## The moments `Gen2BattleScreen` runs before the fight starts.
+const INTRO_MOMENTS: PackedStringArray = ["slide", "stand", "sent", "walkoff"]
 const TRAINER_CLASS: int = 1
 
 
-## One named moment of `view["entrance"]`, which is `Gen2BattleScreen`'s own
+## One settled side of the block, which every moment builds from.
+func _mon_side(species: int) -> Dictionary:
+	return {
+		"kind": &"mon", "backpic": "", "trainer_class": 0, "species": species,
+		"visible": true, "offset_pixels": Vector2.ZERO, "scale": Vector2.ONE,
+	}
+
+
+## One named moment of `view["battlers"]`, which is `Gen2BattleScreen`'s own
 ## shape. The slide's displacement comes from `Gen2BattleIntro` rather than from
 ## a number chosen here, so a picture is where the cartridge would have put it.
-func _entrance(moment: String, data: GameData) -> Dictionary:
+func _battlers(moment: String, data: GameData) -> Dictionary:
 	var trainer := {
 		"kind": &"trainer", "backpic": PLAYER_BACKPIC, "trainer_class": 0,
 		"species": 0, "offset_pixels": Vector2.ZERO,
@@ -206,15 +220,11 @@ func _entrance(moment: String, data: GameData) -> Dictionary:
 	}
 	match moment:
 		"fight":
-			# Every view of a live fight carries an entrance, settled or not, so
-			# this is the default: photographing the pair any other way takes a
-			# path the game never reaches.
+			# Every view of a live fight carries a battlers block, settled or
+			# not, so this is the default: photographing the pair any other way
+			# takes a path the game never reaches.
 			return {
-				"player": {
-					"kind": &"mon", "backpic": "", "trainer_class": 0,
-					"species": int(_view["player_species"]),
-					"offset_pixels": Vector2.ZERO,
-				},
+				"player": _mon_side(int(_view["player_species"])),
 				"enemy": mon,
 			}
 		"slide":
@@ -234,6 +244,23 @@ func _entrance(moment: String, data: GameData) -> Dictionary:
 					"species": 0, "offset_pixels": Vector2.ZERO,
 				},
 			}
+		"faint":
+			# `MonFaintedAnimation`: seven steps of one tile row, and the whole
+			# sink is the picture's own seven rows.
+			mon["offset_pixels"] = Vector2(
+				0.0, float(Gen2BattleScreenMap.FAINT_ROWS * Gen2Tiles.TILE_WIDTH) * 0.5
+			)
+			return {"player": _mon_side(int(_view["player_species"])), "enemy": mon}
+		"gone":
+			# `BattleBGEffect_HideMon`, which is what a Fly or a Dig leaves behind.
+			var hidden: Dictionary = _mon_side(int(_view["player_species"]))
+			hidden["visible"] = false
+			return {"player": hidden, "enemy": mon}
+		"recall":
+			# `BattleBGEffect_RunPicResizeScript` part way through a return.
+			var shrinking: Dictionary = _mon_side(int(_view["player_species"]))
+			shrinking["scale"] = Vector2(0.4, 0.4)
+			return {"player": shrinking, "enemy": mon}
 		"walkoff":
 			trainer["offset_pixels"] = Vector2(
 				-float(Gen2Tiles.TILE_WIDTH * 4), 0.0

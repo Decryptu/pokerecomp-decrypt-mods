@@ -130,12 +130,15 @@ step is taken to the level flat rather than left at a saturated hue.
 rebuild the map with the same mesher the overworld uses and stand the battlers on
 it.
 
-**The entrance.** Two trainers slide in from opposite sides, the opponent sends
-out first, the player's picture walks off, and a ball puts a Pokemon where each
-was standing. The host resolves that as what each square holds and how far its
-picture stands from its resting place, so the pictures stand exactly where their
-Pokemon will. The slide is spent in hardware pixels across the screen rather than
-as a walk over the ground, because the cartridge slides a picture, not a person.
+**What happens to a battler.** Two trainers slide in from opposite sides, the
+opponent sends out first, the player's picture walks off, and a ball puts a
+Pokemon where each was standing. After that a faint sinks a picture, a Fly or a
+Dig takes it off the field for a turn, a recall shrinks it into its ball, and a
+Tackle lunges it. The host resolves all of it the same way, as what each square
+holds, whether its picture is on it, how far it stands from its resting place and
+how much of itself it is, so every one of them is drawn here. It is spent in
+hardware pixels across the screen rather than as a walk over the ground, because
+the cartridge moves a picture, not a person.
 
 The whole picture is grey while the intro runs, which is the cartridge writing its
 own grey over every background palette. Here it is both a pass over the diorama

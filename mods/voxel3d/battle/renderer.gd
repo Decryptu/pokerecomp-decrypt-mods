@@ -426,85 +426,88 @@ func _frame_stretch() -> float:
 ## crisp, and the rig was solved to land those patches in the hardware's own picture
 ## slots, so nothing here wanders under a panel.
 ##
-## What stands on each square is the host's answer: see [method _place_entrance].
-## A view built by a probe or a tool carries no entrance and takes the settled
-## pair.
+## What stands on each square is the host's answer: see [method _place_pair].
 func _place_battlers() -> void:
 	_stage.begin_shadow_casters()
-	var entrance: Variant = _view.get("entrance", null)
-	var slot: int = _place_entrance(entrance as Dictionary) \
-		if entrance is Dictionary else _place_settled()
+	var slot: int = _place_pair(_battlers_block())
 	for index: int in range(slot, _battlers.size()):
 		_battlers[index].visible = false
 	_stage.end_shadow_casters()
 
 
-## The fight does not open with two Pokemon on the field, and for one release this
-## view opened with exactly that.
-##
-## Two trainers slide in from opposite sides, the opponent sends out first, the
-## player's picture walks off, and a ball puts a Pokemon where each was standing.
-## `view["entrance"]` is that state resolved for a renderer with no background plane
-## to read it off: what each square holds and how far the picture stands from its
-## resting place. See `docs/MODS.md` in pokerecomp.
+## `view["battlers"]`, or the settled pair a hand-built view means by carrying
+## none. One block and one drawing path: staging the pair any other way is how
+## the substitute doll went unreachable for a release, since the block is in
+## every view a live fight ever pushes.
+func _battlers_block() -> Dictionary:
+	var supplied: Variant = _view.get("battlers", null)
+	if supplied is Dictionary:
+		return supplied
+	return {
+		"enemy": _settled_side(int(_view.get("enemy_species", 0))),
+		"player": _settled_side(int(_view.get("player_species", 0))),
+	}
+
+
+func _settled_side(species: int) -> Dictionary:
+	return {"kind": KIND_MON, "species": species, "visible": true}
+
+
+## The fight does not open with two Pokemon on the field, and nothing that
+## happens to a battler after that opening is any different: a faint sinks the
+## picture, a Fly blanks it, a recall shrinks it into a ball and a Tackle lunges
+## it. `view["battlers"]` is all of that resolved for a renderer with no
+## background plane to read it off. See `docs/MODS.md` in pokerecomp.
 ##
 ## The displacement is spent in hardware pixels across the screen rather than as a
-## walk over the ground: the cartridge slides a picture, not a person.
+## walk over the ground: the cartridge moves a picture, not a person.
 ##
 ## The opponent standing behind their Pokemon for the rest of the fight is this
 ## view's own staging and waits for the send-out, since during the entrance the
 ## class picture is on the square the Pokemon will take.
-func _place_entrance(entrance: Dictionary) -> int:
-	var enemy: Dictionary = entrance.get("enemy", {})
-	var player: Dictionary = entrance.get("player", {})
+func _place_pair(battlers: Dictionary) -> int:
+	var enemy: Dictionary = battlers.get("enemy", {})
+	var player: Dictionary = battlers.get("player", {})
 	var slot: int = 0
-	if StringName(enemy.get("kind", ENTRANCE_NONE)) == ENTRANCE_MON \
+	if StringName(enemy.get("kind", KIND_NONE)) == KIND_MON \
 			and StringName(_view.get("battle_kind", &"wild")) == &"trainer":
 		slot = _pin(
 			slot, _trainer_pic(int(_view.get("trainer_class", 0))),
 			_arena.enemy_trainer_ground()
 		)
-	slot = _pin(
-		slot, _entrance_pic(enemy, false), _arena.enemy_ground(),
-		Vector2(enemy.get("offset_pixels", Vector2.ZERO))
-	)
+	slot = _pin_side(slot, enemy, false, _arena.enemy_ground())
+	return _pin_side(slot, player, true, _arena.player_ground())
+
+
+## One side of the block, pinned with everything it says about its picture.
+## `visible` is not `kind`: `none` is a square nobody stands on and invisible is a
+## picture taken off one somebody does, which is a Fly or a recall.
+func _pin_side(slot: int, side: Dictionary, back: bool, ground: Vector3) -> int:
+	if not bool(side.get("visible", true)):
+		return slot
 	return _pin(
-		slot, _entrance_pic(player, true), _arena.player_ground(),
-		Vector2(player.get("offset_pixels", Vector2.ZERO))
+		slot, _side_pic(side, back), ground,
+		Vector2(side.get("offset_pixels", Vector2.ZERO)),
+		Vector2(side.get("scale", Vector2.ONE))
 	)
-
-
-## Both Pokemon on their squares and the opponent behind theirs, which is every
-## frame of a fight past its entrance and the whole of what a hand-built view
-## from `tools/battle_shot.gd` ever asks for.
-func _place_settled() -> int:
-	var slot: int = 0
-	if StringName(_view.get("battle_kind", &"wild")) == &"trainer":
-		slot = _pin(
-			slot, _trainer_pic(int(_view.get("trainer_class", 0))),
-			_arena.enemy_trainer_ground()
-		)
-	slot = _pin(slot, _battler_pic(false), _arena.enemy_ground())
-	return _pin(slot, _battler_pic(true), _arena.player_ground())
 
 
 ## What one side's square holds. `none` is the stretch between a trainer walking
 ## off and the ball arriving, and it is a state only the opponent's side reaches
 ## at a frame boundary: `SendOutMonText` ends in `done`, so the player's last
 ## slide column and the stamp land in one frame.
-const ENTRANCE_NONE: StringName = &"none"
-const ENTRANCE_TRAINER: StringName = &"trainer"
-const ENTRANCE_MON: StringName = &"mon"
+const KIND_NONE: StringName = &"none"
+const KIND_TRAINER: StringName = &"trainer"
+const KIND_MON: StringName = &"mon"
 
 
-## `entrance` is in every view of a live fight, so this is the path a settled
-## frame takes as well and the doll has to be reachable from it: `species` here
-## is the same field the substitute flag is keyed against.
-func _entrance_pic(side: Dictionary, back: bool) -> Texture2D:
-	match StringName(side.get("kind", ENTRANCE_NONE)):
-		ENTRANCE_MON:
+## `species` here is the same field the substitute flag is keyed against, so the
+## doll is reachable from the one path that draws anything.
+func _side_pic(side: Dictionary, back: bool) -> Texture2D:
+	match StringName(side.get("kind", KIND_NONE)):
+		KIND_MON:
 			return _battler_pic(back) if int(side.get("species", 0)) > 0 else null
-		ENTRANCE_TRAINER:
+		KIND_TRAINER:
 			if back:
 				return _backpic(String(side.get("backpic", "")))
 			return _trainer_pic(int(side.get("trainer_class", 0)))
@@ -538,23 +541,47 @@ func _backpic(kind: String) -> Texture2D:
 ## in the hardware slot the rig was solved for.
 ##
 ## [param offset] is how far the picture stands from that patch, in hardware pixels
-## across the screen, and is zero outside an entrance. A picture part way off the
-## field casts nothing, since the sun sees a card standing on the ground.
+## across the screen, and [param picture_scale] is how much of itself the picture is: the
+## resize script's ball shrink of a recall and grow of a send-out. Both come
+## straight out of the view's `battlers` block.
+##
+## A shrink is anchored where a card is, feet on the ground and middle over it, so
+## a recall collapses onto the point the ball is thrown at.
 func _pin(
-	slot: int, texture: Texture2D, ground: Vector3, offset: Vector2 = Vector2.ZERO
+	slot: int, texture: Texture2D, ground: Vector3,
+	offset: Vector2 = Vector2.ZERO, picture_scale: Vector2 = Vector2.ONE
 ) -> int:
 	if texture == null:
 		return slot
 	var at: Vector2 = _stage.camera.unproject_position(ground)
-	var drawn := Vector2(texture.get_size()) * float(_hud_scale())
+	var drawn := Vector2(texture.get_size()) * float(_hud_scale()) * picture_scale
+	if drawn.x < 1.0 or drawn.y < 1.0:
+		return slot
 	var rect: TextureRect = _battler(slot)
 	rect.texture = texture
 	rect.size = drawn
 	rect.position = at - Vector2(drawn.x * 0.5, drawn.y) + offset * float(_hud_scale())
 	rect.visible = true
-	if offset.is_zero_approx():
+	if _stands_on_its_square(offset, picture_scale):
+		# Scale one is the only state that casts, so this is the picture's own
+		# height either way.
 		_stage.add_shadow_caster(texture, ground, _caster_scale(ground, texture.get_height()))
 	return slot + 1
+
+
+## Whether the sun should see a card there at all.
+##
+## The window effects throw a picture a few pixels and it keeps its footing: a
+## Tackle lunges, a Wobble shakes, a Psychic stretches. The opening slide, a faint
+## sink and a `RemoveMon` push carry it tens of pixels off instead, and a shadow
+## left standing under a picture that has gone is a shadow under nothing. One tile
+## is the line between them, since a faint's first step is exactly one.
+const SHADOW_OFFSET_LIMIT: float = float(Gen2Tiles.TILE_WIDTH)
+
+
+func _stands_on_its_square(offset: Vector2, picture_scale: Vector2) -> bool:
+	return offset.length() < SHADOW_OFFSET_LIMIT \
+		and picture_scale.is_equal_approx(Vector2.ONE)
 
 
 ## How big a card standing on [param ground] has to be for the sun to see the same
