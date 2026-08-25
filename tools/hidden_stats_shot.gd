@@ -18,7 +18,6 @@ extends SceneTree
 ##
 ## Rendering needs a display.
 
-const MOD_ID: StringName = &"hidden_stats"
 ## The party screen is a window-resolution panel, so the window is sized to a
 ## whole multiple of the hardware screen and the panel fills it exactly. Nothing
 ## is cropped afterwards and nothing is scaled by halves.

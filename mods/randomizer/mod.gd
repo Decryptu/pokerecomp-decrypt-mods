@@ -28,6 +28,8 @@ var _manifest: Gen2ModManifest = null
 ## seed always means the same thing however many times a setting was moved.
 var _world: Dictionary = {}
 var _data: GameData = null
+
+
 func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
 	_host = host
 	_id = manifest.id

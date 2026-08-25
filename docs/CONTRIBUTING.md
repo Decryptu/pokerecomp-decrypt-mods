@@ -113,7 +113,7 @@ in the game repository first. It is the contract, and it is enforced.
   interpreted GDScript. No GDExtension, no compiled anything.
 - `api_version` is the oldest host a mod works against, not a number to keep
   current. The host accepts `Gen2ModManifest.MIN_API_VERSION` to `API_VERSION`,
-  1 to 16 today, and refuses a mod asking for more than it provides. Raise it
+  1 to 17 today, and refuses a mod asking for more than it provides. Raise it
   when the mod starts using something newer, not with every release.
 
 ## Writing rules

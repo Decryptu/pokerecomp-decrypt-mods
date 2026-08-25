@@ -5,6 +5,9 @@ extends SceneTree
 ## may stand where an object is, the placement must be spread over the map
 ## rather than gathered at one end of it, and no Pokemon may ever wear both the
 ## shiny mark and the excellent-DV glow.
+##
+##   Godot --headless --path <pokerecomp> -s tools/overworld_encounters_probe.gd \
+##       -- "user://rom_cache/crystal_f2f52230" [seed] [other seed]
 
 const DEFAULT_SEED: int = 1234
 const OTHER_SEED: int = 5678

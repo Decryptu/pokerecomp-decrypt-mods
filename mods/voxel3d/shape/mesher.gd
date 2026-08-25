@@ -5871,15 +5871,6 @@ const STOOL_GLINT: float = 0.42
 const STOOL_LEG_SHADE: int = 0
 
 
-## One pixel of an object's own drawing, as a uv box.
-func _object_pixel(
-	atlas: RefCounted, tiles: Array, across: Vector2i, px: int, py: int
-) -> Rect2:
-	@warning_ignore("integer_division")
-	var tile: int = int(tiles[(py / int(TILE)) * across.x + px / int(TILE)])
-	return atlas.uv_box(tile, Rect2i(px % int(TILE), py % int(TILE), 1, 1))
-
-
 ## The widest drawn run in one row of a mask, in pixels.
 func _row_run(mask: PackedByteArray, span: Vector2i, window: Rect2i, py: int) -> int:
 	var widest: int = 0

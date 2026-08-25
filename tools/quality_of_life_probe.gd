@@ -120,7 +120,31 @@ func _stages() -> void:
 		"player stages reuse the command panel field")
 	snapshot["hud_visible"] = false
 	_expect(_placements(snapshot).is_empty(), "stages hide with the battle HUD")
+	_full_stages()
 	_switch(&"stat_stages", false)
+
+
+## Seven active stages a side is more rows than the player's block has, and the
+## host REFUSES a placement outside its 20x18 grid rather than clipping it, so an
+## overrun is silent. Both columns are asked for whole and every placement has to
+## land on the grid.
+func _full_stages() -> void:
+	var every: Dictionary = {}
+	for key: StringName in [
+		&"attack", &"defense", &"speed", &"sp_attack", &"sp_defense",
+		&"accuracy", &"evasion",
+	]:
+		every[key] = -1
+	var snapshot: Dictionary = _snapshot()
+	snapshot["menu_stage"] = "main"
+	snapshot["enemy_stages"] = every
+	snapshot["player_stages"] = every
+	var inside: bool = true
+	for placement: Dictionary in _placements(snapshot):
+		var at: Vector2i = placement.get("at", Vector2i.ZERO)
+		var wide: int = String(placement.get("text", "")).length()
+		inside = inside and at.y >= 0 and at.y < 18 and at.x >= 0 and at.x + wide <= 20
+	_expect(inside, "seven stages a side stay on the screen's own grid")
 
 
 func _weather() -> void:

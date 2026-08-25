@@ -2,6 +2,9 @@ extends SceneTree
 
 ## Prints the resolved ledge corner, battle occlusion and visible population
 ## regressions against a real cartridge cache.
+##
+##   Godot --headless --path <pokerecomp> -s tools/mod_fixes_probe.gd -- \
+##       "user://rom_cache/crystal_f2f52230" [seed] [other seed]
 
 const FIRST_SEED: int = 1234
 const SECOND_SEED: int = 5678

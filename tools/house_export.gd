@@ -51,8 +51,6 @@ const PAINT_PITCH := "P"
 const PAINT_ROOF := "R"
 const PAINT_FALL_WEST := "<"
 const PAINT_FALL_EAST := ">"
-const PAINT_FALL_NORTH := "^"
-const PAINT_FALL_SOUTH := "v"
 const PAINT_DOOR := "D"
 
 
