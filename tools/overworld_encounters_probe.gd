@@ -7,7 +7,7 @@ extends SceneTree
 ## shiny mark and the excellent-DV glow.
 ##
 ##   Godot --headless --path <pokerecomp> -s tools/overworld_encounters_probe.gd \
-##       -- "user://rom_cache/crystal_f2f52230" [seed] [other seed]
+##       -- <cartridge> [seed] [other seed]
 
 const DEFAULT_SEED: int = 1234
 const OTHER_SEED: int = 5678
@@ -33,7 +33,7 @@ func _initialize() -> void:
 		print("usage: -- <cache directory> [seed] [other seed]")
 		quit(2)
 		return
-	var data: GameData = GameData.open_directory(args[0])
+	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache at %s" % args[0])
 		quit(1)

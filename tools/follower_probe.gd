@@ -11,7 +11,7 @@ extends SceneTree
 ## beside its name, which is the only art this mod ever names.
 ##
 ##   Godot --headless --path <pokerecomp> -s tools/follower_probe.gd -- \
-##       "user://rom_cache/crystal_f2f52230"
+##       <cartridge>
 
 ## Map PASSES one plain overworld step is drawn over, which is the host's own
 ## STEP_PASSES_WALK. `HandleMap` ends each iteration in `NextOverworldFrame`,
@@ -49,7 +49,7 @@ func _initialize() -> void:
 		print("usage: -- <cache directory>")
 		quit(2)
 		return
-	var data: GameData = GameData.open_directory(args[0])
+	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache at %s" % args[0])
 		quit(1)
@@ -380,6 +380,21 @@ func _picking_up(actor_script: GDScript, options: GDScript, data: GameData) -> i
 	var asked: Array = _walk_onto(actor, world, cell, host)
 	failures += 0 if _report(
 		"on, it asks for the cell it stands on (%s)" % str(asked), asked == [cell]
+	) else 1
+
+	## One arrival is one attempt, which is the whole of what the mod rules on
+	## now that the host collapses a cell already queued and one already taken.
+	## Standing still must not ask again, or a full pack would put its box up on
+	## every frame; walking away and back must, or an item refused once would be
+	## unreachable for the rest of the map.
+	for _frame: int in 120:
+		actor.advance_frame()
+	failures += 0 if _report(
+		"standing on it, it asks once", host.take_hidden_item_requests().is_empty()
+	) else 1
+	var returned: Array = _walk_onto(actor, world, cell, host)
+	failures += 0 if _report(
+		"walking on again, it asks again (%s)" % str(returned), returned == [cell]
 	) else 1
 
 	## Asking is all the mod does. The bag, the flag and the site's own script

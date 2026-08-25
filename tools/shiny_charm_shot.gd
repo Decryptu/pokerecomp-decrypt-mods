@@ -106,7 +106,7 @@ func _initialize() -> void:
 			return
 		_thumbnail = true
 
-	var data: GameData = GameData.open(StringName(args[0]))
+	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		push_error("No cache for %s. Import roms/%s.gbc first." % [args[0], args[0]])
 		quit(1)

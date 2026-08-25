@@ -63,7 +63,7 @@ func _initialize() -> void:
 		print("usage: <cache> <tileset|all> <out dir> [unpinned|all]")
 		quit(1)
 		return
-	_data = GameData.open_directory(args[0])
+	_data = GameData.open_argument(args[0])
 	if _data == null:
 		print("no cache at ", args[0])
 		quit(1)

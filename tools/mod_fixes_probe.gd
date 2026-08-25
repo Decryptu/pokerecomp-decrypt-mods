@@ -4,7 +4,7 @@ extends SceneTree
 ## regressions against a real cartridge cache.
 ##
 ##   Godot --headless --path <pokerecomp> -s tools/mod_fixes_probe.gd -- \
-##       "user://rom_cache/crystal_f2f52230" [seed] [other seed]
+##       <cartridge> [seed] [other seed]
 
 const FIRST_SEED: int = 1234
 const SECOND_SEED: int = 5678
@@ -16,7 +16,7 @@ func _initialize() -> void:
 		print("usage: -- <cache directory> [seed] [other seed]")
 		quit(2)
 		return
-	var data: GameData = GameData.open_directory(args[0])
+	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache at %s" % args[0])
 		quit(1)

@@ -80,6 +80,13 @@ The launcher lists what loaded and names anything it refused. A mod that fails i
 skipped and reported through `Gen2ModHost.failures()`; it never stops the game or
 the other mods.
 
+## What a tool is given
+
+A tool takes the cartridge as its first argument, written `<cartridge>`, and
+either form works: a cache directory such as `user://rom_cache/crystal_...`, or
+a registry id such as `crystal`. `GameData.open_argument` is what answers which
+of the two it was handed, so no tool sniffs it and none of them can disagree.
+
 ## Where a tool writes
 
 A tool runs with `--path <pokerecomp>`, so a relative path resolves against the
@@ -113,7 +120,7 @@ in the game repository first. It is the contract, and it is enforced.
   interpreted GDScript. No GDExtension, no compiled anything.
 - `api_version` is the oldest host a mod works against, not a number to keep
   current. The host accepts `Gen2ModManifest.MIN_API_VERSION` to `API_VERSION`,
-  1 to 17 today, and refuses a mod asking for more than it provides. Raise it
+  1 to 18 today, and refuses a mod asking for more than it provides. Raise it
   when the mod starts using something newer, not with every release.
 
 ## Writing rules

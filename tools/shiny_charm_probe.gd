@@ -19,7 +19,7 @@ extends SceneTree
 ## run has no screen and screens are what publish.
 ##
 ##   godot --headless --path <pokerecomp> -s tools/shiny_charm_probe.gd -- \
-##       <game id> [wilds per arm]
+##       <cartridge> [wilds per arm]
 ##
 ## The default arm is large enough for the two rates to separate and small
 ## enough to run in a few seconds. The measurement is a sample, so the test is
@@ -61,18 +61,22 @@ const MAX_STEPS: int = 64
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
-	var game: StringName = StringName(args[0]) if not args.is_empty() else &"crystal"
-	var wilds: int = int(args[1]) if args.size() > 1 else DEFAULT_WILDS
+	var cartridge: String = args[0] if not args.is_empty() else "crystal"
+	## Before the open: see `tools/linking_cord_probe.gd` for what a reset does to
+	## a `GameData` already in hand.
 	Gen2ModHost.reset()
+	# Either form: see `GameData.open_argument`.
+	var data: GameData = GameData.open_argument(cartridge)
+	if data == null:
+		print("no cache for %s" % cartridge)
+		quit(1)
+		return
+	var game: StringName = data.id
+	var wilds: int = int(args[1]) if args.size() > 1 else DEFAULT_WILDS
 	var host: Gen2ModHost = Gen2ModHost.instance()
 	host.set_target_game(game)
 	host.discover()
 	host.load_discovered()
-	var data: GameData = GameData.open(game)
-	if data == null:
-		print("no cache for %s" % game)
-		quit(1)
-		return
 
 	var ok: bool = _loaded(host)
 	ok = _item(data) and ok

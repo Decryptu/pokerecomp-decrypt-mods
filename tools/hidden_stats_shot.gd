@@ -56,7 +56,7 @@ func _initialize() -> void:
 		print("usage: -- <game> <out.png> [species] [level] [scale]")
 		quit(2)
 		return
-	var data: GameData = GameData.open(StringName(args[0]))
+	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache for %s" % args[0])
 		quit(1)
