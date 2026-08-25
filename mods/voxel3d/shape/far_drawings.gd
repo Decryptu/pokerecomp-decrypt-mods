@@ -1,32 +1,27 @@
 extends RefCounted
 
-## WHICH DRAWING STANDS WHERE, on a map that was never resolved.
+## Which drawing stands where, on a map that was never resolved.
 ##
-## `world/far_foliage.gd` dresses the maps on the horizon, and what it needs per
-## cell is the name of the drawing standing on it, so `shape/mesher.gd:far_card_for`
-## can cut that drawing out of the map's own sheet. A resolve answers both and
-## costs a quarter of a second a map, which is out of the question for the tens
-## of maps a horizon holds.
+## `world/far_foliage.gd` needs the name of the drawing on each cell so
+## `shape/mesher.gd:far_card_for` can cut it out of the map's own sheet. A resolve
+## answers that and costs a quarter of a second a map, which is out of the question
+## for the tens of maps a horizon holds.
 ##
-## THE NAME OF A DRAWING IS ITS ARRANGEMENT OF TILES. `mesher._model_bodies_of`
-## keys every model mesh it builds on `str(tiles)` over the drawing's own box, so
-## reading the same box off a bare map and stringing it the same way is the whole
-## of the lookup. Nothing here builds geometry, measures a silhouette, floods a
-## mask or asks about height: it reads tile ids and collision, which is what
-## makes it milliseconds.
+## The name of a drawing is its arrangement of tiles. `mesher._model_bodies_of`
+## keys every model mesh on `str(tiles)` over the drawing's box, so reading the
+## same box off a bare map and stringing it the same way is the whole lookup.
+## Nothing here builds geometry, measures a silhouette, floods a mask or asks
+## about height: it reads tile ids and collision, which is why it is milliseconds.
 ##
-## THE BOX IS THE MESHER'S OWN RULE and this is a second copy of it, which is the
-## one thing in this file worth arguing about. The rule lives in
-## `mesher._box_start` and `mesher._measure_cutouts`, spent against arrays that
-## only a full resolve fills, and lifting it out from under ten thousand lines
-## that share those arrays is a bigger change than the horizon is worth today.
-## So it is copied, deliberately, and `tools/far_drawings.gd` is what holds the
-## copy honest: it resolves each map for real and checks every box this walk
+## The box rule is a second copy of the mesher's, which is the one thing here
+## worth arguing about: `mesher._box_start` and `mesher._measure_cutouts` are
+## spent against arrays only a full resolve fills. `tools/far_drawings.gd` holds
+## the copy honest, resolving each map for real and checking every box this walk
 ## found against every box the mesher stamped a model into, over the 229 outdoor
-## maps of the three cartridges. Unify it the day the span measurement is worth
+## maps of the three cartridges. Unify it when the span measurement is worth
 ## moving.
 ##
-## A MAP IS WALKED ONCE and its answer kept, since a map's trees do not move.
+## A map is walked once and its answer kept, since a map's trees do not move.
 
 const TileShapeScript: GDScript = preload("tile_shape.gd")
 const MapSourceScript: GDScript = preload("map_source.gd")
@@ -44,7 +39,7 @@ const CELLS_PER_BLOCK: int = 2
 const SPOT_LIMIT: int = 4096
 
 
-## WHAT STANDS ON [param map], as `{ drawings, buildings }`.
+## What stands on [param map], as `{ drawings, buildings }`.
 ##
 ## `drawings` is `str(tiles) -> { spots, class, tiles, across }`. The spots are in
 ## that map's own world pixels and there is ONE PER DRAWING rather than one per
@@ -92,7 +87,7 @@ static func of_map(
 	klass.resize(size.x * size.y)
 	var ids: Dictionary = {}
 	var known: Dictionary = {}
-	# READ A BLOCK AT A TIME. Resolving a tile means resolving the block it sits
+	# Read a block at a time. Resolving a tile means resolving the block it sits
 	# in, and a block holds sixteen of them: asked per tile, a walk over a map and
 	# its border ring resolves the same block sixteen times over and costs 66 ms
 	# on route 26 against 24. The PERMISSION is still asked per cell, because
@@ -140,11 +135,11 @@ static func of_map(
 	return out
 
 
-## EVERY BUILDING ON THE MAP, as `{ rect, rows, tiles }`: the rectangle it covers
+## Every building on the map, as `{ rect, rows, tiles }`: the rectangle it covers
 ## in TILES, what each of its rows draws, and the tile ids inside it, which is
 ## what a box is painted from.
 ##
-## A ROW IS ROOF, WALL OR NEITHER, and it is answered per row rather than as two
+## A row is roof, WALL OR NEITHER, and it is answered per row rather than as two
 ## counts: a flood joins two houses that touch, and a rectangle that holds them
 ## both has rows of each in whatever order they stand. `world/far_houses.gd` is
 ## where that is read, and it is the only place that has to care.
@@ -224,7 +219,7 @@ static func _buildings(
 	return out
 
 
-## THE DRAWINGS IN A MAP'S BORDER BLOCK, which is the whole of the world past the
+## The drawings in a map's border block, which is the whole of the world past the
 ## maps: `world/far_field.gd` fills everything the camera can reach with that one
 ## block, so out there the same thirty-two pixels repeat for ever, and on forty of
 ## the seventy-seven outdoor maps every tile of them is a tree.
@@ -289,7 +284,7 @@ static func _walk(
 ) -> Dictionary:
 	var out: Dictionary = {}
 	var seen: Dictionary = {}
-	# WHAT EACH DECLARED BOX CAME TO, kept because every tile of a drawing asks
+	# What each declared box came to, kept because every tile of a drawing asks
 	# the same question and the answer costs a flood of row tests and a string a
 	# cell. Asked per tile it was most of the walk: 62 ms on route 26 against 24.
 	var decided: Dictionary = {}
@@ -347,7 +342,7 @@ static func _walk(
 	return out
 
 
-## THE BOX ONE DRAWING IS CUT OVER, in tiles. `mesher._span_box` and
+## The box one drawing is cut over, in tiles. `mesher._span_box` and
 ## `mesher._measure_cutouts` together, read off the class rather than off a
 ## resolve's arrays; see this file's own note on why it is a copy.
 ##
@@ -363,7 +358,7 @@ static func _box(
 ) -> Rect2i:
 	var span: Vector2i = shape.span_cells(named)
 	var across := Vector2i(maxi(span.x, 1), maxi(span.y, 1)) * CELL_TILES
-	# ALIGNED ON THE MAP AND NOT ON THE WALK. `mesher._box_start` takes a map
+	# Aligned on the map and not on the walk. `mesher._box_start` takes a map
 	# coordinate modulo the box, and a walk that starts inside the border ring is
 	# offset from the map by however deep the ring is: aligning on the walk's own
 	# origin boxes every drawing in the ring half a cell out.
@@ -373,7 +368,7 @@ static func _box(
 	) - origin
 	if across == Vector2i(CELL_TILES, CELL_TILES) or shape.art(named) != &"cutout":
 		return Rect2i(start, across)
-	# ASKED ONCE PER DECLARED BOX. Whether the box is whole and how far it is cut
+	# Asked once per declared box. Whether the box is whole and how far it is cut
 	# back follow from the box and the class alone, so every tile of a drawing
 	# gets the same answer and only the first pays for it.
 	var mark: int = ((start.y + 4096) * 8192 + start.x + 4096) * 1024 + want

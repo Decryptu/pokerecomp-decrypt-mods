@@ -2,26 +2,23 @@ extends Control
 
 ## The world drawn as a voxel diorama instead of a tile page.
 ##
-## Nothing about the world requires the view to be 2D. Maps are node-free
+## Nothing about the world requires the view to be 2D: maps are node-free
 ## records, each tileset is one addressable atlas, animated tiles replace atlas
-## slots rather than map rectangles, and collision is a permission byte per walk
-## cell. This reads exactly what the built-in renderer reads and builds geometry
-## out of it, textured from the same tileset art and coloured with the same
-## palette rows, so a Johto route looks like a Johto route with no art shipped
-## here at all.
+## slots, and collision is a permission byte per walk cell. This reads exactly what
+## the built-in renderer reads and builds geometry out of it, textured from the
+## same art and coloured with the same palette rows.
 ##
 ## It answers [code]uses_hardware_viewport[/code] false, so it gets the screen's
 ## rectangle at window resolution rather than a 160x144 buffer. Text boxes and
-## menus stay hardware pixels over the top: the world gains resolution, the
-## interface stays a Game Boy.
+## menus stay hardware pixels over the top.
 ##
-## It reads the world and never writes it. That is what lets `V` swap the two
-## views mid-step without either one being able to tell the other what changed.
+## It reads the world and never writes it, which is what lets `V` swap the two
+## views mid-step.
 
 const Options: GDScript = preload("../options.gd")
 const Steering: GDScript = preload("../steering.gd")
 
-## PRELOADED, NOT LOADED ON THE PRESS. Nothing holds these between two views, so
+## Preloaded, not loaded on the press. Nothing holds these between two views, so
 ## a `load()` in `_init` re-parsed the whole shape tree every time the player
 ## switched to this one: 200 ms of parsing on the frame `V` was pressed, and
 ## again on the next press. The host holds this script from registration to
@@ -111,7 +108,7 @@ var _building: bool = false
 var _recolouring: bool = false
 var _standing: bool = false
 ## Whether this instance has ever finished a map. THE FIRST BUILD OF A RENDERER
-## IS THE ONE THE HOST COVERS: a view switch constructs a new renderer node and
+## Is the one the host covers: a view switch constructs a new renderer node and
 ## plays `Gen2Screen.play_view_cover` over the whole of it, calling `set_world`
 ## on the frame the screen is fully black. A warp reuses the node and calls
 ## `set_world` again, which is why this is per instance and not per map.
@@ -191,11 +188,10 @@ func set_text_box_rect(rect: Rect2i) -> void:
 ## that surface's pixels, beside every [method set_native_size]. See
 ## Gen2ModHost.RENDERER_SCREEN_RECT_METHOD.
 ##
-## FRAMED, THE SURFACE WAS THE SCREEN: it was a whole multiple of 160x144, so a
-## hardware pixel landed at a fixed scale from its own corner and nothing had to
-## say where. A surface that fills the window is not, and every hardware-pixel
-## number handed over is a number about that rectangle rather than about this
-## one.
+## Framed, the surface was the screen: a whole multiple of 160x144, so a hardware
+## pixel landed at a fixed scale from its own corner. A surface that fills the
+## window is not, and every hardware-pixel number handed over is about that
+## rectangle rather than about this one.
 func set_screen_rect(rect: Rect2i) -> void:
 	_screen_rect = rect
 	_transition.place(_screen_place())
@@ -239,20 +235,17 @@ func clear_transition() -> void:
 	_apply_flash()
 
 
-## ONE STEP OF A MAP FADE, which is the warp's own white or black and the five
-## script specials beside it. See Gen2ModHost.RENDERER_FADE_METHOD.
+## One step of a map fade: the warp's own white or black and the five script
+## specials beside it. See `Gen2ModHost.RENDERER_FADE_METHOD`.
 ##
 ## The same permutation over the background's four levels the transition writes,
-## through the same pass: `FADE_OUT_ORDERS` ends at `$00`, every level taken to
-## the brightest, and `FADE_TO_BLACK_ORDERS` at `$FF`, every level to the
-## darkest, so the curve carries a fade to white and a fade to black without a
-## case for either.
+## through the same pass: `FADE_OUT_ORDERS` ends at `$00` and
+## `FADE_TO_BLACK_ORDERS` at `$FF`, so the curve carries a fade to white and one
+## to black without a case for either.
 ##
-## [param white_fill] is `FillWhiteBGColor`, which flattens the tile page's
-## colour 0 on the way out. A diorama has no colour 0 to flatten: it has a lit
-## picture, and the order above has already taken every level of it to white by
-## the step that runs. Nothing here to do, and reading it would only be a second
-## answer to the same question.
+## [param white_fill] is `FillWhiteBGColor`, which flattens the tile page's colour
+## 0. A diorama has no colour 0 to flatten, and the order above has already taken
+## every level to white by the step that runs.
 @warning_ignore("unused_parameter")
 func set_fade(order: int, white_fill: bool = false) -> void:
 	if order == _fade_order:
@@ -319,7 +312,7 @@ func _screen_place() -> Rect2i:
 ## The pan the live text box asks for, in the SURFACE'S own pixels, since that is
 ## what the camera frames. Framed, the screen is the surface and this is the
 ## fraction it always was.
-## WHETHER THERE IS A BOX TO PAN FOR IS A HARDWARE QUESTION and is answered
+## Whether there is a box to pan for is a hardware question and is answered
 ## here rather than in the rig: no box at all and a box whose top row is the
 ## screen's own are both nothing to move for, and both are `position.y` at zero
 ## in the cartridge's coordinates whatever surface they land on.
@@ -374,7 +367,7 @@ func set_time_of_day(time_of_day: int) -> void:
 	# and the geometry is not touched.
 	if _build_atlas():
 		_stage.set_texture(_atlas.texture)
-		# AND EVERYTHING ELSE THAT IS READ OFF THE ATLAS RATHER THAN SAMPLED FROM
+		# And everything else that is read off the atlas rather than sampled from
 		# IT. The sky's two ends and the shore's three colours are values handed
 		# over once, not texels, so a sheet repainted for a new hour left both at
 		# the hour before: the sky caught up only when a palette command happened
@@ -587,19 +580,16 @@ func _recentre_window() -> void:
 	))
 
 
-## HOW FAR OUT A STAMPED MODEL IS STILL A SOLID, in walk cells.
+## How far out a stamped model is still a solid, in walk cells. Past it a tree is
+## the flat impostor, a tenth of the triangles: see
+## `shape/mesher.gd:set_detail_ring`.
 ##
-## Past it a tree is the flat impostor, which is a tenth of the triangles: see
-## `shape/mesher.gd:set_detail_ring`. Ten cells is a little past what the default
-## camera frames, so everything the player is actually walking among is turned
-## and what the swap can be seen happening to is already small in the frame.
+## Thirty-five, off a sweep: at 20 the swap is close enough to notice when the
+## camera is low, at 50 the saving is down to a third, and 35 keeps everything the
+## default camera frames turned while still drawing two thirds less. Zero is no
+## ring at all.
 ##
-## THIRTY FIVE, chosen off a sweep: at 20 the swap is close enough to notice
-## when the camera is low, at 50 the saving is down to a third, and 35 keeps
-## everything the default camera frames as a turned solid while still drawing
-## two thirds less. Zero is no ring at all, which is what shipped before this.
-##
-## STATIC so a tool can sweep it over one scene. It is a setting when the rung
+## Static so a tool can sweep it over one scene. It becomes a setting when the rung
 ## is offered to a player.
 static var solid_cells: float = 35.0
 
@@ -608,7 +598,7 @@ static var solid_cells: float = 35.0
 ## the widest horizon in the game, against a flat page for a landscape.
 static var far_trees: bool = true
 
-## THE DEPTH OF FIELD, which is a look and not a saving: see
+## The depth of field, which is a look and not a saving: see
 ## `world/frame.gd:set_depth_of_field`. Coarser pixels with distance, lightly:
 ## enough to take the edge off a flat drawing standing where a solid stood, and
 ## not enough to read as a modern blur laid over a Game Boy. A soft blur was the
@@ -631,7 +621,7 @@ func _dress_far_field() -> void:
 	far.set_far_trees(far_trees)
 	if not far_trees:
 		return
-	# ONLY THE FALLBACK IS HANDED OVER. Each far map cuts its own cards out of its
+	# Only the fallback is handed over. Each far map cuts its own cards out of its
 	# own sheet now, drawing by drawing: see `world/far_foliage.gd`. What is left
 	# for this map to lend is the one tree a drawing that cuts to nothing wears.
 	var tree: Array = _mesher.far_tree()
@@ -643,20 +633,17 @@ func _dress_far_field() -> void:
 		far.set_far_tree(null, null)
 
 
-## Centres the detail ring on the EYE and not on the player.
+## Centres the detail ring on the eye and not on the player.
 ##
-## Level of detail is a fact about how far a thing is from the person looking at
-## it, and the eye stands back from the player: a ring drawn round the player
-## spends half of itself behind the camera, where there is nothing to see, and
-## runs out close in front, which is the half of the frame that is actually
-## being looked at.
+## Level of detail is about how far a thing is from the person looking, and the eye
+## stands back: a ring round the player spends half itself behind the camera and
+## runs out close in front, which is the half of the frame being looked at.
 ##
 ## Only x and z matter, since the ring is a circle on the ground.
 ##
-## IT MOVES WHEN THE WINDOW DOES and not when the camera turns, because a rebuild
-## is dear and a swing is cheap and constant. So a hard swing leaves the ring
-## where the last step put it until the next one. That is a real edge and it is
-## why the radius wants to be generous rather than tight.
+## It moves when the window does and not when the camera turns, because a rebuild
+## is dear and a swing is cheap, so a hard swing leaves the ring where the last step
+## put it. That is a real edge and it is why the radius is generous.
 func _ring_on(cells: Vector2) -> void:
 	var here := Vector3(cells.x * CELL, 0.0, cells.y * CELL)
 	_mesher.set_detail_ring(here + _rig.offset(), solid_cells * CELL)
@@ -667,12 +654,12 @@ func _begin_terrain(window: Rect2i) -> void:
 	_chunks = []
 	_water = []
 	_tufts = []
-	# THE HOLE IS CUT AFTER THE EMIT HAS SAID WHAT IT COVERS, not before. The
+	# The hole is cut after the emit has said what it covers, not before. The
 	# mesher builds whole chunks and clips them to the map rather than to the
 	# window, so what lands is the window rounded out; a hole cut to the window
 	# would leave the far field's own flat ground under that fringe at the same
 	# height as the mesh's. See `shape/mesher.gd:emitted_bounds_tiles`.
-	# AND THE LINE EVERYTHING PAST THE MESH IS STOOD FROM, which is not the hole:
+	# And the line everything past the mesh is stood from, which is not the hole:
 	# the hole is what the window has emitted so far and this is what the mesher
 	# could ever stamp, emit or no emit. See `shape/mesher.gd:stamped_bounds_tiles`.
 	_stage.far_field().set_stamped_bounds(_stamped_pixels())
@@ -689,20 +676,16 @@ func _begin_terrain(window: Rect2i) -> void:
 	_advance_build()
 
 
-## THE FIRST BUILD IS SPENT WHOLE, and it is the one build in this view that has
-## somewhere to hide. The host closes a wipe over a view switch, builds the
-## renderer on the frame the screen is fully black, and opens the wipe again on a
-## fixed twenty-six frames, so an emit still sliced across those frames is
-## uncovered half done: the reviewer read it off a plate as the ground standing
-## flat and empty with the world popping in over it a moment later. Behind a full
-## black field a smooth frame rate is worth nothing at all and a finished picture
-## is worth everything, which is the same argument FIRST_BUILD_BUDGET_USEC
-## already makes and stops one rung short of.
+## The first build is spent whole, being the one build in this view with somewhere
+## to hide. The host closes a wipe over a view switch, builds the renderer on the
+## frame the screen is fully black, and opens the wipe again on a fixed twenty-six
+## frames, so an emit sliced across those frames is uncovered half done. Behind a
+## black field a smooth frame rate is worth nothing and a finished picture is worth
+## everything.
 ##
-## ONLY THE FIRST, and that is what keeps a WARP filling in. A warp reuses the
-## renderer and has no wipe over it, so its own progressive fill is deliberate
-## and a hundred and fifty milliseconds spent in one frame there would be the
-## stall this whole seam exists to remove.
+## Only the first, which is what keeps a warp filling in: a warp reuses the
+## renderer and has no wipe over it, so 150 ms spent in one frame there would be
+## the stall this seam exists to remove.
 func _advance_build() -> void:
 	if not _building:
 		return
@@ -794,7 +777,7 @@ func _hole_pixels() -> Rect2:
 ## many cells behind as it has left to walk.
 func _ground(cells: Vector2) -> Vector3:
 	var at := Vector3(cells.x * CELL + CELL * 0.5, 0.0, cells.y * CELL + CELL * 0.5)
-	# ON WHAT IS THERE, not on the floor plane. An actor used to stand at y 0
+	# On what is there, not on the floor plane. An actor used to stand at y 0
 	# whatever it was standing on, so the three Pokeballs on Elm's bench sat at the
 	# lino with the bench in front of them, which reads as behind it. A bench is a
 	# declared OBJECT and its tiles resolve back to the floor, so the column alone
@@ -812,7 +795,7 @@ func _rebuild_actors() -> void:
 		return
 	_stage.begin_cards()
 	_stage.begin_shadow_casters()
-	## A TRANSITION EMPTIES OAM AND THEN PUTS TWO SPRITES BACK, and the begin and
+	## A transition empties OAM and then puts two sprites back, and the begin and
 	## end above and below are what leaves the pool with nothing in it. See
 	## [method _drawn_in_transition].
 	if _transition_sprites == Gen2BattleTransition.SPRITES_NONE:
@@ -869,14 +852,13 @@ const CONNECTED_REACH: float = 2400.0
 ## The people standing on the maps around this one.
 ##
 ## The host places them and marks them inert: `ReadObjectEvents` fills
-## `wMapObjects` from the loaded map alone, so on the cartridge a connected
-## map's people do not exist until its own load builds them. They take no step,
-## run no script, answer no collision and are not talked to. They are drawn
-## because the 2D view draws them and two views of one world have to agree about
-## what is standing over there.
+## `wMapObjects` from the loaded map alone, so on the cartridge a connected map's
+## people do not exist until its own load builds them. They take no step, run no
+## script, answer no collision and are not talked to. They are drawn because the 2D
+## view draws them and the two views have to agree.
 ##
-## Feature-detected: `api_version` gates a mod built for an older host, not a
-## host older than the mod, so this is the mod's to check.
+## Feature-detected: `api_version` gates a mod built for an older host, not a host
+## older than the mod.
 func _add_connected_actors() -> void:
 	if _world == null or not _outside \
 			or not _world.has_method(&"connected_map_objects"):
@@ -910,7 +892,7 @@ func _add_actor(
 ## `SpawnEmote`'s bubble over whoever asked for one, which out here is a card of
 ## its own standing where the tile page puts it.
 ##
-## THE FLAT VIEW PUTS IT TWO ROWS ABOVE THE SPRITE, `MovementFunction_Emote`'s
+## The flat view puts it two rows above the sprite, `MovementFunction_Emote`'s
 ## own `-2 * TILE_WIDTH`, and a drawing is two rows tall, so the bubble's middle
 ## sits a tile and a half over the ground the drawing stands on. It rides the
 ## jump offset with the drawing and casts nothing: it is a speech bubble, not a
@@ -932,7 +914,7 @@ func _add_emote(emote: int, stood: Vector3) -> void:
 
 ## The four tiles of one emote sheet as one 16x16 drawing.
 ##
-## THE FIELD AROUND THE BUBBLE IS COLOUR 0 AND THE FIELD INSIDE IT IS NOT, which
+## The field around the bubble is colour 0 AND THE FIELD INSIDE IT IS NOT, which
 ## is why this is a straight blit and not a cutout the way a battle pic needs:
 ## these are OBJECTS, and colour 0 is what OAM makes transparent, so the paper
 ## the heart is drawn on stays paper and everything past the bubble's outline
@@ -1090,7 +1072,7 @@ func _pulse_texture(
 	return texture
 
 
-## THE BANK AND THE SHORE'S COLOURS, handed over together because they are one
+## The bank and the shore's colours, handed over together because they are one
 ## look: `world/water.gd` is where they are read and `shape/mesher.gd:bank_field`
 ## is where the field is baked, with the resolve rather than per frame. This costs
 ## a texture handle and three colours.

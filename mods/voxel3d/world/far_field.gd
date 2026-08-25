@@ -1,25 +1,22 @@
 extends RefCounted
 
-## THE GROUND THE MESH DOES NOT REACH, drawn flat from the same cartridge data.
+## The ground the mesh does not reach, drawn flat from the same cartridge data.
 ##
-## A voxel mesh is bounded twice over. The DISTANCE setting builds a window
-## around the player and nothing outside it, and even at FULL the map ends at
-## its border ring and the skirt past that, so the world stops a few hundred
-## world pixels out and the sky begins. On a screen the size of a Game Boy's
-## that edge was never in the frame. On a window-filling one, at a low camera,
-## pulled back, it is.
+## The mesh is bounded twice: DISTANCE builds a window around the player, and even
+## at FULL the map ends at its border ring and the skirt past it. On a Game Boy
+## screen that edge was never in frame; on a window-filling one, at a low camera,
+## it is.
 ##
 ## So past the mesh the ground carries on as one flat surface per map, folded on
-## the GPU exactly as the host's own `Gen2WorldMapLayer` folds the 2D view:
-## block byte, `$00` to the map's border block, metatile slot, tile, texel.
-## Which maps go where is the host's `map_placements`, the same connection graph
-## the 2D view is drawn from, so the two agree about what is over the hill.
+## the GPU exactly as the host's `Gen2WorldMapLayer` folds the 2D view: block
+## byte, `$00` to the border block, metatile slot, tile, texel. Which maps go
+## where is the host's `map_placements`, the same connection graph the 2D view
+## uses, so the two agree about what is over the hill.
 ##
-## IT IS ALSO THE LEVEL OF DETAIL. Where the window cuts, what carries on is the
-## same map with its height thrown away, which is what a Game Boy drew in the
-## first place: the near ground is a diorama and the far ground is the page it
-## was read off. Nothing is baked, so the strip the tile animation repaints is
-## the one this samples.
+## It is also the level of detail: what carries on past the cut is the same map
+## with its height thrown away, which is what a Game Boy drew in the first place.
+## Nothing is baked, so the strip the tile animation repaints is what this
+## samples.
 ##
 ## Out of doors only. A room ends at its walls and there is no horizon in it.
 
@@ -42,18 +39,13 @@ const ATLAS_TILES_PER_ROW: float = 16.0
 ## and they are stacked rather than sorted so the depth buffer decides which is
 ## in front and no render priority has to.
 ##
-## THE LOADED MAP'S PAGE IS FLUSH WITH THE GROUND and the two beneath it are not.
-## It is the only one that ever meets the MESH: the hole is cut to what the mesh
-## emitted, so the page carries on from exactly there, and sunk two pixels it left
-## a step whose face nothing draws. Looking north across it, which is the only way
-## the overworld's camera looks, that step is a hole in the floor running the
-## width of the window, and it was there at every draw distance.
+## The loaded map's page is flush with the ground and the two beneath it are not.
+## It is the only one that meets the mesh: the hole is cut to what the mesh
+## emitted, so sunk two pixels it left a step whose face nothing draws, which read
+## as a hole in the floor across the width of the window.
 ##
-## The other two stay sunk, because they meet each other and this page rather
-## than the mesh, and a step of a quarter pixel between pages a thousand pixels
-## out is under what the depth buffer can tell apart at that range. Their own
-## seam, where this page ends at the map's buffer, sits inside `drawn_bounds` and
-## is covered by the mesh whenever the window reaches it.
+## The other two stay sunk, because they meet each other and this page rather than
+## the mesh, and their own seam sits inside `drawn_bounds`.
 const FILL_DEPTH: float = -6.0
 const NEAR_DEPTH: float = -4.0
 const HERE_DEPTH: float = 0.0
@@ -81,11 +73,10 @@ uniform highp float border_block = 0.0;
 uniform highp float block_count = 1.0;
 uniform highp float atlas_rows = 1.0;
 uniform bool fill_border = false;
-// THE WATER OUT HERE IS THE SAME WATER. A far map is a drawing rather than a
-// surface, so it has no swell, no glint and no bank; what it CAN have is the
-// sky in it, which is the whole of why the near sea and the far sea were two
-// different colours meeting at a hard line. The three are that map's own water
-// row and a texel matching one of them is water: see `atlas.gd:water_colors`.
+// The water out here is the same water. A far map is a drawing rather than a
+// surface, so it has no swell, glint or bank; what it can have is the sky in it,
+// which is why the near sea and the far sea used to meet at a hard line. The
+// three are that map's own water row: see `atlas.gd:water_colors`.
 uniform vec3 water_one : source_color = vec3(0.0);
 uniform vec3 water_two : source_color = vec3(0.0);
 uniform vec3 water_three : source_color = vec3(0.0);
@@ -100,9 +91,8 @@ void vertex() {
 
 void fragment() {
 	highp vec2 world = floor(vec2(ground.x, ground.z));
-	// The mesh owns its own window whole, holes in it included: a flat page
-	// showing through a crack in the diorama standing on it is worse than the
-	// crack.
+	// The mesh owns its window whole, holes included: a flat page showing
+	// through a crack in the diorama is worse than the crack.
 	if (world.x >= hole.x && world.y >= hole.y
 		&& world.x < hole.x + hole.z && world.y < hole.y + hole.w) {
 		discard;
@@ -169,7 +159,7 @@ var _houses: RefCounted = null
 ## walked yet stands nothing this frame and is walked on the next.
 var _walked: Dictionary = {}
 var _walk_owed: bool = false
-## EVERYTHING THE MESH CAN STAND A MODEL ON, in world pixels: the loaded map
+## Everything the mesh can stand a model on, in world pixels: the loaded map
 ## inside its border ring. See `shape/mesher.gd:stamped_bounds_tiles`. The line
 ## everything out here is drawn from: the loaded map's own cards cover it, and
 ## nothing else stands on it.
@@ -310,10 +300,9 @@ func advance(focus: Vector3, reach: float) -> void:
 
 	var used: int = 0
 	var owed: bool = false
-	# WHERE A MAP IS ALREADY DRAWN, for the world past them all: see
-	# `far_foliage.gd:place_border`. Every placement rather than every VISIBLE
-	# placement, so the answer does not change as the eye turns, and the loaded
-	# map grown by the margin that covers whatever hole the mesh has cut.
+	# Where a map is already drawn, for the world past them all: see
+	# `far_foliage.gd:place_border`. Every placement rather than every visible
+	# one, so the answer does not change as the eye turns.
 	var taken: Array = [_stamped]
 	_foliage.begin()
 	_houses.begin()
@@ -338,9 +327,9 @@ func advance(focus: Vector3, reach: float) -> void:
 		_stand(layer, origin, size, NEAR_DEPTH)
 		# The skyline on the page, and the town on it, both off one walk of that
 		# map and both wearing its own sheet. See `far_foliage.gd`.
-		# THE MESH'S OWN GROUND IS KEPT CLEAR, and a neighbour overlaps it: the
-		# loaded map's border ring is the neighbour's own map, so its cards would
-		# stand where the mesh has already stood a solid.
+		# The mesh's ground is kept clear, and a neighbour overlaps it: the
+		# loaded map's border ring is the neighbour's own map, so its cards
+		# would stand where the mesh already stood a solid.
 		var found: Dictionary = _walk_of(near, 0)
 		_foliage.place(near, origin, sheet, found.get("drawings", {}), _stamped)
 		_houses.place(near, origin, sheet, found.get("buildings", []), _stamped)
@@ -361,14 +350,11 @@ func advance(focus: Vector3, reach: float) -> void:
 		_dress(layer, _sheet(map, true), here, _tile_texture(tileset), blocks,
 			origin, map.border_block, map.tileset, false)
 		_stand(layer, origin, blocks * BLOCK_PIXELS, HERE_DEPTH)
-		# AND THIS MAP'S OWN TREES PAST THE WINDOW. Most of a route is outside the
-		# mesh at any draw distance, and until this was here that ground was the
-		# only bare page in the frame: the maps beyond it wore a skyline and the
-		# one being walked on did not. The hole is what keeps a card off ground
-		# the mesh has already stood a solid on.
-		# WALKED INTO ITS OWN BORDER RING, which is what closes the band between
-		# what the mesh stamps and what the ring outside stands: see
-		# [member _stamped].
+		# And this map's own trees past the window. Most of a route is outside
+		# the mesh at any draw distance, and that ground was the only bare page
+		# in the frame. The hole keeps a card off ground the mesh has stood on.
+		# Walked into its own border ring, which closes the band between what the
+		# mesh stamps and what the ring outside stands: see [member _stamped].
 		var here_found: Dictionary = _walk_of(map, _ring_tiles())
 		_foliage.place(
 			map, Vector2.ZERO, _sheet(map, true), here_found.get("drawings", {}), _hole
@@ -376,8 +362,8 @@ func advance(focus: Vector3, reach: float) -> void:
 		_houses.place(
 			map, Vector2.ZERO, _sheet(map, true), here_found.get("buildings", []), _hole
 		)
-	# AND THE WORLD PAST EVERY MAP, which is this one's border block repeated to
-	# the far plane and was the last flat page in the frame.
+	# And the world past every map: this one's border block repeated to the far
+	# plane, which was the last flat page in the frame.
 	_foliage.place_border(
 		_world.data, map, _sheet(map, true), Vector2(focus.x, focus.z), taken
 	)
@@ -391,9 +377,9 @@ func advance(focus: Vector3, reach: float) -> void:
 ## map with and what the host fills the far window with.
 ## What one map holds, walked once and kept. See [member _walked].
 ##
-## The MARGIN is part of the key: the loaded map is walked into its border ring
-## and the same map as a neighbour is not, so the two answers are different and
-## a map that becomes the loaded one is walked again.
+## The margin is part of the key: the loaded map is walked into its border ring
+## and the same map as a neighbour is not, so a map that becomes the loaded one is
+## walked again.
 func _walk_of(map: Gen2WorldMap, margin: int) -> Dictionary:
 	var key: String = "%d:%d:%d" % [map.group, map.number, margin]
 	if _walked.has(key):
@@ -513,9 +499,8 @@ func _sheet(map: Gen2WorldMap, may_build: bool) -> RefCounted:
 		return _sheets[key]
 	if not may_build:
 		return null
-	# Kept between maps, because walking a route and back should not repaint the
-	# town at each end of it, and bounded because a long session walks a lot of
-	# them: a sheet is 24 KB and this is the whole of what holds one.
+	# Kept between maps, so walking a route and back does not repaint the town at
+	# each end, and bounded because a long session walks a lot of them.
 	if _sheets.size() >= SHEET_LIMIT:
 		_sheets.clear()
 	var tileset: Gen2WorldTileset = _world.data.world_tileset(map.tileset)

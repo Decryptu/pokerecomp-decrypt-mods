@@ -1,37 +1,26 @@
 extends RefCounted
 
-## THE MOVE ANIMATION, drawn as the hardware drew it: `wShadowOAM` blitted into
-## one 160x144 picture that the renderer then lays over the fight.
+## The move animation, drawn as the hardware drew it: `wShadowOAM` blitted into
+## one 160x144 picture the renderer lays over the fight. Nothing here is authored:
+## an OAM entry says which tile, where, which object palette and which flips, and
+## every one of those answers is the host's.
 ##
-## The view carries `anim_sprites` and `anim_tiles` on every frame of a move and
-## this view ignored all of it, so a move played with nothing on screen but the
-## bars moving. Nothing here is authored: an OAM entry says which tile, where,
-## which object palette and which flips, and the answer to every one of those is
-## the host's.
+## It can be drawn at the hardware's own coordinates, which is why it is cheap:
+## an animation is authored against the two picture slots the cartridge draws its
+## battlers in, and `arena.gd`'s rig is solved to land both battlers in those
+## slots to within 0.013 px, so nothing has to be re-aimed.
 ##
-## WHY IT CAN BE DRAWN AT THE HARDWARE'S OWN COORDINATES, which is the whole
-## reason this is cheap. An animation is authored against the two picture slots
-## the cartridge draws its battlers in, and `arena.gd`'s rig is SOLVED to land
-## both battlers in those very slots, to within 0.013 px. So a beam aimed at the
-## enemy's slot is aimed at our enemy, and nothing has to be re-aimed.
+## What is left over is the shot's drift, and it needs two offsets rather than
+## one. The drift orbits, carrying the near battler one way and the far one the
+## other: each ends up as much as 1.2 hardware pixels off its mark while the mean
+## of the two peaks at 0.34, so one offset for the layer is almost no offset at
+## all. Each sprite is placed against whichever mark it is nearer, lerped along
+## the line joining them, which is exact at both battlers and continuous between,
+## so an ember stream crossing the field bends rather than stepping.
 ##
-## WHAT IS LEFT OVER IS THE SHOT'S DRIFT, and it needs TWO offsets rather than
-## one. The drift orbits, so it carries the near battler one way across the
-## frame and the far one the other: measured over a whole period of both terms,
-## each ends up as much as 1.2 hardware pixels off its own mark, and the MEAN of
-## the two peaks at 0.34, because they very nearly cancel. One offset for the
-## layer is therefore almost exactly no offset at all, which is how this came to
-## be built per sprite instead.
-##
-## So each sprite is placed against whichever mark it is nearer, LERPED along the
-## line joining them, which is the one rule that is exact at both battlers and
-## continuous in between: an ember stream crossing the field bends from one
-## correction to the other instead of stepping.
-##
-## What is NOT drawn is the animation's BACKGROUND half: `bg_map` edits, the
-## background palette maps and the raster scroll are a flat 2D screen's
-## mechanisms and this view has a diorama behind the battlers instead. The OAM
-## layer is where the effect itself lives.
+## The animation's background half is not drawn: `bg_map` edits, background
+## palette maps and the raster scroll are a flat screen's mechanisms, and this
+## view has a diorama behind the battlers. The OAM layer is where the effect is.
 
 const Arena: GDScript = preload("arena.gd")
 
@@ -48,8 +37,8 @@ const PALETTE_IDENTITY: int = 0xE4
 
 var _data: GameData = null
 
-## The two battler pictures padded out to the boxes the tilemap addresses them
-## in, 56x56 and 48x48, kept only for the effects that move a battler AS objects
+## The two battler pictures padded to the boxes the tilemap addresses them in,
+## 56x56 and 48x48, kept only for the effects that move a battler as objects
 ## (`anim_battlergfx_1row` and `..._2row`). Rebuilt when the species changes.
 var _enemy_pixels := PackedByteArray()
 var _player_pixels := PackedByteArray()
@@ -61,14 +50,14 @@ func _init(data: GameData) -> void:
 	_data = data
 
 
-## The whole OAM layer as one hardware-sized picture, or null when the view has
-## no animation on it, which is every frame outside a move.
+## The whole OAM layer as one hardware-sized picture, or null on any frame
+## outside a move.
 ##
 ## [param player_off] and [param enemy_off] are how far each battler has drifted
-## off its own mark, in HARDWARE pixels, and are zero on a still shot.
+## off its mark, in hardware pixels, and are zero on a still shot.
 ##
-## Sprites are blitted in the order they were written, so a later one draws over
-## an earlier, which is the hardware's own priority between objects.
+## Sprites are blitted in the order written, so a later one draws over an earlier:
+## the hardware's own priority between objects.
 func image(
 	view: Dictionary, player_off := Vector2.ZERO, enemy_off := Vector2.ZERO
 ) -> Image:
@@ -90,10 +79,8 @@ func image(
 
 
 ## How far along the line from the player's mark to the enemy's a point lies,
-## clamped to the segment, which is what decides whose drift correction it takes.
-##
-## Along the LINE and not by nearest mark, so the correction is continuous: a
-## thing halfway between the two takes half of each rather than snapping.
+## clamped to the segment, which decides whose drift correction it takes. Along
+## the line and not by nearest mark, so the correction is continuous.
 static func _between(at: Vector2) -> float:
 	var axis: Vector2 = Arena.ENEMY_MARK - Arena.PLAYER_MARK
 	var span: float = axis.length_squared()
@@ -102,9 +89,9 @@ static func _between(at: Vector2) -> float:
 	return clampf((at - Arena.PLAYER_MARK).dot(axis) / span, 0.0, 1.0)
 
 
-## One OAM entry. The stored y and x are the HARDWARE's, which subtracts sixteen
-## and eight before it draws, so a zero in either is off screen rather than at
-## the corner: that is why an animation can park a sprite by writing 0 to it.
+## One OAM entry. The stored y and x are the hardware's, which subtracts sixteen
+## and eight before drawing, so a zero in either is off screen rather than at the
+## corner: that is how an animation parks a sprite.
 func _blit(
 	into: Image, sprite: Dictionary, view: Dictionary,
 	player_off: Vector2, enemy_off: Vector2
@@ -117,8 +104,8 @@ func _blit(
 		_object_palette(attributes & OAM_PALETTE, view),
 		_palette_map(view, attributes & OAM_PALETTE)
 	)
-	# Index 0 is transparent, which is what OAM's own colour 0 is: an object is a
-	# shape over the field, never a square of background.
+	# Index 0 is transparent, as OAM's colour 0 is: an object is a shape over the
+	# field, never a square of background.
 	var lookup: Image = Gen2PicImage.from_indices(pixels, TILE, TILE, palette, true)
 	if (attributes & OAM_XFLIP) != 0:
 		lookup.flip_x()
@@ -127,9 +114,8 @@ func _blit(
 
 	var left: int = int(sprite.get("x", 0)) - 8
 	var top: int = int(sprite.get("y", 0)) - 16
-	# The drift correction, taken at the sprite's MIDDLE so an eight-pixel tile
-	# is weighed where it sits rather than at its corner, and rounded because the
-	# unit here is a hardware pixel and half of one cannot be blitted.
+	# Taken at the sprite's middle so a tile is weighed where it sits, and
+	# rounded because half a hardware pixel cannot be blitted.
 	var shift: Vector2 = player_off.lerp(
 		enemy_off, _between(Vector2(float(left) + 4.0, float(top) + 4.0))
 	).round()
@@ -152,9 +138,9 @@ func _blit(
 	return true
 
 
-## The eight pixels by eight of one animation tile, found through the window
-## `anim_tiles` describes and counted from `Gen2BattleAnimObject.BASE_TILE`, so
-## an OAM tile id below that base is not an animation tile at all.
+## One 8x8 animation tile, found through the window `anim_tiles` describes and
+## counted from `Gen2BattleAnimObject.BASE_TILE`: an OAM tile id below that base
+## is not an animation tile.
 func _tile(tile: int, view: Dictionary) -> PackedByteArray:
 	var window: Array = view.get("anim_tiles", [])
 	var at: int = tile - Gen2BattleAnimObject.BASE_TILE
@@ -179,9 +165,9 @@ func _tile(tile: int, view: Dictionary) -> PackedByteArray:
 	return out
 
 
-## One tile of the battler boxes, out of the same padding the tilemap addresses
-## them through, so an effect that carries a battler across the screen carries
-## the picture that was on the field.
+## One tile of the battler boxes, out of the padding the tilemap addresses them
+## through, so an effect carrying a battler across the screen carries the picture
+## that was on the field.
 func _battler_tile(vram: int) -> PackedByteArray:
 	var enemy: bool = vram < Gen2BattleScreenMap.PLAYER_BASE_TILE
 	var side: int = Gen2BattleScreenMap.ENEMY_SIDE if enemy \
@@ -194,7 +180,7 @@ func _battler_tile(vram: int) -> PackedByteArray:
 	if index < 0 or index >= side * side or pixels.size() < box * box:
 		return PackedByteArray()
 
-	# The tilemap walks a box down its COLUMNS, which is how the hardware numbers
+	# The tilemap walks a box down its columns, which is how the hardware numbers
 	# the tiles of a picture.
 	@warning_ignore("integer_division")
 	var left: int = (index / side) * TILE
@@ -223,9 +209,8 @@ func _ensure_pixels(view: Dictionary) -> void:
 		_player_species = player
 
 
-## A pic laid into the top-left of its own box, which is where the tilemap
-## expects it: a picture smaller than its slot leaves the rest of the box blank
-## rather than being centred in it.
+## A pic laid into the top-left of its box, where the tilemap expects it: a
+## picture smaller than its slot leaves the rest blank rather than being centred.
 func _padded(pic: Dictionary, side: int) -> PackedByteArray:
 	var box: int = side * TILE
 	var out := PackedByteArray()
@@ -255,7 +240,7 @@ func _padded(pic: Dictionary, side: int) -> PackedByteArray:
 	return out
 
 
-## `PAL_BATTLE_OB_*`. Slots 0 and 1 are the two battlers' OWN palettes rather
+## `PAL_BATTLE_OB_*`. Slots 0 and 1 are the two battlers' own palettes rather
 ## than `BattleObjectPals` rows, which is what the layout code fills them with,
 ## so a beam tinted to the animal it comes out of stays tinted to it.
 func _object_palette(slot: int, view: Dictionary) -> PackedColorArray:

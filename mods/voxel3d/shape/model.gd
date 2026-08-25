@@ -1,125 +1,105 @@
 extends RefCounted
 
-## A voxel model TURNED FROM THE DRAWING, one per distinct sprite, built once.
+## A voxel model turned from the drawing, one per distinct sprite, built once.
 ##
 ## Most of this mod stands a drawing up, because most of Generation II's art is a
-## picture of a face: a wall, a facade, a shopfront seen head on. A TREE is not.
-## Its sprite is a portrait of a thing that is round, and standing it up or
-## carving it per pixel both fail for the same reason: they treat the picture as
-## a plan. Six ways of carving one were built and measured and every one came out
-## a drum, a stack of plates or a black hedge.
+## picture of a face. A tree is not: its sprite is a portrait of something round,
+## and standing it up or carving it per pixel both treat the picture as a plan.
+## Six ways of carving one were built and measured and every one came out a drum,
+## a stack of plates or a black hedge.
 ##
-## What the sprite DOES state is the tree's profile. Its silhouette is half of a
-## body of revolution: the width at each row is that row's diameter. So the model
-## is the silhouette TURNED, which needs no taste at all and gets each tree's own
-## shape for nothing. A pointed sprite comes out a cone, a round one a ball, a
-## broad one a broad crown, and the two sizes of tree in the game come out at
-## their two sizes because they are drawn at them.
+## What the sprite does state is the profile: its silhouette is half a body of
+## revolution, the width at each row being that row's diameter. So the model is
+## the silhouette turned, which needs no taste and gets each tree's own shape for
+## nothing: a pointed sprite comes out a cone, a round one a ball.
 ##
-## Three things are then added, and they are the whole of what is authored:
+## Three things are added, and they are the whole of what is authored:
 ##
-##   noise    the turned surface is smooth and a tree is not. Each voxel's own
-##            radius is jittered a little, so the crown breaks into leaves and
-##            the silhouette stops being a lathe.
-##   roots    a trunk is not a pipe. Four roots flare from its foot, one each
-##            way, which is what stops it meeting the ground in a hard circle.
-##   light    see `_tone`. The drawing's own shading rule, applied in three
-##            dimensions.
+##   noise    each voxel's radius is jittered, so the crown breaks into leaves
+##            and the silhouette stops being a lathe.
+##   roots    four flare from the trunk's foot, so it does not meet the ground
+##            in a hard circle.
+##   light    see `_tone`, the drawing's own shading rule in three dimensions.
 ##
-## NOTHING HERE IS CARTRIDGE CONTENT. The shape is arithmetic over a silhouette;
-## the colours come from the player's own cartridge at run time, as every texel
-## in this mod does.
+## No cartridge content is here: the shape is arithmetic over a silhouette and
+## the colours come from the player's own cartridge at run time.
 
 ## World pixels per voxel. One is the drawing's own resolution and is far more
 ## than a tree needs; two keeps the model under a couple of thousand triangles
 ## and still steps visibly, which is the look.
 const VOXEL: float = 2.0
-## And what a ROCK is built at. A voxel is an absolute size, so the same one that
-## reads as chunky on a 32px tree leaves a 16px stone six voxels across and a
-## sea rock three, which is a box whatever profile it was turned from. A crown is
-## made of leaves and wants to be chunky; a stone has one surface and does not.
+## And what a rock is built at. A voxel is an absolute size, so the one that reads
+## as chunky on a 32px tree leaves a 16px stone six voxels across, which is a box
+## whatever profile it was turned from.
 const ROCK_VOXEL: float = 1.0
-## The least stalk a potted plant stands its crown on, in world pixels. The
-## drawing states the stalk honestly and then the crown hangs over most of it, so
-## read literally the leaves sit on the rim and the plant has no stem at all.
+## The least stalk a potted plant stands its crown on, in world pixels. The crown
+## hangs over most of the drawn stalk, so read literally the leaves sit on the rim.
 const POT_STALK: float = 5.0
 ## How far a potted crown's two lit flanks move on the ladder, in rungs.
 const LEAF_FLANK: float = 0.9
 
-## How ragged the crown is, as a share of each row's own radius. Enough to break
-## the turned surface into clumps, little enough that the sprite's profile is
-## still the shape being read.
+## How ragged the crown is, as a share of each row's radius: enough to break the
+## turned surface into clumps, little enough that the profile still reads.
 const LEAF_NOISE: float = 0.22
-## And how ragged a ROCK is. A crown is a thousand leaves and breaks up; a
-## boulder is one stone and does not, so the jitter here is only what stops the
-## turn reading as a machined dome.
+## And how ragged a rock is. A boulder is one stone, so the jitter is only what
+## stops the turn reading as a machined dome.
 const ROCK_NOISE: float = 0.08
 ## How far the roots reach past the trunk, and how tall they climb.
 const ROOT_REACH: float = 1.6
 const ROOT_RISE: float = 0.45
 
-## THE DRAWING IS FORESHORTENED AND THE MODEL MUST NOT BE.
+## The drawing is foreshortened and the model must not be.
 ##
 ## A Generation II sprite is drawn from above and in front at once, so a tree
 ## states its width honestly and its height not at all: the big tree is 31 across
-## and 22 down, which is a bush. Worse, the trunk is drawn almost entirely BEHIND
-## the crown, so its four visible rows are what is left over rather than how tall
-## it stands.
+## and 22 down, which is a bush. The trunk is drawn almost entirely behind the
+## crown, so its four visible rows are what is left over rather than its height.
 ##
 ## So the profile is turned at its own widths and stretched up: the crown gets a
 ## quarter again of the rows it drew, and the trunk is held to a share of the
-## crown's width, which is the proportion a tree has and a drawing of one cannot.
+## crown's width.
 const CROWN_STRETCH: float = 1.3
 const TRUNK_MIN: float = 0.5
-## And how THICK it is, as a share of the crown's width. The drawn trunk is not
-## the trunk either: what the sprite shows below the leaves is the trunk plus
-## whatever of the crown's underside is drawn around it, so reading it directly
-## gives a stump half as wide as the tree.
+## And how thick it is, as a share of the crown's width. What the sprite shows
+## below the leaves is the trunk plus whatever of the crown's underside is drawn
+## around it, so reading it directly gives a stump half as wide as the tree.
 const TRUNK_THICKNESS: float = 0.22
 ## The least share of a band, as a percentage, a colour must cover to count as a
 ## material rather than as something showing through the leaves.
 const TONE_SHARE: int = 8
 
-## THREE OTHER WAYS OF SPENDING THE COLOURS WERE BUILT AND REFUSED, in round
-## twenty-six, and they must not be re-derived. The reviewer saw all four in one
-## sheet and in one wood and took the one below.
+## Three other ways of spending the colours were built and refused, and must not
+## be re-derived:
 ##
-##   KEPT    what was in until then: the shades the drawing uses MINUS its
-##           darkest, spent on exposure. The darkest is the outline a flat
-##           drawing needs, so it was dropped whole, which left most crowns TWO
-##           colours. That is the poverty this replaced, and it is what the
-##           reviewer saw without being told to look for it.
+##   KEPT    the shades the drawing uses minus its darkest, spent on exposure.
+##           The darkest is the outline a flat drawing needs, so dropping it
+##           whole left most crowns two colours.
 ##   DEEP    the same rule with the darkest kept for the deepest faces.
 ##   TURNED  the drawing's own colour at that row and that distance from the
-##           centre. It needed the outline dropped from the ring and the dither
-##           read by its commonest colour, and both of those are worth knowing:
-##           a drawn row's outermost pixels are its outline and the outer ring of
-##           a turned body is nearly all of its surface, so an outline kept is an
-##           outline sprayed over the whole crown.
-##
-## Pictures for all four are in the survey directory under `round26/styles`.
+##           centre. It needs the outline dropped from the ring and the dither
+##           read by its commonest colour: a drawn row's outermost pixels are its
+##           outline, and the outer ring of a turned body is nearly all of its
+##           surface, so an outline kept is one sprayed over the whole crown.
 
-## AND HOW A COLUMN IS BUILT was the same question one level down, asked in round
-## twenty-eight with three propositions against what was committed. The reviewer
-## took the last of them and it is what `_radius`, `_band_at` and `_tone` do now:
-## the ends bevelled, the lid's rows out of the side, and the side painted by the
-## drawn COLUMN. What they refused, so nobody rebuilds it: a straight barrel
-## painted by band alone, which reads as a plain drum; the bevel on its own; and
-## the bevel with the lid taken out but the side still mixed by row.
+## How a column is built was the same question one level down. What `_radius`,
+## `_band_at` and `_tone` do now: the ends bevelled, the lid's rows out of the
+## side, and the side painted by the drawn column. What was refused, so nobody
+## rebuilds it: a straight barrel painted by band alone, which reads as a plain
+## drum; the bevel on its own; and the bevel with the lid taken out but the side
+## still mixed by row.
 
 
 var _vertices := PackedVector3Array()
 var _normals := PackedVector3Array()
 var _colors := PackedColorArray()
-## Per vertex: how far up the CROWN it stands, 0 through the trunk and 1 at the
+## Per vertex: how far up the crown it stands, 0 through the trunk and 1 at the
 ## top, which is what `world/wind.gd` bends the tree by. A model carries no
-## texture, its colour being baked into the vertices, so UV is free for it.
+## texture, so UV is free for it.
 var _sways := PackedVector2Array()
 var _uvs := PackedVector2Array()
-## The weight the next face is written with, set per voxel row.
-## The sway weight is read off the VERTEX rather than off the voxel row, so these
-## are the two numbers a vertex height is measured against: where the crown's
-## foot is and how tall it is, both in world pixels. See `_sway_at`.
+## The sway weight is read off the VERTEX rather than the voxel row, so these are
+## the two numbers a vertex height is measured against: where the crown's foot is
+## and how tall it is, both in world pixels. See `_sway_at`.
 var _sway_foot: float = 0.0
 var _sway_span: float = 1.0
 var _sway_still: bool = false
@@ -134,19 +114,16 @@ var _voxel: float = VOXEL
 
 ## What the drawing states about the thing it depicts.
 ##
-## The PROFILE is the whole of the shape: half the drawn width at each row of the
-## crown, top row first, in world pixels. Everything else here is either the
-## trunk, which the drawing states directly, or colour.
+## The profile is the whole shape: half the drawn width at each row of the crown,
+## top row first, in world pixels. Everything else is either the trunk, which the
+## drawing states directly, or colour.
 class Measure extends RefCounted:
 	var profile := PackedFloat32Array()
 	var trunk_width: int = 6
 	var trunk_height: int = 10
-	## A SHRUB sits on the ground. It has no trunk to hold its crown up, no roots
-	## to flare, and it is not foreshortened either: a tree is drawn small because
-	## it is far away and tall, where a bush the reviewer measured as "about as
-	## tall as the player" is drawn at the height it stands. Stretching one and
-	## standing it on a stalk makes a small tree, which is what the first attempt
-	## looked like.
+	## A shrub sits on the ground: no trunk, no roots, and not foreshortened
+	## either, since a bush is drawn at the height it stands. Stretching one and
+	## standing it on a stalk makes a small tree, which the first attempt was.
 	var shrub: bool = false
 	## A POTTED plant keeps the rows below its stalk: they are the pot, not the
 	## shadow the thing stands in. Half the drawn width at each of those rows, top
@@ -154,24 +131,20 @@ class Measure extends RefCounted:
 	var potted: bool = false
 	var pot := PackedFloat32Array()
 	var pot_bands: PackedColorArray = PackedColorArray()
-	## A ROCK is not a plant. It sits on the ground as a shrub does, and the three
-	## other things this mod does to a plant are all wrong for it: it is barely
-	## ragged, it does not bend in the wind, and it is not the dark mass a hedge
-	## is, so the drawing's own exposure reads straight back off it.
+	## A rock is not a plant. It sits on the ground as a shrub does, is barely
+	## ragged, does not bend in the wind, and is not the dark mass a hedge is, so
+	## the drawing's own exposure reads straight back off it.
 	var rock: bool = false
 	## A COLUMN is not turned from its silhouette: it is the widest row's radius
 	## all the way up, with a flat top. See `profile.gd:COLUMN`.
 	var column: bool = false
-	## HOW TALL THE THING STANDS AGAINST HOW TALL IT IS DRAWN, where a person has
-	## said and the drawing cannot. Zero takes the class's own default: 1.3 for a
-	## tree, which is the foreshortening, and 1.0 for anything sitting on the
-	## ground, which is the drawing read literally.
+	## How tall the thing stands against how tall it is drawn, where a person has
+	## said and the drawing cannot. Zero takes the class default: 1.3 for a tree,
+	## which is the foreshortening, and 1.0 for anything on the ground.
 	##
 	## A drawing being tall on screen is not a thing being tall in the world, and
-	## this file is the third place that has had to say so: the reviewer corrected
-	## the long flower bed, then the school chair, whose twelve drawn rows they
-	## measured at six. A round stool is the same case at model scale. What a
-	## face-on drawing states honestly is its WIDTH.
+	## this is the third place that has had to say so, after the long flower bed
+	## and the school chair. What a face-on drawing states honestly is its WIDTH.
 	var stretch: float = 0.0
 	## Lightest first, and the drawing's darkest shade is NOT among them.
 	var tones: PackedColorArray = PackedColorArray()
@@ -209,10 +182,9 @@ class Measure extends RefCounted:
 ## Reads the profile, the trunk and the colours off one cut drawing.
 ##
 ## The crown is the rows down to where the drawing narrows to a stick, the trunk
-## is the stick, and whatever is below THAT is the shadow the tree is drawn
-## standing in, which is not part of the tree. Reading the bands downward is what
-## gets the trunk: the shadow is as wide as the crown, so a rule that looks
-## upward from the foot finds a trunk one pixel tall and a tree with no trunk.
+## is the stick, and below that is the shadow the tree is drawn standing in.
+## Reading downward is what gets the trunk: the shadow is as wide as the crown, so
+## looking upward from the foot finds a trunk one pixel tall.
 static func measure(
 	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
 	atlas: RefCounted, measured_pot: bool = false
@@ -247,11 +219,9 @@ static func measure(
 
 	var narrow: int = maxi(widest / 2, 1)
 	# The crown ends where the drawing narrows to a stick BELOW ITS WIDEST ROW,
-	# which is not the same as the first narrow row and the difference is a whole
-	# class of tree. A fir is pointed: its top row is two pixels across, so a scan
-	# starting at the top stops before it has begun and the crown comes out one row
-	# of the widest radius, which is a flat disk on a stump. Every conifer in the
-	# game is drawn that way, and the round tree only escaped it by one pixel.
+	# which is not the first narrow row, and the difference is a whole class of
+	# tree: a fir's top row is two pixels across, so a scan from the top stops
+	# before it begins and comes out a disk on a stump.
 	var widest_row: int = first_row
 	for py: int in range(first_row, last_row + 1):
 		if widths[py] == widest:
@@ -275,14 +245,12 @@ static func measure(
 	out.trunk_height = maxi(trunk_bottom - crown_bottom, 2)
 	out.trunk_width = maxi(trunk, 3)
 
-	# THE POT IS WHAT IS LEFT UNDER THE STALK, and only where a person has said
-	# the thing has one: the same rows under a tree are the shadow it is drawn
-	# standing in.
+	# The pot is what is left under the stalk, and only where a person has said
+	# the thing has one: the same rows under a tree are its shadow.
 	#
-	# WHERE THE STALK ENDS IS WHERE THE DRAWING WIDENS AGAIN, which is not what
-	# `trunk_bottom` answers: that scan stops at the first row wider than HALF the
-	# crown, and a pot's rim is drawn exactly that wide, so the rim came out as one
-	# more row of stalk and the stem was painted the pot's own blue.
+	# The stalk ends where the drawing widens again, which is not what
+	# `trunk_bottom` answers: that stops at the first row wider than half the
+	# crown, and a pot's rim is drawn exactly that wide.
 	var pot_top: int = crown_bottom
 	if measured_pot:
 		var thin: int = 0
@@ -312,29 +280,25 @@ static func measure(
 	out.wraps = _wraps(
 		mask, span, tiles, across, atlas, first_row + out.cap_rows, crown_bottom - 1
 	)
-	# The bark is read all the way down to the drawing's last row, shadow and all:
-	# what a tree draws under its crown is trunk, roots and the dark they sit in,
-	# and the trunk band alone is too few pixels to rank on some tilesets.
-	# A POTTED PLANT'S STALK IS THE STALK. Everything below the crown is bark for
-	# a tree, which is trunk, roots and the dark they stand in; here it is the pot,
-	# and reading it in paints a blue stem under a green crown.
+	# Bark is read down to the drawing's last row, shadow and all: what a tree
+	# draws under its crown is trunk, roots and the dark they sit in, and the
+	# trunk band alone is too few pixels to rank on some tilesets. A potted
+	# plant's stalk is the stalk: below the crown is the pot, and reading it in
+	# paints a blue stem under a green crown.
 	out.bark = _tones(
 		mask, span, tiles, across, atlas, crown_bottom,
 		(pot_top - 1) if measured_pot and pot_top > crown_bottom else last_row
 	)
-	# Bark is what is under the leaves and is NOT leaves. The band below a crown
-	# is drawn with the crown's own greens in it wherever the canopy hangs over
-	# the trunk, and taking the lightest of those paints a green trunk: dropping
-	# every tone the crown already claimed is what leaves the wood behind.
-	# AND BARK IS NEVER LIGHTER THAN THE LEAVES OVER IT, which is the other half of
-	# the same rule and is what the cut tree needed. Its stem is drawn as two dark
-	# lines with the GRASS between them, and the flood encloses that grass, so the
-	# band under its crown holds a tone the crown never claimed and the leftover
-	# came back at 0.89 luminance against the crown's 0.66: a pale green stalk
-	# under a near-black canopy. A trunk stands in its own shade, so a leftover
-	# brighter than the brightest leaf is the ground showing through the drawing
-	# rather than wood, and what is left when both filters empty the band is the
-	# darkest shade the drawing has, which is what those two lines are painted in.
+	# Bark is what is under the leaves and is NOT leaves: the band below a crown
+	# carries the crown's own greens wherever the canopy hangs over the trunk, so
+	# dropping every tone the crown claimed is what leaves the wood behind.
+	#
+	# And bark is never lighter than the leaves over it, which is what the cut
+	# tree needed: its stem is two dark lines with the grass between them, and the
+	# flood encloses that grass, so the leftover came back at 0.89 luminance
+	# against the crown's 0.66. A trunk stands in its own shade, so anything
+	# brighter than the brightest leaf is ground showing through the drawing. When
+	# both filters empty the band, the darkest shade is what is left.
 	var lightest: float = 0.0
 	for leaf: Color in out.tones:
 		lightest = maxf(lightest, leaf.get_luminance())
@@ -346,11 +310,9 @@ static func measure(
 				claimed = true
 		if not claimed and colour.get_luminance() <= lightest:
 			wood.append(colour)
-	# ONLY WHERE THE BAND HAD SOMETHING TO SAY. A band that ranks NO tone at all,
-	# which is most conifers, already has an answer below: the authored brown, and
-	# it is the right one for a trunk the drawing does not paint. Reaching for the
-	# darkest shade there paints every tree in the game on a near-black stem, which
-	# is what this line did before it was measured.
+	# Only where the band had something to say. A band ranking no tone at all,
+	# which is most conifers, already has the authored brown below, and that is
+	# right for a trunk the drawing does not paint.
 	if wood.is_empty() and not out.bark.is_empty() and not out.shades.is_empty():
 		wood.append(out.shades[out.shades.size() - 1])
 	if not wood.is_empty():
@@ -364,14 +326,13 @@ static func measure(
 	return out
 
 
-## The colours a band of the drawing is painted in, LIGHTEST FIRST, with each
+## The colours a band of the drawing is painted in, lightest first, with each
 ## tile's darkest shade left out.
 ##
-## The darkest shade is the outline. It is how a flat drawing separates itself
-## from a flat background, and a solid standing in a real light has a silhouette
-## already: painting it on is what made every carved attempt read as a lump of
-## coal. What is left is the material, and it arrives sorted, which is what lets
-## `_tone` spend it on the light.
+## The darkest shade is the outline, which is how a flat drawing separates itself
+## from a flat background. A solid in a real light has a silhouette already, and
+## painting one on is what made every carved attempt read as a lump of coal. What
+## is left is the material, sorted, which is what `_tone` spends on the light.
 static func _tones(
 	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
 	atlas: RefCounted, from_row: int, to_row: int, drop_dark: bool = true
@@ -393,11 +354,9 @@ static func _tones(
 			counts[key] = int(counts.get(key, 0)) + 1
 			colours[key] = colour
 			total += 1
-	# BY COUNT FIRST, and only then by light. A tone the drawing spends a handful
-	# of pixels on is not a material: the mask keeps whatever the outline
-	# encloses, so a few pixels of the pale ground show through a gap in the
-	# leaves, and ranking on brightness alone promoted those to the colour of
-	# every sunlit face in the forest. Every tree in the game came out white.
+	# By count first and only then by light. A tone the drawing spends a handful
+	# of pixels on is not a material: a few pixels of pale ground show through a
+	# gap in the leaves, and ranking on brightness alone made every tree white.
 	var ranked: Array = counts.keys()
 	ranked.sort_custom(func(a: int, b: int) -> bool: return counts[a] > counts[b])
 	var kept: Array = []
@@ -415,18 +374,16 @@ static func _tones(
 	return out
 
 
-## THE DRAWING'S OWN COLOUR AT EACH ROW, top row first.
+## The drawing's own colour at each row, top row first.
 ##
-## A crown is shaded leaf by leaf and the exposure rule reads it back in three
-## dimensions, which is right for a plant and wrong for a STONE: a boulder is
+## A crown is shaded leaf by leaf and the exposure rule reads that back in three
+## dimensions, which is right for a plant and wrong for a stone: a boulder is
 ## drawn in horizontal bands, pale where the sky reaches it and dark underneath,
-## and that banding IS the shape saying which way is up. Read by exposure instead,
-## a rock small enough to have nothing standing over it takes the lightest tone on
-## every face, which turned the cave's gold boulder into a white one.
+## and that banding is the shape saying which way is up. Read by exposure, a small
+## rock takes the lightest tone on every face.
 ##
-## The commonest colour across the row, skipping the outline, and a row with
-## nothing in it keeps the row above: the fill of a broken ring can leave a row of
-## the drawing empty and a boulder has no gaps in it.
+## The commonest colour across the row, skipping the outline. A row with nothing
+## in it keeps the row above, since a boulder has no gaps in it.
 static func _bands(
 	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
 	atlas: RefCounted, from_row: int, to_row: int
@@ -469,17 +426,15 @@ static func _bands(
 	return out
 
 
-## THE COLOUR OF A CAP, out of the bands the drawing was read into.
+## The colour of a cap, out of the bands the drawing was read into.
 ##
-## A 2.5D sprite is a top and a front stacked, which this mod already reads that
-## way at object and at building scale. A bollard is the same picture: its upper
-## rows are the flat top seen from ABOVE and its lower rows are the side. Mapped
-## onto height like any other band, the cap ends up painted round the shoulder of
-## the cylinder and the top face takes the outline ring drawn at the very top,
-## which is how a pale concrete cap came out grey.
+## A 2.5D sprite is a top and a front stacked. A bollard's upper rows are the flat
+## top seen from above and its lower rows the side; mapped onto height like any
+## other band, the cap ends up painted round the shoulder and the top face takes
+## the outline ring drawn at the very top.
 ##
-## The commonest band over the upper half, then, which is the cap wherever a
-## drawing has one and is the upper body wherever it does not.
+## So it is the commonest band over the upper half: the cap where a drawing has
+## one and the upper body where it does not.
 static func _cap(bands: PackedColorArray) -> Color:
 	if bands.is_empty():
 		return Color(0.5, 0.5, 0.5)
@@ -496,12 +451,10 @@ static func _cap(bands: PackedColorArray) -> Color:
 	return colours[best]
 
 
-## HOW MANY LEADING ROWS ARE THE CAP: the deepest row in the drawing's upper
-## half that is still painted the cap's own colour, and everything above it.
-##
-## Counting the leading run instead misses it entirely, because a drawing's first
-## row is its outline arc rather than its lid: the bollard's row 0 is the dark
-## ring, and a run test stops there and calls the cap zero rows deep.
+## How many leading rows are the cap: the deepest row in the drawing's upper half
+## still painted the cap's colour, and everything above it. Counting the leading
+## run misses it, because a drawing's first row is its outline arc rather than its
+## lid, so a run test stops there and calls the cap zero rows deep.
 static func _cap_rows(bands: PackedColorArray, cap: Color) -> int:
 	var deepest: int = -1
 	for at: int in maxi(bands.size() / 2, 1):
@@ -510,14 +463,13 @@ static func _cap_rows(bands: PackedColorArray, cap: Color) -> int:
 	return deepest + 1
 
 
-## THE DRAWING'S OWN COLOURS ACROSS EACH ROW, left to right, one per world pixel
-## of the row's width, for the rows a column's SIDE is painted from.
+## The drawing's own colours across each row, left to right, one per world pixel
+## of the row's width, for the rows a column's side is painted from.
 ##
 ## A barrel is the one shape where a drawn row IS the surface: the sprite shows
-## the near half of it straight on, so the pixel three across from the middle is
-## what the barrel looks like three across from ITS middle, and the artist's lit
-## side and shaded side wrap round it as drawn. That is the reference mod's own
-## texel rule for a can, and it is the one reading here that keeps WHERE across a
+## the near half straight on, so the pixel three across from the middle is what
+## the barrel looks like three across from its middle, and the lit and shaded
+## sides wrap round as drawn. The one reading here that keeps WHERE across a
 ## drawing a colour was used.
 static func _wraps(
 	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
@@ -582,7 +534,7 @@ func tree(measured: Measure) -> ArrayMesh:
 	_colors = PackedColorArray()
 	_sways = PackedVector2Array()
 
-	# A HOUSEPLANT IS A 16 px THING and the two-pixel voxel a crown is chunked at
+	# A houseplant is a 16 px THING and the two-pixel voxel a crown is chunked at
 	# leaves its pot six voxels across, which is a box. Same reasoning as a rock's.
 	_voxel = ROCK_VOXEL if measured.rock or measured.potted else VOXEL
 	var rows: int = measured.profile.size()
@@ -590,14 +542,10 @@ func tree(measured: Measure) -> ArrayMesh:
 	if stretch <= 0.0:
 		stretch = 1.0 if measured.shrub else CROWN_STRETCH
 	var crown_high: int = maxi(ceili(float(rows) * stretch / _voxel), 2)
-	# A HOUSEPLANT'S STALK IS DRAWN IN FRONT OF ITS CROWN and states its own
-	# length; a tree's is drawn behind one and states nothing, which is what the
-	# floor under `TRUNK_MIN` is for.
-	# A HOUSEPLANT'S STALK IS DRAWN IN FRONT OF ITS CROWN and states its own
+	# A houseplant's stalk is drawn in front of its crown and states its own
 	# length, where a tree's is drawn behind one and states nothing, which is what
-	# the floor under `TRUNK_MIN` is for. It is still held to `POT_STALK`, because
-	# a stalk shorter than that is a crown sitting on the rim with no plant
-	# between the two.
+	# the floor under `TRUNK_MIN` is for. It is still held to `POT_STALK`: a
+	# shorter stalk is a crown sitting on the rim with no plant between the two.
 	var trunk_high: int = 0 if measured.shrub else maxi(ceili(
 		maxf(float(measured.trunk_height), POT_STALK) / _voxel
 		if not measured.pot.is_empty()
@@ -610,7 +558,7 @@ func tree(measured: Measure) -> ArrayMesh:
 	var widest: float = 0.0
 	for radius: float in measured.profile:
 		widest = maxf(widest, radius / _voxel)
-	# THE POT IS TURNED THE WAY THE CROWN IS and it stands on the ground, with the
+	# The pot is turned the way the crown is and it stands on the ground, with the
 	# stalk and the crown lifted onto its rim. Its rows are read the other way up:
 	# the drawing's last row is the pot's foot.
 	var pot_high: int = 0
@@ -624,12 +572,10 @@ func tree(measured: Measure) -> ArrayMesh:
 	) + 1
 	var wide: int = reach * 2 + 1
 	var tall: int = pot_high + trunk_high + crown_high + 1
-	# ZERO THROUGH THE TRUNK, because a trunk that sways is a tree falling over,
-	# and rising through the crown from its foot. A shrub has no trunk and so
-	# bends from its own base, which is what a springy mass does; its bottom
-	# vertices still measure zero, so it stays on the ground. A ROCK is zero
-	# everywhere, which is how a model made of the same material and stamped by
-	# the same code stands still in the wind that moves the wood.
+	# Zero through the trunk, because a trunk that sways is a tree falling over,
+	# rising through the crown from its foot. A shrub has no trunk and bends from
+	# its own base, its bottom vertices still measuring zero. A rock is zero
+	# everywhere, so it stands still in the wind that moves the wood.
 	_sway_still = measured.rock
 	_sway_foot = float(pot_high + trunk_high) * _voxel
 	_sway_span = float(maxi(crown_high - 1, 1)) * _voxel
@@ -648,10 +594,9 @@ func tree(measured: Measure) -> ArrayMesh:
 					var at_row: int = mini(
 						int(float(pot_high - 1 - vy) * _voxel), measured.pot.size() - 1
 					)
-					# A POT HAS A RIM: its top course stands a voxel proud of the
-					# body, which is the one thing that tells a pot from a drum and
-					# is what the drawing's own rim row is too narrow to say once it
-					# has been turned.
+					# A pot has a rim: its top course stands a voxel proud of the
+					# body, which is what tells a pot from a drum and what the
+					# drawn rim row is too narrow to say once turned.
 					var wall: float = measured.pot[at_row] / _voxel
 					if vy == pot_high - 1:
 						wall += 1.0
@@ -677,10 +622,9 @@ func tree(measured: Measure) -> ArrayMesh:
 						measured, vy - pot_high - trunk_high, crown_high
 					)
 					if radius > 0.0:
-						# The jitter is the leaves. Deterministic, so one tree is
-						# one model however many times it is stamped.
-						# A COLUMN takes none: the jitter is what stops a turn reading
-						# as lathe work, and a bollard IS lathe work.
+						# The jitter is the leaves, and deterministic, so one tree
+						# is one model however often it is stamped. A column takes
+						# none: a bollard IS lathe work.
 						var ragged: float = 0.0 if measured.column \
 							else (ROCK_NOISE if measured.rock else LEAF_NOISE)
 						if plan <= radius * _wobble(x, z, plan, vy, ragged):
@@ -715,25 +659,20 @@ func tree(measured: Measure) -> ArrayMesh:
 	return mesh
 
 
-## How much of its row's radius the crown reaches along one RAY, in 0 to 1.
+## How much of its row's radius the crown reaches along one ray, in 0 to 1.
 ##
-## THE JITTER IS A ROUGH SURFACE AND NOT A SIEVE, and what makes the difference
-## is what the hash is keyed on. Keyed on the VOXEL, which is what this was, the
-## wobble is a different number for every voxel along the same ray out from the
-## axis: the shell it draws is a speckle a couple of voxels thick with as many
-## gaps as leaves in it, and the ground, the wall and the sky behind a bush are
-## all visible straight through the middle of it. Keyed on the RAY there is one
-## radius per direction per row, so everything inside it is solid and the
-## silhouette is exactly as ragged as it was.
+## The jitter is a rough surface and not a sieve, and what makes the difference is
+## what the hash is keyed on. Keyed on the VOXEL the wobble differs for every
+## voxel along one ray, so the shell is a speckle with the ground visible through
+## it. Keyed on the RAY there is one radius per direction per row, so everything
+## inside is solid and the silhouette is as ragged as before.
 ##
-## AND IT ONLY EVER CUTS IN. A Generation II sprite states its WIDTH honestly,
-## which is the one thing this whole file is built on, so a crown wobbling OUT is
-## wider than the thing the cartridge drew: the bush came out 18 px across on a
-## 16 px cell and stood on the road where a map's border ring meets a
-## connection's paving.
+## And it only ever cuts in. A sprite states its WIDTH honestly, so a crown
+## wobbling out is wider than what the cartridge drew: the bush came out 18 px
+## across on a 16 px cell and stood on the road.
 ##
-## RAY_STEPS is how coarse the directions are, and it is what decides how big a
-## clump of leaves is. Finer than this and the crown reads as sandpaper.
+## `RAY_STEPS` is how coarse the directions are, which decides how big a clump of
+## leaves is. Finer and the crown reads as sandpaper.
 const RAY_STEPS: float = 8.0
 
 
@@ -751,14 +690,13 @@ func _wobble(x: float, z: float, plan: float, vy: int, ragged: float) -> float:
 func _radius(measured: Measure, up: int, crown_high: int) -> float:
 	if up < 0 or up >= crown_high:
 		return 0.0
-	# A COLUMN is the widest row all the way up, which is what makes its side
-	# straight and its top flat. It is not a taper read off the drawing, because
-	# what tapers in the drawing is the far edge of a flat cap seen from above.
+	# A column is the widest row all the way up, which makes its side straight and
+	# its top flat. Not a taper off the drawing: what tapers there is the far edge
+	# of a flat cap seen from above.
 	if measured.column:
 		var straight: float = float(measured.width()) * 0.5 / _voxel
-		# CAST CONCRETE HAS AN EDGE and a barrel of voxels has none. One voxel
-		# drawn in at the top ring and at the foot is the whole of it: two, or a
-		# taper over more rows, and the post is a plinth rather than a bollard.
+		# Cast concrete has an edge and a barrel of voxels has none. One voxel
+		# drawn in at the top ring and at the foot is the whole of it.
 		if up == 0 or up == crown_high - 1:
 			return maxf(straight - 1.0, 1.0)
 		return straight
@@ -790,7 +728,7 @@ func _wrap_at(measured: Measure, up: int, crown_high: int) -> PackedColorArray:
 ## reads the width off, so a band and the width it paints belong to each other.
 func _band_at(measured: Measure, up: int, crown_high: int) -> Color:
 	var bands: PackedColorArray = measured.bands
-	# A COLUMN'S SIDE IS WHAT IS UNDER THE LID. Painting the lid's rows up the
+	# A column's side is what is under the lid. Painting the lid's rows up the
 	# side as well squashes the body's own shading into the lower half of the
 	# post, which is what makes it read as banded rather than as concrete.
 	if measured.column and not measured.side_bands.is_empty():
@@ -827,7 +765,7 @@ func _faces(
 	# column ABOVE it and how enclosed it is by the twenty-six voxels AROUND it.
 	# See `_tone`. Both are counted once per voxel, since they are facts about the
 	# voxel and `_tone` is asked six times for it.
-	# COUNTED ONLY IF SOMETHING IS DRAWN, and only once for the six faces. The
+	# Counted only if something is drawn, and only once for the six faces. The
 	# twenty-six neighbours are what the colour rule costs: the round tree's build
 	# went from 10.4 ms to 17.6 counting them for every solid voxel, and 16.1
 	# counting them only where a face is emitted. Less than it looks, because a
@@ -862,7 +800,7 @@ func _faces(
 		_quad(origin, side, _tone(measured, fill, side, sky, near, float(vx - reach)))
 
 
-## THE DRAWING'S OWN SHADING RULE, IN THREE DIMENSIONS.
+## The drawing's own shading rule, in three dimensions.
 ##
 ## A Game Boy artist has three usable shades and spends them on one thing: where
 ## the light falls. The pale ones are the top of the canopy where the sky reaches
@@ -891,7 +829,7 @@ func _tone(
 		palette = measured.shades
 	if palette.is_empty():
 		return Color(0.3, 0.5, 0.25)
-	# A ROCK IS PAINTED BY BAND, not by exposure: see `_bands`. What is left of the
+	# A rock is painted by band, not by exposure: see `_bands`. What is left of the
 	# rule here is the one thing a band cannot say, which is that a face looking
 	# down at the ground is in its own shadow.
 	if measured.rock:
@@ -900,7 +838,7 @@ func _tone(
 		if measured.column and side.y > 0:
 			return measured.cap
 		if measured.column and side.y == 0 and not _wrap.is_empty():
-			# WHERE ACROSS THE DRAWING THIS FACE STANDS. The barrel is as wide as
+			# Where across the drawing this face stands. The barrel is as wide as
 			# the row is drawn, so the two are the same measure and the artist's
 			# own lit and shaded flanks land on the flanks.
 			var at: int = int(round(float(_wrap.size()) * 0.5 + across * _voxel))
@@ -908,7 +846,7 @@ func _tone(
 		if side.y >= 0:
 			return _band
 		return palette[clampi(_ladder(palette, _band) + 1, 0, palette.size() - 1)]
-	# A POTTED CROWN IS LIT FROM ONE SIDE AS WELL AS FROM ABOVE. Exposure alone
+	# A potted crown is lit from one side as well as from above. Exposure alone
 	# spends the ladder on how much stands over a face, so a plant standing in the
 	# open takes one green on every flank and reads flat; the cartridge paints it
 	# light down one side and dark down the other, and that is the volume. Painting
@@ -919,7 +857,7 @@ func _tone(
 			palette, side, sky, near, false,
 			-LEAF_FLANK if side.x < 0 or side.z < 0 else LEAF_FLANK
 		)
-	# A SHRUB STARTS A STEP DARKER, because exposure alone reads it wrong. The
+	# A shrub starts a step darker, because exposure alone reads it wrong. The
 	# rule spends the palette on how much stands over a face, and almost nothing
 	# stands over a thing seven voxels tall: every top face takes the lightest
 	# tone and a hedge that the cartridge draws as a dark mass comes out a pale
@@ -974,7 +912,7 @@ func _ladder(palette: PackedColorArray, colour: Color) -> int:
 	return 0
 
 
-## HOW HARD A POINT BENDS, READ OFF THE VERTEX AND NEVER OFF THE VOXEL.
+## How hard a point bends, READ OFF THE VERTEX AND NEVER OFF THE VOXEL.
 ##
 ## One weight for a whole voxel row is what put the holes in the crown. The top
 ## vertices of a row sit exactly where the bottom vertices of the row above sit,
@@ -1012,7 +950,7 @@ func _quad(origin: Vector3, side: Vector3i, color: Color) -> void:
 		_sways.push_back(Vector2(_sway_at(vertex.y), 0.0))
 
 
-## THE SAME THING AS A FLAT DRAWING STOOD UP, for the distance.
+## The same thing as a flat drawing stood up, for the distance.
 ##
 ## A stamped model is 700 to 1200 triangles and a map wears hundreds of them, so
 ## models are between 81 and 92 per cent of every outdoor map's geometry. That is
@@ -1031,7 +969,7 @@ func _quad(origin: Vector3, side: Vector3i, color: Color) -> void:
 ## and `_sway_span`, so an impostor bends with the trees around it and a stamp
 ## that crosses the swap does not jump.
 ##
-## BOTH WINDINGS ARE EMITTED because the foliage material culls back faces and a
+## Both windings are emitted because the foliage material culls back faces and a
 ## plane has two sides. Giving impostors a `cull_disabled` material of their own
 ## would halve this again; it is a second material on the sink and not worth it
 ## until the rung is real.
@@ -1120,7 +1058,7 @@ func impostor(measured: Measure) -> ArrayMesh:
 	return mesh
 
 
-## THE DRAWING ITSELF STOOD UP, which is the cheapest a thing can be and still
+## The drawing itself stood up, which is the cheapest a thing can be and still
 ## be the thing.
 ##
 ## Two crossed quads, four triangles, wearing the tileset pixels cut out of the

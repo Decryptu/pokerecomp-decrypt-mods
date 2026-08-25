@@ -2,51 +2,40 @@ extends RefCounted
 
 ## Water, which is the one surface in this view that is not opaque paint.
 ##
-## Everything else here is a drawing stood up and lit. Water is a MIRROR, and the
-## 2D view says so in the only way it can: it animates the tile, cycling the
-## ripple art in place. A perspective view has the sky in the frame above the
-## lake and nothing of it in the lake, which is what made a pond read as a blue
-## floor with a lip round it.
+## Everything else here is a drawing stood up and lit. Water is a mirror, and the
+## 2D view says so in the only way it can, by cycling the ripple art in place. A
+## perspective view has the sky above the lake and none of it in the lake, which
+## made a pond read as a blue floor with a lip round it.
 ##
-## THE REFERENCE'S OWN ARRANGEMENT is in `.references/DRAMATIC_SHAPE/lib/Water.lua`
-## and it is a full screen-space pass: the surface lifted out of the terrain mesh,
-## drawn between the world and the characters, reflecting the sky through the
-## frame's own matrix, then the sun's disc by angle, then the world by walking the
-## reflected ray against the depth buffer. The lifting out is done here and is
-## `mesher.gd`'s water sink. The rest is not, and the reason is the host: it
+## The reference's arrangement is in `.references/DRAMATIC_SHAPE/lib/Water.lua`,
+## a full screen-space pass. The lifting out of the terrain mesh is done here, in
+## `mesher.gd`'s water sink; the reflected-ray walk is not, because the host
 ## renders on `gl_compatibility`, where there is no screen-space reflection and no
-## readable depth to walk. So this takes the two the reference itself puts first,
-## which are the two a still picture shows:
+## readable depth. So this takes the two the reference puts first:
 ##
-##   THE SKY IN THE LAKE IS THE SKY OVER IT. `world/sky.gd` already generates that
-##   ramp out of the map's own background colour, so the same two colours come
-##   here and the water mixes toward them by FRESNEL: a surface seen edge-on is
-##   nearly all reflection and one seen from above is nearly all water, which is
-##   what puts the bright band at the far shore and keeps the near water dark.
+##   The sky in the lake is the sky over it. `world/sky.gd` generates that ramp,
+##   so the same two colours come here and the water mixes toward them by
+##   Fresnel: a surface seen edge-on is nearly all reflection and one seen from
+##   above nearly all water, which puts the bright band at the far shore.
 ##
-##   THE SUN IS IN THE LAKE, hung BY ANGLE rather than by screen position, which
-##   is the reference's own arrangement and the reason it works at all here: the
-##   reflection of a sun 40 to 58 degrees up is usually off the top of the frame,
-##   so a mirror that only shows what the camera can see would show no sun at any
-##   hour. What is asked instead is how nearly this piece of water is tilted to
-##   bounce the sun into the eye, which is a fact about the swell and not about
-##   the frame, and the answer rides the waves as a moving band of glitter.
+##   The sun is in the lake, hung by ANGLE rather than screen position, which is
+##   why it works here at all: the reflection of a sun 40 to 58 degrees up is
+##   usually off the top of the frame, so a mirror showing only what the camera
+##   sees would show no sun at any hour. What is asked is how nearly this water
+##   is tilted to bounce the sun into the eye, which is a fact about the swell.
 ##
-##   THE SURFACE IS NOT FLAT. Two travelling waves cross it, and their gradient is
-##   the normal every term above is then read through, so the light, the sky and
-##   the glint all ride the swell. It is done in the FRAGMENT shader and moves no
-##   vertex, which is not a shortcut but the only safe reading: a water quad sits
-##   8 px down in a recess whose walls are terrain, and lifting its corners would
-##   tear it away from its own bank.
+##   The surface is not flat: two travelling waves cross it, and their gradient
+##   is the normal every term above is read through. It is done in the FRAGMENT
+##   shader and moves no vertex, which is the only safe reading: a water quad
+##   sits 8 px down in a recess whose walls are terrain, and lifting its corners
+##   would tear it from its bank.
 ##
-## THE CARTRIDGE'S OWN TEXEL IS STILL UNDERNEATH, at NEAREST and unwarped. The
-## atlas repaints the water slot from `Gen2WorldAnimation` frame by frame, so the
-## drawing already ripples; what is added is the surface it ripples on.
+## The cartridge's own texel is still underneath, at nearest and unwarped. The
+## atlas repaints the water slot frame by frame, so the drawing already ripples;
+## what is added is the surface it ripples on.
 
-## EVERY NUMBER BELOW IS THE REVIEWER'S, picked in round nine off three built and
-## photographed looks rather than described: a wide gentle swell under a calm sky.
-## `answers_round9.txt`, and the three are `wat_a_sea.png`, `wat_b_sea.png` and
-## `wat_c_sea.png` in the survey directory.
+## Every number below was picked off three built and photographed looks rather
+## than described: a wide gentle swell under a calm sky.
 ##
 ## How far the wave tilts the surface, as a gradient. This is a normal and not a
 ## displacement, and a lake whose normal swings far enough to catch the sky at
@@ -54,59 +43,47 @@ extends RefCounted
 const WAVE_TILT: float = 0.22
 ## The two wavelengths that cross, in world pixels, and how fast each travels.
 ## Deliberately not a ratio of one another, or the two sum into one standing wave
-## that pulses in place instead of travelling.
-##
-## LONG, about four tiles and two: a slow swell running under the whole lake
-## rather than a chop on top of it. A wavelength of two tiles was built and put
-## up beside it and the reviewer did not take it.
+## that pulses in place. Long, about four tiles and two: a slow swell under the
+## whole lake rather than a chop on top of it.
 const WAVE_LENGTH_A: float = 34.0
 const WAVE_LENGTH_B: float = 19.0
 const WAVE_SPEED_A: float = 7.0
 const WAVE_SPEED_B: float = -4.5
 ## How much of the sky the flattest water takes, and the most it takes edge on.
 ## The floor is not zero: a lake lit only by its own texel is the blue floor this
-## replaces, and a little sky everywhere is what makes it a surface at all. The
-## ceiling is well under one: a sea that goes fully to the sky at grazing angles
-## loses the cartridge's own blue exactly where most of the sea is. These are the
-## calmest of the three that were offered, so the water stays the colour the
-## cartridge painted it and the sky is what grades it toward the horizon.
+## replaces. The ceiling is well under one: a sea that goes fully to the sky at
+## grazing angles loses the cartridge's blue exactly where most of the sea is.
 const REFLECT_LEAST: float = 0.10
 const REFLECT_MOST: float = 0.45
 
 ## The sun's own disc in the water: how much of the light's colour the glint adds
 ## at its brightest, and how tightly it is gathered.
 ##
-## Both are held down deliberately. A specular lobe on water wants to be a hard
-## white star, and this is a Game Boy lake whose every other colour comes off the
-## cartridge's own palette: what is wanted is the glitter that says a surface is
-## tilting under a light, not a lens flare. The glint takes the SUN's colour
-## rather than white, so it deepens with the hour exactly as everything else in
-## the picture does, and it is scaled by the light's own energy, which is what
-## puts it out at night with nothing else to say so.
+## Both are held down. A specular lobe wants to be a hard white star, and this is
+## a Game Boy lake: what is wanted is the glitter that says a surface is tilting
+## under a light, not a lens flare. The glint takes the sun's colour rather than
+## white, so it deepens with the hour, and it is scaled by the light's energy,
+## which is what puts it out at night.
 const GLINT_STRENGTH: float = 0.30
 const GLINT_TIGHTNESS: float = 8.0
 
-## THE BANK, which a fragment cannot see and the mesher can. `mesher.gd` walks
-## its own water test outward from every piece of land and bakes how far each
-## tile of water is from the nearest one; what arrives here is that field as a
-## texture, in tiles, and the three terms below are what read it. Handed none,
-## which is a cave pool and the model turntable, `bank_ready` is zero and every
-## one of them switches off.
+## The bank, which a fragment cannot see and the mesher can. `mesher.gd` walks its
+## water test outward from every piece of land and bakes how far each tile of
+## water is from the nearest; what arrives is that field as a texture, in tiles.
+## Handed none, which is a cave pool and the model turntable, `bank_ready` is zero
+## and every term reading it switches off.
 ##
-## FOAM is the reach in tiles at which the line sits, how far the swell's own
-## crest carries it in and out, and the two ends of the fade across it. It is
-## then THRESHOLDED against a checkerboard rather than drawn faded, because a
-## soft white edge on a Game Boy lake is the one thing here that would read as a
-## modern effect: the hardware has two colours to put on that line and so does
-## this.
+## Foam is the reach in tiles at which the line sits, how far the swell's crest
+## carries it in and out, and the two ends of the fade across it. It is
+## thresholded against a checkerboard rather than faded: the hardware has two
+## colours to put on that line and so does this.
 const FOAM_REACH: float = 0.60
 const FOAM_SWELL: float = 0.30
 const FOAM_INNER: float = -0.35
 const FOAM_OUTER: float = 0.55
-## SHALLOW AND DEEP, in tiles and as a share. Both are held well under full
-## strength and the shallow reach is short, and that is the reviewer's own
-## reading of the pair built at full: a canal and a river are two tiles wide, so
-## a shallow that reaches three turns every one of them to sand.
+## Shallow and deep, in tiles and as a share. Both are held well under full
+## strength and the shallow reach is short: a canal and a river are two tiles
+## wide, so a shallow reaching three turns every one of them to sand.
 const SHALLOW_REACH: float = 1.5
 const SHALLOW_STRENGTH: float = 0.45
 const DEEP_BEGIN: float = 2.5
@@ -161,27 +138,21 @@ float swell(vec2 at, out vec2 slope) {
 
 void fragment() {
 	vec2 slope;
-	// THE SWELL IS THE WORLD'S AND NOT THE CAMERA'S. In `fragment()` VERTEX is
+	// The swell is the world's and not the camera's. In `fragment()` VERTEX is
 	// the fragment in VIEW space, so reading it directly tied every crest to
-	// where the player was standing: walking moved the whole sea and turning
-	// swung it, which is a thing water does not do. INV_VIEW_MATRIX takes the
-	// fragment back into world space, which is where `wave_length` and
-	// `wave_speed` are already expressed and where the sun's own half vector
-	// below is already worked out.
+	// where the player was standing. INV_VIEW_MATRIX takes it back into world
+	// space, which is where `wave_length` and `wave_speed` are expressed.
 	vec3 world_at = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	// The crest's own height, which the foam line rides: see `bank` below.
 	float height = swell(world_at.xz, slope);
-	// HOW FAR THIS WATER IS FROM ITS BANK, in tiles. Open sea where there is no
-	// field, so a caller that hands none gets the water it had before.
+	// How far this water is from its bank, in tiles. Open sea where there is no
+	// field, so a caller handing none gets the water it had before.
 	float bank = bank_span;
 	if (bank_ready > 0.5) {
 		vec2 bank_uv = (world_at.xz + bank_origin) / bank_world;
-		// PAST THE FIELD IS OPEN WATER AND NOT THE OTHER EDGE OF THE MAP. A
-		// sampler answers something for every coordinate, and left to wrap it
-		// answered the far side of the map: a shot standing outside the mesh read
-		// LAND under the sea behind the camera and foamed the whole of it. What is
-		// off the field is unknown, and the honest answer to unknown here is the
-		// one that draws nothing.
+		// Past the field is open water and not the other edge of the map. Left to
+		// wrap, the sampler answered the far side: a camera outside the mesh read
+		// land under the sea behind it and foamed the whole of it.
 		if (bank_uv == clamp(bank_uv, vec2(0.0), vec2(1.0))) {
 			bank = texture(bank_field, bank_uv).r * bank_span;
 		}
@@ -193,8 +164,8 @@ void fragment() {
 
 	vec4 texel = texture(atlas, UV);
 	vec3 water = texel.rgb * COLOR.rgb;
-	// SHALLOW OVER ITS BANK AND DEEP AWAY FROM IT, in the water row's own palest
-	// and deepest colours rather than in a tint of this one.
+	// Shallow over its bank and deep away from it, in the water row's own palest
+	// and deepest colours rather than in a tint.
 	float near = 1.0 - clamp(bank / shallow_reach, 0.0, 1.0);
 	water = mix(water, shallow_color, near * shallow_strength * bank_ready);
 	water = mix(
@@ -202,8 +173,7 @@ void fragment() {
 		clamp((bank - deep_begin) / deep_reach, 0.0, 1.0) * deep_strength * bank_ready
 	);
 
-	// FRESNEL off the tilted normal, so the reflection travels with the swell
-	// rather than sitting in a fixed band across the lake.
+	// Fresnel off the tilted normal, so the reflection travels with the swell.
 	float facing = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
 	float mirror = mix(reflect_most, reflect_least, facing);
 	// Which band of the sky this piece of water is looking at. A surface seen
@@ -211,18 +181,16 @@ void fragment() {
 	// which is the same ramp `world/sky.gd` paints and read the same way round.
 	vec3 sky = mix(horizon_color, zenith_color, facing);
 
-	// THE SUN'S DISC, off the half vector between the eye and the sun, which is
-	// the same question as "does this facet bounce the sun at me" and needs no
-	// screen-space anything. Both vectors are taken back into world space, since
-	// the swell's normal is authored there and the camera moves.
+	// The sun's disc, off the half vector between the eye and the sun: the same
+	// question as "does this facet bounce the sun at me", with no screen-space
+	// anything. Both vectors go back into world space, where the normal is.
 	vec3 eye = normalize((INV_VIEW_MATRIX * vec4(VIEW, 0.0)).xyz);
 	vec3 half_way = normalize(sun_direction + eye);
 	float glint = pow(clamp(dot(tilted, half_way), 0.0, 1.0), glint_tightness);
 
 	ALBEDO = mix(water, sky, mirror) + sun_color * (glint * glint_strength);
-	// THE LINE THE SWELL DRAWS ON THE BANK. The crest carries it up the beach and
-	// the trough takes it back, and the checkerboard is what keeps it two colours
-	// wide instead of a soft modern edge.
+	// The line the swell draws on the bank: the crest carries it up the beach and
+	// the trough takes it back, and the checkerboard keeps it two colours wide.
 	float edge = bank - foam_reach - height * foam_swell;
 	float band = 1.0 - smoothstep(foam_inner, foam_outer, edge);
 	float cell = mod(floor(FRAGCOORD.x / 2.0) + floor(FRAGCOORD.y / 2.0), 2.0);
@@ -268,10 +236,8 @@ func _init() -> void:
 	set_sun(Vector3(0.0, 1.0, 0.0), Color.BLACK)
 
 
-## Where the sun stands and what colour it is, both taken from the one light the
-## diorama hangs: `diorama.gd:SUN_ROTATION` moves it by the hour and `DAY_LIGHT`
-## and `DAY_ENERGY` colour it, so the glint is the same sun the rest of the
-## picture is lit by rather than a second one authored here.
+## Where the sun stands and its colour, both from the one light the diorama
+## hangs, so the glint is the same sun the picture is lit by.
 func set_sun(direction: Vector3, color: Color) -> void:
 	material.set_shader_parameter("sun_direction", direction.normalized())
 	material.set_shader_parameter("sun_color", color)
@@ -290,9 +256,8 @@ func set_sky(horizon: Color, zenith: Color) -> void:
 	material.set_shader_parameter("zenith_color", zenith)
 
 
-## The bank field and where it lies, both in world pixels, with the tile span the
-## texture's 0 to 1 stands for. A null texture switches every term that reads it
-## off, which is what a cave pool and every tool that meshes without one get.
+## The bank field and where it lies, in world pixels, with the tile span the
+## texture's 0 to 1 stands for. A null texture switches every term reading it off.
 func set_bank(
 	field: Texture2D, world: Vector2, origin: Vector2, span: float
 ) -> void:
@@ -307,16 +272,15 @@ func set_bank(
 	material.set_shader_parameter("bank_ready", _bank_ready())
 
 
-## Whether the terms that read the field are switched on at all: there has to be
-## a field, and a cave pool and the model turntable are handed none.
+## Whether the terms reading the field are on: a cave pool and the model
+## turntable are handed none.
 func _bank_ready() -> float:
 	return 1.0 if _field != null and _world.x > 0.0 and _world.y > 0.0 else 0.0
 
 
 ## The three colours the bank is drawn in: the foam's, which is the hardware's own
-## white and the same colour the 2D view fills a margin with, and the water row's
-## palest and deepest. All three come off `atlas.gd`, so they move with the hour
-## and the foam goes out with the light.
+## white, and the water row's palest and deepest. All three come off `atlas.gd`,
+## so they move with the hour and the foam goes out with the light.
 func set_shore_colors(foam: Color, shallow: Color, deep: Color) -> void:
 	material.set_shader_parameter("foam_color", foam)
 	material.set_shader_parameter("shallow_color", shallow)

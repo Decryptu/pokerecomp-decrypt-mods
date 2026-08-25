@@ -2,27 +2,24 @@ extends RefCounted
 
 ## What the mesher reads a map through.
 ##
-## The overworld builds from the LIVE world, because `changeblock` replaces
-## blocks under the player and the two views have to agree. A battle staged on
-## the map has no world to read: `Gen2BattleWorldContext` names the map and its
-## tileset by number and deliberately hands over no handle, so the same geometry
-## is built from the records instead.
+## The overworld builds from the live world, because `changeblock` replaces
+## blocks under the player and the two views have to agree. A battle has no world
+## to read: `Gen2BattleWorldContext` names the map and tileset by number and hands
+## over no handle, so the same geometry is built from the records instead.
 ##
-## Both answer the same three questions, which is all the mesher ever asks.
+## Both answer the same three questions, which is all the mesher asks.
 
 var _world: Gen2WorldAPI = null
 var _map: Gen2WorldMap = null
 var _tileset: Gen2WorldTileset = null
-## Only the records path needs it, and only to fold a CONNECTION into the border
-## ring: reading past a map's edge can reach the neighbouring map, which means
-## reaching another map's records.
+## Only the records path needs it, and only to fold a connection into the border
+## ring: reading past a map's edge can reach another map's records.
 var _data: GameData = null
-## `_carried`'s answer per block position, which is a fact about the records and
-## about nothing that changes while a map is loaded.
+## `_carried`'s answer per block position, which nothing moves while a map is
+## loaded.
 var _carried_blocks: Dictionary = {}
-## [method _placed] for a source holding records rather than a world, which is
-## what a battle staged on the map has and what every tool here holds. A world
-## holds its own and this stays empty.
+## [method _placed] for a source holding records rather than a world, which is a
+## battle and every tool here. A world holds its own and this stays empty.
 var _records_placements: Dictionary = {}
 
 
@@ -64,12 +61,10 @@ func size_cells() -> Vector2i:
 	return Vector2i(_map.width_blocks, _map.height_blocks) * RomLayout.MAP_BLOCK_CELL_WIDTH
 
 
-## The graphics tile id at a tile position, PAST THE MAP EDGE AS WELL.
-##
-## Past the edge is the connection strip the cartridge pads with, the whole
-## neighbouring map beyond it, and this map's own border block where nothing
-## covers the ground at all. See [method _drawn_block], which is where those
-## three are folded into one answer and where the 2D view takes the same one.
+## The graphics tile id at a tile position, past the map edge as well: the
+## connection strip the cartridge pads with, the neighbouring map beyond it, and
+## this map's border block where nothing covers the ground. [method _drawn_block]
+## folds those three into one answer, and the 2D view takes the same one.
 func tile_at(tile_x: int, tile_y: int) -> int:
 	if _map == null or _tileset == null:
 		return -1
@@ -89,7 +84,7 @@ func tile_at(tile_x: int, tile_y: int) -> int:
 ## The block drawn at a block position, inside the map or past its edge, which is
 ## what [method tile_at] resolves a tile through.
 ##
-## Public for a caller reading a whole BLOCK rather than a tile: sixteen
+## Public for a caller reading a whole block rather than a tile: sixteen
 ## `tile_at` calls answer the same block sixteen times, and a walk over a map and
 ## its ring is ten thousand tiles. `shape/far_drawings.gd` is the caller.
 func block_at(block_x: int, block_y: int) -> int:
@@ -98,20 +93,17 @@ func block_at(block_x: int, block_y: int) -> int:
 	return _block_at(block_x, block_y)
 
 
-## The block drawn at a block position, inside the map or past its edge, with
-## the carry below spent on it.
+## The same with the carry below spent on it.
 ##
-## Everything about WHERE a map sits and WHAT the cartridge pads a seam with is
-## the host's: the strip geometry, its north/south/west/east order at an
-## overlapping corner, and the connection graph the maps beyond it are placed
-## by. A second copy of any of them here would be a second thing to keep right.
+## Where a map sits and what the cartridge pads a seam with are the host's: the
+## strip geometry, its order at an overlapping corner, and the connection graph.
+## A second copy of any of them here would be a second thing to keep right.
 func _block_at(block_x: int, block_y: int) -> int:
 	var drawn: int = _drawn_block(block_x, block_y)
 	if drawn >= 0:
-		# Asked once per TILE and answered once per BLOCK: the ring alone is sixteen
-		# lookups a block before `_carried` walks anything, and the walk is up to
-		# four more. `changeblock` is the only thing that moves an answer and it
-		# never reaches outside the map, which is the only place this is consulted.
+		# Asked per tile and answered per block: the ring alone is sixteen lookups
+		# a block before `_carried` walks, and the walk is up to four more.
+		# `changeblock` never reaches outside the map, which is where this runs.
 		var key: int = block_y * 4096 + block_x
 		if _carried_blocks.has(key):
 			return _carried_blocks[key]
@@ -126,23 +118,21 @@ func _block_at(block_x: int, block_y: int) -> int:
 	return _map.border_block
 
 
-## The block drawn at a block position, past the map's edge as well as inside
-## it, or -1 where this source is holding no records.
+## The block drawn at a block position, past the map's edge as well as inside it,
+## or -1 where this source holds no records.
 ##
-## THE HOST PLACES WHOLE NEIGHBOURING MAPS past the three-block margin
-## `ChangeMap` writes, and the 2D view is drawn from them, so a ring four blocks
-## deep no longer has to read this map's own border block out there. Inside the
-## margin nothing moves: that is `wOverworldMapBlocks` byte for byte, connection
-## strips and all, and both views take it from the host.
+## The host places whole neighbouring maps past the three-block margin
+## `ChangeMap` writes, so a ring four blocks deep reads a real map out there.
+## Inside the margin nothing moves: that is `wOverworldMapBlocks` byte for byte,
+## connection strips and all.
 ##
-## COMPOSED FROM `map_placements` RATHER THAN TAKEN FROM `expanded_block_at`,
-## and the difference is one line: A NEIGHBOUR'S BLOCK IS NUMBERED IN THE
-## NEIGHBOUR'S OWN TILESET. The 2D view draws each map on a quad with its own
-## tile strip; this mesher resolves one grid against one atlas, so a block from
-## a map on another tileset would come out as whichever tiles that number
-## happens to name here. Measured over Crystal: 1977 ring blocks come off a
-## neighbour sharing the tileset and 68 off one that does not, and those 68 take
-## the border block, which is what the ring showed before any of this.
+## Composed from `map_placements` rather than `expanded_block_at`, because a
+## neighbour's block is numbered in the NEIGHBOUR's tileset. The 2D view draws
+## each map on a quad with its own tile strip; this mesher resolves one grid
+## against one atlas, so a block from another tileset would come out as whichever
+## tiles that number happens to name here. Over Crystal, 1977 ring blocks come
+## off a neighbour sharing the tileset and 68 off one that does not; those 68
+## take the border block.
 func _drawn_block(block_x: int, block_y: int) -> int:
 	if _map == null or _tileset == null:
 		return -1
@@ -168,9 +158,9 @@ func _drawn_block(block_x: int, block_y: int) -> int:
 	return _map.border_block
 
 
-## The maps the connection graph places around this one. A world holds its own,
-## built once per map load; a source holding records walks the same host static
-## itself and keeps the answer, since nothing a run does moves a map.
+## The maps the connection graph places around this one. A world holds its own; a
+## source holding records walks the same host static and keeps the answer, since
+## nothing a run does moves a map.
 func _placed() -> Dictionary:
 	if _world != null:
 		return _world.map_placements()
@@ -179,26 +169,24 @@ func _placed() -> Dictionary:
 	return _records_placements
 
 
-## A CONNECTION IS NARROWER THAN THIS RING, and the last block it hands over is
+## A connection is narrower than this ring, so the last block it hands over is
 ## carried the rest of the way out.
 ##
-## The cartridge pads a connection by three blocks, which is what a Game Boy
-## screen can ever show past a seam. This ring is four deep wherever the border
-## block is a stamped model, so its outermost ring came back as the map's own
-## border block: on a city with a road running out of it, the road stopped dead
-## one block short of the edge and a wall of hedge stood across it.
+## The cartridge pads a connection by three blocks, which is all a Game Boy screen
+## could show past a seam. This ring is four deep wherever the border block is a
+## stamped model, so its outermost ring came back as the map's own border block:
+## a road running out of a city stopped one block short with a wall of hedge
+## across it.
 ##
-## So a block OUTSIDE the map that came back the border block takes the nearest
-## block between it and the map, if that one is outside the map too and is not
-## the border block. Only the connection can put a non-border block out there, so
-## nothing on a map without one moves by a tile, and the map's own art is never
-## reached: the walk stops at the seam.
+## So a block outside the map that came back the border block takes the nearest
+## block between it and the map, if that one is outside the map too and is not the
+## border block. Only a connection can put a non-border block out there, so a map
+## without one does not move, and the map's own art is never reached.
 ##
-## AND IT STOPS AT THE BUFFER TOO, now that `_drawn_block` reads the whole
-## neighbouring map past it. Inside `wOverworldMapBlocks` a strip still ends at
-## the `length` the macro stored, which is the truncation this was written for.
-## Outside it a border block is the host saying NO MAP COVERS THIS, and carrying
-## a neighbour's last block out into that is inventing land.
+## It stops at the buffer too. Inside `wOverworldMapBlocks` a strip ends at the
+## `length` the macro stored, which is the truncation this was written for.
+## Outside it, a border block is the host saying no map covers this, and carrying
+## a neighbour's last block into that is inventing land.
 func _carried(drawn: int, block_x: int, block_y: int) -> int:
 	if drawn != _map.border_block or _inside(block_x, block_y):
 		return drawn
@@ -224,28 +212,26 @@ func _inside(block_x: int, block_y: int) -> bool:
 		and block_x < _map.width_blocks and block_y < _map.height_blocks
 
 
-## Whether the map is out of doors, which is the host's own question to answer:
-## `Gen2WorldPhoneHost.is_outside_environment` is what the game asks before it
-## lets a phone call through or clears a Flash.
+## Whether the map is out of doors. `Gen2WorldPhoneHost.is_outside_environment`
+## is what the game asks before letting a phone call through.
 func outside() -> bool:
 	return _map != null and Gen2WorldPhoneHost.is_outside_environment(_map.environment)
 
 
-## The walk cell's WHOLE collision byte, or -1 off the map.
+## The walk cell's whole collision byte, or -1 off the map.
 ##
-## The permission is only half of what that byte says. The other half is the
-## jumping ledges: which way one can be hopped over is in the low bits, and
-## `Gen2WorldCollision.allows_hop` decodes them against the cartridge's own
-## .TryJump. Nothing in the tile layer says it.
+## The permission is half of what the byte says. The other half is the ledges:
+## which way one can be hopped is in the low bits, decoded by
+## `Gen2WorldCollision.allows_hop`. Nothing in the tile layer says it.
 func code_at(cell: Vector2i) -> int:
 	if _map == null:
 		return -1
 	if cell.x < 0 or cell.y < 0 \
 			or cell.x >= _map.width_blocks * RomLayout.MAP_BLOCK_CELL_WIDTH \
 			or cell.y >= _map.height_blocks * RomLayout.MAP_BLOCK_CELL_WIDTH:
-		# Past the edge the drawn block carries its own collision, which is what
-		# says whether the ring is walked on or stood up. It decides a SHAPE and
-		# nothing else: the player never stands there.
+		# Past the edge the drawn block carries its own collision, which says
+		# whether the ring is walked on or stood up. A shape and nothing else:
+		# the player never stands there.
 		if _tileset == null:
 			return -1
 		return _tileset.collision_index(

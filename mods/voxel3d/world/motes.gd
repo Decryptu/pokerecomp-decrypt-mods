@@ -1,49 +1,30 @@
 extends RefCounted
 
-## THE ONE THING IN THIS VIEW THE CARTRIDGE DOES NOT DRAW.
-##
-## Everything else here is the cartridge's own drawing restated: every shape,
-## every colour and every height is read out of what the host decoded. This is
-## not. Leaves drift across the daylight and fireflies come out at night, and
-## neither is anywhere in the ROM.
-##
-## So it was OFFERED rather than built, and the reviewer accepted it in round
-## thirty-four. It is kept cheap and kept separable for exactly that reason: one
+## Leaves drifting across the daylight and fireflies at night: the one thing in
+## this view the cartridge does not draw, so it is kept cheap and separable. One
 ## MultiMesh, one shader, no simulation, nothing stored between frames, and
-## removing it is removing this file and the four lines in `diorama.gd` that
-## reach it.
+## removing it is this file plus four lines in `diorama.gd`.
 ##
-## THEY RIDE THE CAMERA rather than the map. A mote is a pixel of atmosphere and
-## not a thing standing in a place, so there is no reason for one to exist behind
-## the player, and a box that follows the aim costs the same on the smallest room
-## and on the largest route. `diorama.gd:aim_camera` moves the node.
+## They ride the camera rather than the map, since a mote is atmosphere and not a
+## thing standing in a place. `diorama.gd:aim_camera` moves the node.
 ##
-## THE COLOURS ARE INVENTED AND SAY SO. Every other colour in this mod comes off
-## the cartridge's own palette; neither of these is sampled, because a mote is
-## over the grass as often as over a roof and the atlas has no answer for what is
-## under it. Both are the colour of a thing catching light rather than of the
-## thing itself, which is what makes them readable at all: a leaf in the drawing's
-## own dark green was built first and is invisible over a green world at every
-## hour, and a firefly is only ever seen lit.
+## The colours are invented and say so. A mote is over grass as often as over a
+## roof, so the atlas has no answer for what is under it. Both are the colour of
+## a thing catching light: a leaf in the drawing's own dark green is invisible
+## over a green world at every hour, and a firefly is only ever seen lit.
 ##
-## THE TWO ARE NOT EQUALLY LOUD and that is deliberate. At night a dozen are in
-## the frame at once, because a light in the dark is the whole of what a firefly
-## is; by day two or three catch the sun and the rest are lost against the world,
-## which is also what a real one does.
+## The two are not equally loud. At night a dozen are in frame at once; by day two
+## or three catch the sun and the rest are lost against the world.
 
-## How many motes are in the box at once. Small on purpose: the reference's own
-## sky is nearly empty, and a cloud of these reads as snow rather than as
-## weather.
+## How many are in the box at once. Small: a cloud of these reads as snow.
 const COUNT: int = 40
-## The box they drift in, in world pixels, centred on wherever the camera is
-## aimed. Wider than it is tall, because the shot is a low oblique and a column
-## of motes over the player's head is a column nobody sees.
+## The box they drift in, in world pixels, centred on the camera's aim. Wider
+## than tall, since the shot is a low oblique.
 const SPREAD: Vector3 = Vector3(320.0, 96.0, 320.0)
 ## How far off the ground the box's floor sits. A firefly at ankle height is a
 ## firefly behind the grass.
 const RISE: float = 10.0
-## One world pixel, which is the size of a texel on everything else in the frame,
-## so a mote is the same grain as the world it drifts over.
+## One world pixel, so a mote is the same grain as the world it drifts over.
 const SIZE: float = 1.0
 
 ## How long one drift cycle takes, in seconds, and how far a mote travels in one.
@@ -67,13 +48,12 @@ uniform vec3 spread;
 uniform vec3 drift;
 uniform vec3 drift_period;
 uniform vec4 tone : source_color;
-// A firefly pulses and a leaf does not, so one uniform switches the whole term
-// off rather than two shaders carrying nine identical lines between them.
+// A firefly pulses and a leaf does not, so one uniform switches the term off
+// rather than two shaders carrying the same nine lines.
 uniform float pulse;
 
 void vertex() {
-	// INSTANCE_CUSTOM is the mote's own three phases and its pulse offset, all
-	// written once at build time: nothing here is stored between frames.
+	// The mote's three phases and its pulse offset, written once at build time.
 	vec4 seed = INSTANCE_CUSTOM;
 	vec3 home = MODEL_MATRIX[3].xyz;
 	vec3 wander = vec3(
@@ -81,8 +61,8 @@ void vertex() {
 		sin((TIME / drift_period.y + seed.y) * 6.2831853),
 		cos((TIME / drift_period.z + seed.z) * 6.2831853)
 	) * drift;
-	// WRAPPED INSIDE THE BOX, so a mote that drifts out of one side comes back in
-	// at the other and the count in front of the player never falls.
+	// Wrapped inside the box, so one drifting out of a side comes back in at the
+	// other and the count in front of the player never falls.
 	vec3 at = home + wander;
 	vec3 origin = NODE_POSITION_WORLD;
 	at = origin + mod(at - origin + spread * 0.5, spread) - spread * 0.5;
@@ -92,9 +72,8 @@ void vertex() {
 		INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2],
 		vec4(at, 1.0)
 	);
-	// The pulse is the firefly's whole difference, and it is in the SIZE rather
-	// than in the alpha: this renderer draws no transparency anywhere else, and a
-	// mote fading through the geometry behind it would be the first.
+	// The pulse is in the SIZE rather than the alpha: this renderer draws no
+	// transparency anywhere else.
 	float lit = 1.0 - pulse * 0.5 * (1.0 + sin((TIME / 1.7 + seed.w) * 6.2831853));
 	VERTEX *= max(lit, 0.0);
 }
@@ -124,8 +103,7 @@ func _init() -> void:
 	mesh.use_custom_data = true
 	mesh.mesh = _quad()
 	mesh.instance_count = COUNT
-	# Scattered once, from a fixed seed, so a place looks the same on two visits
-	# and two runs of a tool photograph the same frame.
+	# A fixed seed, so two visits look the same and a tool shoots the same frame.
 	var noise := RandomNumberGenerator.new()
 	noise.seed = 0x3f10e5
 	for index: int in COUNT:
@@ -167,8 +145,7 @@ func set_outside(outside: bool) -> void:
 	_apply()
 
 
-## Whether anything is drifting at all, which `diorama.gd` hangs the node's own
-## visibility on.
+## Whether anything is drifting, which `diorama.gd` hangs visibility on.
 func drifting() -> bool:
 	return _outside and _time_of_day != CAVE
 

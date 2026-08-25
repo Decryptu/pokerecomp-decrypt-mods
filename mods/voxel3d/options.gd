@@ -2,18 +2,16 @@ extends RefCounted
 
 ## The settings this mod registers, and the one place that names them.
 ##
-## The entry script registers them and both renderers read them back, so a key
-## or a rung written out three times is three chances to disagree. A setting is
-## DESCRIBED here and never drawn: the host builds the start menu's MODS entry
-## and this mod's own page in the launcher out of the same registration, which is
-## why no menu is written here. See `docs/MODS.md` in pokerecomp.
+## The entry script registers them and both renderers read them back, so writing
+## a key or a rung three times is three chances to disagree. Described and never
+## drawn: the host builds the MODS entry and the mod's page out of the same
+## registration. See `docs/MODS.md` in pokerecomp.
 ##
 ## Values live per installation in `user://mod_options.json`, not in a save: a
-## draw distance is a property of this machine and must not change when a slot is
-## loaded.
+## draw distance must not change when a slot is loaded.
 
 ## What `mod.json` declares. A renderer is handed no manifest, so this is how it
-## names itself to the host when reading its own settings back.
+## names itself when reading its settings back.
 const MOD_ID: StringName = &"voxel3d"
 
 const Steering: GDScript = preload("steering.gd")
@@ -25,16 +23,13 @@ const CAMERA: StringName = &"camera"
 ## A setting that is a press rather than a ladder: see `register`.
 const RECENTRE: StringName = &"recentre"
 
-## How far out the mesh is built, in walk cells, measured from the player. Zero
-## is the whole map, which is what this did before the setting existed and what
-## a small map costs nothing to keep doing.
+## How far out the mesh is built, in walk cells from the player. Zero is the
+## whole map.
 ##
-## The default is not FULL on purpose. The biggest map meshes whole in 39 ms of
-## geometry, and sixteen cells of it is 13 ms for a picture that is the same one:
-## the eye sits 190 world pixels back at the default pitch, which frames about
-## sixteen cells of ground and no more. What sees past a window is a LOW camera,
-## where the frame's top edge runs nearly level and reaches ninety cells out, and
-## there the cut edge is visible. That is what FULL is for.
+## The default is not FULL on purpose: the biggest map meshes whole in 39 ms and
+## sixteen cells of it in 13 ms for the same picture, since the eye sits 190 world
+## pixels back at the default pitch and frames about sixteen cells. A LOW camera
+## reaches ninety cells out and does see the cut edge, which is what FULL is for.
 ##
 ## See `world/renderer.gd` for what happens when the player walks out of one.
 const DISTANCE_VALUES: Array = [12, 16, 24, 0]
@@ -43,10 +38,8 @@ const DISTANCE_VALUES: Array = [12, 16, 24, 0]
 ## `world/diorama.gd:set_render_scale` for why this is the one rung that matters
 ## on a device that cannot afford the window it was given.
 ##
-## The default is chosen by PLATFORM and not by taste: a desktop draws the whole
-## window and a phone starts at a half, because there is no benchmarking a phone
-## from here and the player who most needs this rung is the one who has not
-## found the settings page. Either way it is one press from the other.
+## The default is by platform, not taste: a desktop draws the whole window and a
+## phone starts at a half, since there is no benchmarking a phone from here.
 const SCALE_VALUES: Array = [1, 2, 3, 4]
 
 ## Which way a wheel notch zooms. The only part of the binding that is a
@@ -59,14 +52,11 @@ const WHEEL_VALUES: Array = [1, -1]
 ## on it, and the middle rung is what the view was framed at.
 const CAMERA_VALUES: Array = [14.0, 24.0, 50.0, 74.0]
 
-## THE CAMERA'S OWN RUNGS, and the shallowest is not a fourth taste: it is what
-## makes the sky reachable at all. The eye looks DOWN by its own pitch, so with a
-## 42 degree lens the frame's top edge sits at 21 degrees minus the pitch, and
-## every rung this row had put that edge BELOW the horizon: 24 degrees frames
-## three degrees of ground where the sky would be, 50 frames twenty-nine. The
-## hour's own sky, the ramp and the haze were invisible from the menu and could
-## only be found by holding the camera key down. 14 puts seven degrees of sky in
-## the frame, and the rig's own floor is 12.
+## The shallowest rung is not a fourth taste: it is what makes the sky reachable
+## from the menu at all. The eye looks down by its own pitch, so with a 42 degree
+## lens the frame's top edge sits at 21 degrees minus the pitch, and every other
+## rung puts that edge below the horizon. 14 puts seven degrees of sky in frame;
+## the rig's own floor is 12.
 
 const REGISTERED: Array[Dictionary] = [
 	{
@@ -85,8 +75,7 @@ const REGISTERED: Array[Dictionary] = [
 		"default": 1,
 	},
 	{
-		# ANGLE and not CAMERA: the recentre button below is the camera's row and
-		# two rows reading CAMERA is the one thing a player sees of either.
+		# ANGLE and not CAMERA: the recentre button below is the camera's row.
 		"key": CAMERA, "label": "ANGLE",
 		"values": CAMERA_VALUES, "labels": ["LEVEL", "LOW", "MID", "HIGH"],
 		"default": 50.0,
@@ -94,14 +83,11 @@ const REGISTERED: Array[Dictionary] = [
 ]
 
 
-## The camera's own commands, declared to the host so a player can rebind them
-## and reach them from a pad or a thumb. `steering.gd` owns the list, since it
-## owns what each one MEANS.
+## The camera's commands, declared to the host so a player can rebind them and
+## reach them from a pad or a thumb. `steering.gd` owns the list.
 ##
-## And the same recentre again as a SETTING, which is not a duplicate: an action
-## has to be bound to something before it exists, and the one player who most
-## needs to put a lost camera back is the one who has not opened the controls
-## card. A press in the MODS menu needs no binding at all.
+## The recentre appears again as a menu row, which is not a duplicate: an action
+## has to be bound before it exists, and a menu press needs no binding.
 static func register(host: Gen2ModHost, id: StringName) -> void:
 	for option: Dictionary in REGISTERED:
 		var row: Dictionary = option
@@ -109,8 +95,8 @@ static func register(host: Gen2ModHost, id: StringName) -> void:
 			row = option.duplicate()
 			row["default"] = default_scale()
 		host.register_option(id, row)
-	# Feature-detected rather than assumed: `api_version` gates a mod built for
-	# an older host, not a host older than the mod, so this is the mod's to check.
+	# Feature-detected: `api_version` gates a mod built for an older host, not a
+	# host older than the mod.
 	if not host.has_method("register_action"):
 		return
 	for action: Dictionary in Steering.ACTIONS:
@@ -125,9 +111,8 @@ static func default_scale() -> int:
 	return 2 if OS.has_feature("mobile") else 1
 
 
-## What the player chose, or [param fallback] when nothing did the registering.
-## A renderer loaded on its own, by a probe or a tool, is the case that answers
-## null: the entry script never ran, so there is nothing to read.
+## What the player chose, or [param fallback] when nothing registered. A renderer
+## loaded on its own by a probe or a tool is the case: the entry script never ran.
 static func value(key: StringName, fallback: Variant) -> Variant:
 	var host: Gen2ModHost = Gen2ModHost.instance()
 	if host == null:
@@ -136,11 +121,9 @@ static func value(key: StringName, fallback: Variant) -> Variant:
 	return fallback if chosen == null else chosen
 
 
-## How hard a control is being HELD, 0 to 1, which is the one thing about the
-## bindings a view has to poll rather than be told: an edge cannot say how far a
-## stick has travelled and a glide is made of nothing else. A key answers 0 or 1,
-## and no host at all answers 0, which is what leaves a probe or a tool with a
-## still camera. See `steering.gd:Glide`.
+## How hard a control is being held, 0 to 1: the one thing a view has to poll
+## rather than be told, since an edge cannot say how far a stick has travelled. A
+## key answers 0 or 1, and no host answers 0. See `steering.gd:Glide`.
 static func strength(key: StringName) -> float:
 	var host: Gen2ModHost = Gen2ModHost.instance()
 	if host == null or not host.has_method("action_strength"):
@@ -158,9 +141,8 @@ static func listen(handler: Callable) -> bool:
 	return true
 
 
-## The same for the CONTROLS, which arrive as the mod's own command name rather
-## than as an `InputEvent`: whether a key, a pad, a stick or a finger produced it
-## is the host's business and not a renderer's.
+## The same for the controls, which arrive as the mod's own command name rather
+## than as an `InputEvent`: what produced it is the host's business.
 static func listen_actions(handler: Callable) -> bool:
 	var host: Gen2ModHost = Gen2ModHost.instance()
 	if host == null or not host.has_signal("action_changed"):

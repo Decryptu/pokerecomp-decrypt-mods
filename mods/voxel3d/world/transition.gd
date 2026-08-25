@@ -2,39 +2,30 @@ extends RefCounted
 
 ## `DoBattleTransition`, drawn over the diorama.
 ##
-## The one screen the cartridge draws that has no world in it at all: twenty by
-## eighteen cells, blacked out a few at a time in one of the game's own patterns,
-## with the trainer's Poke Ball stamped in graphics tiles over the top. It runs
-## on the frames between an encounter firing and the fight opening, and until now
-## this view drew none of it, which is the host's own allowance for a renderer
-## that does not take the seam and is still an encounter cutting straight from
-## the map to the battle.
+## The one screen the cartridge draws with no world in it: twenty by eighteen
+## cells blacked out a few at a time in one of the game's own patterns, with the
+## trainer's Poke Ball stamped over the top. It runs between an encounter firing
+## and the fight opening.
 ##
-## IT IS HARDWARE PIXELS AND STAYS THERE. Everything about the pattern is
-## authored in the cartridge's own cells, so this is a 160x144 picture laid over
-## the surface at the rectangle the host says the Game Boy screen occupies, at
-## nearest filtering, exactly as the panels and the text box are. The surround
-## outside that rectangle is closed by the pass over the frame, which the same
-## `set_interface_masked` raises: see `world/frame.gd`.
+## It is hardware pixels and stays there: a 160x144 picture laid over the surface
+## at the rectangle the host says the Game Boy screen occupies, at nearest
+## filtering, as the panels and text box are. The surround outside it is closed by
+## `world/frame.gd`, raised by the same `set_interface_masked`.
 ##
-## REPAINTED PER CELL THAT MOVED. A transition is two hundred frames and every
-## one is a different picture, and repainting 23040 pixels a frame in GDScript is
-## most of a frame on its own. A step writes a handful of cells, so the image is
-## kept and only the cells whose value changed are filled again.
+## Repainted per cell that moved. A transition is two hundred different pictures,
+## and repainting 23040 pixels a frame in GDScript is most of a frame.
 
 const COLUMNS: int = Gen2BattleTransition.COLUMNS
 const ROWS: int = Gen2BattleTransition.ROWS
 const TILE: int = Gen2Tiles.TILE_WIDTH
 
-## What a blacked-out cell is drawn in WHERE THERE IS NO FLOOD. The 2D view takes
-## the darkest colour of whichever palette the map tile under the cell was drawn
-## with, which on this view is a question with no answer: there is no tile page
-## under it, and the thing it is closing over is a lit 3D picture. Black is what
-## the hardware left there, what the surround is closed with, and what a Game Boy
-## palette's fourth entry is on every one of the maps this runs over.
+## What a blacked-out cell is drawn in where there is no flood. The 2D view takes
+## the darkest colour of the palette the map tile under the cell was drawn with,
+## which has no answer here: there is no tile page under it. Black is what the
+## hardware left there and what the surround is closed with.
 ##
 ## `StartTrainerBattle_LoadPokeBallGraphics` IS a flood, and there the darkest
-## entry of the palette it floods with is the answer, exactly as in the 2D view.
+## entry of the palette it floods with is the answer, as in the 2D view.
 const CLOSED := Color(0.0, 0.0, 0.0, 1.0)
 
 var layer: TextureRect = null
@@ -52,8 +43,8 @@ func _init() -> void:
 	layer = TextureRect.new()
 	layer.name = "Transition"
 	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# The picture is the cartridge's own 8x8 cells blown up whole, which is the
-	# rule every other hardware-pixel surface in this mod is drawn under.
+	# The cartridge's own 8x8 cells blown up whole, as every hardware-pixel
+	# surface here is drawn.
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	layer.stretch_mode = TextureRect.STRETCH_SCALE
 	layer.visible = false
@@ -68,15 +59,14 @@ func set_frame(
 	if tiles != _tiles or palette != _palette:
 		_tiles = tiles
 		_palette = palette
-		# A cell already drawn in the old colours has to be drawn again in the
-		# new ones, which is what dropping the record of what was painted says.
+		# Cells drawn in the old colours have to be drawn again, which is what
+		# dropping the record says.
 		_drawn = PackedByteArray()
 	_cells = cells
 	_repaint()
 
 
-## Nothing on screen, and nothing kept: a transition is over and the next one
-## starts from a blank field.
+## Nothing on screen and nothing kept: the next transition starts blank.
 func clear() -> void:
 	_cells = PackedByteArray()
 	_drawn = PackedByteArray()
