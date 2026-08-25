@@ -5,5 +5,5 @@
 	"api_version": 11,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
-	"description": "Rebuilds the overworld as a voxel diorama using the cartridge's own tiles, with surrounding maps, time-tinted skies, animated water and a steerable camera. Battles take place on the map where they began, while menus and effects keep their original pixel-perfect look."
+	"description": "Draws the overworld in 3D, built from the cartridge's own tiles. Sky colours follow the clock, water is animated, and you can move the camera. Battles happen on the map you were standing on, while menus stay 2D and pixel-perfect."
 }

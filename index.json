@@ -7,7 +7,7 @@
 			"name": "Voxel 3D",
 			"version": "0.6.7",
 			"games": ["gold", "silver", "crystal"],
-			"description": "Rebuilds the overworld as a voxel diorama using the cartridge's own tiles, with surrounding maps, time-tinted skies, animated water and a steerable camera. Battles take place on the map where they began, while menus and effects keep their original pixel-perfect look.",
+			"description": "Draws the overworld in 3D, built from the cartridge's own tiles. Sky colours follow the clock, water is animated, and you can move the camera. Battles happen on the map you were standing on, while menus stay 2D and pixel-perfect.",
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.6.7/voxel3d-0.6.7.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/thumbnail.webp"
@@ -17,7 +17,7 @@
 			"name": "Randomizer",
 			"version": "0.3.1",
 			"games": ["gold", "silver", "crystal"],
-			"description": "A save-bound run generated from a four-digit seed: Pokemon, wild sources, items, badges, shops, species, moves and trainer teams. Critical placements are accepted only after the host finds no visible self-lock.",
+			"description": "Randomizes a playthrough from a four-digit seed: wild Pokemon, gifts, starters, trades, items, badges, shops, stats, types, movesets and trainer teams. The seed is saved with the game, and the mod checks that key items and badges stay reachable.",
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/randomizer-0.3.1/randomizer-0.3.1.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/randomizer/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/randomizer/thumbnail.webp"
@@ -27,7 +27,7 @@
 			"name": "Follower",
 			"version": "0.3.2",
 			"games": ["gold", "silver", "crystal"],
-			"description": "A Pokemon out of its ball and walking one cell behind you, drawn with the cartridge's own party icon for its species. Pick which slot comes out, whether it stays out on a bike and on the water, and put it away with one press, from the key or from its row in the game's own MODS menu. Face it and press A to pet it: it looks back, cries and wears the cartridge's own heart. It can find hidden items for you too, if you turn that on.",
+			"description": "One of your Pokemon walks behind you, drawn with its own party icon. Pick which one from its party menu, choose whether it stays out on a bike or on water, and put it away with one key. Face it and press A to pet it. It can also pick up hidden items.",
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.3.2/follower-0.3.2.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/follower/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/follower/thumbnail.webp"
@@ -37,7 +37,7 @@
 			"name": "Overworld Encounters",
 			"version": "0.3.0",
 			"games": ["gold", "silver", "crystal"],
-			"description": "Replaces random steps with a bounded population of visible roaming wild Pokemon drawn from each map's own encounter tables, with visible shiny Pokemon and a gold glow on the ones worth stopping for. Up to sixteen a map, for a screen that shows the whole of one.",
+			"description": "Wild Pokemon walk around on the map instead of appearing during random steps. Up to sixteen per map, taken from that map's own encounter table. Shinies are visible before the battle, and Pokemon with very high DVs glow gold.",
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.3.0/overworld_encounters-0.3.0.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/overworld_encounters/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/overworld_encounters/thumbnail.webp"
@@ -47,7 +47,7 @@
 			"name": "Hidden Stats",
 			"version": "0.1.1",
 			"games": ["gold", "silver", "crystal"],
-			"description": "A fourth page on a Pokemon's stats screen, in the cartridge's own two-column shape: the four DVs the species was born with, HP's own derived from them, and the stat experience each of the five has trained.",
+			"description": "Adds a fourth page to a Pokemon's stats screen showing its DVs and the stat experience each stat has trained.",
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/hidden_stats-0.1.1/hidden_stats-0.1.1.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/hidden_stats/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/hidden_stats/thumbnail.webp"
@@ -57,7 +57,7 @@
 			"name": "Linking Cord",
 			"version": "0.1.1",
 			"games": ["gold", "silver", "crystal"],
-			"description": "The item the later games sell instead of asking for a friend: use it on a Pokemon that only evolves by being traded and it evolves where it stands. Sold on Goldenrod Dept Store's second floor, and spent by the evolution it causes.",
+			"description": "An item that evolves trade-only Pokemon without trading. Sold on the second floor of Goldenrod Dept Store.",
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/linking_cord-0.1.1/linking_cord-0.1.1.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/linking_cord/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/linking_cord/thumbnail.webp"
@@ -67,7 +67,7 @@
 			"name": "Quality of Life",
 			"version": "0.1.2",
 			"games": ["gold", "silver", "crystal"],
-			"description": "Seven independent conveniences from later Pokemon games, each off until the player enables it: field moves from owned HMs and badges, automatic Repel renewal, experience from catches, direct PC access, move-effectiveness hints for seen opponents, battle stat-stage summaries and weather indicators.",
+			"description": "Seven conveniences, each with its own switch and all off by default: field moves without a Pokemon that knows them, Repel renewal, EXP from catches, PC in the start menu, type effectiveness hints, stat stages and a weather indicator.",
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/quality_of_life-0.1.2/quality_of_life-0.1.2.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/quality_of_life/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/quality_of_life/thumbnail.webp"
@@ -77,7 +77,7 @@
 			"name": "Shiny Charm",
 			"version": "0.1.0",
 			"games": ["gold", "silver", "crystal"],
-			"description": "The reward the completed Pokedex never gave you. Finish it, take the diploma from the GAME designer in Celadon, and he hands a charm over with it: three rolls at a rare colour instead of one, for as long as it is in your KEY ITEMS pocket.",
+			"description": "Complete the Pokedex, get your diploma from the GAME designer in Celadon, and he hands you a Shiny Charm. While it is in your bag, wild Pokemon are three times more likely to be shiny.",
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/shiny_charm-0.1.0/shiny_charm-0.1.0.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/shiny_charm/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/shiny_charm/thumbnail.webp"

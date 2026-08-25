@@ -5,5 +5,5 @@
 	"api_version": 8,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
-	"description": "A fourth page on a Pokemon's stats screen, in the cartridge's own two-column shape: the four DVs the species was born with, HP's own derived from them, and the stat experience each of the five has trained."
+	"description": "Adds a fourth page to a Pokemon's stats screen showing its DVs and the stat experience each stat has trained."
 }
