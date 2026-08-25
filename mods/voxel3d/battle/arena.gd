@@ -125,6 +125,9 @@ const DRIFT_DOLLY_PERIOD: float = 13.0
 ## The whole list is read as one displacement, its mean, so a window over six rows
 ## and one over the whole screen shake by what they actually move. In hardware
 ## pixels, scaled into the world by the ratio the lens frames the screen with.
+##
+## One ratio for both axes, because the rig keeps a Game Boy pixel square: a
+## hardware pixel spans the same world distance across as it does down.
 const SHAKE_SCALE: float = FRAME_HEIGHT / 144.0
 
 var _source: RefCounted = null
@@ -146,7 +149,7 @@ var _t: float = 1.0
 ## not a steer is easing.
 var _drift: float = 0.0
 ## The move animation's own displacement, in world pixels, set per frame.
-var _shake: float = 0.0
+var _shake := Vector2.ZERO
 ## Which way a wheel notch zooms, from the player's own setting.
 var _wheel_sign: int = 1
 
@@ -264,17 +267,40 @@ func enemy_trainer_ground() -> Vector3:
 
 ## What the lens is aimed at, which is also what the eye swings and climbs about.
 func target() -> Vector3:
-	return _mid + Vector3(LOOK_X, LOOK_Y + _shake, 0.0)
+	return _mid + Vector3(LOOK_X, LOOK_Y + _shake.y * SHAKE_SCALE, 0.0) + _truck()
 
 
-## How far a move animation is displacing the shot, in hardware pixels. A frame
-## opening no scanline window asks for zero.
+## How far a move animation is displacing the shot, in hardware pixels, across
+## and down. A frame opening no scanline window asks for zero.
 ##
 ## Applied to the aim, with the seat riding it in `eye()`, so the whole picture
 ## moves together. Displacing the aim alone would swing the eye and slide the
 ## battlers out of their hardware slots.
-func set_shake(hardware_pixels: float) -> void:
-	_shake = hardware_pixels * SHAKE_SCALE
+func set_shake(hardware_pixels: Vector2) -> void:
+	_shake = hardware_pixels
+
+
+## The sideways half, as a world displacement rather than a height.
+##
+## A shake across the screen is the shot trucking along the lens' own right,
+## which moves with the swing, so it is taken off the yaw rather than off a world
+## axis. Godot's camera looks down its own -Z with +X to the right, which is what
+## crossing the forward with up gives.
+func _truck() -> Vector3:
+	if is_zero_approx(_shake.x):
+		return Vector3.ZERO
+	var yaw: float = _yaw()
+	var forward := Vector3(
+		-(SIDE * cos(yaw) - BACK * sin(yaw)), 0.0, -(SIDE * sin(yaw) + BACK * cos(yaw))
+	)
+	if forward.length_squared() <= 0.0:
+		return Vector3.ZERO
+	return forward.normalized().cross(Vector3.UP) * (_shake.x * SHAKE_SCALE)
+
+
+## Where the arm is pointed this instant: the steer's swing plus the drift's.
+func _yaw() -> float:
+	return -_swing * deg_to_rad(_swing_range()) + _drift_yaw()
 
 
 ## How far the drift has swung the eye and pushed it back, this instant. See the
@@ -290,7 +316,7 @@ func _drift_dolly() -> float:
 ## The eye. Zero swing, zero climb and one zoom is the shot the rig was solved
 ## for; the steer moves out from it and the drift breathes around where it lands.
 func eye() -> Vector3:
-	var yaw: float = -_swing * deg_to_rad(_swing_range()) + _drift_yaw()
+	var yaw: float = _yaw()
 	var seat: Vector3 = _mid + Vector3(
 		SIDE * cos(yaw) - BACK * sin(yaw),
 		HEIGHT,
@@ -298,7 +324,8 @@ func eye() -> Vector3:
 	)
 	# Shaken before anything else reads the arm, so the whole rig moves together
 	# and the dolly and the climb are taken against the same displaced aim.
-	seat.y += _shake
+	seat.y += _shake.y * SHAKE_SCALE
+	seat += _truck()
 	# The dolly rides the arm from the focus, so it lengthens the shot rather
 	# than sliding it, and the climb below preserves whatever it came to.
 	var aim: Vector3 = target()

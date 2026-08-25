@@ -389,16 +389,38 @@ func _frame_camera() -> void:
 
 ## A move animation's scanline wobble, read as one displacement.
 ##
-## `raster_scy` is the background's vertical scroll, one value per scanline, asked
-## for only by a battle animation. A flat screen answers it row by row; a diorama
-## has no rows, so what is taken is how far the picture has moved, which the arena
-## shakes the whole shot by.
+## `raster_scx` and `raster_scy` are the background's own scroll, one value per
+## scanline, asked for only by a battle animation. A flat screen answers them row
+## by row; a diorama has no rows, so what is taken is how far the picture has
+## moved, which the arena shakes the whole shot by.
 ##
-## An offset is a distance to look down into a background map 256 pixels tall, so
-## the top half of that range is a shift up and the rest wraps as a shift down. The
-## mean over the rows the window covers is the displacement.
-func _raster_shake() -> float:
-	var rows: PackedInt32Array = PackedInt32Array(_view.get("raster_scy", []))
+## Both axes, because most of the screen shakes are sideways: `WobbleScreen`,
+## `Tackle` and `BodySlam` all write `raster_scx` and nothing else, and reading
+## only the vertical left them moving nothing at all.
+##
+## This is the WHOLE screen. A deformation of one battler is not in it: the
+## `battlers` block carries that in its own `offset_pixels`, already spent per
+## picture in [method _pin].
+##
+## Nothing is spent during the opening. There `raster_scx` is the intro's own
+## bands, which is the two pictures sliding in opposite directions, and the
+## `battlers` block is already carrying that slide per picture: shaking the camera
+## by it as well would move the shot AND slide each battler twice. `grayscale` is
+## true for exactly that stretch, which is what marks it.
+func _raster_shake() -> Vector2:
+	if _graying():
+		return Vector2.ZERO
+	return Vector2(
+		_raster_mean(_view.get("raster_scx", [])),
+		_raster_mean(_view.get("raster_scy", []))
+	)
+
+
+## An offset is a distance to look further into a background map 256 pixels each
+## way, so the top half of that range is a shift one way and the rest wraps as a
+## shift the other. The mean over the rows the window covers is the displacement.
+func _raster_mean(supplied: Variant) -> float:
+	var rows := PackedInt32Array(supplied)
 	if rows.is_empty():
 		return 0.0
 	var total: int = 0
@@ -891,12 +913,18 @@ func _field(pixels: PackedByteArray, width: int, height: int) -> PackedByteArray
 ## the ball has landed. `enemy_hud_visible` and `player_hud_visible` are the host's
 ## answer per side, against `hud_visible`'s summary of both. A view carrying neither
 ## is a settled fight and takes both.
+##
+## The last two are `BattleStart_TrainerHuds`, the party balls and the frame they
+## hang in, which are up only while a trainer fight is opening and are how a
+## player reads how much of each team is left before the first move.
 const HUD_ENEMY_PANEL: int = 0
 const HUD_PLAYER_PANEL: int = 1
 const HUD_ENEMY_BAR: int = 2
 const HUD_PLAYER_BAR: int = 3
 const HUD_EXP_BAR: int = 4
-const HUD_LAYERS: int = 5
+const HUD_TRAINER_BORDER: int = 5
+const HUD_TRAINER_BALLS: int = 6
+const HUD_LAYERS: int = 7
 
 
 func _draw_hud() -> void:
@@ -951,6 +979,76 @@ func _draw_hud() -> void:
 		_hud_layers[HUD_PLAYER_PANEL].texture = null
 		_hud_layers[HUD_PLAYER_BAR].texture = null
 		_hud_layers[HUD_EXP_BAR].texture = null
+
+	_draw_trainer_hud(up, ink)
+
+
+## `DrawPlayerPartyIconHUDBorder`, `DrawEnemyHUDBorder` and `LoadTrainerHudOAM`:
+## six ball icons a side saying how much of each team is well, and the frame they
+## hang in. Both are empty once the fight has started, so this draws nothing for
+## all but the opening of a trainer battle.
+##
+## The frame is background tiles, in the panels' own ink. The balls are OBJECTS,
+## on `PAL_BATTLE_OB_YELLOW`, which is why they are a layer of their own: an
+## object is not part of the background plane and carries neither its palette nor
+## its scroll.
+func _draw_trainer_hud(up: bool, ink: PackedColorArray) -> void:
+	var border: Array = _view.get("trainer_hud_border", []) as Array
+	if up and not border.is_empty():
+		var frame: PackedByteArray = _buffer()
+		for entry: Variant in border:
+			if entry is Dictionary:
+				var cell: Dictionary = entry
+				_hud.tiles.draw(
+					int(cell.get("tile", 0)), frame, Gen2Screen.WIDTH,
+					int(cell.get("x", 0)) * TILE, int(cell.get("y", 0)) * TILE
+				)
+		_show(HUD_TRAINER_BORDER, frame, ink)
+	else:
+		_hud_layers[HUD_TRAINER_BORDER].texture = null
+
+	var balls: Array = _view.get("trainer_hud_balls", []) as Array
+	if not up or balls.is_empty() or _data == null:
+		_hud_layers[HUD_TRAINER_BALLS].texture = null
+		return
+	var sheet: PackedByteArray = _data.tile_indices(BALL_ICON_SHEET)
+	var width: int = int(_data.tile_sheet(BALL_ICON_SHEET).get("width", 0))
+	if width <= 0:
+		_hud_layers[HUD_TRAINER_BALLS].texture = null
+		return
+	var into: PackedByteArray = _buffer()
+	for entry: Variant in balls:
+		if entry is Dictionary:
+			_blit_ball(into, entry, sheet, width)
+	_show(
+		HUD_TRAINER_BALLS, into,
+		_data.battle_object_palette(Gen2BattleAnimBackground.PAL_OB_YELLOW)
+	)
+
+
+## `LoadBallIconGFX`' four tiles: well, fainted, statused and the empty slot.
+const BALL_ICON_SHEET: String = "ball_icons"
+const TILE: int = 8
+
+
+## One ball, at the pixel position the OAM entry names.
+func _blit_ball(
+	into: PackedByteArray, ball: Dictionary, sheet: PackedByteArray, width: int
+) -> void:
+	var tile: int = int(ball.get("tile", 0))
+	var left: int = int(ball.get("x", 0))
+	var top: int = int(ball.get("y", 0))
+	for row: int in TILE:
+		var y: int = top + row
+		if y < 0 or y >= Gen2Screen.HEIGHT:
+			continue
+		var from: int = row * width + tile * TILE
+		var to: int = y * Gen2Screen.WIDTH + left
+		for column: int in TILE:
+			var x: int = left + column
+			if x < 0 or x >= Gen2Screen.WIDTH or from + column >= sheet.size():
+				continue
+			into[to + column] = sheet[from + column]
 
 
 ## The move animation, over everything. `anim.gd` turns the view's OAM into one

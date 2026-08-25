@@ -175,6 +175,10 @@ func _initialize() -> void:
 			StringName(battlers["enemy"]["kind"]) == &"mon"
 		_view["player_hud_visible"] = \
 			StringName(battlers["player"]["kind"]) == &"mon"
+		# `BattleStart_TrainerHuds`, which is up for the whole opening of a
+		# trainer fight and empty the moment it starts.
+		_view["trainer_hud_balls"] = _hud_balls()
+		_view["trainer_hud_border"] = _hud_border()
 
 	var anim_index: int = int(args[12]) if args.size() > 12 else 0
 	if anim_index > 0:
@@ -192,6 +196,42 @@ const PLAYER_BACKPIC: String = "chris"
 ## The moments `Gen2BattleScreen` runs before the fight starts.
 const INTRO_MOMENTS: PackedStringArray = ["slide", "stand", "sent", "walkoff"]
 const TRAINER_CLASS: int = 1
+
+
+## `BattleStart_TrainerHuds`' party balls and the frame they hang in, off
+## `Gen2BattleScreen`'s own constants rather than a second copy of them. A full
+## team of six a side, since a tool has no party to count.
+func _hud_balls() -> Array:
+	var out: Array = []
+	for player_side: bool in [false, true]:
+		var at: Vector2i = Gen2BattleScreen.HUD_BALL_AT[player_side]
+		var step: int = int(Gen2BattleScreen.HUD_BALL_STEP[player_side])
+		for slot: int in Gen2Party.MAX_SIZE:
+			out.append({
+				"x": at.x + slot * step, "y": at.y,
+				"tile": Gen2BattleScreen.HUD_BALL_NORMAL,
+			})
+	return out
+
+
+func _hud_border() -> Array:
+	var out: Array = []
+	for player_side: bool in [false, true]:
+		var at: Vector2i = Gen2BattleScreen.HUD_BORDER_AT[player_side]
+		var tiles: Array = Gen2BattleScreen.HUD_BORDER_TILES[player_side]
+		var direction: int = 1 if player_side else -1
+		var edge: int = Gen2BattleScreen.HUD_BORDER_EDGE
+		out.append({"x": at.x, "y": at.y, "tile": int(tiles[0])})
+		out.append({"x": at.x, "y": at.y + 1, "tile": int(tiles[1])})
+		for index: int in edge:
+			out.append({
+				"x": at.x - (index + 1) * direction, "y": at.y + 1,
+				"tile": int(tiles[3]),
+			})
+		out.append({
+			"x": at.x - (edge + 1) * direction, "y": at.y + 1, "tile": int(tiles[2]),
+		})
+	return out
 
 
 ## One settled side of the block, which every moment builds from.
@@ -326,25 +366,21 @@ func _load_anim(
 		_view["bg_palette_maps"] = maps
 		_view["ob_palette_maps"] = player.background().ob_palette_maps
 	# THE SCANLINE WOBBLE, built the way `battle_screen.gd:_anim_raster` builds
-	# it: the animation's own `hSCY` on every line, replaced by the scanline
-	# table wherever it has opened a window on that register. Without it the view
-	# says no move ever wobbles, and the camera shake this drives cannot be
-	# checked at all. A still cannot SHOW a shake; what it can show is that the
+	# it: the animation's own `hSCX` and `hSCY` on every line, replaced by the
+	# scanline table wherever it has opened a window on that register. Without it
+	# the view says no move ever wobbles, and the camera shake this drives cannot
+	# be checked at all. A still cannot SHOW a shake; what it can show is that the
 	# shot moved between two frames of the same move, which is the whole of what
 	# there is to verify.
-	var wobble := PackedInt32Array()
+	#
+	# Both axes, because most of the screen shakes are sideways: `WobbleScreen`,
+	# `Tackle` and `BodySlam` write `hSCX` and leave `hSCY` alone.
 	var scene: Gen2BattleAnimBackground = player.background()
-	var windowed: bool = scene.lcdc_pointer == Gen2BattleAnimBackground.LCDC_SCY
-	if scene.scy != 0 or windowed:
-		wobble.resize(Gen2BattleAnimBackground.SCREEN_LINES)
-		for line: int in Gen2BattleAnimBackground.SCREEN_LINES:
-			wobble[line] = int(scene.ly_overrides[line]) if windowed else scene.scy
-	_view["raster_scy"] = wobble
-	var shake: float = 0.0
-	for line: int in wobble.size():
-		shake += float(wobble[line] if wobble[line] < 128 else wobble[line] - 256)
-	if not wobble.is_empty():
-		shake = -shake / float(wobble.size())
+	var across: PackedInt32Array = _wobble(scene, Gen2BattleAnimBackground.LCDC_SCX)
+	var down: PackedInt32Array = _wobble(scene, Gen2BattleAnimBackground.LCDC_SCY)
+	_view["raster_scx"] = across
+	_view["raster_scy"] = down
+	var shake := Vector2(_shake_of(across), _shake_of(down))
 	# `BattleAnimClearHud` takes the panels and both bars off for the length of a
 	# move, so a shot of one that leaves them up is not a picture of the game.
 	_view["hud_visible"] = false
@@ -353,7 +389,33 @@ func _load_anim(
 		written += "%02x " % maps[slot]
 	print("anim ", index, " frame ", frame, ": ",
 		(player.sprites() as Array).size(), " sprites, bg pals ", written,
-		", shake ", "%.2f" % shake, " hardware px")
+		", shake ", "%.2f, %.2f" % [shake.x, shake.y], " hardware px")
+
+
+## One register's scanline table: the animation's own scroll on every line,
+## replaced by the window wherever it has opened one on that register.
+func _wobble(scene: Gen2BattleAnimBackground, register: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	var base: int = scene.scx if register == Gen2BattleAnimBackground.LCDC_SCX \
+		else scene.scy
+	var windowed: bool = scene.lcdc_pointer == register
+	if base == 0 and not windowed:
+		return out
+	out.resize(Gen2BattleAnimBackground.SCREEN_LINES)
+	for line: int in Gen2BattleAnimBackground.SCREEN_LINES:
+		out[line] = int(scene.ly_overrides[line]) if windowed else base
+	return out
+
+
+## The same mean the renderer takes, so the number printed here is the number the
+## camera is shaken by.
+func _shake_of(rows: PackedInt32Array) -> float:
+	if rows.is_empty():
+		return 0.0
+	var total: float = 0.0
+	for row: int in rows:
+		total += float(row if row < 128 else row - 256)
+	return -total / float(rows.size())
 
 
 func _process(_delta: float) -> bool:
