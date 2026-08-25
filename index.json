@@ -5,10 +5,10 @@
 		{
 			"id": "voxel3d",
 			"name": "Voxel 3D",
-			"version": "0.6.7",
+			"version": "0.6.8",
 			"games": ["gold", "silver", "crystal"],
 			"description": "Draws the overworld in 3D, built from the cartridge's own tiles. Sky colours follow the clock, water is animated, and you can move the camera. Battles happen on the map you were standing on, while menus stay 2D and pixel-perfect.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.6.7/voxel3d-0.6.7.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.6.8/voxel3d-0.6.8.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/thumbnail.webp"
 		},
