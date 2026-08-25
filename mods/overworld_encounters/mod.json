@@ -5,5 +5,5 @@
 	"api_version": 15,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
-	"description": "Replaces random steps with a bounded population of visible roaming wild Pokemon drawn from each map's own encounter tables, with visible shiny Pokemon and a gold glow on the ones worth stopping for. Up to sixteen a map, for a screen that shows the whole of one."
+	"description": "Wild Pokemon walk around on the map instead of appearing during random steps. Up to sixteen per map, taken from that map's own encounter table. Shinies are visible before the battle, and Pokemon with very high DVs glow gold."
 }

@@ -1,27 +1,21 @@
 extends RefCounted
 
-## THE BUILDINGS ON THE MAPS PAST THE MESH.
+## The buildings on the maps past the mesh, so a town out there is not a flat page
+## with roofs painted on it.
 ##
-## `far_field.gd` carries the ground out to the horizon and `far_foliage.gd`
-## stands its woods on it, and until this was here a town out there was a flat
-## page with roofs painted on it: the one thing in the distance that is not a
-## plant, and the only thing left lying down.
+## A box and not a house. `shape/houses.gd` is a hundred hand-painted drawings
+## read per pixel and matched by arrangement, and `shape/mesher.gd` spends a
+## resolve on them; neither is available where a map has to be stood up in
+## milliseconds. What is available is the profile's `facade` and `roof`, which is
+## enough to say where a building is, how deep its roof is drawn and how tall its
+## wall is. So it is built as what the cartridge draws: a roof over a footprint
+## with a wall under the front.
 ##
-## A BOX AND NOT A HOUSE. `shape/houses.gd` is a hundred hand-painted drawings
-## read per PIXEL and matched by arrangement, and `shape/mesher.gd` spends a
-## resolve on them; neither is available out here, where a map has to be stood up
-## in milliseconds. What is available is the profile's own `facade` and `roof`,
-## which is enough to say where a building is, how deep its roof is drawn and how
-## tall its wall is. So it is built as what the cartridge draws: a roof laid over
-## a footprint with a wall under the front of it.
+## The art is the map's own, tile for tile, off the same sheet the ground beside
+## it is drawn from. Nothing is invented and nothing is tinted.
 ##
-## THE ART IS THE MAP'S OWN, tile for tile, off the same sheet the ground beside
-## it is drawn from: the roof tiles on the lid and the wall tiles on the four
-## sides. Nothing is invented and nothing is tinted; the sun shades it, as it
-## shades the mesh.
-##
-## One mesh a map rather than one a building, because a town is a dozen of them
-## and out there they are drawn or culled together.
+## One mesh a map rather than one a building, since a town is drawn or culled
+## together.
 
 const TILE: float = 8.0
 ## How many maps' worth of geometry is held at once. `far_field.gd:SHEET_LIMIT`'s
@@ -97,7 +91,7 @@ func _instance() -> MeshInstance3D:
 
 ## One map's buildings as one mesh, built once and kept.
 ##
-## KEYED ON THE CLEARANCE AS WELL, because the loaded map's own buildings past
+## Keyed on the clearance as well, because the loaded map's own buildings past
 ## the window are in here and the window moves under them.
 func _mesh_of(
 	map: Gen2WorldMap, sheet: RefCounted, buildings: Array, clear: Rect2,
@@ -135,11 +129,11 @@ func _mesh_of(
 	return [mesh, material]
 
 
-## ONE BUILDING, as the cartridge draws it: the top rows are the roof seen from
+## One building, as the cartridge draws it: the top rows are the roof seen from
 ## above and are therefore its DEPTH, and the rows under them are the wall seen
 ## face on and are therefore its HEIGHT.
 ##
-## THE RUN AND NOT THE COUNT. A flood joins two buildings that touch, so a
+## The run and not the count. A flood joins two buildings that touch, so a
 ## rectangle can hold roof rows, wall rows, roof rows again; what is built is the
 ## leading run of roof and the run of wall under it, and anything past that is
 ## left lying. A rectangle with no roof over a wall states no box at all and is

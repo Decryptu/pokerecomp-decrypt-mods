@@ -3,31 +3,28 @@ extends RefCounted
 ## The texture the terrain samples: the map's tileset, coloured with the map's
 ## own palettes at the current time of day.
 ##
-## Geometry is textured from the TILESET, not from a rendered copy of the map. A
+## Geometry is textured from the tileset, not from a rendered copy of the map: a
 ## map-space canvas covering the biggest route would be megabytes with several
-## live at once; the tileset is ninety-six tiles and costs 24 KB, and costs
-## nothing in fidelity because it is the same art and the same palette rows the
-## 2D view draws with.
+## live at once, where the tileset is ninety-six tiles and 24 KB of the same art
+## and palette rows the 2D view draws with.
 ##
-## ANIMATED TILES are the other thing this owns. The 2D path animates water and
-## flowers by redrawing those cells over the tile page each frame, which a single
-## static mesh has no equivalent of. So animate the texture instead: rewrite the
-## animated tile's slot here and every instance of it across the whole mesh moves
-## at once. Which is what the hardware does in the first place; the overdraw is
-## the port's answer, not the cartridge's.
+## Animated tiles are the other thing this owns. The 2D path redraws those cells
+## over the tile page each frame, which one static mesh has no equivalent of, so
+## the texture is animated instead: rewrite the tile's slot here and every
+## instance of it across the mesh moves at once, which is what the hardware does.
 
 const TILE: int = 8
 ## Tiles per atlas row. A tileset is ninety-six tiles, so the atlas is 128x48.
 const TILES_PER_ROW: int = 16
 
-## THE SKY'S TWO ENDS, and which of the hour's rows each is read from. See
+## The sky's two ends, and which of the hour's rows each is read from. See
 ## [method sky_ramp].
 ##
-## Slot 6 is the only background slot holding a BLUE PAIR, and it holds one at
+## Slot 6 is the only background slot holding a blue pair, and it holds one at
 ## every hour: #7bffff and #298cff by day, #6b63bd and #5a4aa5 at night, black in
-## the dark. They have to be read from the ROW, before `_LoadMapPals` reaches its
-## roof branch and hands those two slots to the map group's own roof colours, or
-## the sky over a town is whatever that town's roofs are painted.
+## the dark. They must be read from the ROW, before `_LoadMapPals` hands those
+## slots to the map group's roof colours, or the sky over a town is whatever that
+## town's roofs are painted.
 const SKY_SLOT: int = 6
 ## Morning's own, and why it takes neither of the above: see [method sky_ramp].
 const SKY_WATER_SLOT: int = 3
@@ -37,9 +34,9 @@ const SKY_WARM_SLOT: int = 4
 ## arrive at one colour; the zenith enough to leave the ramp somewhere to go.
 const SKY_HORIZON_DARKEN: float = 0.10
 const SKY_ZENITH_DARKEN: float = 0.30
-## Morning's horizon is taken TOWARD WHITE rather than down, which is the same
-## class of operation and the opposite direction: #ff8408 is the colour of a sun
-## and not of the air around one, and at full strength it stops reading as sky.
+## Morning's horizon is taken toward white rather than down: #ff8408 is the
+## colour of a sun and not of the air around one, and at full strength it stops
+## reading as sky.
 const SKY_MORNING_LIGHTEN: float = 0.40
 const SKY_MORNING_ZENITH_DARKEN: float = 0.34
 
@@ -82,13 +79,11 @@ func build(
 	time_of_day: int,
 	animation: Gen2WorldAnimation = null,
 ) -> bool:
-	# THE TEXTURE OBJECT IS REUSED WHERE IT CAN BE, and that is not a saving.
-	# A palette command sends `refresh_animation` here to repaint the whole
-	# sheet, and a fresh ImageTexture leaves every material still holding the old
-	# one: the water, the wind and the terrain all went on sampling a sheet
-	# nothing wrote to again, so the whirlpool, the flowers and the shimmer
-	# stopped moving about twenty-six frames into a map and stayed stopped. The
-	# object survives, so a holder cannot go stale.
+	# The texture object is reused, and that is not a saving. A palette command
+	# sends `refresh_animation` here to repaint the whole sheet, and a fresh
+	# ImageTexture leaves every material holding the old one: every tile animation
+	# in the view died about twenty-six frames into a map. The object survives, so
+	# a holder cannot go stale.
 	var kept: ImageTexture = texture
 	texture = null
 	_image = null
@@ -158,12 +153,10 @@ func refresh_animation(
 
 ## The tile's rectangle in normalized texture coordinates, inset by a sliver.
 ##
-## Without the inset the perspective rasteriser lands on a NEIGHBOURING tile's
-## texel along a shared edge and stitches bright seams across the whole map. It
-## has to stay a sliver: a tile is 8 texels of art over 8 world pixels, one texel
-## per pixel exactly, and insetting by half a texel would squeeze that art into a
-## 7-texel range while the quad still covers 8 pixels, drifting the art off the
-## pixel grid.
+## Without the inset the perspective rasteriser lands on a neighbouring tile's
+## texel along a shared edge and stitches bright seams across the map. It has to
+## stay a sliver: a tile is 8 texels over 8 world pixels exactly, so insetting by
+## half a texel would squeeze the art into 7 and drift it off the pixel grid.
 const INSET: float = 0.02
 
 
@@ -197,11 +190,10 @@ func uv_box(tile: int, box: Rect2i) -> Rect2:
 
 ## The palette index of one pixel of one tile, or -1 outside.
 ##
-## The INDEX rather than the colour, because what a cutout has to answer is
-## whether a pixel is part of the drawing or part of the ground behind it, and
-## that is a question about which of the four entries the cartridge chose. Two
-## palettes make the same index two different colours and it is still the same
-## drawing.
+## The index rather than the colour, because a cutout has to answer whether a
+## pixel is the drawing or the ground behind it, which is a question about which
+## of the four entries the cartridge chose. Two palettes make the same index two
+## colours and it is still the same drawing.
 func pixel(tile: int, x: int, y: int) -> int:
 	if _source.is_empty() or tile < 0 or tile >= _tile_count:
 		return -1
@@ -211,14 +203,13 @@ func pixel(tile: int, x: int, y: int) -> int:
 	return int(_source[at]) if at < _source.size() else -1
 
 
-## HOW MANY DISTINCT DRAWINGS a run of tiles is ever shown as, which is one for
+## How many distinct drawings a run of tiles is ever shown as, which is one for
 ## anything the sequence does not touch.
 ##
-## A BILLBOARD CUT OUT OF AN ANIMATED TILE IS A MASK OF WHICHEVER FRAME the
-## sheet happened to be built on, so a row a later frame draws further out is
-## missing from the geometry and a row only an earlier frame drew stands with
-## nothing on it. Spanning the union of the frames is what closes both, and the
-## texture, which follows the sequence, trims the rest.
+## A billboard cut out of an animated tile is a mask of whichever frame the sheet
+## was built on, so a row a later frame draws further out is missing and a row
+## only an earlier frame drew stands empty. The union of the frames closes both,
+## and the texture, which follows the sequence, trims the rest.
 func frame_count(tiles: Array) -> int:
 	var most: int = 1
 	for tile: Variant in tiles:
@@ -251,18 +242,15 @@ func frame_pixel(tile: int, x: int, y: int, frame: int) -> int:
 	return int(frames[frame % frames.size()][y * TILE + x])
 
 
-## The palette indices a tile is drawn with, DARKEST FIRST.
+## The palette indices a tile is drawn with, darkest first. Which index is which
+## cannot be assumed: the entries are in no brightness order, and a tile's palette
+## is chosen per tile and re-coloured by the hour.
 ##
-## Which index is which cannot be assumed: an index means one of four entries,
-## the entries are in no brightness order, and a tile's palette is chosen per
-## tile and re-coloured by the hour.
-##
-## What it is for is the one drawing a border flood cannot cut. A tree canopy is
-## a ball of the SAME two greens the grass under it is dithered from, so no set
-## of "ground" indices separates them; what does separate them is the drawing's
-## own outline, and an outline is its darkest shade. A dense thicket has no drawn
-## ring at all, and there the two darkest together are the boundary. See
-## `mesher.gd:_structure_mask`.
+## It is for the one drawing a border flood cannot cut. A tree canopy is a ball of
+## the same two greens the grass under it is dithered from, so no set of "ground"
+## indices separates them; the drawing's own outline does, and an outline is its
+## darkest shade. A dense thicket has no drawn ring, and there the two darkest
+## together are the boundary. See `mesher.gd:_structure_mask`.
 func shade_order(tile: int) -> PackedInt32Array:
 	if _shades.has(tile):
 		return _shades[tile]
@@ -292,14 +280,9 @@ func is_dark(tile: int, index: int, count: int) -> bool:
 	return false
 
 
-## The colour one index paints in one tile, read off the sheet the tile was
-## painted onto rather than kept a second time.
+## The painted colour at one pixel of one tile, as the sheet holds it now.
 ##
-## Public because an authored MODEL is coloured from the cartridge even though
-## its geometry is not: see `model.gd`.
-## THE PAINTED COLOUR AT ONE PIXEL OF ONE TILE, as the sheet holds it now.
-##
-## `color_of` answers for an INDEX and has to hunt the tile for one wearing it;
+## `color_of` answers for an index and has to hunt the tile for one wearing it;
 ## this is the pixel itself, which is what cutting a drawing out of the sheet
 ## wants. Follows the animation, since it reads the live sheet.
 func texel(tile: int, x: int, y: int) -> Color:
@@ -313,6 +296,11 @@ func texel(tile: int, x: int, y: int) -> Color:
 	)
 
 
+## The colour one index paints in one tile, read off the sheet the tile was
+## painted onto rather than kept a second time.
+##
+## Public because an authored model is coloured from the cartridge even though its
+## geometry is not: see `model.gd`.
 func color_of(tile: int, index: int) -> Color:
 	if _image == null or _source.is_empty() or tile < 0 or tile >= _tile_count:
 		return Color(0.0, 0.0, 0.0, 0.0)
@@ -333,22 +321,19 @@ func background() -> Color:
 
 ## The sky over this map at this hour, as the ramp's horizon and zenith.
 ##
-## The cartridge has no sky palette: the 2D view fills the margin past the map
-## with the background colour and stops there, and taking that one colour down
-## twice is what this view drew a sky out of until now. It reads grey-green,
-## because the background colour is the hardware's white and Generation II's
-## white is #deffde by day and #e6ff84 in the morning.
+## The cartridge has no sky palette. Taking the background colour down twice is
+## what this view drew a sky out of at first, and it reads grey-green, because the
+## background is the hardware's white and Generation II's white is #deffde by day
+## and #e6ff84 in the morning.
 ##
-## So both ends come out of the hour's own rows instead. [constant SKY_SLOT] is
-## the blue pair, and it is a different pair at every hour, so the sky follows
-## the clock without a table of hours here.
+## So both ends come out of the hour's own rows. [constant SKY_SLOT] is the blue
+## pair and it differs at every hour, so the sky follows the clock without a table
+## of hours here.
 ##
-## MORNING IS THE EXCEPTION and it has to be: its blue pair is byte for byte
-## day's, so reading it would leave the two hours sharing one sky with only the
-## sun's bearing to tell them apart. Morning has a sunrise colour of its own in
-## [constant SKY_WARM_SLOT], and the deep end comes from
-## [constant SKY_WATER_SLOT], which is the blue the water on the map is drawn
-## with at that same hour.
+## Morning is the exception and has to be: its blue pair is byte for byte day's,
+## so reading it would leave the two hours sharing one sky. Its horizon is
+## [constant SKY_WARM_SLOT]'s sunrise colour and its deep end
+## [constant SKY_WATER_SLOT], the blue the water is drawn with at that hour.
 func sky_ramp() -> PackedColorArray:
 	return _sky_ramp
 
@@ -361,9 +346,9 @@ func shore_colors() -> PackedColorArray:
 	return _shore_colors
 
 
-## The water row WHOLE, which is what `world/far_field.gd` matches a texel
-## against: out there the ground is a drawing rather than a surface, so the only
-## way to know a pixel is water is that the cartridge painted it one of these.
+## The water row whole, which `world/far_field.gd` matches a texel against: out
+## there the ground is a drawing rather than a surface, so the only way to know a
+## pixel is water is that the cartridge painted it one of these.
 func water_colors() -> PackedColorArray:
 	return _water_colors
 
@@ -403,22 +388,20 @@ func _read_sky_ramp(
 	])
 
 
-## What is behind a wall INDOORS: the colour of the place itself, taken down.
+## What is behind a wall indoors: the colour of the place itself, taken down.
 ##
-## Out of doors the void past the map is sky and `background()` is what the 2D
-## view fills its margins with. Inside there is no sky, and using the same colour
-## put a bright horizon above the rock in every cave. Nothing in the cartridge
-## names "the colour of stone", so this takes the mean of every texel of the
-## tileset, which is the colour of the place by construction: brown for a cave,
-## whatever a room is made of for a room. Darkened, because it stands for
-## unlit rock BEHIND the wall rather than for the wall's own lit face.
+## Out of doors the void past the map is sky. Inside there is none, and the same
+## colour put a bright horizon above the rock in every cave. Nothing in the
+## cartridge names "the colour of stone", so this takes the mean of every texel of
+## the tileset, which is the colour of the place by construction. Darkened,
+## because it stands for unlit rock behind the wall.
 func void_color() -> Color:
 	if _image == null:
 		return _background.darkened(0.7)
 	var total := Vector3.ZERO
 	var counted: int = 0
-	# Every fourth texel in each direction: a tileset is a few thousand pixels of
-	# the same handful of palette entries and the mean does not move.
+	# Every fourth texel: a tileset is a few thousand pixels of the same handful
+	# of palette entries and the mean does not move.
 	for y: int in range(0, _image.get_height(), 4):
 		for x: int in range(0, _image.get_width(), 4):
 			var color: Color = _image.get_pixel(x, y)

@@ -6,22 +6,20 @@ extends RefCounted
 const Options := preload("options.gd")
 const Plan := preload("plan.gd")
 const SHINY_PULSE_FRAMES: int = 600
-## The glow a Pokemon with excellent DVs wears, which is its OWN four colours
-## walked toward a light and back rather than anything drawn over it: see
-## `README.md`. A shiny never wears one, which `plan.gd:is_excellent` decides.
+## The glow a Pokemon with high DVs wears: its own four colours walked toward a
+## light and back, not something drawn over it. See `README.md`. A shiny never
+## wears one, which `plan.gd:is_excellent` decides.
 ##
-## THE CURVE IS SENT WHOLE AND THE HOST ROUNDS IT. `Gen2WorldEncounters` bounds
+## The curve is sent whole and the host rounds it: `Gen2WorldEncounters` bounds
 ## the sprite textures a glow may spend by snapping the amount onto its own
-## `GLOW_RUNGS`, so quantizing here as well would be the same policy written
-## twice and the host's is the one that binds. This peak walks half the way to
-## the light, which the host's eighths carry as the five distinct steps the
-## breath was chosen for.
+## `GLOW_RUNGS`. This peak walks half the way to the light, which the host's
+## eighths carry as five distinct steps.
 const GLOW_PERIOD_FRAMES: int = 48
 const GLOW_PEAK: float = 0.45
 const GLOW_COLOR := Color(1.0, 0.87, 0.35)
-## A full cell every 1.6 seconds at the hardware's 60 frames per second. The
-## actor seam names integer encounter cells, so moving faster reads as a chain
-## of teleports and gives the player no practical route around one.
+## A full cell every 1.6 seconds at 60 frames per second. The actor seam names
+## integer cells, so moving faster reads as a chain of teleports and leaves no
+## room to walk around one.
 const MOVE_FRAMES: int = 96
 
 var _host: Gen2ModHost = null
@@ -100,12 +98,10 @@ func _maximum() -> int:
 
 ## One step each, into a cell that is eligible and empty.
 ##
-## WHO IS STANDING WHERE IS THE HOST'S ANSWER and refusing them is this file's:
+## The host answers who is standing where and this file does the refusing:
 ## `occupied` holds the map's own objects, NPCs and item balls alike, both cells
-## of one mid-step and all four of a big one. Without it a roamer walked onto an
-## NPC and stood inside them, which is what this reads. A wild an NPC walks onto
-## is left where it is rather than moved or dropped: the host keeps drawing it,
-## and it steps off on its own at the next move.
+## of one mid-step and all four of a big one. A wild an NPC walks onto is left
+## where it is and steps off on its own at the next move.
 func _roam() -> void:
 	var eligible: Dictionary = _context.get("eligible", {})
 	var player: Dictionary = _context.get("player", {})

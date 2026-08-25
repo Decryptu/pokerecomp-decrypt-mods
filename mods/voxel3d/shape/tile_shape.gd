@@ -12,13 +12,10 @@ extends RefCounted
 ##   per tile   4. anything left                                -> "wall"
 ##
 ## The cell steps are the load-bearing part, and Generation II hands them over
-## directly: collision is a real permission byte per 2x2 walk cell, not a
-## walkable-tile list to be reverse-read. A tile sitting in a walkable cell is
-## ground the player is standing on whatever it is drawn as, which is what keeps
-## flowers, grass tufts and the gaps in a fence row from extruding into pillars.
-## Only a pin overrides that.
-##
-## Step 4 covers a cell that IS blocked: everything in it rises.
+## directly: collision is a permission byte per 2x2 walk cell. A tile in a
+## walkable cell is ground whatever it is drawn as, which keeps flowers, grass
+## tufts and the gaps in a fence row from extruding into pillars. Only a pin
+## overrides that. Step 4 covers a blocked cell: everything in it rises.
 ##
 ## Purely presentational. A shape decides how a tile draws and nothing else.
 
@@ -41,11 +38,10 @@ func _init(profile: GDScript, tileset_number: int) -> void:
 func at(tile: int, permission: int) -> StringName:
 	var pinned: StringName = _pin(tile)
 	if pinned != &"":
-		# A building is never walked on, and the one plain tile draws both a house
+		# A building is never walked on, and one plain tile draws both a house
 		# wall and the pavement in front of it: tileset 3's tile 35 is most of a
-		# town's paving and also the blank part of a wall. The cell is what tells
-		# them apart, so this pin alone does not override collision, and the
-		# pavement lies flat instead of standing a band above the floor beside it.
+		# town's paving and also the blank part of a wall. The cell tells them
+		# apart, so this pin alone does not override collision.
 		if permission == Gen2WorldCollision.LAND_TILE and building_part(pinned) != &"":
 			return &"ground"
 		return pinned
@@ -63,9 +59,9 @@ func is_pinned(tile: int) -> bool:
 	return _pin(tile) != &""
 
 
-## Whether the tile draws the face of a terrain cliff. A property of the tile
-## and not of its class: a cliff face stands up like any other wall and what is
-## different about it is the plateau behind it.
+## Whether the tile draws the face of a terrain cliff. A property of the tile and
+## not its class: a cliff face stands up like any other wall, and what differs is
+## the plateau behind it.
 func is_cliff(tile: int) -> bool:
 	return _profile.is_cliff(_tileset_number, tile)
 
@@ -240,8 +236,8 @@ func mound_tiles() -> Dictionary:
 
 
 ## This tileset's floors for a standing drawing with no ground beside it, as
-## class -> tile id. A person's judgement over the count where there is one. See
-## `profile.gd:GROUND` and `GROUND_PINS`.
+## class -> tile id, a hand pin winning over the count. See `profile.gd:GROUND`
+## and `GROUND_PINS`.
 func ground_table() -> Dictionary:
 	var table: Dictionary = (_profile.GROUND.get(_tileset_number, {}) as Dictionary).duplicate()
 	table.merge(_profile.GROUND_PINS.get(_tileset_number, {}) as Dictionary, true)

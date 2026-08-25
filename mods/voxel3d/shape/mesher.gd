@@ -17,10 +17,10 @@ extends RefCounted
 ##            Generation II's art is: a wall, a canopy or a facade is drawn
 ##            face-on, so standing it up is the whole trick.
 ##
-## An unpinned volume's height is MEASURED rather than assumed: the run of solid
+## An unpinned volume's height is measured rather than assumed: the run of solid
 ## tiles up the column is how tall the thing is drawn, capped so a border forest
-## comes out as trees rather than as one cliff. A pinned tile takes its class
-## height and skips the measurement entirely.
+## comes out as trees rather than one cliff. A pinned tile takes its class height
+## and skips the measurement.
 ##
 ## Side faces are never stretched. Every side is 8px bands with the art tiled per
 ## band, and a band below a neighbour's own height is not emitted at all.
@@ -35,31 +35,25 @@ const TILE_PX: int = 8
 const BAND: int = 8
 ## The shortest face that may lift the ground BEHIND it, in world pixels.
 ##
-## A CLIFF MAY LOWER A HEIGHT AND MAY NOT INTRODUCE ONE, which is the reviewer's
-## own rule, given on Celadon in round thirty-four: "its a flat town. and i dont
-## see a single rocks rims, wtf happened here". Reading a face in BANDS rather
-## than in walk cells made the city's paving edge measure 8 px where it had
-## measured nothing, and the plateau flood then lifted the whole city one band
-## proud of the grass round it. The kerb is real and the lift is not: a step you
-## can see in the drawing is not a storey.
+## A cliff may lower a height and may not introduce one. Reading a face in BANDS
+## rather than walk cells made Celadon's paving edge measure 8 px where it had
+## measured nothing, and the plateau flood lifted the whole city one band proud of
+## the grass round it. The kerb is real and the lift is not: a step you can see in
+## the drawing is not a storey.
 ##
 ## So a face shorter than a walk cell stands its own drawn rim and seeds nothing.
-## This does NOT take the band back as a unit, which is the distinction worth
-## keeping: Ecruteak's rock patches still stand the 8 px the reviewer measured
-## them at in round thirty-one, because that is the patch's OWN height off its own
-## front rather than a floor lifted behind it.
+## It does not take the band back as a unit: Ecruteak's rock patches still stand
+## their 8 px, because that is the patch's own height off its own front rather
+## than a floor lifted behind it.
 const PLATEAU_FLOOR: int = BAND * 2
 
 ## How large a region a face SHORTER than a walk cell may lift, in tiles.
 ##
-## The paragraph above is why a short face seeds nothing, and it is about a kerb
-## running the length of a city. It is not about a rock standing on its own in
-## the sea, which draws the same nine-patch the routes do and is one band tall
-## because there is nothing under it to be two: Saffron's came out as craters, a
-## ring 8 px up round a square of walkable rock left at the water. So a short
-## face speaks, and only for a POCKET. Sixteen tiles is four walk cells, which
-## holds the top of a six-by-six patch and is three orders off the paving of a
-## town.
+## The rule above is about a kerb running the length of a city, not about a rock
+## standing alone in the sea, which draws the same nine-patch and is one band tall
+## because there is nothing under it to be two: Saffron's came out as craters. So
+## a short face speaks, and only for a pocket. Sixteen tiles is four walk cells,
+## which holds the top of a six-by-six patch and is three orders off a town.
 const PATCH_TILES: int = 16
 
 ## Volume height cap, in walk cells. Three is 48 world pixels: tall enough for a
@@ -83,17 +77,14 @@ var _normals := PackedVector3Array()
 var _uvs := PackedVector2Array()
 var _colors := PackedColorArray()
 
-## TWO SURFACES ARE LIFTED OUT OF THE TERRAIN MESH, water and the standing tufts
-## of grass, which is the reference's own arrangement (`lib/Water.lua` and the
-## grass shader in `lib/Voxel3D.lua`) and for its reason: the terrain is opaque
-## paint that never moves, and neither of these is. Each wants its own material,
-## so each wants its own mesh, and the cheapest place to separate them is where
-## the geometry is made rather than afterwards.
+## Two surfaces are lifted out of the terrain mesh, water and the standing tufts
+## of grass, which is the reference's arrangement (`lib/Water.lua` and the grass
+## shader in `lib/Voxel3D.lua`): the terrain is opaque paint that never moves and
+## neither of these is, so each wants its own material and so its own mesh.
 ##
-## Only the water's TOP quad goes to the water sink. The faces around a recess
-## are the BANK, they wear the shore's own art and they are terrain like any
-## other side. Only the STANDING part of tall grass goes to the tuft sink; the
-## floor it is drawn on keeps the drawing and stays terrain.
+## Only the water's TOP quad goes to the water sink; the faces round a recess are
+## the bank and are terrain like any other side. Only the STANDING part of tall
+## grass goes to the tuft sink; the floor it is drawn on stays terrain.
 const SINK_TERRAIN: int = 0
 const SINK_WATER: int = 1
 const SINK_TUFT: int = 2
@@ -113,7 +104,7 @@ var _tuft_colors := PackedColorArray()
 var _tuft_uv2s := PackedVector2Array()
 ## Which sink the next `_push` goes to, and what to write into UV2 there. Set
 ## around the faces that belong to one, and cleared straight after.
-## A QUARTER TURN APPLIED TO EVERYTHING `_quad` LAYS DOWN, and the only thing in
+## A quarter turn applied to everything `_quad` LAYS DOWN, and the only thing in
 ## this file that draws a thing somewhere other than where its own drawing puts
 ## it. See `_turned`.
 var _turn: bool = false
@@ -130,7 +121,7 @@ const ART_CUTOUT: int = 3
 const ART_LEDGE: int = 4
 ## A LINE seen from above: see `_railing`.
 const ART_RAILING: int = 5
-## POSTS AND RAILS, modelled from the drawing and stood on the cell's own centre
+## Posts and rails, modelled from the drawing and stood on the cell's own centre
 ## line: see `_fence`.
 const ART_FENCE: int = 6
 ## Not carved and not turned: an authored ball of the drawn 8px. See `_ball`.
@@ -251,7 +242,7 @@ const FACT_POTTED: int = 29
 ## Whether the class bends in the wind. See `profile.gd:SWAYS`.
 const FACT_SWAYS: int = 30
 
-## THE OBJECTS, which are the one thing here that is not resolved per tile. See
+## The objects, which are the one thing here that is not resolved per tile. See
 ## `_measure_objects` and `profile.gd:OBJECTS`. Per tile: whether an object covers
 ## it, so the tile itself extrudes nothing; and which objects those are, since a
 ## tile may carry two.
@@ -270,7 +261,7 @@ const NO_OBJECT: int = -0x40000000
 ## One entry per object found on this map: its declaration, the tile its
 ## arrangement starts at, and how many tiles across and down that is.
 var _objects: Array = []
-## THE STAIRCASES, found the same way. Per tile, which flight stands there; and
+## The staircases, found the same way. Per tile, which flight stands there; and
 ## per flight, its declaration, its first tile and the floor it starts from.
 var _stair_at := PackedInt32Array()
 var _stairs: Array = []
@@ -295,7 +286,7 @@ var _slope := PackedByteArray()
 ## wall has. Only a leaned tile is tilted and only two of them share an edge with
 ## no riser between: see `_face_roof`.
 var _pitched := PackedByteArray()
-## THE HOUSES A PERSON PAINTED. Per tile: which surface of a painted drawing it
+## The houses a person painted. Per tile: which surface of a painted drawing it
 ## depicts, and how many bands a painted roof tile stands below its own ridge.
 ## See `_match_houses` and `shape/houses.gd`.
 const HOUSE_NONE: int = 0
@@ -388,16 +379,15 @@ func build(
 	return emit(atlas, window)
 
 
-## The geometry for [param window], out of what [method resolve] already worked
-## out. Nothing is measured again: what a tile is and how tall it stands is a
-## fact about the MAP, and reading it through the window would make a structure's
-## height depend on where the player was standing when the mesh was built.
+## The geometry for [param window], out of what [method resolve] worked out.
+## Nothing is measured again: what a tile is and how tall it stands is a fact
+## about the MAP, and reading it through the window would make a structure's
+## height depend on where the player was standing.
 ##
 ## An empty window is the whole map; anything else is clipped to it.
 ##
-## The answer is a LIST of meshes, one per chunk, because the engine culls per
-## instance: one mesh for a whole map means the frustum test can only accept or
-## reject all of it at once.
+## The answer is a list of meshes, one per chunk, because the engine culls per
+## instance and one mesh for a map can only be accepted or rejected whole.
 func emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> Array:
 	if not begin_emit(atlas, window):
 		return []
@@ -416,21 +406,18 @@ func emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> Array:
 ## of a big route took three times the whole frame budget on its own.
 const CHUNK_TILES: int = 16
 
-## And the same unit for the STAMPED MODELS, which had none.
+## And the same unit for the stamped models, which had none.
 ##
-## Terrain is cut into chunks so the engine can reject the ones behind the eye,
-## and a stamped model was not: `take_models` handed one MultiMesh per distinct
-## drawing covering the whole window, so its bounding box WAS the window and a
-## forest was submitted whole at every camera angle. A camera 42 degrees tall on
-## a filled window frames about a quarter of a circle, so most of that geometry
-## was drawn for nothing, and the wider the window the worse it got.
+## `take_models` handed one MultiMesh per distinct drawing over the whole window,
+## so its bounding box WAS the window and a forest was submitted whole at every
+## camera angle, while a camera 42 degrees tall frames about a quarter of a
+## circle.
 ##
-## Its own constant rather than CHUNK_TILES itself, because it is its own
-## decision: a MultiMesh is a draw of its own, so a finer grid buys culling and
-## pays in draws. Measured on Route 29 at 3840x2160, LOW camera, FULL distance,
-## which is the worst case in the game: 32 tiles is 1.95M triangles in 137
-## draws, 16 is 1.26M in 166, and 8 is 1.03M in 228 and slower than 16 for it.
-## Against 5.39M in 116 draws with no grouping at all.
+## Its own constant rather than `CHUNK_TILES`, because it is its own decision: a
+## MultiMesh is a draw, so a finer grid buys culling and pays in draws. Measured
+## on Route 29 at 3840x2160, LOW camera, FULL distance: 32 tiles is 1.95M
+## triangles in 137 draws, 16 is 1.26M in 166, and 8 is 1.03M in 228 and slower
+## for it. Against 5.39M in 116 draws with no grouping at all.
 const MODEL_CHUNK_TILES: int = CHUNK_TILES
 
 ## How many chunks past the window's own edge the cache keeps. See
@@ -448,7 +435,7 @@ var _ready: Array = []
 var _water_ready: Array = []
 var _tuft_ready: Array = []
 
-## WHAT EACH CHUNK CAME OUT AS, kept between two windows.
+## What each chunk came out as, kept between two windows.
 ##
 ## A window that moves by the recentre margin shares five sixths of its chunks
 ## with the one before it, and until this was here every one of them was built
@@ -491,17 +478,16 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	_tuft_ready = []
 	if _size == Vector2i.ZERO:
 		return false
-	# The window arrives in MAP tiles and the emit walks the GRID, which is the map
-	# inside its border ring, so the window is carried across by the margin. The
-	# SKIRT lies outside the grid on every side and is walked with it, since it is
-	# emitted per tile and belongs to the same chunks.
+	# The window arrives in MAP tiles and the emit walks the GRID, the map inside
+	# its border ring, so the window is carried across by the margin. The skirt
+	# lies outside the grid and is walked with it, being emitted per tile.
 	#
-	# TWO RECTANGLES AND NOT ONE. `box` is everything this mesher could ever emit
-	# and is a fact about the map; `view` is what this window asks for. The window
-	# chooses which CHUNKS are built and the map clips each chunk's own extent, so
-	# a chunk built for one window is the same rectangle for the next one and can
-	# be handed back rather than built again. The cost of that is a fringe of up
-	# to fifteen tiles past the window on each side, which the frustum rejects.
+	# Two rectangles and not one: `box` is everything this mesher could emit and
+	# is a fact about the map, `view` is what this window asks for. The window
+	# chooses which chunks are built and the map clips each chunk's extent, so a
+	# chunk built for one window is the same rectangle for the next and can be
+	# handed back. The cost is a fringe of up to fifteen tiles past the window,
+	# which the frustum rejects.
 	var reach: int = maxi(BORDER_TILES - _margin.x, 0) if _outside else 0
 	var box := Rect2i(-Vector2i(reach, reach), _size + Vector2i(reach, reach) * 2)
 	var view := box
@@ -510,7 +496,7 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	if view.size.x <= 0 or view.size.y <= 0:
 		return false
 	_emit_atlas = atlas
-	# EMPTIED, NOT DROPPED. A spot is per emit and a mesh is per map, so the two
+	# Emptied, not dropped. A spot is per emit and a mesh is per map, so the two
 	# dictionaries are cleared on different clocks, and `_model_bodies` short
 	# circuits before either is rebuilt: a drawing already measured returns its
 	# body list without touching `_model_spots`, so dropping the keys here left
@@ -546,7 +532,7 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	for cy: int in range(first.y, last.y + 1):
 		for cx: int in range(first.x, last.x + 1):
 			var at := Vector2i(cx, cy)
-			# CLIPPED TO THE MAP AND NOT TO THE WINDOW, which is what makes a
+			# Clipped to the map and not to the window, which is what makes a
 			# chunk's own rectangle a fact about the map: a rectangle cut to the
 			# window is a different rectangle every time the window moves, and
 			# nothing cut that way can ever be handed back.
@@ -574,33 +560,27 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 
 
 ## Whether the chunk being emitted should build the structure named by
-## [param key], and marks the chunk as SHARED where the structure is not its own.
+## [param key], marking the chunk SHARED where the structure is not its own.
 ##
-## A house, an object, a flight of stairs and a fence can each be wider than one
-## chunk and so can straddle a chunk edge. Before the cache that did not matter:
-## whichever tile the emit reached first built it, once, and the record was
-## thrown away with the window. With a cache it matters completely, because a
-## chunk's mesh then depends on which of its neighbours was built first, and a
-## mesh handed to a window whose neighbours are somewhere else is a house drawn
-## twice or not at all. Thirteen maps of three hundred and eighty came out short
-## before this was here.
+## A house, an object, a staircase and a fence can each straddle a chunk edge.
+## Without a cache that did not matter: whichever tile the emit reached first
+## built it. With one it matters completely, because a chunk's mesh would then
+## depend on which of its neighbours was built first, and a mesh handed to a
+## window whose neighbours are elsewhere is a house drawn twice or not at all.
+## Thirteen maps of 380 came out short before this.
 ##
-## So each structure gets ONE owner, and it is whichever chunk reached it first
-## after the map was resolved. First-come rather than derived from the
-## structure's own first tile, and the difference is a real map: the northern
-## house of 11,2 is cut by the map edge and the tile its record starts at is not
-## a tile any chunk emits it from, so an owner worked out from that record was an
-## owner that never built it and the house went missing. What a chunk reaches is
-## what a chunk can own.
+## So each structure gets one owner: whichever chunk reached it first after the
+## map was resolved. First-come rather than derived from the structure's own first
+## tile, and the difference is a real map: the northern house of 11,2 is cut by
+## the map edge and the tile its record starts at is not one any chunk emits from,
+## so a derived owner never built it and the house went missing.
 ##
-## Two consequences, both handled here:
+## Two consequences:
 ##
-## - Where the owner is not part of this window at all, whoever reaches the
-##   structure builds it, so nothing at the window's own edge goes missing.
-## - Either way, a chunk that shares a structure with another chunk is not
-##   CACHED. Its contents depend on which of its neighbours the window holds, and
-##   that is exactly what a cached chunk may not depend on. Only chunks with a
-##   structure crossing their edge pay it, which is a minority of them.
+## - Where the owner is not in this window at all, whoever reaches the structure
+##   builds it, so nothing at the window's edge goes missing.
+## - A chunk sharing a structure with another chunk is never cached, since its
+##   contents depend on which neighbours the window holds.
 func _owned_here(key: String) -> bool:
 	var mine: Vector2i = _chunk_keys[_chunk_at]
 	if not _structure_owner.has(key):
@@ -614,17 +594,15 @@ func _owned_here(key: String) -> bool:
 
 ## Whether the chunk at [param at] can be handed back rather than built again.
 ##
-## Two things have to hold. Its RECTANGLE has to be the one the cached mesh was
-## built for, which is why a chunk is cut to the map rather than to the window
-## above. And the DETAIL RING has to be irrelevant to it: a stamp past the ring
-## wears the flat impostor instead of the solid (`_place_model`), the ring moves
-## with the player, so a chunk the ring crosses is a chunk whose contents depend
-## on where the player was standing. Such a chunk is built again, both times.
+## Two things have to hold. Its rectangle has to be the one the cached mesh was
+## built for, which is why a chunk is cut to the map rather than the window. And
+## the detail ring has to be irrelevant to it: a stamp past the ring wears the
+## flat impostor (`_place_model`) and the ring moves with the player, so a chunk
+## the ring crosses depends on where the player was standing.
 ##
-## At every draw distance this view offers, the ring is 35 walk cells and the
-## window is at most 24, so the whole window is inside the ring and this is
-## always true; the test is here because the ring is a tuning static and the day
-## it is tightened is the day a stale chunk would otherwise be drawn.
+## At every draw distance offered the ring is 35 walk cells and the window at most
+## 24, so this is always true today; the test is here because the ring is a tuning
+## static.
 func _reusable(at: Vector2i, chunk: Rect2i) -> bool:
 	if not _chunk_cache.has(at):
 		return false
@@ -726,7 +704,7 @@ func emit_step(budget_usec: int) -> bool:
 				# the worst slice to 6 ms where sixty four let it reach ten: a
 				# stretch of cutouts is milliseconds of work either way.
 				done_tiles += 1
-				# A MODEL BUILD ENDS THE SLICE, whatever is left of the budget.
+				# A model build ends the slice, whatever is left of the budget.
 				# Turning one drawing into a voxel solid is 2 ms for the small fir
 				# and 10 for the round tree, which is the budget over twice on its
 				# own, and it is atomic: there is no stopping half way through a
@@ -759,20 +737,17 @@ func take_chunks() -> Array:
 
 ## The WATER chunks finished since this was last asked. Same contract, own list,
 ## because water is drawn with its own material: see `_close_chunk`.
-## HOW FAR EVERY TILE OF WATER IS FROM THE NEAREST BANK, as a texture.
+## How far every tile of water is from the nearest bank, as a texture.
 ##
-## A fragment cannot see the shore. It knows where it is in the world and what
-## the sheet paints there, and both say the same thing in the middle of a lake as
-## they do a tile from the beach, so foam and a shallow are not things the water
-## shader can work out for itself. This file already has the answer: `_is_water`
-## is what lifted the surface out of the terrain in the first place, and walking
-## it outward from every piece of land is one breadth first pass over a grid that
-## is at most a couple of hundred tiles on a side.
+## A fragment cannot see the shore: it knows where it is and what the sheet paints
+## there, and both say the same thing in the middle of a lake as a tile from the
+## beach. This file already has the answer, since `_is_water` is what lifted the
+## surface out of the terrain, and walking it outward from every piece of land is
+## one breadth-first pass over a grid a couple of hundred tiles on a side.
 ##
-## The unit is TILES and the span is [constant BANK_SPAN]. Sampled with a linear
-## filter, so the value between two tiles is the distance between them rather
-## than a step, which is what lets the foam line sit anywhere on a tile instead
-## of on its edge.
+## The unit is tiles and the span is [constant BANK_SPAN]. Sampled linearly, so
+## the value between two tiles is the distance between them rather than a step,
+## which lets the foam line sit anywhere on a tile.
 func bank_field() -> ImageTexture:
 	return _bank
 
@@ -800,7 +775,7 @@ func _measure_bank() -> void:
 		return
 	var field := PackedByteArray()
 	field.resize(count)
-	# LAND IS THE SOURCE AND WATER COUNTS AWAY FROM IT, so the walk starts full
+	# Land is the source and water counts away from it, so the walk starts full
 	# and every piece of land pulls its own neighbourhood down.
 	var queue := PackedInt32Array()
 	var wet: bool = false
@@ -946,27 +921,24 @@ func size_tiles() -> Vector2i:
 	return _map_size
 
 
-## What the last [method begin_emit] ACTUALLY covered, in MAP tiles, which is the
-## window rounded out to whole chunks and clipped to the map.
+## What the last [method begin_emit] actually covered, in map tiles: the window
+## rounded out to whole chunks and clipped to the map.
 ##
-## Not the same as the window that was asked for, and the difference is what a
-## view drawing ground past the mesh has to cut its hole to: a chunk is cut to
-## the map rather than to the window so that it can be handed back on the next
-## one (see [method _reusable]), so the mesh reaches up to fifteen tiles further
-## than the window on each side. A hole cut to the window instead would leave the
-## far field's flat ground drawn underneath that fringe, at the same height as
-## the mesh's own.
+## Not the window that was asked for, and the difference is what a view drawing
+## ground past the mesh has to cut its hole to. A chunk is cut to the map so it
+## can be handed back (see [method _reusable]), so the mesh reaches up to fifteen
+## tiles further than the window on each side, and a hole cut to the window would
+## leave flat ground drawn under that fringe at the mesh's own height.
 ##
-## In MAP tiles, like [method drawn_bounds_tiles]: the emit walks the GRID, which
-## is the map inside its border ring, and the margin between the two is subtracted
-## here so that nothing outside this file ever sees the ring.
+## In map tiles, like [method drawn_bounds_tiles]: the emit walks the grid and the
+## margin is subtracted here, so nothing outside this file sees the ring.
 func emitted_bounds_tiles() -> Rect2i:
 	if _emitted.size == Vector2i.ZERO:
 		return Rect2i()
 	return Rect2i(_emitted.position - _margin, _emitted.size)
 
 
-## THE GROUND THIS MESHER CAN STAND A MODEL ON, in MAP tiles: the map inside its
+## The ground this mesher can stand a model on, in MAP tiles: the map inside its
 ## border ring, which is the whole of what the resolve reads tiles from. The
 ## skirt past it is flat ground carried out to [method drawn_bounds_tiles] and
 ## never holds a stamp.
@@ -1028,10 +1000,9 @@ func _margin_cells() -> Vector2i:
 ## them. The second measures each unpinned volume column, because how tall a
 ## thing is drawn is not a property of one tile.
 ## Everything the tile loop in [method resolve] can work out about one tile in a
-## cell of one permission. The two registries it appends to, `_stem_shapes` and
-## `_class_ids`, are the reason this is a function and not an expression: both
-## hand back an index that has to be the same one every time the same drawing
-## comes round, so the index is what is kept rather than the lookup.
+## cell of one permission. `_stem_shapes` and `_class_ids` are why this is a
+## function: both hand back an index that has to be the same every time the same
+## drawing comes round, so the index is kept rather than the lookup.
 func _tile_fact(shape: RefCounted, tile: int, permission: int) -> Array:
 	var shape_class: StringName = shape.at(tile, permission)
 	var art: StringName = shape.art(shape_class)
@@ -1059,7 +1030,7 @@ func _tile_fact(shape: RefCounted, tile: int, permission: int) -> Array:
 	var margin: Vector2i = shape.facade_margin(tile) if part == PART_WALL \
 		else Vector2i.ZERO
 	var is_volume: bool = art == &"upright"
-	# A RIM DRAWN FROM ABOVE IS STILL THE ROCK. The gate was `is_volume` alone,
+	# A rim drawn from above is still the rock. The gate was `is_volume` alone,
 	# which is the face seen face-on, and it left every tile of a patch that the
 	# cartridge draws looking DOWN onto out of the structure: those stood the flat
 	# 8 px band their class gives, beside a rim that ramps, so a rock came out a
@@ -1126,12 +1097,12 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_model_meshes.clear()
 	_model_spots.clear()
 	_model_bodies.clear()
-	# WITH THE MESHES THEY MEASURE: an input list outliving the mesh it built is a
+	# With the meshes they measure: an input list outliving the mesh it built is a
 	# repaint of a drawing from the map that has been left.
 	_model_measures.clear()
 	_model_inputs.clear()
 	_model_cutouts.clear()
-	# WITH THE MESHES IT NAMES. A cached chunk holds stamps keyed into
+	# With the meshes it names. A cached chunk holds stamps keyed into
 	# `_model_spots` and meshes keyed into `_model_meshes`, and both are about to
 	# be dropped: a chunk outliving them is a stamp of a drawing from the map that
 	# has been left.
@@ -1143,16 +1114,13 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	if source == null or not source.valid():
 		return
 	_outside = source.outside()
-	# The border RING is resolved as part of the map, not painted on afterwards.
-	# Past its edge the cartridge repeats the map's own border block, which is a
-	# tree line on eighteen maps, a hedge on sixteen and open sea on twenty, and
-	# every pass here has to see it: a tree in the ring is measured, masked,
-	# modelled and stamped by exactly the code that does it inside the map, and
-	# the seam between the two is skirted by the code that skirts every other
-	# height change. A room ends at its walls and gets none.
-	# A ROOM ENDS AT ITS WALLS AND NOW GETS SOME. The outdoor ring carries the
-	# border block out; the indoor one is plaster this file stands there, so the
-	# two are the same margin and nothing downstream tells them apart.
+	# The border ring is resolved as part of the map, not painted on afterwards:
+	# a tree in the ring is measured, masked, modelled and stamped by exactly the
+	# code that does it inside the map, and the seam is skirted like any other
+	# height change.
+	#
+	# Indoors the ring is plaster this file stands there instead, so the two are
+	# the same margin and nothing downstream tells them apart.
 	_room_wall = [] if _outside else shape.room_wall()
 	_ground_table = shape.ground_table()
 	var ring: int = _ring_depth(source, shape) if _outside \
@@ -1234,7 +1202,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			var permission: int = -1 if shell else source.permission_at(
 				Vector2i((tx - _margin.x) >> 1, cell_y)
 			)
-			# ONE TILE IS ASKED ONCE. Everything below follows from the tile id
+			# One tile is asked once. Everything below follows from the tile id
 			# and the cell's permission and from nothing else, and a map is a few
 			# thousand cells drawn out of a hundred tiles: asking the profile per
 			# cell was 120 ms of the resolve on a route, and asking it per
@@ -1257,7 +1225,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			_potted[at] = fact[FACT_POTTED]
 			_column[at] = fact[FACT_COLUMN]
 			_stretch[at] = fact[FACT_STRETCH]
-			# WHICH CELLS ARE GRASS IS THE CARTRIDGE'S OWN ANSWER, and it is in
+			# Which cells are grass is the cartridge's own answer, and it is in
 			# the collision byte rather than in the drawing. `grass_kind` is the
 			# host's decode of SetTallGrassFlags, so this covers every map in the
 			# game instead of the four tilesets whose grass tile anyone had got
@@ -1306,7 +1274,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	# to work out and its flood would only fight the answer.
 	_apply_levels(source)
 	_measure_plateaus()
-	# AND THE PONDS AFTER THEM, from out here rather than from the tail of the
+	# And the ponds after them, from out here rather than from the tail of the
 	# plateau pass, which is where this was called and where it could not run: a
 	# map with no cliff on it leaves that pass at its first line, so every pond
 	# on a FLAT map went unsettled. The park's fountain is the case that showed
@@ -1350,7 +1318,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_fence_mask = PackedByteArray()
 	_measure_fences()
 	# After every one of them, since each can still move a height and a ramp is
-	# BEFORE THE RAMPS, or the rim slopes down into the mouth it stands beside and
+	# Before the ramps, or the rim slopes down into the mouth it stands beside and
 	# a cave entrance comes out at the point of a funnel.
 	_measure_mouths()
 	# cut from the heights as they finally stand.
@@ -1369,20 +1337,18 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_measure_bank()
 
 
-## The floors a PERSON painted, where they painted any.
+## The floors a person painted, where they painted any.
 ##
-## How many storeys a place has is the one thing about these maps that cannot be
-## derived. A cliff face gives it away out of doors and `_measure_plateaus` reads
-## it, but a cave draws its rock the same whether the floor behind it is a storey
-## up or the same floor carrying on, and the answer came back that caves do carry
-## storeys: Mt Mortar has five. So it is asked, painted on
-## `tools/level_page.py`, and pinned in `shape/levels.gd`.
+## How many storeys a place has cannot be derived. A cliff face gives it away out
+## of doors and `_measure_plateaus` reads it, but a cave draws its rock the same
+## whether the floor behind it is a storey up or the same floor carrying on, and
+## caves do carry storeys: Mt Mortar has five. So it is painted on
+## `tools/level_page.py` and pinned in `shape/levels.gd`.
 ##
-## FLAT GROUND ONLY, and only where the table names a level. A painted level says
-## where the FLOOR is; what stands on that floor was measured off its own drawing
-## and is raised WITH it, so a tree on a shelf goes up by the shelf rather than
-## being flattened to it. Rock and transitions carry no level at all and are left
-## to the passes that measure them.
+## Flat ground only, and only where the table names a level. A painted level says
+## where the FLOOR is; what stands on it was measured off its own drawing and is
+## raised with it, so a tree on a shelf goes up by the shelf. Rock and transitions
+## carry no level and are left to the passes that measure them.
 func _apply_levels(source: RefCounted) -> void:
 	var map: Gen2WorldMap = source.map()
 	if map == null or not Levels.has(map.group, map.number):
@@ -1406,7 +1372,7 @@ func _apply_levels(source: RefCounted) -> void:
 				_heights[at] += height
 
 
-## THE HOUSES A PERSON PAINTED, found by their own arrangement of tile ids.
+## The houses a person painted, found by their own arrangement of tile ids.
 ##
 ## A house packs different surfaces into one flat drawing: the wall, which you
 ## are looking AT, and the roof, which you are either looking DOWN onto or seeing
@@ -1415,10 +1381,10 @@ func _apply_levels(source: RefCounted) -> void:
 ## is the same authority `levels.gd` has over the cliff pass: where a painting
 ## exists it wins, and where none does nothing changes.
 ##
-## THE ARRANGEMENT IS THE KEY, matched by `_pattern_at` exactly as an object or a
+## The arrangement is the key, matched by `_pattern_at` exactly as an object or a
 ## staircase is, so one painting serves every placement of the drawing.
 ##
-## THE PAINTING IS PER PIXEL AND THIS PASS IS PER TILE, which is the whole of
+## The painting is per pixel and this pass is per tile, which is the whole of
 ## what is not finished yet. A tile painted all one way takes that word now; a
 ## tile the painting CUTS, which is how every hipped roof comes down, is left
 ## exactly as the passes made it, because reading it either way is the fault the
@@ -1426,7 +1392,7 @@ func _apply_levels(source: RefCounted) -> void:
 ## pixel COLUMN, which makes a house a heightfield and needs its own emitter, and
 ## `tools/house_pins.gd` counts how many tiles of a painting are waiting on it.
 ##
-## A DOOR STANDS UP WITH THE WALL AROUND IT, and needs no word of its own. Its
+## A door stands up with the wall around it, and needs no word of its own. Its
 ## cell is walkable, so `at()` calls it ground and the column stood at nothing:
 ## the doorway came out as a slot cut clean through the house. Painted wall, it is
 ## a wall wearing the door's own drawing, and the player still walks through it,
@@ -1436,7 +1402,7 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 	_house.resize(count)
 	_house.fill(HOUSE_NONE)
 	_houses.clear()
-	# BIGGEST FIRST, AND FIRST CLAIM WINS, which is the reference's own rule for
+	# Biggest first, and first claim wins, which is the reference's own rule for
 	# the same table. One house's rectangle can hold a smaller one's, and a small
 	# drawing repainting the middle of a big one would leave a building painted
 	# two ways.
@@ -1444,7 +1410,7 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 	painted.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return (a["tiles"] as Array).size() * ((a["tiles"][0] as Array).size()) \
 			> (b["tiles"] as Array).size() * ((b["tiles"][0] as Array).size()))
-	# WHERE EACH TILE ID ACTUALLY IS, once, so a drawing is offered the handful of
+	# Where each tile ID actually is, once, so a drawing is offered the handful of
 	# places its first named tile occurs instead of every position on the map.
 	# Thirty-six paintings over a route was 80 ms of `_pattern_at` returning false
 	# on its first comparison; the index costs one walk of the grid and the walk
@@ -1453,7 +1419,7 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 	# An Array and not a PackedInt32Array: a packed array is a value and appending
 	# to one read out of a dictionary appends to a copy of it, which indexed
 	# nothing and quietly cost sixty maps their painted houses.
-	# WHICH DRAWING SITS WHERE IS ANSWERED BEFORE ANY OF THEM CLAIMS, so that a
+	# Which drawing sits where is answered before any of them claims, so that a
 	# building can be weighed against the ones it overlaps rather than only
 	# against the ones found before it. The second loop is the claim, in the
 	# order the first loop found them, which is the order it always was. See the
@@ -1482,7 +1448,7 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 				continue
 			if not _pattern_at(pattern, across, tx, ty):
 				continue
-			# A BUILT DRAWING IS NOT RESOLVED A TILE AT A TIME. Everything
+			# A built drawing is not resolved a tile at a time. Everything
 			# about it waits for `_measure_house_boxes`, which runs late enough
 			# to know what floor each of its cells stands on.
 			#
@@ -1492,7 +1458,7 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 			# scrap the page flooded on its own, and claiming it would hand its
 			# tiles to the floor with nothing left standing on them.
 			#
-			# THE CLAIM IS PER BUILDING, NOT PER RECTANGLE, and that is what
+			# The claim is per building, NOT PER RECTANGLE, and that is what
 			# lets two paintings of the same street coexist. The page flooded
 			# overlapping rectangles: Goldenrod's Pokemon Centre sits in #96,
 			# and #99 is bigger, overlaps its top four tile rows and holds no
@@ -1510,7 +1476,7 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 					rect.size.x * rect.size.y, found.size() - 1, index, rect, 0
 				])
 
-	# A FRAGMENT LOSES TO THE BUILDING IT IS A FRAGMENT OF.
+	# A fragment loses to the building it is a fragment of.
 	#
 	# Ordering the whole claim by building size instead was tried and is wrong: on
 	# a street of overlapping paintings it lets the biggest body of each drawing
@@ -1550,7 +1516,7 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 		var start: Vector2i = place[1]
 		var across: Vector2i = place[2]
 		if not (place[3] as Array).is_empty():
-			# A PLACEMENT EVERY BUILDING OF WHICH WAS REFUSED IS NOT A PLACEMENT.
+			# A placement every building of which was refused is not a placement.
 			if claims.has(index):
 				_houses.append([house, start, across, [], claims[index]])
 			continue
@@ -1562,7 +1528,7 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 				if stroke == "":
 					continue
 				if stroke == Houses.NONE:
-					# NOT THE HOUSE only takes a tile the pass had called one.
+					# Not the house only takes a tile the pass had called one.
 					# The rectangle holds the pavement, the shadow and whatever
 					# tree stands beside the door, and flattening those would be
 					# a painting nobody made.
@@ -1595,7 +1561,7 @@ func _house_word(paint: Array, row: int, column: int) -> String:
 
 
 ## Whether any pixel of one tile of a painting is the house at all.
-## WHICH TILES OF A DRAWING A BUILDING ACTUALLY STANDS ON.
+## Which tiles of a drawing a building actually stands on.
 ##
 ## Not every tile the painting draws on: a rectangle can hold a piece with no
 ## wall under it, and a piece with no wall is not a building this can stand up.
@@ -1642,7 +1608,7 @@ func _house_body_mask(plans: Array, across: Vector2i) -> PackedByteArray:
 	return stood
 
 
-## THE PAINTED HOUSES THAT ARE STOOD UP AS BOXES, given back to the FLOOR.
+## The painted houses that are stood up as boxes, given back to the FLOOR.
 ##
 ## Every tile a boxed drawing covers becomes a cutout standing at its own cell's
 ## floor, which is the same three words an object's tiles are given and already
@@ -1654,7 +1620,7 @@ func _house_body_mask(plans: Array, across: Vector2i) -> PackedByteArray:
 ## highest flat tile of a cell, and a house asked before the ground is settled
 ## would take a floor nothing had measured yet.
 ##
-## THE DOORS ARE NAMED BY THE CARTRIDGE and are read here rather than painted. A
+## The doors are named by the cartridge and are read here rather than painted. A
 ## door is a WARP, `Gen2WorldMap.events` carries them, and the three sides the
 ## drawing does not draw wear the facade with those pixel columns taken out.
 func _measure_house_boxes(source: RefCounted) -> void:
@@ -1686,7 +1652,7 @@ func _measure_house_boxes(source: RefCounted) -> void:
 			var from: int = (tile.x - start.x) * TILE_PX
 			doors.append(Vector2i(from, from + CELL_TILES * TILE_PX))
 		entry[3] = doors
-		# EVERY FLOOR IS READ BEFORE ANY TILE IS MARKED, which is the trap
+		# Every floor is read before any tile is marked, which is the trap
 		# `_measure_objects` records: marking a tile a cutout takes it out of
 		# `_cell_floor`'s own answer for the next one.
 		var floors := PackedInt32Array()
@@ -1701,7 +1667,7 @@ func _measure_house_boxes(source: RefCounted) -> void:
 				if footprint[row * across.x + column] == 0:
 					continue
 				var at: int = (start.y + row) * _size.x + start.x + column
-				# WATER IS NOT A FLOOR AND NOT A WALL, and a drawing's rectangle
+				# Water is not a floor and not a wall, and a drawing's rectangle
 				# reaches over it: drawing 95 holds a corner of the canal. Handing
 				# that tile back to the floor takes its recess away, and the whole
 				# body of water stands up level with the pavement as a blue slab
@@ -1724,7 +1690,7 @@ func _measure_house_boxes(source: RefCounted) -> void:
 				var over: PackedInt32Array = _house_over.get(at, PackedInt32Array())
 				over.append(index)
 				_house_over[at] = over
-				# A COVERED TILE WITH NOTHING STANDING ON IT IS OPEN GROUND, and
+				# A covered tile with nothing standing on it is open ground, and
 				# it has to be told what ground: `_ground_art` looks two tiles for
 				# something flat and falls back to the tile's OWN drawing, which
 				# behind the tower is twenty rows of its facade lying flat on the
@@ -1825,7 +1791,7 @@ func _house_tile(shape: RefCounted, at: int, stroke: String) -> void:
 			_part[at] = PART_ROOF
 		_:
 			_part[at] = PART_NONE
-	# HOW FAR A ROOF HAS FALLEN IS NOT THE PAINTING'S TO SAY and it is not asked
+	# How far a roof has fallen is not the painting's to say and it is not asked
 	# for: the drop the profile already measured stands, and on tileset 3 that is
 	# the reviewer's own round-two reading of every roof tile.
 	_slope[at] = 1 if stroke == Houses.FRONT else 0
@@ -1887,31 +1853,23 @@ func _art_mode(art: StringName) -> int:
 ## things.
 ##
 ## The run's length is only the answer when the run is one thing. A route's
-## border forest is one canopy cell repeated for twenty rows, and reading that as
-## a twenty-cell structure builds a cliff where there are trees; so is a fence
-## line running north, which is what turned a town into a maze before this. So
-## take the run's PERIOD: the shortest stretch at the run's southern end that the
-## cells behind it immediately repeat. A house of three different cells has no
-## repeat and stands three cells tall; a fence has period one and stands one cell
-## tall however far it runs.
+## border forest is one canopy cell repeated twenty rows, and reading that as a
+## twenty-cell structure builds a cliff where there are trees. So take the run's
+## PERIOD: the shortest stretch at its southern end that the cells behind it
+## repeat. A house of three different cells stands three cells tall; a fence has
+## period one and stands one cell tall however far it runs.
 ##
-## Then the REGION agrees. A period is a fact about one column, and a structure
-## is not: a fence meeting another fence at a T-junction has no repeat in the
-## column through the junction, so that one column measured three cells where
-## every column beside it measured one, and the fence grew a tower. So connected
-## unmeasured cells are flooded into one region and the region votes: each run
-## casts as many votes as it has cells, and the height most of the region's cells
-## agree on is what the region stands at. A tie goes to the shorter, because a
-## structure that is too tall hides what is behind it and one that is too short
-## does not.
+## Then the region agrees. A period is a fact about one column and a structure is
+## not: a fence meeting another at a T-junction has no repeat in the column
+## through the junction, so that column measured three cells where every column
+## beside it measured one. So connected unmeasured cells are flooded into one
+## region and it votes, each run casting as many votes as it has cells. A tie goes
+## to the shorter, since a structure too tall hides what is behind it.
 ##
-## The vote can only bring a column DOWN, never up. A column that measured too
-## tall is the fault being fixed: it is a column the run has no repeat in, and
-## the repeat is what the height was supposed to come from. A column that
-## measured short measured short off its own drawing, and that is evidence, not
-## an accident. Letting the vote raise as well put a blank three-cell slab where
-## a low structure joined a tall one, which is visible in a picture and is what
-## settled this.
+## The vote can only bring a column DOWN. A column that measured too tall is the
+## fault being fixed; one that measured short measured short off its own drawing,
+## which is evidence. Letting the vote raise put a blank three-cell slab where a
+## low structure joined a tall one.
 func _measure_columns() -> void:
 	@warning_ignore("integer_division")
 	var cells := Vector2i(_size.x / CELL_TILES, _size.y / CELL_TILES)
@@ -1967,16 +1925,15 @@ func _measure_columns() -> void:
 						_bases[at] = base
 
 
-## ONE FENCE, on the centre line of its walk cell.
+## One fence, on the centre line of its walk cell.
 ##
-## The profile is 8 px of drawing and a cell is 16, so an arm is TWO copies of it
-## laid end to end, which is a post every tile exactly as the cartridge draws
-## one. Each is cut into maximal rectangles the way `_cutout` cuts a drawing, for
-## its reason: a rectangle of pixels maps onto a rectangle of texels exactly, so
-## the picture is the drawing's and a fence is a few dozen boxes rather than a
-## few hundred.
+## The profile is 8 px of drawing and a cell is 16, so an arm is two copies laid
+## end to end, which is a post every tile as the cartridge draws one. Each is cut
+## into maximal rectangles the way `_cutout` cuts a drawing: a rectangle of pixels
+## maps onto a rectangle of texels exactly, so the picture is the drawing's and a
+## fence is a few dozen boxes rather than a few hundred.
 ##
-## THE ARMS RUN HALF A CELL EACH WAY FROM THE CENTRE, so a straight run is
+## The arms run half a cell each way from the centre, so a straight run is
 ## continuous and a corner is two arms crossing. A cell with no fence beside it
 ## keeps the drawing's own axis.
 ## [param arms] overrides the measured pair, for a cell that has none: the SKIRT
@@ -2021,7 +1978,7 @@ func _fence_arm(
 		var taken := PackedByteArray()
 		taken.resize(_fence_wide * _fence_tall)
 		for py: int in _fence_tall:
-			# A RECTANGLE MAY NOT CROSS A TILE, because a texel is only sampled out
+			# A rectangle may not cross a tile, because a texel is only sampled out
 			# of the tile it was drawn in, and the profile is a grid of them.
 			@warning_ignore("integer_division")
 			var stop: int = mini((py / TILE_PX + 1) * TILE_PX, _fence_tall)
@@ -2064,7 +2021,7 @@ func _fence_arm(
 					Vector3(middle.x - half, low, start + float(px)),
 					Vector3(FENCE_THICK, high - low, float(run - px))
 				)
-				# INTERIOR FACES ARE NOT DRAWN. A fence is a few dozen boxes and
+				# Interior faces are not drawn. A fence is a few dozen boxes and
 				# most of the faces between two of them are inside the wood: the
 				# lid under the piece above it, and the end against the piece
 				# beside it. Checked against the profile rather than against the
@@ -2155,21 +2112,16 @@ func _fence_box(
 			)
 
 
-## A FENCE IS POSTS AND RAILS, and both runs of it are the same model turned.
-##
+## A fence is posts and rails, and both runs of it are the same model turned.
 ## What stood here before was the drawing extruded into a box a walk cell deep,
-## which is a wall with a fence painted on it. The reviewer asked for the thing
-## itself, centred, and for the two runs to be joined: "just do the same normal
-## fence model, and then you try to do something to automate them so they are
-## properly done and attached to eachother".
+## which is a wall with a fence painted on it.
 ##
-## THE UNIT IS THE WALK CELL AND THAT IS WHAT JOINS THEM. A fence going across is
-## drawn over two tile rows and a fence going away over one tile column, so no
-## tile is a whole fence and neighbouring TILES cannot say which way a run goes:
-## the tile under a face-on fence is a fence tile too, and read per tile every
-## straight run would come out a corner. Per cell there is no such confusion, and
-## the arms of two neighbouring cells meet on their shared edge because each is
-## on its own cell's centre line, which is the same line along a run.
+## The unit is the walk cell and that is what joins them. A fence going across is
+## drawn over two tile rows and one going away over one tile column, so no tile is
+## a whole fence and neighbouring TILES cannot say which way a run goes: the tile
+## under a face-on fence is a fence tile too, so read per tile every straight run
+## comes out a corner. Per cell there is no such confusion, and the arms of two
+## neighbouring cells meet on their shared edge.
 func _measure_fences() -> void:
 	_fence_arms.resize(_size.x * _size.y)
 	_fence_arms.fill(0)
@@ -2216,26 +2168,22 @@ func _measure_fences() -> void:
 					_volume[at] = 0
 
 
-## THE FENCE'S OWN SHAPE, read off the tiles that draw it face-on.
+## The fence's own shape, read off the tiles that draw it face-on. Three rules,
+## and the drawing answers everything else.
 ##
-## Three rules and the drawing answers everything else. THE SHADOW IS NOT THE
-## FENCE: it is drawn under the foot in the middle shade, so every row below the
-## last one carrying the DARKEST shade is dropped, which is the reviewer's own
-## warning that "its not as dark as the outline". THE FLOOD MAY NOT COME IN FROM
-## THE SIDES: a fence is a run, its rails cross the tile edge to edge and carry on
-## into the next tile, so seeding the left and right borders the way every other
-## mask here does eats every rail in the game. It comes in from the TOP alone,
-## which is the one edge a fence really has, and a pocket the outside cannot
-## reach is wood: the post's shaft, the rail's body and the inside of an arch are
-## all drawn in the middle shades and all stand.
+## The shadow is not the fence: it is drawn under the foot in the middle shade, so
+## every row below the last one carrying the darkest shade is dropped.
 ##
-## AND THE GROUND SHOWS THROUGH BELOW THE DRAWING. What opens the gaps between
-## the posts is the drawing stopping: every pixel below a column's lowest dark
-## one is ground, so the rail carries on over a gap and the gap goes to the
-## floor. That is why the flood needs no second seed under the foot, and it is
-## the rule that lets an arched fence keep its arch: a seed under the foot has to
-## be undone by filling each column between its topmost and bottommost pixel, and
-## a fill like that closes any opening with drawing above and below it.
+## The flood may not come in from the sides: a fence is a run, its rails cross the
+## tile edge to edge, so seeding the left and right borders eats every rail in the
+## game. It comes in from the TOP alone, and a pocket the outside cannot reach is
+## wood: a post's shaft, a rail's body and the inside of an arch all stand.
+##
+## And the ground shows through below the drawing: every pixel below a column's
+## lowest dark one is ground, so the rail carries on over a gap and the gap goes
+## to the floor. That is why the flood needs no second seed under the foot, and it
+## is what lets an arched fence keep its arch, since undoing such a seed means
+## filling each column and a fill closes any opening.
 func _fence_profile(atlas: RefCounted) -> void:
 	_fence_mask = PackedByteArray()
 	_fence_tall = 0
@@ -2297,29 +2245,22 @@ func _profile_tile(px: int, py: int) -> int:
 	return int(row[px / TILE_PX])
 
 
-## A ROCK RIM IS A 45 DEGREE SLOPE, not a step.
+## A rock rim is a 45 degree slope, not a step: the ring the cartridge draws round
+## every patch IS the ramp, one tile of run per band, so an 8 px shelf ramps over
+## one tile and a 16 px one over two.
 ##
-## The reviewer's own reading of the four-tile patches: "the outer ring would be
-## all the small rock walls at 45 degree going from the floor to the upper rock
-## floor". One tile of run per band, so an 8 px shelf ramps over one tile and a
-## 16 px one over two, and the drawing says which tiles those are: the ring the
-## cartridge draws round every patch IS the ramp.
-##
-## HOW FAR IN A TILE LIES is the whole measurement, and it is one flood: the low
+## How far in a tile lies is the whole measurement, and it is one flood: the low
 ## ground is 0, a tile touching it is 1, and a tile's corner stands at its own
-## distance in bands, capped at the shelf's height. A 2 tile ring comes out 0 to
-## 8 on its outer row and 8 to 16 on its inner one with nothing authored, and the
-## flat top is every tile far enough in for the cap to bite.
+## distance in bands, capped at the shelf's height. A 2 tile ring comes out 0 to 8
+## on its outer row and 8 to 16 on its inner one with nothing authored.
 ##
-## THE CORNER IS THE UNIT AND NOT THE TILE, which is what makes it watertight and
-## what turns a corner of the ring into a real diagonal: two tiles sharing an
-## edge read the same distance at the two corners of it, so the two slopes meet
-## exactly and no skirt is needed between them. A rim tile only skirts where it
-## meets something that is not shelf.
+## The corner is the unit and not the tile, which is what makes it watertight and
+## turns a corner of the ring into a real diagonal: two tiles sharing an edge read
+## the same distance at both its corners, so the slopes meet exactly. A rim tile
+## only skirts where it meets something that is not shelf.
 ##
-## LAST OF THE PASSES, because every one of them can still move a height: an
-## object covering a rock hands it back to the floor, and a ramp measured before
-## that would slope into a tile that is no longer there.
+## Last of the passes, because every one of them can still move a height: an
+## object covering a rock hands it back to the floor.
 func _measure_ramps() -> void:
 	var count: int = _size.x * _size.y
 	_ramp.resize(count)
@@ -2387,7 +2328,7 @@ func _measure_ramps() -> void:
 				Vector2i(step.x, 0), Vector2i(0, step.y), step
 			]:
 				var to := Vector2i(tx + reach.x, ty + reach.y)
-				# AND PAST THE GRID IS NOT LOW GROUND EITHER, which is the same
+				# And past the grid is not low ground either, which is the same
 				# claim one ring further out and was the longest hole in the game:
 				# the skirt carries the map's own floor out at the map's own
 				# height, so a rim on the grid's edge has nothing to come down to.
@@ -2396,7 +2337,7 @@ func _measure_ramps() -> void:
 				# skirt, open on both sides, running the whole perimeter.
 				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
 					continue
-				# PAST THE SEAM IS NOT LOW GROUND. The margin holds the border
+				# Past the seam is not low ground. The margin holds the border
 				# block, or a neighbouring map's, and neither is this map's floor
 				# for a rim to come down to: Saffron's east wall is two tiles of
 				# 45 degrees and then flat rock all the way out, and reading the
@@ -2449,27 +2390,24 @@ func _commonest_water() -> int:
 	return best
 
 
-## THE TOP OF WHAT IS DRAWN ON EACH TILE, for the things that STAND on it.
+## The top of what is drawn on each tile, for the things that stand on it.
 ##
-## `_heights` is the resolved column and it is 0 under a declared object, because
-## `_measure_objects` hands an object's tiles back to the floor of their own cell
-## and builds the thing itself at emit. That is right for the mesh and wrong for
-## anything that has to sit ON the object: a Pokeball on Elm's bench is an
-## overworld SPRITE rather than a tile, so no pass here ever saw it, and the
-## renderer stood it at y 0 where the bench then hid it. The reviewer's words are
-## that the balls appear behind the desk instead of above it.
+## `_heights` is the resolved column and is 0 under a declared object, because
+## `_measure_objects` hands an object's tiles back to the floor and builds the
+## thing at emit. That is right for the mesh and wrong for anything sitting ON the
+## object: a Pokeball on Elm's bench is a sprite rather than a tile, so no pass
+## here saw it and the renderer stood it at y 0 behind the bench.
 ##
-## So the object's own top is recorded, which is the same `base + height` its
-## body is built from, and `surface_height_at_position` hands the larger of that
-## and the column to whoever is standing there.
+## So the object's own top is recorded, the same `base + height` its body is built
+## from, and `surface_height_at_position` hands the larger of that and the column
+## to whoever is standing there.
 ##
-## OVER THE BOX AND NOT OVER THE DRAWING. A drawing reaches further than the
-## thing it draws: a bench's apron is drawn on the cell in front of the one the
-## bench stands in, and recorded there it lifts the player eight pixels for the
-## half cell of a step taken away from the bench. The box is what is built and it
-## is what a thing stands on. See `_object_front`.
+## Over the box and not over the drawing: a drawing reaches further than the thing
+## it draws, and a bench's apron is on the cell in front of the one the bench
+## stands in, which would lift the player for a step taken away from it. See
+## `_object_front`.
 ##
-## AFTER every pass that can still move a height, since `_ground_art` reads them.
+## After every pass that can still move a height, since `_ground_art` reads them.
 func _measure_surfaces() -> void:
 	_surface.resize(_size.x * _size.y)
 	_surface.fill(NO_OBJECT)
@@ -2516,45 +2454,36 @@ func _measure_surfaces() -> void:
 				_surface[at] = maxi(_surface[at], top)
 
 
-## HOW DEEP A THING STANDING IN WATER SITS INTO IT, in world pixels.
+## How deep a thing standing in water sits into it, in world pixels.
 ##
-## Nothing in this game stands ON water. A surfing player rides half in it, a
-## Tentacool floats in it and a swimmer is up to their chest, and a card whose
-## feet are exactly on the surface quad reads as none of those: it reads as
-## walking on the sea, because the waterline lands where the drawing stops and
-## the eye takes that as the ground.
+## Nothing in this game stands ON water: a surfing player rides half in it and a
+## swimmer is up to their chest, and a card whose feet are exactly on the surface
+## quad reads as walking on the sea.
 ##
-## An eighth of a sprite, which is 16 pixels tall, so two, and it is small
-## because THE CARTRIDGE'S OWN ART ALREADY DRAWS THE WATERLINE. A swimmer is
-## drawn as a head and shoulders and the surf blob is drawn as a thing half
-## sunk, so a draught deep enough to look right on a solid drawing sinks these
-## twice over: at four the water is at the swimmer's chin and a third of a
-## Tentacool is gone, and at eight it reaches their eyes.
+## Two pixels, an eighth of a 16-pixel sprite, and it is small because the
+## cartridge's art already draws the waterline: a swimmer is a head and shoulders
+## and the surf blob is half sunk, so a draught deep enough for a solid drawing
+## sinks these twice over, reaching the swimmer's chin at four and their eyes at
+## eight.
 ##
-## What this has to buy is only that the surface CROSSES the drawing. A card
-## tangent to the plane reads as a sticker laid on top of it, which is what a
-## draught of zero looks like, and two pixels is enough that the waterline cuts
-## the sprite from every camera the rig reaches.
-##
-## The water is opaque and writes depth, so this is all it takes. The submerged
-## part is behind the surface quad from any camera above it, and the shadow
-## caster goes down with the card, so the shadow stays under the thing casting it.
+## All this has to buy is that the surface CROSSES the drawing, since a card
+## tangent to the plane reads as a sticker laid on it. The water is opaque and
+## writes depth, so the submerged part is behind the surface quad from any camera
+## above it, and the shadow caster goes down with the card.
 const WATER_DRAUGHT: int = 2
 
 
 ## The top of whatever is drawn at a world position: the resolved column, or the
-## object standing on it where one does. What a thing placed there stands on.
+## object standing on it where one does.
 ##
-## WATER IS STOOD IN AND NOT ON: see [constant WATER_DRAUGHT]. An object laid
-## over water is a jetty or a bridge and is stood on like any other, so the
-## draught is taken off the water's own column and not off whatever won here.
+## Water is stood in and not on: see [constant WATER_DRAUGHT]. An object laid over
+## water is a jetty or a bridge and is stood on like any other, so the draught
+## comes off the water's own column rather than off whatever won here.
 ##
-## THE RECESS IS WHAT SAYS IT IS WATER, which is the same test the skirt and the
-## far field make and not `_is_water`: that one also asks for `ART_FLAT`, so it
-## refuses the 1060 tiles over the game where a drawing STANDS in water, and a
-## buoy's own cell would be the one place on a lake an actor rode high. Water is
-## the only class that recesses, measured over all 388 maps, so a column below
-## the floor is water whatever is carved on it.
+## The recess is what says it is water, which is the test the skirt and the far
+## field make and not `_is_water`: that one also asks for `ART_FLAT`, so it refuses
+## the 1060 tiles where a drawing stands in water. Water is the only class that
+## recesses, over all 388 maps, so a column below the floor is water.
 func surface_height_at_position(position: Vector3) -> int:
 	var tx: int = floori(position.x / TILE) + _margin.x
 	var ty: int = floori(position.z / TILE) + _margin.y
@@ -2567,28 +2496,22 @@ func surface_height_at_position(position: Vector3) -> int:
 	return column - WATER_DRAUGHT if column < 0 else column
 
 
-## THE CAVE MOUND, as a truncated pyramid instead of a flat slab.
+## The cave mound, as a truncated pyramid instead of a flat slab.
 ##
 ## The hillside a cave is cut into resolved as ground at 0 with a ring of walls
-## around it at 16 and 48, so it read as a tan slab with a fence of rock round it
-## and the entrance was a hole in a flat wall. It is a MOUND: two walk cells high,
-## every side at 45 degrees, and the door cut into the slope rather than standing
-## upright in front of it.
+## round it at 16 and 48, so it read as a tan slab with a fence of rock round it.
+## It is a mound: two walk cells high, every side at 45 degrees, with the door cut
+## into the slope.
 ##
-## The footprint is not authored. It is the run of `body` tiles connected to a
-## `door`, which is what makes seeding from the door worth doing: see
-## `profile.gd:MOUNDS` for why the door is the only safe seed. Cianwood's comes
-## out 12 by 8, which is what the reviewer measured, without 12 or 8 appearing
-## anywhere here.
+## The footprint is not authored: it is the run of `body` tiles connected to a
+## `door`, which is why the door is the seed. See `profile.gd:MOUNDS`.
 ##
-## 45 DEGREES IS THE HEIGHT AND NOT A NUMBER, which is `_measure_ramps`' own
-## rule: a corner stands at its distance from the outside in BANDS, capped at the
-## mound's height, so one tile in is 8px, two tiles in is 16 and everything past
-## that is the flat top. A band is a tile wide, so a band per tile is 45 degrees.
-## THE CORNER IS THE UNIT AND NOT THE TILE, so the four sides mitre into real
-## diagonals and the top comes out inset two tiles all round with nothing cased.
+## 45 degrees is the height and not a number, which is `_measure_ramps`' rule: a
+## corner stands at its distance from the outside in bands, capped at the mound's
+## height, and a band is a tile wide. The corner is the unit and not the tile, so
+## the four sides mitre into real diagonals with nothing cased.
 ##
-## AFTER `_measure_ramps`, which is what sizes and fills `_corners`.
+## After `_measure_ramps`, which sizes and fills `_corners`.
 const MOUND_HIGH: int = 16
 ## The largest run of rock a cave mouth may raise, in tiles. See the flood.
 const MOUND_MAX: int = 256
@@ -2633,7 +2556,7 @@ func _measure_mounds(shape: RefCounted) -> void:
 					continue
 				seen[index] = 1
 				region.append(index)
-		# A MOUND IS A HILLOCK AND NOT A RANGE, and the two do not overlap: measured
+		# A mound is a hillock and not a range, and the two do not overlap: measured
 		# over the game, the four runs with a cave mouth in a hillside are 96, 96, 96
 		# and 128 tiles, and every other run a door sits in is 1320 or more. Those
 		# are real multi-level mountains that `_measure_plateaus` already reads, and
@@ -2705,7 +2628,7 @@ func _measure_mounds(shape: RefCounted) -> void:
 			var near: int = maxi(distance[at], 0)
 			for reach: Vector2i in [Vector2i(step.x, 0), Vector2i(0, step.y), step]:
 				var to := Vector2i(tx + reach.x, ty + reach.y)
-				# AND PAST THE GRID IS NOT LOW GROUND EITHER, which is the same
+				# And past the grid is not low ground either, which is the same
 				# claim one ring further out and was the longest hole in the game:
 				# the skirt carries the map's own floor out at the map's own
 				# height, so a rim on the grid's edge has nothing to come down to.
@@ -2714,7 +2637,7 @@ func _measure_mounds(shape: RefCounted) -> void:
 				# skirt, open on both sides, running the whole perimeter.
 				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
 					continue
-				# PAST THE SEAM IS NOT LOW GROUND. The margin holds the border
+				# Past the seam is not low ground. The margin holds the border
 				# block, or a neighbouring map's, and neither is this map's floor
 				# for a rim to come down to: Saffron's east wall is two tiles of
 				# 45 degrees and then flat rock all the way out, and reading the
@@ -2731,23 +2654,20 @@ func _measure_mounds(shape: RefCounted) -> void:
 			_ramp[at] = 1
 
 
-## THE CAVE MOUTH, standing in the wall it is cut into instead of lying in front
+## The cave mouth, standing in the wall it is cut into instead of lying in front
 ## of it.
 ##
-## A DOOR IS NEVER FLAT. Where the mound pass has raised the hillside the door is
-## carried up with it and slopes with the rest, but most cave mouths are cut into
-## a real mountain that `_measure_plateaus` already reads and that the mound pass
-## leaves alone, and there the door resolved as walkable GROUND at 0 with the
-## cliff standing at 16 all round it: a flat notch punched through the face, which
-## is what map 19,2 showed.
+## A door is never flat. Where the mound pass raised the hillside the door is
+## carried up with it, but most cave mouths are cut into a real mountain the mound
+## pass leaves alone, and there the door resolved as walkable ground at 0 with the
+## cliff at 16 all round it: a flat notch punched through the face.
 ##
-## So it takes the height of the wall around it and the face machinery paints it,
-## which is the whole fix: a band of a standing face wears the map row that folds
-## into it, so the mouth's own drawing lands on the cliff exactly where the
-## cartridge drew it. Vertical against a cliff, sloped against a mound, and
-## neither is cased here: it is the wall's height either way.
+## So it takes the height of the wall around it and the face machinery paints it:
+## a band of a standing face wears the map row that folds into it, so the mouth's
+## drawing lands on the cliff exactly where the cartridge drew it. Vertical against
+## a cliff, sloped against a mound, and neither is cased here.
 ##
-## AFTER `_measure_mounds`, whose doors are already carried and are left alone.
+## After `_measure_mounds`, whose doors are already carried and left alone.
 func _measure_doors(shape: RefCounted) -> void:
 	var tiles: Dictionary = shape.mound_tiles()
 	if tiles.is_empty():
@@ -2783,30 +2703,25 @@ func _measure_doors(shape: RefCounted) -> void:
 			_corners[at * 4 + corner] = high
 
 
-## A DOOR THE CARTRIDGE NAMES ITSELF, wherever it stands.
+## A door the cartridge names itself, wherever it stands.
 ##
-## `_measure_doors` above needs a `MOUNDS` pin and reaches one tileset;
-## `_match_houses` needs a painting and reaches the drawings a person corrected.
-## A door outside both is walkable ground with a wall around it, so the column
-## stands at nothing and the doorway comes out as a hole punched clean through
-## the building, with the door's own drawing lying flat on the floor in front of
-## it. THE REVIEWER FOUND ONE IN THE BORDER RING on 2026-08-24: a two by two door
-## at height 0 with 32 either side of it, on Goldenrod's own border block, which
-## no painting can ever reach because a painting matches a whole rectangle and
-## the ring only repeats part of one.
+## `_measure_doors` needs a `MOUNDS` pin and reaches one tileset; `_match_houses`
+## needs a painting. A door outside both is walkable ground with a wall around it,
+## so the column stands at nothing and the doorway comes out as a hole punched
+## through the building with the door's drawing flat in front of it. One was found
+## in the border ring, which no painting can ever reach because a painting matches
+## a whole rectangle and the ring repeats part of one.
 ##
-## The cartridge says which cells are doors and says it everywhere, including
-## past the map edge where `map_source.gd:code_at` answers the drawn block's own
-## collision. `COLL_DOOR`, its 0x79 twin and `COLL_CAVE` are the three that stand
-## in a wall; the warp CARPETS are not among them, and that is the point of
-## naming three codes rather than testing `is_warp_tile`: a carpet is a floor you
-## walk onto, and every map edge has one.
+## The cartridge says which cells are doors, everywhere, including past the map
+## edge where `map_source.gd:code_at` answers the drawn block's own collision.
+## `COLL_DOOR`, its 0x79 twin and `COLL_CAVE` are the three that stand in a wall.
+## Warp carpets are deliberately not among them, which is the point of naming
+## three codes rather than testing `is_warp_tile`: a carpet is a floor you walk
+## onto and every map edge has one.
 ##
-## It takes the height of the wall around it and the face machinery paints it,
-## which is the whole fix and is `_measure_doors`' own words: a band of a
-## standing face wears the map row that folds into it, so the door lands on the
-## wall exactly where the cartridge drew it. A painted house is left alone, since
-## `_measure_house_boxes` has already stood the whole building up in one piece.
+## It takes the height of the wall around it and the face machinery paints it. A
+## painted house is left alone, since `_measure_house_boxes` has already stood the
+## whole building up in one piece.
 func _measure_collision_doors(source: RefCounted) -> void:
 	if source == null or not _outside:
 		return
@@ -2826,7 +2741,7 @@ func _measure_collision_doors(source: RefCounted) -> void:
 			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
 				continue
 			high = maxi(high, _heights[to.y * _size.x + to.x])
-		# NOTHING STANDING BESIDE IT IS NOT A DOORWAY, and the test is two array
+		# Nothing standing beside it is not a doorway, and the test is two array
 		# reads against a collision lookup that walks the block list: asked of
 		# every flat tile in the game it cost 0.77 s of the resolve over 388 maps,
 		# and asked only of the ones with a wall beside them it costs nothing.
@@ -2866,29 +2781,23 @@ func _is_collision_door(source: RefCounted, at: int) -> bool:
 		or code == Gen2WorldCollision.COLL_CAVE
 
 
-## A HOLE IN A WALL STANDS IN THE WALL, whether or not the tileset has a `MOUNDS`
+## A hole in a wall stands in the wall, whether or not the tileset has a `MOUNDS`
 ## line to name its door with.
 ##
-## `_measure_doors` is the same thought and it can only reach a tileset somebody
-## has pinned the cave mouth of, which is tileset 3 alone. The `void` class is
-## already that pin under another name: it says this tile is the black opening
-## and not a surface. So a void tile lying at 0 with a WALL beside it takes the
-## wall's height, and the face machinery paints its drawing on exactly where the
-## cartridge drew it.
+## `_measure_doors` is the same thought and reaches only a tileset somebody has
+## pinned the cave mouth of. The `void` class is that pin under another name: it
+## says this tile is the black opening and not a surface. So a void tile at 0 with
+## a WALL beside it takes the wall's height and the face machinery paints it.
 ##
-## BEFORE `_measure_ramps`, which is what the corners and the rim both want: the
-## mouth stands at the wall's height before anything measures a slope, so the rim
-## beside it has nothing to come down to and the entrance is not at the point of
-## a funnel, and it then slopes with that rim rather than against it. Nothing
-## here writes a corner for the same reason: the ramp pass fills them from the
-## heights it finds.
+## Before `_measure_ramps`, which the corners and the rim both want: the mouth
+## stands at the wall's height before anything measures a slope, so the rim beside
+## it has nothing to come down to and then slopes with it. Nothing here writes a
+## corner, for the same reason.
 ##
-## THE CLIFF IS WHAT IT TAKES ITS HEIGHT FROM, not any neighbour, and that is
-## what keeps `_settle_void`'s pits alone: a hole in a floor has floor all round
-## it and no cliff anywhere, so it reads nothing here and stays at the floor it
-## was settled to. A mouth has the cliff on both sides of it. Not `_volume`,
-## which by this point in the resolve is 0 on every rim `_measure_ramps` has
-## sloped, the cliff round a cave mouth included.
+## It takes its height from the cliff and not from any neighbour, which is what
+## keeps `_settle_void`'s pits alone: a hole in a floor has floor all round it and
+## no cliff, so it reads nothing here. Not `_volume`, which by this point is 0 on
+## every rim `_measure_ramps` has sloped.
 func _measure_mouths() -> void:
 	for at: int in _size.x * _size.y:
 		if _void[at] != 1 or _heights[at] != 0:
@@ -2909,7 +2818,7 @@ func _measure_mouths() -> void:
 		if high <= 0:
 			continue
 		_heights[at] = high
-		# AND IT IS THE SAME SURFACE AS THE WALL, which is what puts it in the
+		# And it is the same surface as the wall, which is what puts it in the
 		# shelf: the rim beside it comes down at 45 degrees over its own two tiles
 		# and the mouth left flat at the top of that slope is a cube standing in
 		# it, with a triangle of nothing down each side where the corners they
@@ -2918,47 +2827,40 @@ func _measure_mouths() -> void:
 		_shelf[at] = 1
 
 
-## THE SHORE, eased from the land down to the water instead of dropping to it.
+## The shore, eased from the land down to the water instead of dropping to it.
 ##
 ## Where water meets land the cartridge draws a small rock bank, and this file
-## laid it flat at the water's own recess, so a coast was a step down: eight
-## pixels of vertical rock face and then flat water hard against it. It is drawn
-## as a bank and it reads as one, so it is built as one, at the 45 degrees a whole
-## band across a whole tile comes to on its own. Nothing is authored and nothing
-## is pinned: the bank is every water tile with land beside it, which is what the
-## cartridge draws the bank on, so this is the same shape on every coast, lake,
-## pond and river in the game.
+## laid it flat at the water's recess, so a coast was eight pixels of vertical
+## rock face with flat water hard against it. It is drawn as a bank, so it is
+## built as one, at the 45 degrees a whole band across a whole tile comes to.
+## Nothing is authored: the bank is every water tile with land beside it, so this
+## is the same shape on every coast, lake, pond and river in the game.
 ##
-## THE CORNER IS THE UNIT AND NOT THE TILE, which is `_measure_ramps`' own rule
-## and is what makes the corners fall out rather than being cased. A corner
-## stands at the land's height if ANY of the three tiles meeting it there is
-## land, and at the water's otherwise, so a straight north bank lifts both its
-## north corners and lies along the shore, an outer corner lifts three and comes
-## down to a true diagonal, and an inner corner lifts one. Two tiles sharing an
-## edge read the same two corners of it, so the slopes meet exactly and the coast
-## is watertight without a skirt between them.
+## The corner is the unit and not the tile, which is `_measure_ramps`' rule and
+## what makes the corners fall out rather than being cased. A corner stands at the
+## land's height if any of the three tiles meeting it is land, so a straight north
+## bank lifts both north corners, an outer corner lifts three and comes down to a
+## true diagonal, and an inner corner lifts one. Two tiles sharing an edge read
+## the same two corners, so the coast is watertight without a skirt.
 ##
-## It marks the tile a RAMP, which is what a ramp already is: a floor with a
-## slope on it rather than a box. `_ramp_tile` draws it, `_ramp_side` closes it
-## against the water and the land either side, and the bank stops being water
-## SURFACE, which is right, because a rock bank does not ripple.
+## It marks the tile a RAMP, a floor with a slope on it rather than a box.
+## `_ramp_tile` draws it and `_ramp_side` closes it, and the bank stops being
+## water SURFACE, because a rock bank does not ripple.
 ##
-## ONLY A TILE THAT DRAWS A BANK, which is every water tile except the commonest
-## one. Land beside it is not enough on its own and the map's east edge is why:
-## the cartridge draws open water right up to the boundary there and the border
-## ring folds a tree line in past it, so the rule without this test found land
-## beside open water and tilted the WATER up into the trees, in blue steps. A
-## bank is drawn as a bank, so the drawing is what has to say so, and the open
-## water of a map is the water tile it has most of.
+## Only a tile that draws a bank, which is every water tile except the commonest.
+## Land beside it is not enough: the cartridge draws open water right to the map's
+## east boundary and the border ring folds a tree line in past it, so without this
+## test the rule tilted the WATER up into the trees. The open water of a map is the
+## water tile it has most of.
 ##
-## AFTER `_measure_ramps`, which is what sizes and fills `_corners`.
+## After `_measure_ramps`, which sizes and fills `_corners`.
 func _measure_shores() -> void:
 	var count: int = _size.x * _size.y
 	var open_water: int = _commonest_water()
 	for at: int in count:
 		if _ramp[at] == 1 or not _is_water(at) or _tiles[at] == open_water:
 			continue
-		# AND NOT A TILE THAT DRAWS SOMETHING STANDING IN THE WATER. The rule reads
+		# And not a tile that draws something standing in the water. The rule reads
 		# "not the commonest water tile" as "draws a bank", which was true while the
 		# only other water a tileset had was its shore. The sea rock is water with
 		# stones on it, so it tilted the chain up the ledge as a blue slope with the
@@ -2975,14 +2877,12 @@ func _measure_shores() -> void:
 			# The three tiles that meet this corner. The highest LAND among them is
 			# what the bank rises to; water and the map's own outside are not land.
 			#
-			# AT THE CORNER ITSELF, and not at the neighbour's own height. The two
-			# are the same number for flat land and they are not for a RAMP, whose
-			# whole point is that its four corners differ from it: the rock patch
-			# on Cerulean's waterfront stands at 8 and its rim comes down to 0 at
-			# the very corner the bank beside it meets, so reading the height lifted
-			# that bank sixteen pixels in one tile and left a fin standing where the
-			# rock said nothing was. A shared corner has ONE height or there is a
-			# hole through the seam.
+			# At the corner itself and not at the neighbour's own height. The two
+			# agree for flat land and not for a RAMP, whose whole point is that its
+			# corners differ from it: Cerulean's waterfront rock stands at 8 and its
+			# rim comes down to 0 at the corner the bank meets, so reading the height
+			# lifted the bank sixteen pixels in one tile. A shared corner has ONE
+			# height or there is a hole through the seam.
 			for reach: Vector2i in [Vector2i(step.x, 0), Vector2i(0, step.y), step]:
 				var to := Vector2i(tx + reach.x, ty + reach.y)
 				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
@@ -3009,28 +2909,22 @@ func _corner_across(step: Vector2i, reach: Vector2i) -> int:
 	return (0 if sx < 0 else 1) + (0 if sy < 0 else 2)
 
 
-## A CLIFF IS AS TALL AS ITS FACE IS DRAWN, in 8px bands.
+## A cliff is as tall as its face is drawn, in 8px bands.
 ##
-## Every other height here is measured per COLUMN OF WALK CELLS, so the smallest
-## thing it can say is 16 px, and it says it by the PERIOD of the run: a rock
-## patch four tiles square is one cell of face over one cell of top and measures
-## two cells, which is 32 px of stone round an 8 px shelf. Ecruteak's pond patches
-## were exactly that, and the reviewer's reading of the same drawing is the one
-## this pass takes: "in 2D you can see they are 8px high".
+## Every other height here is measured per column of walk cells, so the smallest
+## thing it can say is 16 px: a rock patch four tiles square is one cell of face
+## over one cell of top and measures two cells, which is 32 px of stone round an
+## 8 px shelf.
 ##
-## THE FACE ITSELF IS THE HONEST STATEMENT and `profile.gd:FRONTS` is the tile
+## The face itself is the honest statement, and `profile.gd:FRONTS` is the tile
 ## that draws it, so the run of front tiles up a column IS the height in bands.
-## One row of face is 8, two rows is 16, and nothing has to be authored per
-## tileset that the survey has not already named.
+## Nothing has to be authored per tileset that the survey has not already named.
 ##
-## Read per STRUCTURE and not per column, which is the region rule again and for
-## its reason: a rim column draws no front at all, and what says how tall a rim
-## stands is the rock it belongs to. Each column votes with the length of its own
-## front run and the commonest wins, so a face that is two tiles nearly
-## everywhere is not lifted by the one column where a cave mouth is cut into it.
-## A structure with no front anywhere keeps what the column pass measured: only
-## the front knows which side of a wall is up, and a rim seen from its end says
-## nothing at all.
+## Read per structure and not per column, which is the region rule again: a rim
+## column draws no front at all, and what says how tall a rim stands is the rock it
+## belongs to. Each column votes with the length of its own front run, so a face
+## two tiles nearly everywhere is not lifted by the one column a cave mouth is cut
+## into. A structure with no front keeps what the column pass measured.
 func _measure_cliffs() -> void:
 	var seen := PackedByteArray()
 	seen.resize(_size.x * _size.y)
@@ -3105,37 +2999,33 @@ func _cliff_base(at: int) -> int:
 	return walk / _size.x
 
 
-## The ground BEHIND a cliff stands on top of it.
+## The ground behind a cliff stands on top of it.
 ##
-## Every other height in this mesher is a fact about one column, and a plateau is
-## the case where one column is not enough: a rock wall is 16 px of drawn face
-## and the stone floor north of it is a second surface at the top of that face,
-## with nothing in the column of either one to say so. The reviewer's words:
-## "rock walls are two tiles high, and then its the higher flat floor".
+## Every other height here is a fact about one column, and a plateau is where one
+## column is not enough: a rock wall is 16 px of drawn face and the stone floor
+## north of it is a second surface at the top of that face, with nothing in either
+## column to say so.
 ##
-## What says which floor is up there is the cliff itself, and only the cliff.
-## Its face is pinned in `profile.gd:CLIFFS`; the connected structure is read as
-## a whole, so each column of it gives two pieces of evidence about the flat
-## ground it touches:
+## What says which floor is up there is the cliff, and only the cliff. Its face is
+## pinned in `profile.gd:CLIFFS`, and the connected structure is read whole, so
+## each column gives two pieces of evidence about the flat ground it touches:
 ##
 ##   north of its topmost row  the ground up there, at that column's height
 ##   south of its bottom row   the ground in front, which is where 0 is
 ##
-## Both are then carried across the flat ground by flooding it, because a plateau
-## is a REGION and not a strip: only the rim column knows the height and the
-## whole enclosed floor stands at it.
+## Both are carried across the flat ground by flooding, because a plateau is a
+## region and not a strip: only the rim column knows the height and the whole
+## enclosed floor stands at it.
 ##
-## A region carrying both kinds of evidence is left alone. That is not a
-## compromise, it is the whole safety of this pass: the ground north of a
-## diagonal end tile is the LOW ground wrapping round the corner, the two sides
-## of a cliff meet wherever a map lets the player walk up, and a leak through any
-## of that reaches a region the front of the cliff is already standing on. Raise
-## on unanimous evidence and a leak costs nothing; raise on a majority and one
-## leak lifts a whole town by a cell. The reviewer's own rule elsewhere in this
-## file, that a structure too tall is worse than one too short, is the same rule.
+## A region carrying both kinds of evidence is left alone, and that is the safety
+## of this pass: the ground north of a diagonal end tile is the LOW ground wrapping
+## round the corner, and the two sides of a cliff meet wherever the player can walk
+## up, so a leak reaches a region the front of the cliff already stands on. Raise
+## on unanimous evidence and a leak costs nothing; raise on a majority and one leak
+## lifts a whole town by a cell.
 ##
-## Water is not flat ground for this: it bounds a region rather than joining one,
-## so a pond up on a shelf stays a pond rather than dragging the shelf down to it.
+## Water is not flat ground here: it bounds a region rather than joining one, so a
+## pond up on a shelf stays a pond rather than dragging the shelf down.
 func _measure_plateaus() -> void:
 	var seeds: Dictionary = {}
 	var fronts: Dictionary = {}
@@ -3214,7 +3104,7 @@ func _settle_lips() -> void:
 			var under: int = _heights[(ty + 1) * _size.x + tx]
 			if _art[(ty + 1) * _size.x + tx] == ART_FLAT and under > 0:
 				_heights[at] = under
-				# A LIP STANDING ON A SHELF IS THAT SHELF'S RIM, which is what lets
+				# A lip standing on a shelf is that shelf's rim, which is what lets
 				# it ramp with the other three sides. It is the one side of a rock
 				# a face cannot be drawn on, so the cliff pass never reaches it and
 				# nothing else marks it: without this a patch slopes on the sides
@@ -3274,16 +3164,14 @@ func _settle_ponds() -> void:
 				_heights[at] += shore
 
 
-## A FIELD RINGED BY A KERB STANDS ON IT, which is what makes a raised bed
-## raised. The pond pass says the same thing about water and this says it about
-## ground: the park's flower bed is one course of brick round grass and flowers,
-## and left alone the brick stood up while what it holds stayed on the pavement,
-## so the bed was a wall with the bed behind it rather than inside it.
+## A field ringed by a kerb stands on it, which is what makes a raised bed raised.
+## The park's flower bed is one course of brick round grass and flowers, and left
+## alone the brick stood up while what it holds stayed on the pavement.
 ##
-## ONLY A FIELD EVERY ONE OF WHOSE NEIGHBOURS IS THE SAME KERB. A region that
-## touches the open map, or a kerb at one height on one side and another on the
-## other, is not a bed and is left where it is. That is the rule that keeps this
-## off the paving, which touches a kerb too and reaches half the map.
+## Only a field every one of whose neighbours is the same kerb. A region touching
+## the open map, or a kerb at one height on one side and another on the other, is
+## not a bed. That is what keeps this off the paving, which touches a kerb too and
+## reaches half the map.
 func _settle_beds() -> void:
 	if not _class_ids.has(&"kerb"):
 		return
@@ -3414,13 +3302,10 @@ func _cliff_height(tx: int, top_row: int) -> int:
 ## The ground a plateau is made of: flat art standing on the ground plane. Water
 ## is flat too and is deliberately not this, and anything already raised has been
 ## measured off its own drawing and is not a floor to be lifted.
-## A CAVE MOUTH IS NOT A FLOOR, and leaving it one is the whole of map 8,6. The
-## black opening is drawn flat and walkable, so the flood ran straight through
-## the doorway and joined the sand shelf above the cliff to the grass below it:
-## one region carrying both kinds of evidence, which this pass then leaves alone,
-## so a plateau the size of half the map stayed at 0 with a two-tile ridge along
-## its front where its face should have been. A hole in a wall is a hole in a
-## wall from either side of it.
+## A cave mouth is not a floor, and leaving it one is the whole of map 8,6: the
+## black opening is drawn flat and walkable, so the flood ran through the doorway
+## and joined the sand shelf above the cliff to the grass below it, giving one
+## region both kinds of evidence and leaving half the map at 0.
 func _is_plateau_floor(at: int) -> bool:
 	return (
 		_tiles[at] >= 0 and _art[at] == ART_FLAT and _heights[at] == 0
@@ -3462,21 +3347,17 @@ func _regions(cells: Vector2i) -> PackedInt32Array:
 	return region
 
 
-## THE VOID HAS NO HEIGHT OF ITS OWN, and until a roof fell below the ground
-## plane nothing in the game could tell.
+## The void has no height of its own.
 ##
-## Past the edge of the world the cartridge draws a flat colour and this view
-## lays it down as one quad at 0, which is right everywhere it borders ordinary
-## ground and wrong the moment it borders anything lower: the great roof of a
-## building falls a walk cell a tile from its ridge to its eaves, and a void
-## standing at 0 round it walls the whole roof into a grey pit, which is what the
-## first picture of it showed.
+## Past the edge of the world the cartridge draws a flat colour, laid down here as
+## one quad at 0. That is right where it borders ordinary ground and wrong the
+## moment it borders anything lower: a great roof falls a walk cell a tile from
+## ridge to eaves, and a void at 0 round it walls the roof into a grey pit.
 ##
 ## So a connected field of void takes the LOWEST floor it touches anywhere. Lowest
-## and not nearest, so the whole field lies flat and no seam runs through it; and
-## a FLOOR rather than any neighbour, so a cave's void, which touches nothing but
-## the faces of walls, is left exactly where it was. It can only ever come down,
-## which is what makes it safe: measured over every map, one map moves.
+## and not nearest, so the field lies flat with no seam through it, and a floor
+## rather than any neighbour, so a cave's void is left where it was. It can only
+## come down, which is what makes it safe: over every map, one map moves.
 func _settle_void() -> void:
 	var seen := PackedByteArray()
 	seen.resize(_size.x * _size.y)
@@ -3522,15 +3403,13 @@ func _settle_void() -> void:
 
 ## Anything the measuring passes never reached, given a height at last.
 ##
-## `_measure_columns` works in whole CELLS and reads one tile to decide whether a
+## `_measure_columns` works in whole cells and reads one tile to decide whether a
 ## cell is unmeasured, so a cell holding a pin and an unpinned tile together is
-## skipped and the unpinned one keeps the -1 it was marked with. That was rare
-## while the profile held a handful of pins by hand and is common now that a pass
-## over the game has written a thousand: a -1 is a face drawn a pixel below the
-## floor, which reads as a seam of black around the furniture.
+## skipped and the unpinned one keeps its -1, which reads as a seam of black round
+## the furniture. That is common now that a pass has written a thousand pins.
 ##
-## The cell it sits in is the answer: whatever else in that cell did get
-## measured, and one cell tall when nothing did.
+## The cell it sits in is the answer: whatever else in that cell was measured, and
+## one cell tall when nothing was.
 func _settle_unmeasured() -> void:
 	for ty: int in _size.y:
 		for tx: int in _size.x:
@@ -3547,17 +3426,15 @@ func _settle_unmeasured() -> void:
 			_heights[at] = settled if settled > 0 else CELL_TILES * BAND
 
 
-## A thing standing ON furniture starts at the furniture's own top.
+## A thing standing on furniture starts at the furniture's own top.
 ##
-## A radio, a television, a computer, a statue, a book: the reviewer named a
-## dozen of them and every one is drawn sitting on a desk or a table. Every class
-## carries a height off the GROUND, so all of them stood up through the desk from
-## the floor instead.
+## A radio, a television, a computer, a statue, a book: every one is drawn sitting
+## on a desk or a table, and every class carries a height off the GROUND, so all of
+## them stood up through the desk from the floor.
 ##
-## What they stand on is whatever the mesher already resolved for the cell in
-## front, which for a table is its top: the run of them takes that as its base
-## and stacks its own rows above it. The same shape of answer as a facade
-## standing on a porch roof, and for the same reason.
+## What they stand on is whatever the mesher resolved for the cell in front, which
+## for a table is its top. The same shape of answer as a facade standing on a
+## porch roof.
 func _measure_furniture() -> void:
 	var placed := PackedByteArray()
 	placed.resize(_size.x * _size.y)
@@ -3587,26 +3464,21 @@ func _measure_furniture() -> void:
 				placed[index] = 1
 
 
-## THE APRON IS THE FRONT OF THE TABLE AND NOT THE TOP OF IT.
+## The apron is the front of the table and not the top of it.
 ##
-## Generation II draws a table the way it draws a house: the surface seen from
-## above, and under it one row of the SIDE seen face-on, with the legs and the
-## shadow between them. Read per tile the whole drawing is one class at one
-## height, so that last row came out as more table top, lying flat on the floor
-## a band up with the apron painted on it. Every table in the game was a slab a
-## tile too deep with its own front wallpapered across the near edge.
+## Generation II draws a table as it draws a house: the surface seen from above,
+## and under it one row of the side seen face-on with the legs and shadow between
+## them. Read per tile the whole drawing is one class at one height, so that last
+## row came out as more table top and every table was a slab a tile too deep with
+## its own front wallpapered across the near edge.
 ##
-## So the southmost row of a furniture region is handed back to the floor, and
-## what stands over it is the face. The FACES need nothing: `_band_tile` reads a
-## column's own base row, which is that apron row, so all four sides of the table
-## already wear the front the cartridge drew, and dropping the row out of the top
-## is the whole fix.
+## So the southmost row of a furniture region is handed back to the floor. The
+## faces need nothing: `_band_tile` reads a column's own base row, which is that
+## apron row, so all four sides already wear the front the cartridge drew.
 ##
-## A ROW IS ONLY AN APRON WHERE THE DRAWING CHANGES AT IT. A counter running off
-## the bottom of the map draws the same side tile the whole way down and its last
-## row is more counter, not a front; a table's is drawn once and differs from
-## what is above it. That single test is what tells the two apart, and it is the
-## drawing's own answer rather than a rule about where a map ends.
+## A row is only an apron where the drawing changes at it. A counter running off
+## the bottom of the map draws the same side tile all the way down and its last
+## row is more counter; a table's differs from what is above it.
 const APRON_CLASSES: Array[StringName] = [&"table", &"counter", &"desk"]
 
 
@@ -3654,7 +3526,7 @@ func _settle_aprons() -> void:
 		_art[at] = ART_FLAT
 		_volume[at] = 0
 		_on_furniture[at] = 0
-		# AND THE FACES WEAR IT, all four of them. A side is painted with
+		# And the faces wear it, all four of them. A side is painted with
 		# `_band_tile`, which reads the column's own BASE row, and the base row of
 		# what is left after the release is the table top: a tan box with a tan
 		# front. The apron is what the drawing gives, so it is kept per tile up
@@ -3724,18 +3596,14 @@ func _floor_beside(tx: int, ty: int) -> Vector2i:
 	return Vector2i(-1, 0)
 
 
-## WHERE A DRAWING'S BOX STARTS, on the MAP's own block grid.
+## Where a drawing's box starts, on the map's own block grid.
 ##
-## THE GRID IS NOT THE MAP. Every array here is the map inside a border ring two
-## tiles wide, so a grid coordinate is a map coordinate plus the margin, and a
-## box aligned by taking the grid coordinate modulo the box's own size is aligned
-## to the RING rather than to the blocks the cartridge authored. Two tiles is a
-## whole walk cell, so everything one cell across came out right and nothing said
-## otherwise; a drawing TWO cells tall is four tiles, and 2 modulo 4 is 2. Every
-## 1x2 drawing in the game was boxed half a cell high: the potted plant's crown
-## and its pot fell into different boxes, each was cut, turned and stood on the
-## floor on its own, and what the room showed was a green mass standing beside a
-## blue pot.
+## The grid is not the map: every array here is the map inside a border ring two
+## tiles wide, so a grid coordinate is a map coordinate plus the margin, and a box
+## aligned modulo its own size in grid coordinates is aligned to the RING. Two
+## tiles is a whole walk cell, so everything one cell across came out right; a
+## drawing two cells tall is four tiles, and 2 modulo 4 is 2, so every 1x2 drawing
+## was boxed half a cell high with its two halves cut and stood separately.
 func _box_start(tx: int, ty: int, across: Vector2i) -> Vector2i:
 	var map_x: int = tx - _margin.x
 	var map_y: int = ty - _margin.y
@@ -3759,36 +3627,31 @@ func _span_box(at: int, tx: int, ty: int) -> Rect2i:
 	return Rect2i(start, across)
 
 
-## How big each cutout's drawing actually is where it is PLACED.
+## How big each cutout's drawing actually is where it is placed.
 ##
-## A class declares the largest its drawing gets, and the placement is what says
-## whether this one is that big: the small brick flower bed and the tall one are
-## drawn out of the same top and bottom tiles, one cell of them and two, and no
-## tile id can tell those apart. So the class's own box is taken where every cell
-## in it carries that class, and one cell otherwise.
+## A class declares the largest its drawing gets and the placement says whether
+## this one is that big: the small brick flower bed and the tall one are drawn out
+## of the same tiles, and no tile id tells them apart. So the class's box is taken
+## where every cell in it carries that class, and one cell otherwise.
 ##
-## Carrying the class is not enough on its own, because a thing standing next to
-## another of itself carries it twice. A DRAWING THAT REPEATS IS NOT ONE DRAWING:
-## where a cell of the box draws exactly what another cell of it draws, the box
-## is a row of small things rather than one large one. Tileset 1 is the case and
-## it is 4542 trees: a tall conifer is a pointed cell over a footed cell and the
-## two differ, where a pair of short ones is the same cell twice.
+## Carrying the class is not enough, because a thing standing next to another of
+## itself carries it twice. A drawing that repeats is not one drawing: where a cell
+## of the box draws exactly what another cell draws, the box is a row of small
+## things. Tileset 1 is the case and it is 4542 trees, a tall conifer being a
+## pointed cell over a footed cell where a pair of short ones is one cell twice.
 ##
-## Except where the extra cells are DEPTH, because there a repeat is the drawing:
-## the long flower bed is the same bed carrying on away from the eye and draws
-## the identical cell twice on purpose. `LYING` is that distinction and it is
-## already made.
+## Except where the extra cells are DEPTH, since there a repeat is the drawing:
+## the long flower bed draws the identical cell twice on purpose. `LYING` is that
+## distinction.
 ##
-## AND A DRAWING IS A WHOLE NUMBER OF TILES, not of cells, which is what the box
-## cannot say on its own. A cell is two tiles, so a potted plant three tiles tall
-## fills one cell and the top half of the next, and its box's bottom row is the
-## floor it stands on. Requiring the whole box collapsed that to one cell each
-## way and stood the leaves on the ground BESIDE the pot, which is the fault the
-## box exists to fix. So the box is cut back to the last tile row that carries
-## the class, and the rows above it must all carry it: `_span_cut` is how many
-## rows are left, and `_cutout` reads it as the drawing's own height.
+## And a drawing is a whole number of TILES, not of cells. A potted plant three
+## tiles tall fills one cell and the top half of the next, and its box's bottom row
+## is the floor it stands on; requiring the whole box collapsed that to one cell
+## and stood the leaves beside the pot. So the box is cut back to the last tile row
+## carrying the class, with every row above it carrying it too: `_span_cut` is how
+## many rows are left and `_cutout` reads that as the drawing's height.
 ##
-## Only where the extra cells are height. A LYING drawing's rows are depth and
+## Only where the extra cells are height: a LYING drawing's rows are depth, and
 ## half a cell of depth is not something the cartridge draws.
 func _measure_cutouts() -> void:
 	for ty: int in _size.y:
@@ -3891,32 +3754,25 @@ func _pattern_at(pattern: Array, across: Vector2i, tx: int, ty: int) -> bool:
 	return true
 
 
-## THE NEAR FACE OF A THING IS THE NEAR EDGE OF THE CELL IT BLOCKS.
+## The near face of a thing is the near edge of the cell it blocks.
 ##
 ## A 2.5D drawing states its own depth and `_emit_object_body` reads it at its
-## word: the bottom row is where the thing meets the floor, so it is the box's
-## near edge and everything else stands behind it. That is true of the DRAWING
-## and false of the world the cartridge walks in, because the apron of a
-## free-standing bench is drawn on the walk cell IN FRONT of the one the bench
-## blocks. Built at its own word the bench reaches half a cell into open floor,
-## and both halves of that came back from one picture: the player walks into the
-## front of the desk, and the three Pokeballs standing on the cell the bench
-## blocks are left off its back edge, which reads as floating behind it.
+## word: the bottom row is where the thing meets the floor. That is true of the
+## drawing and false of the world, because a free-standing bench's apron is drawn
+## on the walk cell IN FRONT of the one the bench blocks, so built literally the
+## bench reaches half a cell into open floor and the Pokeballs standing on the
+## cell it blocks float off its back edge.
 ##
-## So a box that stands on floor the player can stand on is pulled back to the
-## near edge of the southernmost walk cell the drawing covers that is blocked
-## across the object's whole width, and the move is kept ONLY if it clears the
-## box of standable floor entirely. It can never move the face forward, it never
-## touches a box that was already clear, and where no move is clean the drawing
-## keeps its own word: the ship's rectangle is a hull with open sea at its
-## corners, and no placement of it stands on rock alone.
+## So a box standing on floor the player can stand on is pulled back to the near
+## edge of the southernmost walk cell the drawing covers that is blocked across
+## the object's whole width, and the move is kept only if it clears the box of
+## standable floor entirely. It never moves the face forward and never touches a
+## box that was already clear.
 ##
-## Measured over every map: fourteen placements move, the two lab benches, the
-## four school desks, the four tables, the Bell Tower and the Sprout Tower, by
-## six to sixteen pixels, and the standable floor with a box on it goes from 3584
-## world pixels to none. The ship, the chairs, the stools and the ladders are
-## left where they were: a chair stands on a cell the cartridge lets you walk
-## onto, which is the cartridge's own answer and not a placement to correct.
+## Over every map, fourteen placements move by six to sixteen pixels and the
+## standable floor with a box on it goes from 3584 world pixels to none. The ship,
+## the chairs, the stools and the ladders stay: a chair stands on a cell the
+## cartridge lets you walk onto, which is its answer and not a fault.
 func _object_front(
 	source: RefCounted, object: Dictionary, start: Vector2i, across: Vector2i
 ) -> float:
@@ -3956,37 +3812,29 @@ func _stands_on_floor(
 	return false
 
 
-## AN OBJECT IS NOT A TILE, and this is what finds one.
+## An object is not a tile, and this is what finds one.
 ##
-## Every other pass here resolves a tile and stands it up where that tile sits,
-## and for a wall or a canopy that is right, because the cartridge draws those
-## tile by tile. A CHAIR is drawn as four corners across four tiles and no one of
-## them is a chair: tileset 13's tile 74 is the desk's bottom-left leg, the
-## chair's top-left corner and the floor between the two, so every possible pin
-## for it is wrong. The reviewer raised it and named the fix: detect the tiles of
-## each object, then place ONE thing of the whole object's size at its own
-## position.
+## Every other pass resolves a tile and stands it up where that tile sits, which is
+## right for a wall or a canopy. A chair is drawn as four corners across four tiles
+## and no one of them is a chair: tileset 13's tile 74 is the desk's bottom-left
+## leg, the chair's top-left corner and the floor between them, so every possible
+## pin for it is wrong.
 ##
-## The ARRANGEMENT OF TILE IDS is what identifies it, and it is exact: a pattern
-## found anywhere in the grid is that object, wherever the map places it and
-## whatever block boundary it straddles. The desk's drawing crosses one.
+## The arrangement of tile ids identifies it exactly: a pattern found anywhere in
+## the grid is that object, wherever the map places it and whatever block boundary
+## it straddles.
 ##
-## EVERY TILE IT COVERS GOES BACK TO BEING FLOOR. That is the third thing this
-## needed and it is free here: a covered tile is marked as a cutout, which already
-## means "the ground beside me, with whatever stands on it drawn separately", so
-## the seam beside the object stops extruding and the floor runs under it. What
-## stands on it is then the object, emitted whole from any one of its tiles.
+## Every tile it covers goes back to being floor, which is free here: a covered
+## tile is marked as a cutout, which already means "the ground beside me, with
+## whatever stands on it drawn separately", so the seam stops extruding and the
+## floor runs under it. Two objects may cover the same tile and both are drawn.
 ##
-## Two objects may cover the same tile and both are drawn, which is the desk and
-## the chair below it.
-##
-## A RECTANGLE IS NOT A FOOTPRINT once an object is bigger than a stick of
+## A rectangle is not a footprint once an object is bigger than a stick of
 ## furniture. The ship's box holds open sea at all four corners, and handing that
-## sea to the floor lays a still slab across the harbour, so those tiles are
-## declared OUTSIDE: matched against nothing, covered by nothing, left as they
-## were. They stay in the rectangle the MASK is cut over, which is what makes
-## them worth naming rather than cropping away: a border flood needs a border of
-## open water to read, and the ship reaches the edge of its own hull.
+## to the floor lays a still slab across the harbour, so those tiles are declared
+## OUTSIDE: matched against nothing, covered by nothing, left as they were. They
+## stay in the rectangle the MASK is cut over, which is why they are named rather
+## than cropped away: a border flood needs a border of open water to read.
 func _measure_objects(shape: RefCounted, source: RefCounted) -> void:
 	_floor_art.clear()
 	_object_covered.resize(_size.x * _size.y)
@@ -4007,7 +3855,7 @@ func _measure_objects(shape: RefCounted, source: RefCounted) -> void:
 					object, Vector2i(tx, ty), across,
 					_object_front(source, object, Vector2i(tx, ty), across),
 				])
-				# EVERY FLOOR IS READ BEFORE ANY TILE IS MARKED. `_cell_floor` takes
+				# Every floor is read before any tile is marked. `_cell_floor` takes
 				# the highest FLAT tile in the cell, and marking a tile a cutout takes
 				# it out of that answer, so reading and writing in one pass lets the
 				# first tile of an object change what the next three measure. Flat
@@ -4030,7 +3878,7 @@ func _measure_objects(shape: RefCounted, source: RefCounted) -> void:
 						_front[at] = 0
 						_lip[at] = 0
 						_heights[at] = floors[row * across.x + column]
-						# AN OBJECT STANDING ON FURNITURE LEAVES THE FURNITURE. Its
+						# An object standing on furniture leaves the furniture. Its
 						# tiles are handed back to the floor of their own cell like
 						# any other, and under a carving in the middle of a table
 						# that is a square hole through the top with the lino at the
@@ -4054,23 +3902,21 @@ func _measure_objects(shape: RefCounted, source: RefCounted) -> void:
 ## How far a flight rises or falls, in world pixels. One walk cell each way, on a
 ## 45 degree ramp, which is the reviewer's own reading of the drawing.
 ##
-## HOW MANY STEPS is the drawing's own business and they counted them one by one:
+## How many steps is the drawing's own business and they counted them one by one:
 ## most are four, several are three and the grand staircases are five. So it is
 ## declared per flight and the tread is the rise divided by it.
 const STAIR_RISE: int = 16
 const STAIR_STEPS: int = 4
 
 
-## THE STAIRCASES, found exactly as an object is and marked as a floor that is
-## somewhere other than zero.
+## The staircases, found exactly as an object is and marked as a floor somewhere
+## other than zero.
 ##
-## A DOWN flight is a HOLE, which is the reviewer's own word for it, and the mesh
-## already knows how to draw one: put the cell's floor a walk cell BELOW the
-## ground and every neighbour skirts down to it, because `_side` draws a face
-## wherever a neighbour stands lower and does not care whether that is a cliff or
-## a stairwell. So the pit's four walls, its floor and the seam around it all come
-## from the passes that were already there, and `_emit_stairs` adds only the steps
-## standing in it.
+## A down flight is a hole, and the mesh already knows how to draw one: put the
+## cell's floor a walk cell below the ground and every neighbour skirts down to it,
+## since `_side` draws a face wherever a neighbour stands lower. So the pit's
+## walls, floor and seam all come from the passes already there, and
+## `_emit_stairs` adds only the steps standing in it.
 func _measure_stairs(shape: RefCounted) -> void:
 	_stair_at.resize(_size.x * _size.y)
 	_stair_at.fill(-1)
@@ -4100,29 +3946,25 @@ func _measure_stairs(shape: RefCounted) -> void:
 						_heights[at] = base + fall
 
 
-## The jumping ledges, taken from the COLLISION byte rather than from a drawing.
+## The jumping ledges, taken from the collision byte rather than from a drawing.
 ##
-## Which way a ledge faces is not a judgement and must not be read off the art:
-## `Gen2WorldCollision.allows_hop` decodes it bit for bit against the cartridge's
-## own .TryJump. The code sits on the cell the player STANDS on, so the ledge
-## itself is the blocked cell the hop passes over, and the lip is drawn in the
-## FAR HALF of that cell, one tile deep, with the near half plain floor. Measured
-## over every map: 1380 cells hopped over, 2760 lip tiles, 72 maps, and not one
-## tile is claimed by two facings, so a wedge never has to choose. Only south,
-## east and west occur; nothing in the game is hopped northward.
+## Which way a ledge faces must not be read off the art:
+## `Gen2WorldCollision.allows_hop` decodes it against the cartridge's own .TryJump.
+## The code sits on the cell the player stands on, so the ledge is the blocked cell
+## the hop passes over, and the lip is drawn in the far half of that cell, one tile
+## deep. Over every map: 1380 cells hopped, 2760 lip tiles, 72 maps, and no tile is
+## claimed by two facings. Only south, east and west occur.
 ##
-## They stood a full walk cell tall before this, which is a wall you cannot see
-## over: 2298 of the 2760 measured 16px up the column, because a blocked cell
-## with no pin resolves to `wall` like everything else. The wedge is one band,
-## which is what the cartridge draws the lip as.
+## They stood a full walk cell tall before this, a wall you cannot see over, since
+## a blocked cell with no pin resolves to `wall`. The wedge is one band, which is
+## what the cartridge draws the lip as.
 ##
-## The foot of the ramp is the ground the player hops FROM, not the tile beside
-## it. In 240 cases the near half of the cell is itself a structure, and taking
-## its height would stand the ledge on top of the wall it is cut into.
+## The foot of the ramp is the ground the player hops FROM and not the tile beside
+## it: in 240 cases the near half of the cell is itself a structure, and taking its
+## height would stand the ledge on top of the wall it is cut into.
 ##
 ## The height written here is the foot, so every neighbour sees the wedge at the
-## ground it rises from and skirts down to it as it would to any floor. Nothing
-## else in the mesh has to know about the slope.
+## ground it rises from and skirts down to it like any floor.
 func _measure_ledges(source: RefCounted) -> void:
 	@warning_ignore("integer_division")
 	var cells := Vector2i(_size.x / CELL_TILES, _size.y / CELL_TILES)
@@ -4269,13 +4111,13 @@ func _cell_floor(cell_x: int, cell_y: int) -> int:
 	return best
 
 
-## A building is measured off its own drawing's GRID, not off its tile ids.
+## A building is measured off its own drawing's grid, not off its tile ids.
 ##
-## One Generation II drawing packs several surfaces at once: the bottom rows are
-## the facade seen face-on, the rows above them are the roof seen from above, and
-## a taller section behind can put another facade above that roof again. So the
-## height of a tile is decided by what is UNDER it in the same column, and the
-## profile only says which of the two surfaces each drawing is.
+## One drawing packs several surfaces: the bottom rows are the facade seen
+## face-on, the rows above the roof seen from above, and a taller section behind
+## can put another facade above that roof. So a tile's height is decided by what is
+## under it in the same column, and the profile only says which surface a drawing
+## is.
 ##
 ## Rows run from the bottom of the map up, so every column knows what it is
 ## standing on before it is asked how high it reaches:
@@ -4319,7 +4161,7 @@ func _measure_buildings() -> void:
 			# differently comes out as a staircase rather than as a wall.
 			var runs: PackedInt32Array = PackedInt32Array()
 			var bands: int = 0
-			# THE STRETCH AGREES ON ITS PITCH TOO, and on the SHALLOWEST of them,
+			# The stretch agrees on its pitch too, and on the SHALLOWEST of them,
 			# for the reason it agrees on one height: a roof is one plane across
 			# the whole building. One column of the stretch whose top is a wall
 			# rather than a roof says the roof does not reach along here at all,
@@ -4333,7 +4175,7 @@ func _measure_buildings() -> void:
 				runs.append(run)
 				pitch = mini(pitch, _facade_pitch(tx, ty, run))
 				bands = maxi(bands, _facade_period(tx, ty, run))
-			# A PITCH DEEPER THAN THE DRAWING IS TALL is two readings of the same
+			# A pitch deeper than the drawing is tall is two readings of the same
 			# column contradicting each other, and the period is the older one:
 			# where a run repeats, the stretch stands as many bands as the repeat
 			# and there are not enough of them for the roof the tiles claim. The
@@ -4400,31 +4242,26 @@ func _facade_period(tx: int, bottom: int, run: int) -> int:
 	return run
 
 
-## HOW MANY BANDS AT THE TOP OF A FACADE RUN ARE A ROOF SLOPE rather than a wall.
+## How many bands at the top of a facade run are a roof slope rather than a wall.
 ##
-## Tileset 1's houses draw the front PITCH of their roof face-on, so the fold
-## stood every one of them up square and a house came out a barn: a tall box with
-## plank texture down its upper half and a flat lid. `profile.gd:FACADE_SLOPE`
-## names those tiles and this counts them off the top of the run, which is where
-## a roof is: the wall below keeps the drawing's own bands and the pitch leans
-## back over the footprint, a tile of depth per band of height.
+## Tileset 1's houses draw the front pitch of their roof face-on, so the fold stood
+## every one up square and a house came out a barn. `profile.gd:FACADE_SLOPE` names
+## those tiles and this counts them off the top of the run: the wall below keeps
+## the drawing's bands and the pitch leans back over the footprint, a tile of depth
+## per band of height.
 ##
-## TWO THINGS STOP THE COUNT and both are real drawings rather than caution.
+## Two things stop the count, and both are real drawings rather than caution.
 ##
-## A ROOF DECK STANDING ON THE RUN is not this. Five columns in the game put a
-## face-on eave band under a roof seen from above: there the band is the fascia
-## at the front of that deck, standing on the wall exactly where it is drawn, and
-## leaning it would step the wall's top back from under its own roof.
+## A roof deck standing on the run is not this: five columns in the game put a
+## face-on eave band under a roof seen from above, where the band is that deck's
+## fascia and leaning it would step the wall's top back from under its own roof.
 ##
-## AND A COLUMN THAT DRAWS ROOF MORE THAN ONCE IS A STACK OF STOREYS rather than
-## one building with a pitch on top. Ecruteak's dance hall is seven storeys of
-## gallery each carrying its own plank roof band, and its two-storey houses are
-## the same thing twice: read as one run their roof reaches the ground. That is
-## the file's rule that A DRAWING WHICH REPEATS IS NOT ONE DRAWING, asked of the
-## roof, and it is read twice because the repeat shows up two ways. The count
-## stops where a slope band RETURNS to a tile the column has already left, a tile
-## repeated straight away being the same face carrying on; and if any slope band
-## is left below the count, there is no single pitch and the run has none.
+## And a column drawing roof more than once is a stack of storeys rather than one
+## building with a pitch on top: Ecruteak's dance hall is seven galleries each with
+## its own plank band, and read as one run its roof reaches the ground. The repeat
+## shows up two ways, so it is read twice: the count stops where a slope band
+## returns to a tile the column has already left, and if any slope band is left
+## below the count there is no single pitch and the run has none.
 func _facade_pitch(tx: int, bottom: int, run: int) -> int:
 	var top: int = bottom - run + 1
 	if top > 0 and _part[(top - 1) * _size.x + tx] == PART_ROOF:
@@ -4448,24 +4285,22 @@ func _facade_pitch(tx: int, bottom: int, run: int) -> int:
 	return pitch
 
 
-## HOW FAR EACH TILE OF A ROOF RUN HAS FALLEN, in bands.
+## How far each tile of a roof run has fallen, in bands.
 ##
-## `ROOF_DROP` is a fall FROM THE FLAT SECTION of the same roof, which is what the
-## reviewer measured tileset 3's gable in: one band down beside the flat, two at
-## the corner of the house. Read that way it is exact, and it is the answer
-## wherever a run has a flat section in it to fall from.
+## `ROOF_DROP` is a fall from the FLAT SECTION of the same roof: one band down
+## beside the flat, two at the corner of the house. That is exact wherever a run
+## has a flat section to fall from.
 ##
-## A GREAT ROOF HAS NONE. Its whole width is the pitch, twelve tiles of it, every
-## tile drawn the same, falling the entire way from the ridge to the eaves. There
-## is no flat tile in the run to measure an absolute fall against, so the drop is
-## read the other way, as a RATE: each tile falls its own drop further than the
-## tile before it, and the eave ends a walk cell and a half below the ridge.
+## A great roof has none. Its whole width is the pitch, twelve tiles of it falling
+## from ridge to eaves, so the drop is read as a RATE instead: each tile falls its
+## own drop further than the tile before it, and the eave ends a walk cell and a
+## half below the ridge.
 ##
-## WHICH END IS THE RIDGE is the only thing here a drawing cannot say. Both ends
-## are the same picture and what tells them apart is what lies beyond: a roof
-## falls away from the floor a person stands on and it falls toward the VOID past
-## the edge of the world. A run with void at both ends, or floor at both, has no
-## reference at all and every tile keeps its own drop.
+## Which end is the ridge is the only thing a drawing cannot say. Both ends are the
+## same picture, and what tells them apart is what lies beyond: a roof falls away
+## from the floor a person stands on and toward the VOID past the edge of the
+## world. A run with void at both ends, or floor at both, keeps every tile's own
+## drop.
 const ROOF_RIDGE_NONE: int = 0
 const ROOF_RIDGE_FLAT: int = 1
 const ROOF_RIDGE_LEFT: int = 2
@@ -4517,7 +4352,7 @@ func _roof_row(ty: int, from: int, to: int, column: PackedInt32Array) -> void:
 	var agreed: int = flat if flat >= 0 else anywhere
 	var ridge: int = _roof_ridge(ty, from, to)
 	var fall: PackedInt32Array = _roof_fall(ty, from, to, ridge)
-	# A ROOF NEVER FALLS BELOW WHAT ITS OWN COLUMN STANDS ON, or a gable meeting a
+	# A roof never falls below what its own column stands on, or a gable meeting a
 	# low wing drives its corner into the ground. A HANGING run is the exception
 	# and the only one: it is the top of a building whose walls are off the map, so
 	# a column carrying nothing carries nothing to be driven into, and clamping it
@@ -4603,20 +4438,19 @@ func occlusion_height_at_position(position: Vector3) -> int:
 	return top + ceili(float(box.size.y) * TILE * stretch)
 
 
-## WHAT ACTUALLY STANDS BESIDE A TILE, along the edge the two of them share.
+## What actually stands beside a tile, along the edge the two share.
 ##
-## `_height_at` answers one number per tile, which is the truth for a box and is
-## not the truth for anything sloped: a rock rim and a ledge each carry FOUR
-## corner heights, and `_heights` holds the one the column was measured at. A
-## face closed against that number is closed against a height the neighbour does
-## not have where the two meet, so a rim dropping to the floor at the shared edge
-## is read as standing at the top of its own slope and the tile beside it emits
-## nothing. That is the crack at every corner where a rim runs into a step, and
-## it is the commonest hole in the game.
+## `_height_at` answers one number per tile, which is the truth for a box and not
+## for anything sloped: a rock rim and a ledge each carry four corner heights, and
+## `_heights` holds the one the column was measured at. A face closed against that
+## number is closed against a height the neighbour does not have where the two
+## meet, so a rim dropping to the floor at the shared edge reads as standing at the
+## top of its slope and the tile beside it emits nothing. That is the crack at
+## every corner where a rim runs into a step.
 ##
-## The LOWER of the two shared corners, so the face reaches under the slope
-## rather than to the middle of it. It can only ever lower the neighbour, which
-## is to say it can only ever add face and never take one away.
+## The lower of the two shared corners, so the face reaches under the slope rather
+## than to the middle of it. It can only lower the neighbour, which is to say it
+## can only add face and never take one away.
 func _beside(tx: int, ty: int, step: Vector2i) -> int:
 	var to := Vector2i(tx + step.x, ty + step.y)
 	if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
@@ -4661,11 +4495,11 @@ func _height_at(tx: int, ty: int) -> int:
 
 
 ## The art a side band shows: band k up from the ground is the map row k tiles
-## NORTH OF THE STRUCTURE'S BASE, which is the fold that stands the 2D drawing
+## North of the structure's base, which is the fold that stands the 2D drawing
 ## up. Counting from the base rather than from the tile is what makes every
 ## column of one structure wear the same drawing, so the row exposed at its back
 ## shows the structure and not the ground behind it.
-## THE TILE ONE FACE OF A COLUMN IS PAINTED WITH, which is the band's own tile
+## The tile one face of a column is painted with, which is the band's own tile
 ## everywhere except on furniture: a table's four sides wear the APRON the
 ## cartridge drew under its top, and its lid does not. `_band_tile` answers for
 ## both, so the two questions are separated here rather than there.
@@ -4677,7 +4511,7 @@ func _face_tile(tx: int, ty: int, band: int) -> int:
 
 
 func _band_tile(tx: int, ty: int, band: int) -> int:
-	# THE SHELL IS PLASTER ALL THE WAY UP and is one cell thick, so the rows north
+	# The shell is plaster all the way up and is one cell thick, so the rows north
 	# of a south wall's base are the room's own floor. It is the one structure here
 	# whose drawing is not on the map, so it answers for itself.
 	if not _room.is_empty():
@@ -4708,37 +4542,29 @@ func _band_tile(tx: int, ty: int, band: int) -> int:
 ## not, so the indices making up most of the cell's border ring are the ground,
 ## and everything the flood cannot reach through them is the drawing.
 ##
-## Most of the ring rather than all of it, because the one place a drawing DOES
-## touch the border is where it stands: a bollard's shadow reaches the bottom
-## edge, and letting its index into the ground set would flood the post away from
-## underneath.
+## Most of the ring rather than all of it, because the one place a drawing does
+## touch the border is where it stands: a bollard's shadow reaches the bottom edge,
+## and letting its index into the ground set floods the post away from underneath.
 ##
-## THIS RULE HAS A LIMIT AND IT IS WORTH KNOWING WHERE. Widening it was tried
-## first: an index that shows on three or more of the ring's four SIDES is
-## surely floor, since ground surrounds a drawing and a drawing does not
-## surround itself. It does fix a speckled tree. It also eats half the cutouts
-## in the game, because a small drawing DOES reach three sides of a 16px cell:
-## measured, 47 of the 82 distinct cutout drawings moved and eight of them
-## vanished outright. Share alone is the rule, and the way past it is below.
+## Widening the rule was tried and is wrong: an index showing on three or more of
+## the ring's four sides is surely floor, which does fix a speckled tree and also
+## eats half the cutouts in the game, since a small drawing does reach three sides
+## of a 16px cell. Measured, 47 of the 82 distinct cutout drawings moved and eight
+## vanished. Share alone is the rule.
 ##
-## FOR ONE FAMILY OF DRAWINGS NO SET OF INDICES CAN WORK AT ALL. A tree
-## canopy is a ball drawn in the SAME two greens the grass under it is dithered
-## from: put those greens in the ground set and the flood eats the lit half of
-## the tree, leave them out and it keeps half the lawn. Looked at as a picture
-## rather than as a count, which is the only way it shows.
+## For one family no set of indices works at all: a tree canopy is drawn in the
+## same two greens the grass under it is dithered from, so the greens in the ground
+## set eat the lit half of the tree and out of it keep half the lawn.
 ##
-## What bounds such a drawing is its own OUTLINE, and an outline is the darkest
-## shade in the tile. So an `outline` mask floods through every pixel that is not
-## that shade, and what it cannot reach is the drawing. The cast shadow under a
-## canopy is dark but is not enclosed by the outline, so it floods away with the
-## grass, which is what should happen to it. This is the reference's own rule for
-## the same problem (`Structures.lua`, "the darkest-shade outline plus everything
-## it encloses").
+## What bounds such a drawing is its own OUTLINE, the darkest shade in the tile. So
+## an `outline` mask floods through every pixel that is not that shade, and what it
+## cannot reach is the drawing. The cast shadow under a canopy is dark but is not
+## enclosed by the outline, so it floods away with the grass. This is the
+## reference's rule for the same problem (`Structures.lua`).
 ##
-## HOW MANY shades bound it is the drawing's own business, which is why the flag
-## is a COUNT. A tree draws a ring and one shade is the ring. A thicket draws no
-## ring at all, and there the two darkest together are the boundary, which is the
-## reference's second reading of the same rule.
+## How many shades bound it is the drawing's own business, which is why the flag is
+## a count: a tree draws a ring in one shade, and a thicket draws none, where the
+## two darkest together are the boundary.
 const RING_SHARE: float = 0.7
 var _masks: Dictionary = {}
 
@@ -4757,7 +4583,7 @@ func _structure_mask(
 	if _masks.has(key):
 		return _masks[key]
 
-	# THE UNION OF THE FRAMES AND NOT THE ONE THE SHEET IS SHOWING. See
+	# The union of the frames and not the one the sheet is showing. See
 	# `atlas.gd:frame_count`: a drawing the sequence animates is cut from
 	# whichever frame the atlas happened to be built on otherwise, and the
 	# geometry then misses whatever a later frame draws further out. A still
@@ -4887,57 +4713,44 @@ func _ring_pixel(ring: Dictionary, indices: PackedInt32Array, at: int) -> void:
 	ring[indices[at]] = int(ring.get(indices[at], 0)) + 1
 
 
-## How deep each drawn pixel stands, IN WHOLE PIXELS.
+## How deep each drawn pixel stands, in whole pixels.
 ##
 ## A slab of a bollard or a bush reads as a sheet of paper from above, so a round
-## class takes a carved plan: each row's own run of pixels is a circle seen from
-## above, deepest at the middle of the run and pinched to one pixel at its ends.
+## class takes a carved plan: each row's run of pixels is a circle seen from above,
+## deepest at the middle and pinched to one pixel at its ends.
 ##
-## ONE SPAN PER ROW OF ONE BODY, and a BODY is a connected piece of the mask.
+## One span per row of one BODY, a body being a connected piece of the mask.
 ##
-## Not one span per contiguous RUN: these drawings are dithered, so a row of one
-## bush is half a dozen short runs with floor showing between them, and revolving
-## each separately makes one dome into six little cylinders in a line.
+## Not one span per contiguous run: these drawings are dithered, so a row of one
+## bush is half a dozen short runs with floor between them, and revolving each
+## separately makes one dome into six cylinders in a line.
 ##
-## And not one span per ROW of the cell either, which is what this did until the
-## bollards were looked at. A cell is 16 px and Goldenrod draws TWO wooden
-## bollards in one, eight pixels apart; taking the row whole spanned both of them
-## and revolved the pair into a single black mushroom fourteen pixels deep. The
-## picture is `sheet_post_defect.png` in the survey directory, and `post` is
-## 10178 tiles on 54 maps, so it was not a corner.
+## And not one span per ROW of the cell: a cell is 16 px and Goldenrod draws two
+## wooden bollards in one, eight pixels apart, so taking the row whole revolved the
+## pair into a single black mushroom. `post` is 10178 tiles on 54 maps.
 ##
-## The reference does not have this fault because it never works on a rectangle:
-## it hulls FLOOD-FILLED REGIONS (`Structures.lua`), and two bollards are two
-## regions. `_bodies` is that flood, and eight-connected on purpose: a dither is
-## a chain of pixels touching at their corners, so four-connectivity would break
-## a bush into the very specks the row-wide rule existed to prevent.
+## The reference avoids this by never working on a rectangle: it hulls flood-filled
+## regions (`Structures.lua`), and two bollards are two regions. `_bodies` is that
+## flood, eight-connected on purpose, since a dither is a chain of pixels touching
+## at their corners and four-connectivity would break a bush into specks.
 ##
-## A ROUND CLASS IS AS DEEP AS IT IS WIDE, and its own DEPTH does not cap it.
-## That is the reference's rule stated plainly: "the canvas is NX wide and NX
-## DEEP, a hull is round in plan, so its depth is its width", and its canopy is
-## carved with no cap and no squash at all (`Structures.lua:roundTemplate`, and
-## its call at `|g32|`). The chord is therefore in PIXELS off the row's own
-## width, `n = 2 * sqrt(hw^2 - dx^2)`, and nothing trims it.
+## A round class is as deep as it is wide and its own DEPTH does not cap it, which
+## is the reference's rule: a hull is round in plan, so its depth is its width. The
+## chord is in pixels off the row's own width, `n = 2 * sqrt(hw^2 - dx^2)`.
 ##
-## Capping it at the class's DEPTH was the fault: it holds the middle of every
-## row at the same few pixels and only lets the ends taper, which is a flat
-## drawing extruded and rounded off at the edges rather than a body. The reviewer
-## caught it from the picture in one line: still a 2D extruded flat model. A bush
-## sixteen pixels wide is now sixteen deep at its widest row and is a ball.
+## Capping it at the class's DEPTH held the middle of every row at the same few
+## pixels and only let the ends taper, which is a flat drawing extruded and rounded
+## off rather than a body. `DEPTHS` still governs the classes that are not round,
+## which is what it was measured for: a sign is a plate on a stick and a tombstone
+## a slab.
 ##
-## DEPTHS still governs the classes that are NOT round, and those are the ones it
-## was measured for: a sign is a plate on a stick and a tombstone a slab. The
-## hedge measurement that chose seven belongs to that older shape and is not a
-## cap on a hull.
+## The bill is known: 8.30M triangles over every map against 6.07M for the slab,
+## and the worst map's emit goes from 399 ms to 531 ms. The emit is sliced under a
+## frame budget, so that buys a map arriving later rather than a dropped frame.
 ##
-## It is paid for in geometry and the bill is known: 8.30M triangles over every
-## map in the game against 6.07M for the slab, and the worst map's emit goes from
-## 399 ms to 531 ms. The emit is sliced under a frame budget, so what that buys is
-## a map arriving a little later rather than a frame being dropped.
-##
-## Every face still wears the FRONT drawing's texel at its own column, which is
-## the reviewer's call and the right one: the outline of these drawings is dark,
-## and a naive revolve would paint the whole object its own outline colour.
+## Every face still wears the FRONT drawing's texel at its own column: the outline
+## of these drawings is dark, and a naive revolve would paint the whole object its
+## own outline colour.
 func _cell_levels(
 	mask: PackedByteArray, span: Vector2i, round_plan: bool, depth: int,
 	key: String = ""
@@ -4953,7 +4766,7 @@ func _cell_levels(
 		if not key.is_empty():
 			_hulls[key] = levels
 		return levels
-	# THE ROW'S EXTENT WITHIN ONE BODY, not within the cell. See the header.
+	# The row's extent within one body, not within the cell. See the header.
 	var body := _bodies(mask, span)
 	# Per row, the leftmost and rightmost pixel of each body that reaches it.
 	var first: Dictionary = {}
@@ -4991,16 +4804,13 @@ func _cell_levels(
 var _hulls: Dictionary = {}
 
 
-## WHICH PIXELS BELONG TO THE SAME BODY, as a group number per pixel and -1 where
+## Which pixels belong to the same body, as a group number per pixel and -1 where
 ## the mask is empty.
 ##
-## EIGHT-CONNECTED, and that is the whole rule. A Game Boy artist shades with a
-## CHECKERBOARD, so a dithered bush is a chain of pixels touching only at their
-## corners: under four-connectivity it falls apart into a cloud of specks and
-## every one becomes its own little dome, which is the fault the row-wide reading
-## was protecting against. Diagonals hold the dither together and still leave two
-## things a clear pixel apart in separate bodies, which is what a cell holding two
-## drawings needs.
+## Eight-connected, and that is the whole rule: a Game Boy artist shades with a
+## checkerboard, so a dithered bush is a chain of pixels touching only at their
+## corners and four-connectivity breaks it into specks. Diagonals hold the dither
+## together and still leave two things a clear pixel apart in separate bodies.
 func _bodies(mask: PackedByteArray, span: Vector2i) -> PackedInt32Array:
 	var body := PackedInt32Array()
 	body.resize(mask.size())
@@ -5035,17 +4845,16 @@ func _bodies(mask: PackedByteArray, span: Vector2i) -> PackedInt32Array:
 	return body
 
 
-## Where an authored model stands, gathered per DRAWING rather than per tile.
+## Where an authored model stands, gathered per drawing rather than per tile.
 ##
-## Every tile of the drawing asks, and the anchor is what dedupes them: a tree is
-## sixteen tiles and is one tree. Asking from every tile rather than only from
-## the anchor is deliberate, because a draw-distance window can cut the anchor
-## off while the rest of the drawing is still in frame, and a tree that vanishes
-## because its top-left corner is out of view is worse than one built twice.
+## Every tile of the drawing asks and the anchor dedupes them. Asking from every
+## tile is deliberate: a draw-distance window can cut the anchor off while the rest
+## of the drawing is in frame, and a tree that vanishes because its top-left corner
+## is out of view is worse than one built twice.
 ##
-## The mesh is built ONCE per drawing and stamped at each spot, which is what
-## makes this cheap where carving was not: one tree of geometry for a whole
-## forest, and the engine culls the lot as one instance.
+## The mesh is built once per drawing and stamped at each spot, which is what makes
+## this cheap where carving was not: one tree of geometry for a whole forest, culled
+## as one instance.
 var _model_meshes: Dictionary = {}
 var _model_spots: Dictionary = {}
 ## Per drawing: the BODIES it holds, each a mesh key and where in the drawing's
@@ -5075,25 +4884,21 @@ func _place_model(tx: int, ty: int, atlas: RefCounted, base: float = INF) -> voi
 	for body: Array in _model_bodies_of(tiles, across, at, atlas):
 		var key: String = body[0]
 		var middle: Vector2 = body[1]
-		# WHERE THE BODY IS DRAWN, on the ground beside it, TURNED AND NUDGED off
-		# the grid it was authored on. The cartridge places its trees on a 16px
-		# lattice and one mesh stamped at every lattice point reads as an orchard:
-		# the eye finds the rows immediately, and the rows are the one thing about a
-		# forest that is an artefact of the tile map rather than of the world.
-		# A quarter turn costs nothing and keeps every voxel axis-aligned, which is
-		# what a rotation of any other angle would throw away, and it shows a
-		# different side of the same baked leaf noise. The nudge is a couple of
-		# pixels on a 16px cell, enough to break the line and too little to leave
-		# the cell. Both come off the body's own anchor, so nothing walks when the
-		# window rebuilds and two stones in one cell do not turn together.
+		# Where the body is drawn, turned and nudged off the grid it was authored
+		# on. The cartridge places its trees on a 16px lattice, and one mesh
+		# stamped at every lattice point reads as an orchard.
 		#
-		# AND THE NUDGE STOPS AT THE EDGE OF THE DRAWING'S OWN KIND. A wobble that
-		# is nothing inside a wood is a bush standing on the pavement at the edge of
-		# one, which is what the border ring does wherever a connection carries a
-		# road out of the map: the last row of the hedge nudged onto it. So an axis
-		# takes the wobble only where the drawing CARRIES ON both ways along it,
-		# which is every stamp in a forest and no stamp on its edge. A single row
-		# back on its lattice reads as nothing, because that row IS the edge.
+		# A quarter turn costs nothing and keeps every voxel axis-aligned, and it
+		# shows a different side of the same baked leaf noise. The nudge is a
+		# couple of pixels on a 16px cell, enough to break the line and too little
+		# to leave the cell. Both come off the body's own anchor, so nothing walks
+		# when the window rebuilds.
+		#
+		# The nudge stops at the edge of the drawing's own kind: a wobble that is
+		# nothing inside a wood is a bush standing on the pavement at the edge of
+		# one, which is what the border ring does where a connection carries a road
+		# out of the map. So an axis takes the wobble only where the drawing
+		# carries on both ways along it.
 		var wander := Vector2(
 			MODEL_NUDGE if _same_class_across(at, box, Vector2i.RIGHT) else 0.0,
 			MODEL_NUDGE if _same_class_across(at, box, Vector2i.DOWN) else 0.0
@@ -5129,17 +4934,15 @@ func _place_model(tx: int, ty: int, atlas: RefCounted, base: float = INF) -> voi
 		_chunk_spots.append([worn, str(start), placed])
 
 
-## Whether the drawing CARRIES ON both ways along [param step], which is the test
+## Whether the drawing carries on both ways along [param step], which is the test
 ## for "more of this" a nudge is allowed inside.
 ##
-## The tile sampled each side is the one beside the box's own first row or first
-## column, which is enough: a run of one drawing is a run of whole boxes, so
-## either the neighbouring box is that drawing or it is not.
+## The tile sampled each side is the one beside the box's first row or column,
+## which is enough: a run of one drawing is a run of whole boxes.
 ##
-## The CLASS rather than the tile id, because a hedge alternates its two rows and
-## a wood its two cells, so a tile match calls a forest's own interior an edge.
-## Past the mesh entirely counts as different: the window's own rim is an edge
-## like any other.
+## The class rather than the tile id, because a hedge alternates its two rows and a
+## wood its two cells, so a tile match calls a forest's interior an edge. Past the
+## mesh counts as different.
 func _same_class_across(at: int, box: Rect2i, step: Vector2i) -> bool:
 	var mine: int = _klass[at]
 	for side: Vector2i in [
@@ -5157,21 +4960,16 @@ func _same_class_across(at: int, box: Rect2i, step: Vector2i) -> bool:
 	return true
 
 
-## ONE MODEL PER BODY OF THE DRAWING, not one per drawing.
+## One model per body of the drawing, not one per drawing.
 ##
-## A drawing is cut over a whole cell and a cell is 16 px, which is room for more
-## than one thing: the sea rock is an 8 px stone and a cell of them draws FOUR.
-## Turning that cell as one silhouette revolves the four into a single mushroom,
-## which is exactly the fault the carved path met with Goldenrod's paired
-## bollards and answers the same way, by flooding the mask into bodies first.
+## A drawing is cut over a whole cell of 16 px, which is room for more than one
+## thing: the sea rock is an 8 px stone and a cell of them draws four. Turning that
+## cell as one silhouette revolves the four into a single mushroom, which is the
+## fault the carved path met with Goldenrod's paired bollards and answers the same
+## way, by flooding the mask into bodies first.
 ##
-## A drawing holding one thing, which is every tree and every bush, comes back as
-## one body and nothing about it moves. Specks smaller than a voxel or two are
-## dropped rather than turned: a dither's stray corner is not a thing.
-##
-## Each mesh is built ONCE and stamped at every spot, which is what makes this
-## cheap where carving was not: one tree of geometry for a whole forest, and the
-## engine culls the lot as one instance.
+## A drawing holding one thing comes back as one body and nothing moves. Specks
+## smaller than a voxel or two are dropped: a dither's stray corner is not a thing.
 func _model_bodies_of(
 	tiles: Array, across: Vector2i, at: int, atlas: RefCounted
 ) -> Array:
@@ -5183,7 +4981,7 @@ func _model_bodies_of(
 		tiles, across, atlas, _filled[at] == 1, int(_outlined[at])
 	)
 	var body: PackedInt32Array = _bodies(mask, span)
-	# A POTTED PLANT IS ONE THING AND THE FLOOD CANNOT KNOW IT. Its crown, its
+	# A potted plant is one thing and the flood cannot know it. Its crown, its
 	# stalk and its pot are drawn in three shades with an outline between them, so
 	# the flood hands back two or three bodies and each is turned on its own and
 	# stood on the FLOOR: a green mass on the lino with the pot beside it. The
@@ -5279,7 +5077,7 @@ var _ring_at := Vector3.ZERO
 var _ring_reach: float = 0.0
 
 
-## THE RING INSIDE WHICH A MODEL IS A SOLID. Past it a stamp wears the flat
+## The ring inside which a model is a solid. Past it a stamp wears the flat
 ## impostor instead: see `model.gd:impostor`.
 ##
 ## In world pixels and centred on the player rather than on the map, so what is
@@ -5293,29 +5091,24 @@ func set_detail_ring(at: Vector3, reach: float) -> void:
 
 ## The mesh one stamped drawing is worn by, at whichever level of detail this
 ## build is running at.
-## REPAINTS EVERY MODEL FOR A NEW HOUR, in place.
+## Repaints every model for a new hour, in place.
 ##
-## A model reads its colours off the atlas when it is MEASURED and carries them
-## in its own vertices, which is what makes it free to draw and what made it the
-## one thing in this view that did not follow the clock. The terrain is textured
-## FROM the sheet, so repainting the sheet moves it; a tree carries its own
-## colours and stayed in daylight until the map was rebuilt, which on a route is
-## whenever the player next walks out of a mesh window. Crossing 18:00 standing
-## still left a wood in full sun. Photographed with `--clock=22:00`.
+## A model reads its colours off the atlas when it is MEASURED and carries them in
+## its vertices, which is what makes it free to draw and what made it the one thing
+## here that did not follow the clock: the terrain is textured from the sheet, so
+## repainting the sheet moves it, while a tree stayed in daylight until the map was
+## rebuilt. Crossing 18:00 standing still left a wood in full sun.
 ##
-## So each one is measured AGAIN against the repainted sheet, and the mesh and
-## the cut-out are rewritten INTO the objects the stage already holds. Nothing is
-## re-emitted, no chunk is rebuilt and no MultiMesh has to be told: the same
-## trick `atlas.gd:build` plays with its own texture, and for the same reason.
-## SPREAD OVER FRAMES like the emit it mirrors, and for the same reason: one
-## model is about two and a half milliseconds of measuring and mesh building, and
-## a wooded route holds a handful, so doing the lot in the frame the clock turns
-## on is the largest single stall this view would have. `emit_step`'s contract,
-## down to the budget the renderer already spends on the mesh.
+## So each one is measured again against the repainted sheet, and the mesh and the
+## cut-out are rewritten into the objects the stage already holds. Nothing is
+## re-emitted, no chunk rebuilt and no MultiMesh told: the same trick
+## `atlas.gd:build` plays with its own texture.
 ##
-## A map part way through wears the new hour on some of its trees and the old on
-## the rest for a frame or two. That is the right failure: the cartridge changes
-## its own palettes on those boundaries too, and nothing about it reads as broken.
+## Spread over frames like the emit it mirrors: one model is about 2.5 ms and a
+## wooded route holds a handful, so doing the lot on the frame the clock turns is
+## the largest single stall this view would have. A map part way through wears two
+## hours for a frame or two, which is what the cartridge's own palette change looks
+## like anyway.
 func begin_recolour(atlas: RefCounted) -> void:
 	_recolour_atlas = atlas
 	_recolour_queue = PackedStringArray(_model_inputs.keys()) if atlas != null \
@@ -5417,26 +5210,21 @@ func _far_key(key: String) -> String:
 	return far
 
 
-## THE CARD ONE DRAWING WEARS, cut from a map this mesher never resolved.
+## The card one drawing wears, cut from a map this mesher never resolved.
 ##
-## Every map on the horizon is drawn out of its own tileset in its own palette,
-## so the card a far bush wears has to be cut from THAT map's sheet.
-## `world/far_foliage.gd` used to borrow the loaded map's cards instead, and the
-## arithmetic is why this exists: a quarter of the far foliage in the game is a
-## drawing the loaded map does not hold, and every one of those cells wore
-## [method far_tree] whatever it actually was. That is the fault the whole pass
-## is about, at a quarter of its old size.
+## Every map on the horizon is drawn out of its own tileset in its own palette, so
+## a far bush's card has to be cut from THAT map's sheet. `world/far_foliage.gd`
+## used to borrow the loaded map's cards, and a quarter of the far foliage in the
+## game is a drawing the loaded map does not hold.
 ##
-## A BARE INSTANCE IS THE FACTORY. Nothing here reads a resolve's arrays: the
-## drawing's tiles, its class and a sheet are the whole input, which is exactly
-## what `shape/far_drawings.gd` walks a map to hand over. What it does with them
-## is `_model_bodies_of`'s own cutting, and `tools/far_drawings.gd` checks that
+## A bare instance is the factory: nothing here reads a resolve's arrays, the
+## drawing's tiles, its class and a sheet being the whole input, which is what
+## `shape/far_drawings.gd` walks a map to hand over. `tools/far_drawings.gd` checks
 ## the two agree pixel for pixel on every drawing of every outdoor map.
 ##
-## THE LARGEST BODY stands for the drawing, because out there a drawing wears one
-## card: a cell of four sea rocks is one rock, and a plant whose crown and pot
-## flooded apart is whichever of the two holds more pixels. Empty where the
-## drawing cuts to nothing, which leaves the caller its own fallback.
+## The largest body stands for the drawing, since out there a drawing wears one
+## card: a cell of four sea rocks is one rock. Empty where the drawing cuts to
+## nothing, which leaves the caller its own fallback.
 func far_card_for(
 	tiles: Array, across: Vector2i, shape: RefCounted, named: StringName,
 	atlas: RefCounted
@@ -5448,7 +5236,7 @@ func far_card_for(
 		tiles, across, atlas, shape.is_filled(named), shape.outline_shades(named)
 	)
 	var body: PackedInt32Array = _bodies(mask, span)
-	# A POTTED PLANT IS ONE THING AND THE FLOOD CANNOT KNOW IT, `_model_bodies_of`'s
+	# A potted plant is one thing and the flood cannot know it, `_model_bodies_of`'s
 	# reason and its rule.
 	var potted: bool = shape.is_potted(named)
 	if potted:
@@ -5483,7 +5271,7 @@ func far_card_for(
 	return [Model.new().sprite(measured), cutout]
 
 
-## THE ONE DRAWING A FAR MAP FALLS BACK ON, as `[mesh, cut-out]`, or empty where
+## The one drawing a far map falls back on, as `[mesh, cut-out]`, or empty where
 ## this map turned no model at all.
 ##
 ## The BIGGEST cut-out this map built, which is the nearest thing to "the tree
@@ -5507,16 +5295,14 @@ func far_tree() -> Array:
 	return [_model_meshes[_far_key(best)], _model_cutouts[best]]
 
 
-## THE DRAWING CUT OUT OF THE SHEET: this body's own pixels, and transparency
+## The drawing cut out of the sheet: this body's own pixels, transparency
 ## everywhere else.
 ##
 ## The mask is the one the SOLID is turned from, so what is kept here is exactly
-## what is carved there: the thing without the ground it is drawn standing on.
-## That ground is the whole reason a tile cannot simply be pasted onto a quad,
-## and the mod already had to answer it to build the model at all.
+## what is carved there: the thing without the ground it is drawn standing on,
+## which is why a tile cannot simply be pasted onto a quad.
 ##
-## Cropped to the mask, so the quad's own corners are the drawing's extent and no
-## texture space is spent on the empty rows around it.
+## Cropped to the mask, so the quad's corners are the drawing's extent.
 func _cut_out(
 	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
 	atlas: RefCounted
@@ -5624,7 +5410,7 @@ func _object_texel(
 	return found
 
 
-## WHAT AN OBJECT STANDS ON, in world pixels.
+## What an object stands on, in world pixels.
 ##
 ## The floor under its own bottom-left tile, plus the `rise` a declaration gives
 ## where the thing stands on furniture rather than on the ground. THE RISE IS
@@ -5642,19 +5428,16 @@ func _object_base(object: Dictionary, start: Vector2i, across: Vector2i) -> floa
 	return base + float(object.get(&"rise", 0))
 
 
-## ONE OBJECT, STOOD UP AT ITS OWN SIZE AND POSITION.
+## One object, stood up at its own size and position.
 ##
-## The drawing is a top and a front stacked, which is the whole of what a 2.5D
-## picture of a thing is: the window's first `top` rows are the surface seen from
-## above and are laid across the object's DEPTH, and the rest are the face seen
-## face-on and are hung down its HEIGHT. Where a drawing has no top band at all,
-## which is the chair, the cap is one texel of the drawing's own colour and the
-## depth is the number a person gave.
+## The drawing is a top and a front stacked: the window's first `top` rows are the
+## surface seen from above and lie across the object's DEPTH, and the rest are the
+## face and hang down its HEIGHT. Where a drawing has no top band, which is the
+## chair, the cap is one texel of its own colour and the depth is authored.
 ##
-## Every row is cut per TILE, because a texel can only be sampled out of the tile
-## it was drawn in, and within a tile into the runs the mask actually draws. The
-## back and the two sides wear one interior texel each rather than the drawing,
-## since the drawing says nothing about them.
+## Every row is cut per tile, because a texel can only be sampled out of the tile
+## it was drawn in, and within a tile into the runs the mask draws. The back and
+## sides wear one interior texel each, since the drawing says nothing about them.
 func _emit_object(index: int, atlas: RefCounted) -> void:
 	var object: Dictionary = _objects[index][0]
 	if not bool(object.get(&"turn", false)):
@@ -5674,7 +5457,7 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 	var across: Vector2i = entry[2]
 	var front: float = entry[3]
 	var tiles: Array = []
-	# PAINTED WITH TILES OTHER THAN ITS OWN, which is what `art` is and the shop
+	# Painted with tiles other than its own, which is what `art` is and the shop
 	# counter is the whole of why it exists: the cartridge draws the counter where
 	# it can be seen and draws the shelves that stand in front of the rest of it,
 	# so six tiles of a counter that IS there carry no counter in them anywhere.
@@ -5703,7 +5486,7 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 		mask = mask.duplicate()
 		mask.fill(1)
 	var window: Rect2i = object[&"window"]
-	# AN OBJECT MAY BE TURNED RATHER THAN STOOD UP, which is the one thing this
+	# An object may be turned rather than stood up, which is the one thing this
 	# path could not do and the reason two round drawings sat unbuilt. See
 	# `_object_model`.
 	if bool(object.get(&"model", false)):
@@ -5725,7 +5508,7 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 		return
 	var top_rows: int = clampi(int(object.get(&"top", 0)), 0, window.size.y)
 	var face_rows: int = window.size.y - top_rows
-	# A DRAWING'S LAST ROWS ARE NOT ALWAYS DRAWN. The face band is authored as
+	# A drawing's last rows are not always drawn. The face band is authored as
 	# whole tiles, so its bottom row is often the shadow under the thing rather
 	# than the thing, and a face laid over the whole band stops short of the floor:
 	# the two benches stood a couple of pixels in the air with the lino visible
@@ -5743,7 +5526,7 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 	var tall: float = float(object[&"height"])
 	# ONE ground for the whole thing, taken at the drawing's own foot. Reading it
 	# per tile would tilt an object that stands across two of them.
-	# UNLESS IT STANDS ON SOMETHING. A terminal on a bench meets the bench and not
+	# Unless it stands on something. A terminal on a bench meets the bench and not
 	# the floor, and nothing in a drawing seen from above says how high the thing
 	# under it is: the object that IS the bench says. See `_object_base`.
 	var base: float = _object_base(object, start, across)
@@ -5756,7 +5539,7 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 	if _turn:
 		_turn_pivot = Vector3((left + right) * 0.5, 0.0, (front + back) * 0.5)
 
-	# THE DRAWING IS CUT INTO RECTANGLES, not into a quad per row-run, and it is
+	# The drawing is cut into rectangles, not into a quad per row-run, and it is
 	# the same greedy cut `_cutout` makes for the same reason: a rectangle of
 	# pixels maps onto a rectangle of texels exactly, so the picture is identical
 	# and the ship stops costing nine hundred quads. A rectangle may not cross a
@@ -5883,20 +5666,15 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 			)
 
 
-## THE OPEN BIN, TURNED RATHER THAN STOOD UP, AND THE ONE HOLLOW THING HERE.
+## The open bin, turned rather than stood up, and the one hollow thing here: an
+## empty cylinder with no lid, thinner at the foot than at the mouth, a light body
+## with a horizontal band round it and a darker inside.
 ##
-## The reviewer's description is the specification: an empty cylinder with no lid,
-## thinner at the foot than at the mouth, a light body with a horizontal band
-## round it, and a darker inside.
-##
-## NOTHING OF THAT IS AUTHORED BUT THE HOLLOW. The taper is the drawing's own
-## drawn width at each row, so the can narrows exactly as much as the cartridge
-## narrows it; the band is whichever of the drawing's shades covers most of the
-## row it sits on, wrapped the whole way round, which is what a band on a turned
-## thing is; and the inside is the shade the cartridge paints the open mouth with,
-## which is the one part of a bin a 2.5D drawing does show. What no drawing seen
-## from in front can state is that the mouth is open at all and that the wall is
-## thin, and those two are the whole of what this adds.
+## Nothing of that is authored but the hollow. The taper is the drawing's own width
+## at each row; the band is whichever shade covers most of the row it sits on,
+## wrapped the whole way round; and the inside is the shade the cartridge paints
+## the open mouth with. What no front view can state is that the mouth is open at
+## all and that the wall is thin, and those two are what this adds.
 ##
 ## The face rows are the body and span the height; the `top` rows are the mouth
 ## seen from above and take none of it, since a hole is not tall.
@@ -5925,7 +5703,7 @@ func _object_bin(
 	var centre := Vector2(
 		_world_x(start.x) + float(window.position.x) + wide * 0.5, front - wide * 0.5
 	)
-	# THE TAPER IS A CONE AND NOT THE ROW WIDTHS. Read row by row the drawing gives
+	# The taper is a cone and not the row widths. Read row by row the drawing gives
 	# a barrel: its outline swells where a dither happens to reach a column and its
 	# last row is the shadow under the foot, so the can came out bulging in the
 	# middle and pinched to a black point on the floor. The two ends of it are what
@@ -5937,7 +5715,7 @@ func _object_bin(
 	var foot: float = lip
 	for row: int in face_rows:
 		lip = maxf(lip, _bin_half(mask, span, window, window.position.y + top_rows + row))
-	# AND THE FOOT IS NOT THE LAST ROW AT ITS WORD. The bottom row of a cutout is
+	# And the foot is not the last row at its word. The bottom row of a cutout is
 	# where the flood has eaten furthest in, so read literally the can tapers to a
 	# point and stands on the floor as a funnel. It is the shallower of what the
 	# drawing says and what a bin is.
@@ -5960,7 +5738,7 @@ func _object_bin(
 		atlas, tiles, across, mask, span, window,
 		window.position.y + top_rows, window.position.y + window.size.y, body_index
 	)
-	# ROUND THE MIDDLE, which is the reviewer's own placement of it. Read off the
+	# Round the middle, which is the reviewer's own placement of it. Read off the
 	# drawing the line lands wherever the strongest run of the second shade happens
 	# to be, and on this can that is the row under the rim, where it is the rim.
 	@warning_ignore("integer_division")
@@ -6002,7 +5780,7 @@ func _object_bin(
 	for segment: int in BIN_SEGMENTS:
 		var d0: Vector2 = _bin_ray(float(segment) * step)
 		var d1: Vector2 = _bin_ray(float(segment + 1) * step)
-		# OUTER EDGE FIRST. Wound the other way the lip faces down, is culled from
+		# Outer edge first. Wound the other way the lip faces down, is culled from
 		# above, and the two cylinders stand side by side with a slot between them
 		# that is nothing at all: a bin with no rim, seen straight into.
 		_quad(
@@ -6022,18 +5800,17 @@ func _object_bin(
 		)
 
 
-## A ROOM WALL IS SEEN FROM INSIDE THE ROOM AND FROM NOWHERE ELSE.
+## A room wall is seen from inside the room and from nowhere else.
 ##
-## The camera turns, so which wall stands between the eye and the room changes as
-## it turns, and a room drawn as a closed box is a room with the lid on from three
-## bearings out of four. What is wanted is the near wall out of the way, and back
-## face culling already does that for nothing: give a room's walls only the faces
-## that look INTO the room and the near one disappears of its own accord at every
-## angle, with no shader, no fade, and nothing to keep in step with the rig.
+## The camera turns, so which wall stands between the eye and the room changes with
+## it, and a closed box is a room with the lid on from three bearings out of four.
+## Back face culling does it for nothing: give a room's walls only the faces that
+## look INTO the room and the near one disappears at every angle, with no shader
+## and nothing to keep in step with the rig.
 ##
 ## The two kinds of wall are the shell this file stands round the map and the one
-## the cartridge draws along the room's north edge, which `_measure_room` marks as
-## it raises. Both answer the same way; only the strip they belong to differs.
+## the cartridge draws along the north edge, which `_measure_room` marks as it
+## raises. Both answer the same way.
 func _room_faces(tx: int, ty: int, normal: Vector3) -> bool:
 	if _room.is_empty():
 		return true
@@ -6042,7 +5819,7 @@ func _room_faces(tx: int, ty: int, normal: Vector3) -> bool:
 		return true
 	if here == ROOM_DRAWN or here == ROOM_BEHIND:
 		return normal.z > 0.0
-	# THE FILL NEEDS NO RULE AND THAT IS THE POINT OF BUILDING IT AS A MASS. The
+	# The fill needs no rule and that is the point of building it as a mass. The
 	# shell is a hollow ring and has to be told which of its two sides looks into
 	# the room; every face the fill has is one, because a face is only ever built
 	# where the neighbour is LOWER and everything at the fill's own height is more
@@ -6059,26 +5836,22 @@ func _room_faces(tx: int, ty: int, normal: Vector3) -> bool:
 	return ty >= _size.y - _margin.y
 
 
-## THE STOOL, BUILT IN VOXELS OUT OF ITS OWN DRAWING.
+## The stool, built in voxels out of its own drawing.
 ##
-## A Generation II stool is drawn looked down on: the seat is a circle seen at
-## the map's own angle, the pale patch in the middle is where the light falls on
-## it, and the marks under the near edge are its legs. Every route this file has
-## for standing a drawing up reads that as a lump, carved a wafer and stood up a
-## post, and TURNED it is a smooth drum: sixteen segments of lathe, which is the
-## one thing the rest of this view is not. The world is drawn in pixels and so is
-## the furniture in it.
+## A stool is drawn looked down on: the seat is a circle at the map's own angle,
+## the pale patch is where the light falls, and the marks under the near edge are
+## its legs. Standing that drawing up carves a wafer, and turning it gives a smooth
+## drum of sixteen lathe segments, which is the one thing the rest of this view is
+## not: the world is drawn in pixels and so is the furniture in it.
 ##
-## So the seat is a DISC RASTERISED ON THE DRAWING'S OWN PIXEL LATTICE, one
-## voxel to the world pixel, and its lid is painted per voxel out of the seat's
-## own rows un-foreshortened: the drawing is a circle squashed up the page, so
-## the row is read at the voxel's distance BACK rather than at its distance down.
-## That is what carries the pale middle and the dark ring round the edge without
-## either being authored.
+## So the seat is a disc rasterised on the drawing's own pixel lattice, one voxel
+## to the world pixel, and its lid is painted per voxel out of the seat's rows
+## un-foreshortened: the drawing is a circle squashed up the page, so a row is read
+## at the voxel's distance BACK rather than down. That carries the pale middle and
+## the dark ring without either being authored.
 ##
-## WHAT IS AUTHORED is the section, and it is three numbers: a seat three pixels
-## thick, four legs five high and two thick. Nothing in a drawing seen from above
-## states any of them.
+## What is authored is the section: a seat three pixels thick, four legs five high
+## and two thick. Nothing in a drawing seen from above states any of them.
 const STOOL_SEAT: float = 3.0
 const STOOL_LEG: float = 5.0
 const STOOL_LEG_THICK: float = 2.0
@@ -6178,7 +5951,7 @@ func _object_stool(
 			var out: float = Vector2(
 				float(i) + 0.5 - radius, float(j) + 0.5 - radius
 			).length() / radius
-			# THE SEAT AS THE CARTRIDGE PAINTS IT: the dark outline round the edge,
+			# The seat as the cartridge paints it: the dark outline round the edge,
 			# the seat's own shade over most of it, and the pale patch in the
 			# middle where the light falls. Three of the drawing's own four shades,
 			# and the outline is the voxels the disc ENDS at rather than a radius,
@@ -6237,23 +6010,19 @@ func _object_stool(
 		)
 
 
-## THE COMPUTER ON ITS DESK, WHICH IS THREE THINGS AND WAS DRAWN AS ONE COLUMN.
+## The computer on its desk, which is three things drawn as one column.
 ##
-## Generation II draws it in three tile rows: the monitor's hood and screen, then
-## the desk seen face-on with the keyboard drawn overhanging its front edge. Read
-## per tile that is one `on_furniture` column three cells tall, folded upright
-## against the wall, and because its top row stands exactly where the room's own
-## wall stands it took that tile with it: the drawing is a computer STANDING
-## AGAINST the wall, and the wall behind it is a wall. Declared as an object, the
-## room repairs itself behind it (`_measure_room_behind`) and the shape below is
-## what stands in front.
+## The cartridge draws it in three tile rows: the monitor's hood and screen, then
+## the desk face-on with the keyboard overhanging its front edge. Read per tile
+## that is one `on_furniture` column three cells tall folded against the wall, and
+## since its top row stands where the room's own wall stands it took that tile with
+## it. Declared as an object, the room repairs itself behind it
+## (`_measure_room_behind`).
 ##
-## WHAT IS AUTHORED is the section: a desk box, a monitor standing on the back of
-## it, and the keyboard as a slab overhanging the front edge, which is where a
-## keyboard is and is what the cartridge draws. The drawing states the widths and
-## the two faces a person ever sees: the screen goes on the monitor's front and
-## the desk's own front row on the desk's, with the wood below it. Nothing else
-## about a box seen face-on is in the picture.
+## What is authored is the section: a desk box, a monitor on the back of it, and
+## the keyboard as a slab overhanging the front. The drawing states the widths and
+## the two faces a person sees: the screen on the monitor's front and the desk's
+## own front row on the desk's.
 const TERMINAL_DESK: float = 12.0
 const TERMINAL_DESK_DEEP: float = 12.0
 const TERMINAL_SCREEN: float = 16.0
@@ -6265,7 +6034,7 @@ const TERMINAL_KEYS_DEEP: float = 6.0
 const TERMINAL_KEYS_THICK: float = 2.0
 ## How far in from each end of the desk the keyboard sits, and the monitor.
 const TERMINAL_KEYS_INSET: float = 2.0
-## A MONITOR IS NARROWER THAN THE DESK IT STANDS ON. Drawn they are the same
+## A monitor is narrower than the desk it stands on. Drawn they are the same
 ## width, because the drawing is one column of tiles and everything in it is
 ## drawn to the cell; standing the two at one width is a cabinet rather than a
 ## desk with a computer on it. The screen is cropped by the same two pixels it is
@@ -6308,7 +6077,7 @@ func _object_terminal(
 		left + TERMINAL_SCREEN_INSET, right - TERMINAL_SCREEN_INSET,
 		screen_top, screen_back, front, case
 	)
-	# THE TWO FACES THE DRAWING ACTUALLY DRAWS, laid over the boxes tile by tile:
+	# The two faces the drawing actually draws, laid over the boxes tile by tile:
 	# a texel is only ever sampled out of the tile it was drawn in.
 	var inset: int = int(TERMINAL_SCREEN_INSET)
 	for row: int in 2:
@@ -6331,7 +6100,7 @@ func _object_terminal(
 				Vector3(x0, high, screen_front),
 				Vector3(0.0, 0.0, 1.0), atlas.uv_box(tile, cut), SHADE_SOUTH
 			)
-	# THE KEYBOARD, OVERHANGING, which is where the cartridge draws it and is what
+	# The keyboard, overhanging, which is where the cartridge draws it and is what
 	# a keyboard is for. Its lid wears the keys the desk's own row is drawn with.
 	var keys_front: float = front + TERMINAL_KEYS_OUT
 	var keys_back: float = keys_front - TERMINAL_KEYS_DEEP
@@ -6356,26 +6125,21 @@ func _object_terminal(
 		)
 
 
-## THE PARK BENCH, AND IT IS THE ONE THING HERE WITH A BACK.
+## The park bench, the one thing here with a back.
 ##
-## The reviewer read it out row by row and the rows are the model: the top tile
-## row is the back you lean on, the middle one is the seat you sit on, and the
-## bottom one is a leg at each end with the bench's own shadow between them. No
-## other object in this file is drawn that way, which is why none of them could
-## build it: `top` splits a drawing into a surface seen from above and a face
-## seen face-on, and a bench with a back is a face, a surface and a second face
-## stacked. Left to the resolver its two upper rows were a `wall` over a
-## `surface` and it stood as a slatted slab a whole cell tall.
+## The rows are the model: the top tile row is the back, the middle the seat, and
+## the bottom a leg at each end with the bench's own shadow between them. No other
+## object here is drawn that way, which is why none could build it: `top` splits a
+## drawing into a surface and a face, and a bench with a back is a face, a surface
+## and a second face stacked. Left to the resolver its upper rows were a `wall`
+## over a `surface` and it stood as a slatted slab a whole cell tall.
 ##
-## THE THREE BANDS COLOUR THEIR OWN PIECES. The back wears the texel drawn in the
+## The three bands colour their own pieces: the back wears the texel drawn in the
 ## back's rows, the seat the seat's, and the legs the darkest shade the drawing
-## holds, which is what the drawing paints them. Nothing is sampled from a row
-## that draws something else.
+## holds. Nothing is sampled from a row that draws something else.
 ##
-## WHAT IS AUTHORED IS THE DEPTH AND THE THREE HEIGHTS, because a drawing seen
-## face-on states none of them: it has no top band to give a depth and its own
-## row count is the whole bench, back included. Half a cell to the seat is the
-## same number the benches in the labs stand at.
+## The depth and the three heights are authored, because a face-on drawing states
+## none of them: it has no top band and its row count is the whole bench.
 const SEAT_HIGH: float = 8.0
 const SEAT_SLAB: float = 2.0
 const SEAT_BACK: float = 9.0
@@ -6624,18 +6388,16 @@ func _face_runs(
 	return runs
 
 
-## THE FACE, CARRIED ROUND THE OTHER THREE SIDES.
+## The face, carried round the other three sides.
 ##
-## A 2.5D drawing states one face, and what this file does with the other three by
-## default is give them a single interior texel. That is right for a chair pushed
-## under a desk and wrong for the desk: a desk stands in the middle of a room and
-## is seen from behind and from both ends, and the reviewer's own reading of the
-## drawing is that its front IS its four sides, legs included.
+## A 2.5D drawing states one face, and the other three get a single interior texel
+## by default. That is right for a chair pushed under a desk and wrong for the
+## desk, which stands in the middle of a room and is seen from behind and from both
+## ends: its front IS its four sides, legs included.
 ##
-## So the back wears the same drawing at the same width, and each END wears the
+## So the back wears the same drawing at the same width, and each end wears the
 ## strip of the drawing the object is DEEP, taken from that end: the leg drawn at
-## the left of the apron is the leg that turns the left corner. Nothing is
-## invented and nothing is stretched.
+## the left of the apron is the leg that turns the left corner.
 func _object_wrap(
 	atlas: RefCounted, tiles: Array, across: Vector2i, mask: PackedByteArray,
 	span: Vector2i, window: Rect2i, face_from: int, face_rows: int,
@@ -6648,7 +6410,7 @@ func _object_wrap(
 	var window_left: int = window.position.x
 	var window_right: int = window.position.x + window.size.x
 	var deep: int = int(roundf(front - back))
-	# A BOX'S ENDS ARE NOT ITS FRONT. A bookcase carries its shelves on the front
+	# A box's ends are not its front. A bookcase carries its shelves on the front
 	# and the back and nothing on the sides, so its ends wear one texel of the top
 	# the cartridge draws it with, and the strip-of-the-face rule that turns a
 	# desk's leg round the corner would put half a shelf there instead.
@@ -6717,30 +6479,26 @@ func _object_wrap(
 				)
 
 
-## THE ROOF OF A THING THE CARTRIDGE NEVER DRAWS FROM ABOVE.
+## The roof of a thing the cartridge never draws from above.
 ##
-## An object with no `top` band gets one texel across its whole cap, which is
-## right for a chair seen from six feet up and wrong for the tallest thing in the
-## game: the Bell Tower's cap is four walk cells of one pale plaster colour, and
-## the reviewer's answer in round thirty-four was "keep but add a texture on the
-## roof instead of plain white".
+## An object with no `top` band gets one texel across its whole cap, which is right
+## for a chair and wrong for the tallest thing in the game: the Bell Tower's cap
+## was four walk cells of one pale plaster colour.
 ##
-## There is no roof to sample. A pagoda is drawn face-on, tier over tier, and no
-## row of it is a surface seen from above, so the honest answer is not to invent
-## one but to REPEAT the drawing's own topmost rows across the depth at one world
-## pixel per drawn row. What lands up there is the top tier's own tiled roof, in
-## its own colours, running back over the cap the way a real roof's courses do.
+## There is no roof to sample, since a pagoda is drawn face-on tier over tier. So
+## the drawing's own topmost rows are repeated across the depth at one world pixel
+## per drawn row, and what lands up there is the top tier's own tiled roof running
+## back over the cap the way a real roof's courses do.
 ##
-## Laid across the depth ONCE instead, which was built and photographed first, it
-## stretches eight rows over sixty-four pixels and comes back as pale streaks with
-## the drawing's dark ridge smeared down the middle.
+## Laid across the depth once instead it stretches eight rows over sixty-four
+## pixels and comes back as pale streaks with the ridge smeared down the middle.
 func _object_cap(
 	atlas: RefCounted, tiles: Array, across: Vector2i, mask: PackedByteArray,
 	span: Vector2i, window: Rect2i, rows: int,
 	left: float, _right: float, high: float, front: float, back: float
 ) -> void:
 	var deep: float = front - back
-	# WHERE THE TOP ROWS DRAW NOTHING the cap still has to be closed, or the roof
+	# Where the top rows draw nothing the cap still has to be closed, or the roof
 	# comes back with the sky either side of the ridge cut out of it. Those runs
 	# wear the one interior texel the flat cap used to wear whole.
 	var blank: Rect2 = _object_texel(
@@ -6784,32 +6542,25 @@ func _object_cap(
 		course += float(rows)
 
 
-## ONE OBJECT, TURNED RATHER THAN STOOD UP.
+## One object, turned rather than stood up.
 ##
-## The declaration is the same one everything else in `OBJECTS` uses and what it
-## gains is a shape: a drawing that is ROUND is a body of revolution and a slab
-## of it is a card, which is the whole of what `shape/model.gd` exists for. Two
-## drawings in the game are both, and both sat unbuilt for it. The National
-## Park's tiered fountain is 18 px across THREE tiles and centred on the seam
-## between two of them, so `SPANS`, whose box starts at `tx - posmod(tx,
-## across.x)`, cannot reach it at any size; the arrangement of tile ids reaches
-## it wherever the map puts it.
+## Same declaration as everything else in `OBJECTS`, and what it gains is a shape:
+## a round drawing is a body of revolution and a slab of it is a card. The National
+## Park's fountain is 18 px across THREE tiles and centred on the seam between two
+## of them, so `SPANS`, whose box starts at `tx - posmod(tx, across.x)`, cannot
+## reach it at any size, while an arrangement of tile ids can.
 ##
-## WHAT THE OBJECT SUPPLIES THAT A PINNED CLASS CANNOT is the WINDOW. A mask is
-## cut over the arrangement's whole rectangle, and here that rectangle holds the
-## paving either side of the drawing; everything outside the window is dropped
-## before the body flood, so a neighbour cannot widen the profile the turn is
-## read from.
+## What the object supplies that a pinned class cannot is the WINDOW: the mask is
+## cut over the arrangement's whole rectangle, which here holds the paving either
+## side, and everything outside the window is dropped before the body flood, so a
+## neighbour cannot widen the profile the turn is read from.
 ##
-## HOW TALL IT STANDS IS THE DECLARATION'S, not the drawing's, and it goes in as
-## the model's own `stretch`: a turned thing is as deep as it is wide, so `depth`
-## says nothing here, and `height` against the drawn rows is exactly the ratio
-## `profile.gd:STRETCH` states for a pinned class.
+## Its height is the declaration's and goes in as the model's `stretch`: a turned
+## thing is as deep as it is wide, so `depth` says nothing here.
 ##
-## Placed where the drawing is and NOT where a lattice is: no quarter turn, no
-## nudge and no wind phase. Those exist to break the rows out of a forest of
-## stamps of one tree, and an object is one thing at one place that a person
-## named.
+## Placed where the drawing is and not on a lattice: no quarter turn, no nudge and
+## no wind phase. Those break the rows out of a forest of one stamped tree, and an
+## object is one thing at one place that a person named.
 func _object_model(
 	object: Dictionary, start: Vector2i, across: Vector2i, tiles: Array,
 	mask: PackedByteArray, span: Vector2i, window: Rect2i, atlas: RefCounted
@@ -6823,7 +6574,7 @@ func _object_model(
 			inside[py * span.x + px] = mask[py * span.x + px] \
 				if window.has_point(Vector2i(px, py)) else 0
 	body = _bodies(inside, span)
-	# ONE DRAWING, ONE BODY, where the object says so: a carving on a plinth is
+	# One drawing, one body, where the object says so: a carving on a plinth is
 	# drawn in two shades with an outline between them, so the flood hands back
 	# the figure and the plinth as two and each is turned and stood on the table
 	# separately.
@@ -6843,7 +6594,7 @@ func _object_model(
 		counts[group] = int(counts.get(group, 0)) + 1
 		var box: Rect2i = bounds.get(group, Rect2i(px, py, 1, 1))
 		bounds[group] = box.expand(Vector2i(px, py)).expand(Vector2i(px + 1, py + 1))
-	# WHAT IT STANDS ON. A carving in the middle of a table meets the table, and
+	# What it stands on. A carving in the middle of a table meets the table, and
 	# the drawing of it says nothing at all about how high that is: the object
 	# that IS the table does, and `rise` is where that is spent, exactly as it is
 	# for an object stood up rather than turned.
@@ -6875,7 +6626,7 @@ func _object_model(
 			_model_chunk(start),
 		]
 		(_model_spots[key] as Dictionary)[str(start)] = placed
-		# THE SECOND PLACE A STAMP IS WRITTEN, and it has to be recorded on the
+		# The second place a stamp is written, and it has to be recorded on the
 		# chunk exactly as `_place_model`'s is: a turned object reaches this
 		# rather than that one, and a chunk handed back without it left four maps
 		# short of a stamp apiece.
@@ -6886,23 +6637,23 @@ func _object_model(
 const HOUSE_BODY_MIN: int = 32
 
 
-## WHAT ONE PAINTING MEASURES, READ PER PIXEL COLUMN, ONE BUILDING AT A TIME.
+## What one painting measures, read per pixel column, one building at a time.
 ##
 ## Everything a house needs comes off the painting and there is no number in this
 ## file that a person has to author.
 ##
-## A DRAWING IS NOT ONE BUILDING. Its rectangle is whatever the page flooded
+## A drawing is not one building. Its rectangle is whatever the page flooded
 ## together, and on the city tilesets that is a terrace: drawing 95 holds three
 ## houses with a canal in one corner. So the painting is split first and each
 ## piece is planned on its own.
 ##
-## SPLIT ON THE WALLS, NOT ON THE WHOLE DRAWING, which is the reviewer's own
+## Split on the walls, NOT ON THE WHOLE DRAWING, which is the reviewer's own
 ## reading of that drawing and the only split that works: two houses standing
 ## side by side have their ROOFS touching, so flooding the whole painting merges
 ## them, and the gap the cartridge draws between their WALLS is what says they
 ## are two.
 ##
-## A COLUMN OF THE DRAWING IS A SECTION THROUGH THE BUILDING, read from the
+## A column of the drawing is a section through the building, read from the
 ## bottom up: wall, then the roof seen from the FRONT, then the roof seen from
 ## ABOVE. So every column carries its own wall height, its own eave and its own
 ## roof art, and a hipped end falls out of the painting with no angle in it
@@ -6923,7 +6674,7 @@ const HOUSE_BODY_MIN: int = 32
 ##                 So a row is thrown away from the bottom up while it carries
 ##                 less than HALF the wall of the row above it.
 ##
-##                 AGAINST THE ROW ABOVE, NOT AGAINST THE WIDEST ROW, and that is
+##                 Against the row above, not against the widest row, and that is
 ##                 what makes it general. Measured over the paintings that carry a
 ##                 wall: read against the widest row, seven drawings whose widest
 ##                 course is a storey above their foot come back with gaps of 9,
@@ -7011,7 +6762,7 @@ func _house_is(stroke: String, word: String) -> bool:
 	return stroke != Houses.NONE if word.is_empty() else stroke == word
 
 
-## HOW FAR ONE BUILDING'S ROOF REACHES ACROSS THE DRAWING IT STANDS IN.
+## How far one building's roof reaches across the drawing it stands in.
 ##
 ## A roof column goes to the NEAREST wall, so two houses sharing an eave split it
 ## down the middle and a free end keeps the whole overhang. [param rival] carries
@@ -7019,7 +6770,7 @@ func _house_is(stroke: String, word: String) -> bool:
 ## so that test is one comparison and the reach stays contiguous with the wall it
 ## hangs off.
 ##
-## AND IT STOPS WHERE THE ROOF FALLS A STOREY, which nearness alone cannot do. A
+## And it stops where the roof falls a storey, which nearness alone cannot do. A
 ## rectangle can hold a roof whose own wall is outside it, cut off by the
 ## rectangle's edge: Goldenrod's #99 holds the Pokemon Centre's roof and not its
 ## wall, so the nearest wall to that roof is the house next door, which swallowed
@@ -7030,13 +6781,13 @@ func _house_is(stroke: String, word: String) -> bool:
 ## A column drawing nothing there ends it, and so does a column whose section
 ## FALLS more than a row below the last one's, because that is a different roof.
 ##
-## A ROW IS THE MEASURED LIMIT AND NOT A CHOSEN ONE. Over the 1087 columns the
+## A row is the measured limit and not a chosen one. Over the 1087 columns the
 ## reach walks in the whole game, 1082 fall by one row or none: a roof's own
 ## profile is a staircase, so its section steps a row at a time however steep it
 ## is drawn. The only fall of more than a row anywhere is the column where the
 ## Pokemon Centre's roof starts, and it is 16, a whole walk cell.
 ##
-## THE FALL IS MEASURED FROM THE OUTERMOST WALL COLUMN'S OWN EAVE, which is not
+## The fall is measured from the outermost wall column's own eave, which is not
 ## the same course as the building's peak: on a hipped end the eave at the corner
 ## is a storey below the ridge, and measuring the first step from the ridge reads
 ## the overhang as a fall. The rows the run is SEARCHED for are the band as
@@ -7089,7 +6840,7 @@ func _house_run(paint: Array, rows: int, x: int, band: Vector2i) -> Vector2i:
 
 
 ## One building out of a painting, planned on its own.
-## A HOLE IN THE MIDDLE OF A ROOF IS A DRAWING THE CARTRIDGE CUT OFF.
+## A hole in the middle of a roof is a drawing the cartridge cut off.
 ##
 ## Saffron's northern house straddles the top edge of the map, so the catalogue
 ## flooded its roof out of the four rows that are on it and painted the rest
@@ -7195,7 +6946,7 @@ func _house_body(
 	var cover: Vector2i = _house_reach(
 		paint, rows, cols, rival, tops, left, right, Vector2i(top_row, peak - 1)
 	)
-	# SEEDED OUTSIDE THE BUILDING, not at its own edges: seeded at `left` and
+	# Seeded outside the building, not at its own edges: seeded at `left` and
 	# `right` the run can only ever come out the whole wall, every roof reads flat
 	# and a hipped end comes back a box.
 	var m0: int = cols
@@ -7207,7 +6958,7 @@ func _house_body(
 	if m1 < 0:
 		m0 = left
 		m1 = right
-	# A BUILDING IS NO DEEPER THAN IT IS WIDE.
+	# A building is no deeper than it is wide.
 	#
 	# Generation II draws a building face-on, so its whole height is drawn going
 	# UP the map and the fold reads that height as depth: a house eight tiles wide
@@ -7223,7 +6974,7 @@ func _house_body(
 	# than a slab. Nothing under the cap moves at all, which is most of the game:
 	# a drawing wider than it is tall keeps every row it had.
 	#
-	# THE FOOTPRINT KEEPS EVERY ROW and only the BODY is shortened, which is what
+	# The footprint keeps every row and only the BODY is shortened, which is what
 	# leaves the ground behind the tower drawn: a tile the drawing covers is
 	# handed to the floor beside it and the building stood over it, so the rows
 	# the body no longer reaches come out as the canal and the grass they are
@@ -7242,18 +6993,14 @@ func _house_body(
 		"right_rise": float(foot + 1 - tops[right]),
 		"thick": 0,
 	}
-	# HOW THICK THE SLAB IS, read at the tallest course and then anywhere.
+	# How thick the slab is, read at the tallest course and then anywhere.
 	#
-	# A ROOF CUT OFF BY THE TOP OF THE DRAWING HAS NO EAVE AT ITS OWN PEAK, and
+	# A roof cut off by the top of the drawing has no eave at its own peak, and
 	# read only there the whole building loses its slab. The Radio Tower is that:
-	# 20 tiles square, its wings' wall starting at row 32 with three rows of eave
-	# above them, and its glass column running to row 0 with nothing above it at
-	# all, so the tallest column measured no thickness and neither wing was roofed.
-	# The reviewer's answer in round twenty-two is a flat cap over the whole of it,
-	# each column at the top of its own wall, so the thickness is taken from the
-	# courses that DO draw one: the commonest eave over the building's columns,
-	# which is the same rule the atlas reads a tile's ground with, and a tie goes
-	# to the thicker since an eave is never thinner than it is drawn.
+	# its glass column runs to row 0 with nothing above it, so the tallest column
+	# measured no thickness and neither wing was roofed. So the thickness is the
+	# commonest eave over the building's columns, with a tie going to the thicker,
+	# since an eave is never thinner than it is drawn.
 	if eave_to[m0] >= 0:
 		plan["thick"] = eave_to[m0] - eave_from[m0] + 1
 	else:
@@ -7273,26 +7020,22 @@ func _house_body(
 	return plan
 
 
-## THE ROOF LINE: how high the wall stands, and so where the roof sits, at any
+## The roof line: how high the wall stands, and so where the roof sits, at any
 ## point across the building.
 ##
-## THE ROOF HAS THREE PARTS, which is the reviewer's own reading of drawing 4:
-## the middle is flat and the left and right go downwards. All three fall out of
-## the painting with no angle authored anywhere. The flat part is the run of
-## columns whose wall reaches the drawing's topmost wall row; each side is a
-## straight line from the end of that run down to the outermost wall column, and
-## it CARRIES ON past the wall at the same slope, which is what keeps the roof's
-## overhang in the plane of the slope it hangs off. Drawing 4 reads 15 px in the
-## middle, 9 at both ends and 6 px over 12 columns, which is 27 degrees.
+## The roof has three parts: the middle is flat and the left and right go down.
+## All three fall out of the painting with no angle authored. The flat part is the
+## run of columns whose wall reaches the drawing's topmost wall row; each side is a
+## straight line from the end of that run down to the outermost wall column, and it
+## carries on past the wall at the same slope, which keeps the overhang in the
+## plane of the slope it hangs off.
 ##
-## THE WALL AND THE ROOF READ THE SAME LINE, and that is not tidiness. The
-## painting's own profile is a staircase two pixels at a time; a wall standing on
-## the staircase under a roof lying on the straight line pokes through it, which
-## the reviewer warned about before it was built.
+## The wall and the roof read the same line, and that is not tidiness: the
+## painting's profile is a staircase two pixels at a time, so a wall standing on
+## the staircase under a roof lying on the straight line pokes through it.
 ##
 ## A drawing whose wall is one height throughout has its flat part spanning the
-## whole building and no sides at all, so this answers one number everywhere and
-## the house comes out the pair of boxes drawing 1 already is.
+## whole building and no sides, so this answers one number everywhere.
 func _house_rise(plan: Dictionary, x: float) -> float:
 	var peak: float = float(plan["peak_rise"])
 	var m0: float = float(plan["m0"])
@@ -7312,26 +7055,22 @@ func _house_rise(plan: Dictionary, x: float) -> float:
 	return peak + (drop - peak) * (x - m1) / (far - m1)
 
 
-## ONE VERTICAL FACE OF A HOUSE, whose top edge follows the roof line.
+## One vertical face of a house, whose top edge follows the roof line. Everything
+## standing up on a house is this shape: the wall runs from the ground to the roof
+## line and the slab from there to the line plus its thickness, both sloping
+## wherever the line does.
 ##
-## Everything standing up on a house is this shape: the wall runs from the ground
-## to the roof line, and the roof's own slab runs from there to the line plus its
-## thickness. Both slope wherever the line does.
+## [param source] is the drawing column each position wears, which is separate from
+## where the position is: the front wears its own columns once, and the other three
+## wear the front's columns with the doors taken out, repeated all the way round.
 ##
-## [param source] is the drawing COLUMN each position along the face wears, which
-## is separate from where the position IS: the front wears its own columns once
-## where the other three wear the front's columns with the doors taken out,
-## repeated all the way round, and that is the only statement a flat drawing makes
-## about the three sides it does not draw.
-##
-## [param low] and [param high] are the world heights at each position BOUNDARY,
-## so they carry one more entry than the face is long and a sloping edge comes out
-## a straight line across a run rather than a step per pixel.
+## [param low] and [param high] are the world heights at each position BOUNDARY, so
+## they carry one more entry than the face is long and a sloping edge comes out a
+## straight line rather than a step per pixel.
 ##
 ## [param origin] is the face's bottom corner on the LEFT as seen from outside and
-## [param step] the unit pixel along it, so one routine serves all four faces and
-## the winding cannot be got wrong once per face. Cut per TILE both ways, because
-## a texel is only samplable out of the tile it was drawn in.
+## [param step] the unit pixel along it, so one routine serves all four faces. Cut
+## per tile both ways, because a texel is only samplable out of its own tile.
 func _house_face(
 	tiles: Array, across: Vector2i, source: PackedInt32Array,
 	from_row: PackedInt32Array, to_row: PackedInt32Array,
@@ -7423,20 +7162,18 @@ func _house_side(
 	)
 
 
-## THE ROOF'S OWN TOP SURFACE, laid back across its depth and following the roof
+## The roof's own top surface, laid back across its depth and following the roof
 ## line across its width.
 ##
-## The rows painted `roof` are what you are looking DOWN onto: they are depth on
-## the page and no height at all, so each column's own run of them is stretched
-## over the slab rather than stacked. Stretching each column's OWN run is what
-## puts the flat middle's art on the flat middle and the sloping end's art on the
-## slope, where one run stretched over the whole roof would drag the pavement the
-## drawing's corners hold onto the roof's corners.
+## The rows painted `roof` are what you look DOWN onto: depth on the page and no
+## height, so each column's own run is stretched over the slab rather than stacked.
+## Stretching each column's own run puts the flat middle's art on the flat middle
+## and the slope's art on the slope, where one run over the whole roof would drag
+## the pavement at the drawing's corners onto the roof's corners.
 ##
-## A whole tile row of the drawing goes down as ONE band: a linear stretch inside
-## a band is the same picture as one strip per row and a fraction of the
-## triangles. [param under] turns it over into the slab's soffit, which is what a
-## low eye sees under the eave and what closes the top of the wall.
+## A whole tile row goes down as one band: a linear stretch inside a band is the
+## same picture as one strip per row at a fraction of the triangles. [param under]
+## turns it over into the soffit, which closes the top of the wall.
 func _house_cap(
 	tiles: Array, across: Vector2i, plan: Dictionary, origin_x: float,
 	base: float, thick: float, near: float, far: float, under: bool,
@@ -7498,7 +7235,7 @@ func _house_cap(
 		column += run
 
 
-## THE FLAT LID OVER A BUILDING THE PAINTING GIVES NO ROOF.
+## The flat lid over a building the painting gives no roof.
 ##
 ## The wall's own footprint, at the wall's own top line, wearing the row of art
 ## the wall ends in: a parapet or a cornice reads as a plausible flat roof and it
@@ -7541,25 +7278,21 @@ func _house_lid(
 		column += run
 
 
-## ONE PAINTED HOUSE, STOOD UP. The reviewer's own reading, taken in round
-## twenty-one over drawings 1 and 4, and every number in it is measured off the
-## painting.
+## One painted house, stood up. Every number is measured off the painting.
 ##
-## A HOUSE IS A WALL WITH A ROOF SLAB SITTING ON IT, and the slab stands out past
+## A house is a wall with a roof slab sitting on it, and the slab stands out past
 ## the wall on all four sides, which is the eave the cartridge draws overhanging
-## the facade. Where the wall is one height throughout that is two boxes, and it
-## is drawing 1. Where it is not, the roof line has a flat middle and a straight
-## slope down each side and the wall follows it, which is drawing 4's hipped end.
-## See `_house_rise`.
+## the facade. Where the wall is one height throughout that is two boxes; where it
+## is not, the roof line has a flat middle and a straight slope down each side and
+## the wall follows it, which is a hipped end. See `_house_rise`.
 ##
-## THE FRONT WALL IS A FLAT VERTICAL PICTURE AND SO IS THE DOOR. A door is not a
-## hole and not a recess: the player walks through it because walking through is
-## collision, and nothing here touches collision. It faces the same way as the
-## wall it is drawn on.
+## The front wall is a flat vertical picture and so is the door: a door is not a
+## hole and not a recess, and the player walks through it because walking through
+## is collision, which nothing here touches.
 ##
-## THE THREE SIDES A DRAWING DOES NOT DRAW wear the front wall with the door
-## columns taken out, repeated all the way round. The doors are the cartridge's
-## own warps rather than anything painted.
+## The three sides a drawing does not draw wear the front wall with the door
+## columns taken out, repeated all the way round. The doors are the cartridge's own
+## warps rather than anything painted.
 func _emit_house(index: int, atlas: RefCounted) -> void:
 	var entry: Array = _houses[index]
 	var start: Vector2i = entry[1]
@@ -7568,7 +7301,7 @@ func _emit_house(index: int, atlas: RefCounted) -> void:
 	for row: int in across.y:
 		for column: int in across.x:
 			tiles.append(_tile_at(start.x + column, start.y + row))
-	# ONE DRAWING IS SEVERAL BUILDINGS, so each is stood up on its own footprint,
+	# One drawing is several buildings, so each is stood up on its own footprint,
 	# and only the ones this placement actually claimed.
 	for plan: Dictionary in _house_chosen(entry):
 		_emit_house_body(plan, tiles, start, across, entry[3], atlas)
@@ -7612,7 +7345,7 @@ func _emit_house_body(
 	var north: float = _world_z(start.y) + float(plan["north_row"])
 	var south: float = _world_z(start.y) + float(plan["south_row"])
 
-	# THE COLUMNS THE THREE UNDRAWN SIDES WEAR: the facade with its doors removed.
+	# The columns the three undrawn sides wear: the facade with its doors removed.
 	var wrapped := PackedInt32Array()
 	for column: int in range(left, right + 1):
 		var is_door: bool = false
@@ -7661,7 +7394,7 @@ func _emit_house_body(
 		Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas
 	)
 	if thick <= 0.0:
-		# A BUILDING WITH NO ROOF PAINTED IS STILL CLOSED. Saffron's radio tower
+		# A building with no roof painted is still closed. Saffron's Radio Tower
 		# and the wing beside it are drawn face-on and the cartridge never shows
 		# their tops, so the painting has no `roof` in it and the slab machinery
 		# below has nothing to build: what stood was four walls round a hole you
@@ -7672,7 +7405,7 @@ func _emit_house_body(
 		_house_lid(tiles, across, plan, origin_x, base, south, north, atlas)
 		return
 
-	# THE ROOF STANDS OUT PAST THE WALL, by exactly what the drawing puts either
+	# The roof stands out past the wall, by exactly what the drawing puts either
 	# side of its own facade. Nothing draws the overhang front and back, so the
 	# side's own measurement is carried round; the reviewer took that in round
 	# twenty-one over the flush alternative, both built and photographed.
@@ -7730,14 +7463,12 @@ func _emit_house_body(
 
 ## One flight of stairs: four treads and four risers inside one walk cell.
 ##
-## The drawing is a picture of the flight from above, so the cell's own pixels
-## are what the treads and the risers wear, each step taking the four pixel rows
-## of the cell it stands under. Cut per TILE like everything else that samples the
-## atlas, which for a 16 px cell is two pieces across each step.
+## The drawing is the flight seen from above, so the cell's own pixels are what the
+## treads and risers wear, each step taking the four pixel rows of the cell it
+## stands under. Cut per tile, which for a 16 px cell is two pieces across a step.
 ##
-## The DEEPEST tread is not emitted: for a down flight the cell's floor is already
-## a walk cell below the ground and `_face_top` has drawn it, and the steps above
-## close over the rest of it. Emitting it again would be two coincident quads.
+## The deepest tread is not emitted: for a down flight the cell's floor is already
+## a walk cell below the ground and `_face_top` has drawn it.
 func _emit_stairs(index: int, atlas: RefCounted) -> void:
 	var entry: Array = _stairs[index]
 	var flight: Dictionary = entry[0]
@@ -7747,14 +7478,14 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 	var across: Vector2i = entry[3]
 	var steps: int = int(flight.get(&"steps", STAIR_STEPS))
 	var climb: int = int(flight.get(&"rise", STAIR_RISE))
-	# A LANDING TURNS and has no single step direction, so it is its own shape.
+	# A landing turns and has no single step direction, so it is its own shape.
 	if flight.has(&"corner"):
 		_emit_stair_corner(
 			start, base, flight[&"corner"], across, steps, climb, atlas
 		)
 		return
 	var step: Vector2i = flight[&"step"]
-	# HOW LONG THE FLIGHT IS is the pattern's own width, not a walk cell: the grand
+	# How long the flight is is the pattern's own width, not a walk cell: the grand
 	# staircase of tileset 15 is four tiles by four and climbs two levels in eight
 	# steps, and every other one in the game is two by two and climbs one in four.
 	# The tread stays four pixels either way, which is what keeps them all at 45
@@ -7800,7 +7531,7 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 					Vector3(x1, height, z0), Vector3(x0, height, z0),
 					Vector3.UP, uv, SHADE_TOP_FLAT
 				)
-			# THE FLANKS, and ONLY AN UP FLIGHT NEEDS THEM. A flight cut into the
+			# The flanks, and only an up flight needs them. A flight cut into the
 			# floor stands inside a pit whose four walls the neighbours have already
 			# skirted, full depth, exactly where these would go; drawing them again
 			# would be two coincident faces. A flight standing ON the floor has no
@@ -7844,14 +7575,13 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 					)
 
 
-## A FLIGHT THAT TURNS: the corner landing where two runs of steps meet, which is
-## the League platform's own and the only geometry of its kind in the game.
+## A flight that turns: the corner landing where two runs of steps meet, which is
+## the League platform's and the only geometry of its kind in the game.
 ##
-## The reviewer's words are the specification: "both horizontal and vertical
-## steps are meeting, so to go up you walk from bottom left to top right". So a
-## tread here is not a strip across a cell, it is an L wrapping the corner, and
-## the whole of the shape falls out of one line: how high a point stands is how
-## far it has come in the direction it has come LEAST far.
+## Both horizontal and vertical steps meet, so going up you walk from bottom left
+## to top right. A tread here is an L wrapping the corner rather than a strip
+## across a cell, and the whole shape falls out of one line: how high a point
+## stands is how far it has come in the direction it has come LEAST far.
 ##
 ##     tier = floor(min(u, v) / tread)
 ##
@@ -8104,18 +7834,16 @@ func _tile_pieces(box: Rect2i) -> Array:
 
 ## One tile's share of a standing cutout: the drawing's own pixels, standing up.
 ##
-## Not a quad per pixel and not a quad per row. The mask is cut into the largest
-## RECTANGLES that fit inside it, greedily from the top left, and each rectangle
-## is one box: a front, a back, and a face along each edge the drawing does not
-## continue past. A bush is a dozen boxes rather than sixteen rows of runs, which
-## is the difference between a town costing 107k triangles and costing a quarter
-## of that, and the picture is identical because a rectangle of pixels maps onto
-## a rectangle of texels exactly.
+## Not a quad per pixel and not per row. The mask is cut into the largest rectangles
+## that fit inside it, greedily from the top left, each one a box: a front, a back,
+## and a face along each edge the drawing does not continue past. A bush is a dozen
+## boxes rather than sixteen rows of runs, which takes a town from 107k triangles
+## to a quarter of that, and the picture is identical because a rectangle of pixels
+## maps onto a rectangle of texels exactly.
 ##
-## The cell's sixteen rows stand from the ground up, so the drawing's bottom row
-## is the ground contact and its top row is the top of the object. Counting the
-## height off the art is the whole point: a bollard came out 15 px and a sign 14,
-## and no class constant would have found either.
+## The cell's sixteen rows stand from the ground up, so the drawing's bottom row is
+## the ground contact and its top row the top of the object. Counting the height off
+## the art is the whole point: a bollard is 15 px and a sign 14.
 func _cutout(
 	tx: int, ty: int, depth: float, round_plan: bool, filled: bool, outline: int,
 	base: float, ground_tile: int, atlas: RefCounted
@@ -8142,30 +7870,21 @@ func _cutout(
 	var tile: int = _tiles[at]
 	var origin := Vector2i(tx - start.x, ty - start.y) * edge
 
-	# Where the drawing's own rows GO in three dimensions, which is the whole
+	# Where the drawing's own rows go in three dimensions, which is the whole
 	# difference between the two drawings this size.
 	#
-	# The potted plant STANDS: its four rows are leaves above a pot, so the
-	# structure is one column of art as tall as the drawing, and every tile of it
-	# sits at the depth of the foot. Giving each row its own cell's depth is what
-	# left the leaves beside the pot rather than over it.
+	# The potted plant STANDS: its four rows are leaves above a pot, so it is one
+	# column of art as tall as the drawing with every tile at the depth of the
+	# foot. Giving each row its own cell's depth left the leaves beside the pot.
 	#
 	# The long flower bed LIES: its four rows are the same bed carrying on away
-	# from the eye, so it is no taller than the small one, and each cell stands
-	# its own two rows at its own depth. Only the mask is cut over the whole
-	# thing, because a cell in the middle of the bed has no ground on its border
-	# for the flood to come in through.
+	# from the eye, so it is no taller than the small one and each cell stands its
+	# own two rows at its own depth.
 	#
-	# THROUGH `_world_z`, WHICH IS WHERE A CARVED DRAWING USED TO GO MISSING. The
-	# depth axis is world pixels, exactly as `x` is, and the cell row is a GRID
-	# row: the grid is the map inside its border ring, so a row of it stands
-	# `_margin` tiles north of the same row of the map. Multiplying the grid row
-	# out directly stood every carved cutout on an outdoor map 32 world pixels
-	# south of its own cell, and 128 wherever the ring is a stamped model. The
-	# ground under it, its skirt and every stamped model beside it all measure
-	# through `_world_z` and stayed where they belong, which is why this read as a
-	# drawing that was not being built rather than as one standing in the wrong
-	# place.
+	# Through `_world_z`: the depth axis is world pixels and the cell row is a GRID
+	# row, so a row of it stands `_margin` tiles north of the same map row.
+	# Multiplying the grid row out directly stood every carved cutout 32 world
+	# pixels south of its own cell, and 128 where the ring is a stamped model.
 	var mid: float = 0.0
 	var top: float = 0.0
 	if _lying[at] == 1:
@@ -8174,24 +7893,17 @@ func _cutout(
 	else:
 		mid = _world_z(((start.y + across.y - 1) >> 1) * CELL_TILES) \
 			+ CELL_TILES * TILE * 0.5
-		# THE DRAWING'S FOOT IS ITS OWN LOWEST TILE ROW, NOT THE BOX'S.
+		# The drawing's foot is its own lowest tile row, not the box's.
 		#
-		# A span box is snapped to the walk-cell grid, and a cell is TWO tiles. A
-		# drawing one tile tall therefore lands in the top half of its cell as
-		# often as in the bottom, and measuring its rows from the bottom of the
-		# BOX stood every one of those a whole tile up in the air. Both were
-		# built, so a field of them came out as two crops at two heights: measured
-		# over map 10,5, eight flowers standing y 10 to 18 and eight standing y 18
-		# to 26, same ground, same stem. The reviewer read it off a screenshot as
-		# one tile drawing two flowers with one higher than the other.
+		# A span box is snapped to the walk-cell grid and a cell is TWO tiles, so a
+		# drawing one tile tall lands in the top half of its cell as often as the
+		# bottom, and measuring from the bottom of the BOX stood those a whole tile
+		# in the air. A field of them came out as two crops at two heights.
 		#
-		# The foot is the last row of the box that HOLDS this class. Not the same
-		# test `_measure_cutouts` cuts a box's bottom with, and the difference is
-		# the whole of it: that one asks whether EVERY tile of the row carries the
-		# class, which is right for a drawing that fills its box and is never true
-		# of a drawing one tile wide inside a cell two tiles across. Asked that
-		# way the flower's foot came out above its own tile and the bloom sank
-		# into the ground.
+		# The foot is the last row of the box that HOLDS this class. Not the test
+		# `_measure_cutouts` cuts a box's bottom with, which asks whether EVERY
+		# tile of the row carries the class: right for a drawing that fills its box
+		# and never true of one tile inside a cell two tiles across.
 		var foot: int = across.y
 		while foot > 1 and not _row_holds(start, foot - 1, across.x, _klass[at]):
 			foot -= 1
@@ -8200,30 +7912,24 @@ func _cutout(
 	# The ground and the stretch every height in this carve is measured through.
 	# See `_carve_y`. Unlisted classes take 1.0 and stand exactly as they are
 	# drawn, which is every carved drawing in the game but the potted plants.
-	# A STEM LIFTS THE WHOLE DRAWING, which is what makes it a stem rather than a
+	# A stem lifts the whole drawing, which is what makes it a stem rather than a
 	# peg beside one. The bloom is drawn looked down on, so its own bottom row is
 	# the near edge of the petals and not a foot: standing it on the floor puts the
 	# flower head in the grass, and the post has to hold it up.
 	_carve_base = base + float(_stem_rise[at])
 	_carve_lift = _stretch[at] if _stretch[at] > 0.0 else 1.0
 
-	# AND A FLOWER BENDS IN THE SAME WEATHER THE GRASS AROUND IT DOES.
+	# A flower bends in the same weather the grass around it does. The whole of it
+	# goes to the tuft sink, and `world/wind.gd:GRASS_CODE` leans it by the square
+	# of how far up its own thing each vertex stands. No shader and no geometry is
+	# added.
 	#
-	# The whole of it goes to the tuft sink, which is what carries how far up its
-	# own thing a vertex stands, and `world/wind.gd:GRASS_CODE` then leans it by
-	# the square of that off one wave crossing the map. No shader and no geometry
-	# is added: a carved drawing routed to the sink the blades already use gets
-	# the same bend, the same gust and the same phase rule for nothing.
-	#
-	# THE FOOT IS THE GROUND AND NOT THE STEM'S HEAD. `_carve_base` is already
+	# The foot is the ground and not the stem's head: `_carve_base` is already
 	# lifted by the stem, and measuring from there would pin the post rigid and
-	# slide the bloom off the top of it; measured from `base` the whole thing
-	# hinges at the soil, which is what a stalk does. The span reaches the top of
-	# the drawing, so the bloom is the 1.0 the square puts all the travel in.
+	# slide the bloom off the top of it.
 	#
-	# ONE PHASE PER TILE, hashed exactly as `_tufts` hashes a clump, so a flower
-	# and the grass it stands in are a little out of step with each other rather
-	# than moving as one piece.
+	# One phase per tile, hashed as `_tufts` hashes a clump, so a flower and the
+	# grass it stands in are a little out of step rather than moving as one piece.
 	var swaying: bool = _swaying[at] == 1
 	if swaying:
 		_sink = SINK_TUFT
@@ -8275,36 +7981,29 @@ func _cutout(
 		_sink = SINK_TERRAIN
 
 
-## THE STEM UNDER A FLOWER, and it is the one piece of geometry in this mod that
-## the cartridge does not draw. See `profile.gd:STEMS` for why it is owed one.
+## The stem under a flower, the one piece of geometry in this mod the cartridge
+## does not draw. See `profile.gd:STEMS` for why it is owed one.
 ##
-## THE SHAPE IS DRAWN AND NOT COMPUTED. `shape/stems.gd` carries the rows a
-## person painted on `tools/stem_page.py`, one world pixel a character, and this
-## stands one box per painted pixel. A stem is a single pixel thick and it bends,
-## and neither is a number a rule could have produced.
+## The shape is drawn and not computed: `shape/stems.gd` carries the rows a person
+## painted on `tools/stem_page.py`, one world pixel a character, and this stands
+## one box per painted pixel. A stem is a single pixel thick and it bends, and
+## neither is a number a rule could have produced.
 ##
-## IT TOUCHES BOTH ENDS. The shape's row count is what `_cutout` lifted the
-## drawing by, so the top row of the stem meets the bloom's own bottom row and
-## the bottom row meets the ground: nothing floats at either end, whatever is
-## drawn between them.
+## It touches both ends: the shape's row count is what `_cutout` lifted the drawing
+## by, so the top row meets the bloom's own bottom row and the bottom row the
+## ground.
 ##
-## AND IT IS CENTRED UNDER THE BLOOM. What the page cannot know is where in its
-## own tile a given clump is drawn, so the stem's own middle is put under the
-## middle of the drawing's BOTTOM ROW, which is where the two actually meet. A
-## clump sitting off to one side of its tile is therefore held up under itself
-## rather than beside itself, and the page's own column means nothing.
+## And it is centred under the bloom. The page cannot know where in its own tile a
+## clump is drawn, so the stem's middle goes under the middle of the drawing's
+## BOTTOM ROW, which is where the two actually meet.
 ##
-## IT WEARS THE GRASS, DARK AT THE FOOT AND LIGHT AT THE HEAD. `_ground_art` has
-## already found the flat tile the flower grows out of, and `_greens` ranks that
-## tile's own greens by how light they are: the stem walks up the ramp, so it is
-## in shadow where it meets the ground and catches the light where it meets the
-## bloom, which is how the cartridge shades everything else in this file. Every
-## texel of it is one the cartridge painted on that map at that hour, and no
-## value here says what green is.
+## It wears the grass, dark at the foot and light at the head: `_ground_art` has
+## found the flat tile the flower grows out of and `_greens` ranks that tile's own
+## greens by lightness, so the stem walks up the ramp. Every texel is one the
+## cartridge painted on that map at that hour.
 ##
-## NOTHING IS DRAWN WHERE NOTHING IS OWED: a mask with no pixel in it at all is a
-## tile the flood ate, and a post standing on its own in the grass is worse than
-## the gap it was meant to close.
+## Nothing is drawn where nothing is owed: a mask with no pixel in it is a tile the
+## flood ate, and a post alone in the grass is worse than the gap.
 func _stem_post(
 	tx: int, mask: PackedByteArray, span: Vector2i, origin: Vector2i,
 	mid: float, base: float, ground_tile: int, rows: Array, atlas: RefCounted
@@ -8347,7 +8046,7 @@ func _stem_post(
 	var shift: float = _world_x(tx) + (float(from) + float(to) + 1.0) * 0.5 \
 		- (float(left) + float(right) + 1.0) * 0.5
 	var tall: int = rows.size()
-	# ROWS THAT AGREE ARE ONE BOX. A drawn stem is mostly a straight column, so
+	# Rows that agree are one box. A drawn stem is mostly a straight column, so
 	# emitting a box per painted pixel spent ten of them on what two describe.
 	# Merged only where the run AND the shade band both carry on, so the picture
 	# is the same texel for texel and the ramp keeps its steps.
@@ -8390,7 +8089,7 @@ func _stem_shade(row: int, tall: int, greens: int) -> int:
 	return clampi(int(up * float(greens)), 0, greens - 1)
 
 
-## THE GREENS A TILE IS DRAWN IN, as the pixel each is drawn at, darkest first.
+## The greens a tile is drawn in, as the pixel each is drawn at, darkest first.
 ##
 ## What is wanted is the colours of the grass, so the tile's distinct indices are
 ## ranked by how far green stands over the other two channels and everything that
@@ -8436,21 +8135,17 @@ func _greenest(tile: int, atlas: RefCounted) -> Vector2i:
 	return best
 
 
-## WHERE A CARVED ROW STANDS, given how many rows of the drawing are under it.
+## Where a carved row stands, given how many rows of the drawing are under it.
 ##
-## The ground it sits on and how far the drawing is STRETCHED getting there, both
-## set by `_cutout` for the length of one carve. Every height in a carved cutout
-## goes through here, which is what makes a class able to say it is shorter than
-## it is drawn.
+## The ground it sits on and how far the drawing is stretched getting there are
+## both set by `_cutout` for the length of one carve. Every height in a carved
+## cutout goes through here, which is what lets a class say it is shorter than it
+## is drawn.
 ##
-## HOW TALL A THING IS DRAWN IS NOT HOW TALL IT IS, and this file has now had to
-## say that four times: the long flower bed, the school chair, the round stool
-## and the potted plant. The first three were answered by giving the drawing to a
-## path that could scale it, an object or a model. A CARVED cutout could not be
-## scaled at all, so a potted plant carved over its own two cells stood the full
-## 32 px of its drawing and read as a black column as tall as the bookcase beside
-## it, which is what killed that build. `profile.gd:STRETCH` is the same table the
-## models read and it means the same thing on both paths now.
+## How tall a thing is drawn is not how tall it is, and this file has had to say
+## that four times: the long flower bed, the school chair, the round stool and the
+## potted plant. The first three were answered by giving the drawing to a path that
+## could scale it. `profile.gd:STRETCH` is the same table the models read.
 func _carve_y(rows: float) -> float:
 	return _carve_base + rows * _carve_lift
 
@@ -8492,24 +8187,18 @@ func _interior(mask: PackedByteArray, span: Vector2i, px: int, py: int) -> bool:
 	)
 
 
-## A NEIGHBOUR THAT IS DRAWN IS NOT A NEIGHBOUR THAT CLOSES THE HOLE, and that is
+## A neighbour that is drawn is not a neighbour that closes the hole, which is
 ## what made a round carve see-through.
 ##
 ## A box is emitted per run of pixels standing at ONE depth, and the edge faces
-## round it were drawn only where the pixel beyond was not drawn at all. In a
-## flat slab every pixel stands at the same depth, so that test is right and this
-## never showed. A ROUND plan gives every row its own chord, so the drawn pixel
-## above a wide row is a NARROW row standing several pixels shallower: the step
-## between the two had no face on it, and the view went in through the gap,
-## through the hollow the two boxes leave between them and out of the back of the
-## drawing. The bloom of a flower changes radius on nearly every row and was
-## therefore more hole than flower, but every round cutout in the game had it.
+## round it were drawn only where the pixel beyond was not drawn at all. In a flat
+## slab every pixel stands at the same depth, so that test is right. A round plan
+## gives every row its own chord, so the drawn pixel above a wide row is a narrow
+## row standing several pixels shallower, and the step between had no face on it.
 ##
-## So a neighbour closes the edge only where it stands AS DEEP or deeper. The
-## face is then laid across this box's whole depth rather than across the
-## difference, since the part of it that overlaps the neighbour is buried inside
-## the neighbour's own solid and cannot be seen: a few triangles rather than a
-## second set of bounds to get wrong.
+## So a neighbour closes the edge only where it stands as deep or deeper. The face
+## is laid across this box's whole depth rather than across the difference, since
+## the overlapping part is buried inside the neighbour's own solid.
 func _cutout_box(
 	tx: int, tile: int, atlas: RefCounted, mask: PackedByteArray,
 	origin: Vector2i, span: Vector2i, top: float, box: Rect2i, back: float, front: float,
@@ -8640,23 +8329,20 @@ func _cutout_edge(
 		)
 
 
-## A RAILING: a LINE seen from above, which is a fourth thing a drawing can be.
+## A railing: a line seen from above, which is a fourth thing a drawing can be.
 ##
 ## The three the pipeline knows are a surface seen from above, the face of a flat
-## thing, and a portrait of a symmetric one. Goldenrod's metal railing is none of
-## them: it is drawn from ABOVE as a thin grey line along the edge of a lawn, with
-## a round white cap where two runs meet. Stood up as a cutout, which is what the
-## full pass's `stand` fallback did to 2200 tiles of it, the runs going away from
-## the eye come out as posts and the runs going across come out as a kerb.
+## thing, and a portrait of a symmetric one. Goldenrod's metal railing is none: it
+## is drawn from above as a thin grey line along the edge of a lawn, with a round
+## white cap where two runs meet. Stood up as a cutout the runs going away come out
+## as posts and the runs going across as a kerb.
 ##
-## What the drawing states is the LINE: which way it runs, and where across the
-## tile it lies. How tall it stands it cannot state, and the reviewer gave it:
-## about half a cell, posts and a rail you see over.
+## What the drawing states is the LINE: which way it runs and where across the tile
+## it lies. Its height is authored, about half a cell.
 ##
-## So the drawing is read as a plan and the fence is built on it. The one thing
-## authored beyond the height is the post SPACING, because a rail with a post only
-## where the cartridge draws a cap is a rail floating between corners: one post
-## per walk cell, which is the lattice everything else in this world sits on.
+## So the drawing is read as a plan and the fence is built on it. The one other
+## authored thing is the post spacing, because a rail with a post only where the
+## cartridge draws a cap floats between corners: one post per walk cell.
 const RAIL_HIGH: float = 8.0
 const RAIL_TALL: float = 3.0
 const RAIL_THICK: float = 3.0
@@ -8779,21 +8465,17 @@ func _rail_extent(counts: PackedInt32Array) -> Vector2i:
 ## One box of the railing, in tile pixels across the tile and world pixels up.
 ## Every face wears the same patch of the drawing, which is the rule a cutout's
 ## faces already follow.
-## THE ROUND CAP, authored as a ball rather than turned from its drawing.
+## The round cap, authored as a ball rather than turned from its drawing.
 ##
 ## Every other model here is cut from the cartridge's own silhouette and this one
-## cannot be. THE MASK IS CUT PER WALK CELL, and the four caps inside Cianwood's
-## pen sit one to a tile in four DIFFERENT cells, so each drawing came back as an
-## 8px quadrant of a 16px square with eight empty rows at one end or the other.
-## Turned that way two of the four stood their full height and two stood three
-## pixels, which is exactly what the reviewer saw.
+## cannot be: the mask is cut per walk cell, and the four caps inside Cianwood's
+## pen sit one to a tile in four different cells, so each came back as an 8px
+## quadrant of a 16px square and two of the four stood three pixels tall.
 ##
-## So it is authored, and it is the one thing here that the cartridge does not
-## draw the shape of: a ball of the 8px the drawing IS wide, one world pixel per
-## voxel, sitting on the floor. The drawing still says everything else. Its
-## COLOUR is the tile's own shades BY BAND, darkest at the foot and lightest on
-## the crown, which is the rule `ROCK` already reads a stone by and is how a lit
-## sphere reads.
+## So it is a ball of the 8px the drawing is wide, one world pixel per voxel,
+## sitting on the floor. The drawing still says everything else: its colour is the
+## tile's shades by band, darkest at the foot and lightest on the crown, which is
+## the rule `ROCK` reads a stone by.
 const BALL_VOXELS: int = 8
 
 
@@ -8906,25 +8588,18 @@ func _tile_at(tx: int, ty: int) -> int:
 ## a bush beside a plateau that stood at zero instead would sink into the rock
 ## and take the floor around it with it.
 ##
-## A STAIRCASE IS NOT THE GROUND BESIDE ANYTHING, and it has to be refused here.
-## A flight marks its cells flat at the height its climb STARTS from, which is a
-## walk cell below the floor for a stairwell and the bottom of the run for a
-## flight, so a cutout that took it would stand at the foot of the stairs while
-## its own cell stands at the top. The League's platform is the case: the
-## banister end at its south-east corner sat beside the east flight, took that
-## flight's zero, and opened a hole in the platform floor.
+## A staircase is not the ground beside anything and has to be refused here: a
+## flight marks its cells flat at the height its climb starts from, so a cutout
+## taking it would stand at the foot of the stairs while its own cell stands at the
+## top. The League's platform is the case, where the banister end took the east
+## flight's zero and opened a hole in the platform floor.
 ##
-## AND A RAMP IS FLAT ART AND IS NOT A FLOOR EITHER, which is the same sentence
-## `_commonest_edge_floor` already carries and the same reason: a rock rim
-## resolves FLAT so its drawing can lie on the slope, and its height is the
-## height of the shelf ABOVE it rather than of any ground a thing stands on. The
-## notice board at the foot of Violet City's rock is what found it. Its drawing is
-## two tile rows, and a cutout takes its ground per TILE: the bottom row looked
-## south at the pavement and took 0, the top row looked north at the rim, took
-## 16, and the board hung a whole walk cell over its own posts. Measured rather
-## than argued, with `_ground_art` printed over the rock: every tile of the rim is
-## flat, and the only two tiles in the rectangle that read 16 with 0 under them
-## are the sign's.
+## And a ramp is flat art and is not a floor either, which is the sentence
+## `_commonest_edge_floor` carries: a rock rim resolves FLAT so its drawing can lie
+## on the slope, and its height is the shelf's rather than any ground. The notice
+## board at the foot of Violet City's rock found it: a cutout takes its ground per
+## tile, so its bottom row took the pavement's 0 and its top row the rim's 16, and
+## the board hung a whole walk cell over its own posts.
 func _ground_art(tx: int, ty: int) -> Vector2i:
 	var released: Vector2i = _house_ground.get(ty * _size.x + tx, Vector2i(-1, 0))
 	if released.x >= 0:
@@ -8932,7 +8607,7 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 	released = _floor_art.get(ty * _size.x + tx, Vector2i(-1, 0))
 	if released.x >= 0:
 		return released
-	# AND THE SECOND TILE IS ONLY REACHED OVER GROUND. The far ring exists for a
+	# And the second tile is only reached over ground. The far ring exists for a
 	# tile with nothing flat beside it at all, which is a wood or a hedge, and a
 	# RAMP is the one thing that stands between two levels: reaching past one
 	# lands on the shelf it climbs to. Cerulean's tree line is drawn along the
@@ -8956,7 +8631,7 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 				blocked[way] = true
 				continue
 			if _art[index] == ART_FLAT and _heights[index] >= 0:
-				# AND A NEIGHBOUR THAT WAS HANDED A FLOOR HANDS IT ON. A released
+				# And a neighbour that was handed a floor hands it on. A released
 				# apron row IS floor, but its own drawing is the front of the table
 				# standing over it, so a thing beside it that reads the ground per
 				# tile stood on the table's own legs: the stool south of the small
@@ -8964,7 +8639,7 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 				return _floor_art.get(
 					index, Vector2i(maxi(_tiles[index], 0), _heights[index])
 				)
-	# NOTHING FLAT WITHIN TWO TILES, which is a wood, a hedge or a border ring, and
+	# Nothing flat within two tiles, which is a wood, a hedge or a border ring, and
 	# is four in five of the game's modelled tiles. The tileset's own ground stands
 	# in, because a thing never stands on a picture of itself: this answered the
 	# drawing's own art until 2026-08-16 and every tree in the game stood on a flat
@@ -8984,7 +8659,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	if _art[at] == ART_CUTOUT or _art[at] == ART_RAILING or _art[at] == ART_FENCE \
 			or _art[at] == ART_BALL:
 		var ground: Vector2i = _ground_art(tx, ty)
-		# A RELEASED TILE STANDING IN WATER REACHES THE WATER'S OWN MATERIAL, the
+		# A released tile standing in water reaches the water's own material, the
 		# way the skirt's does: the recess is what says it is water, and a quad
 		# left on the terrain mesh is a still blue square in the middle of a
 		# rippling canal. Only the surface; the faces below are the bank.
@@ -8992,12 +8667,12 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 			_sink = SINK_WATER
 		_face_top(
 			tx, ty, float(ground.y), atlas.uv(ground.x),
-			# A TILE WEARING THE TABLE AROUND IT IS TABLE and is shaded as one, or
+			# A tile wearing the table around it is table and is shaded as one, or
 			# the square under a carving reads as a lighter patch on the top.
 			SHADE_TOP_VOLUME if _floor_art.has(at) else SHADE_TOP_FLAT
 		)
 		_sink = SINK_TERRAIN
-		# THE SIDES WEAR THE FLOOR TOO. What stands here is a model and its drawing
+		# The sides wear the floor too. What stands here is a model and its drawing
 		# is the model, so a face cut from the tile is the flat sprite smeared down
 		# the side of the ground it stands on.
 		_side(tx, ty, ground.y, _beside(tx, ty, Vector2i(0, 1)),
@@ -9033,7 +8708,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		elif _art[at] == ART_RAILING:
 			_railing(tx, ty, float(ground.y), atlas)
 		elif _art[at] == ART_FENCE:
-			# ONE FENCE PER WALK CELL, built by whichever of its tiles is emitted
+			# One fence per walk cell, built by whichever of its tiles is emitted
 			# first: the model spans the cell and the run's two arms cross at its
 			# centre, so a tile is a quarter of it and not a thing of its own.
 			var cell: int = ((ty - _margin.y) >> 1) * _size.x + ((tx - _margin.x) >> 1)
@@ -9053,7 +8728,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		_wedge(tx, ty, atlas)
 		return
 	if _ramp[at] == 1:
-		# STATED RATHER THAN INHERITED. A ramp is rock either way, but a SHORE ramp
+		# Stated rather than inherited. A ramp is rock either way, but a SHORE ramp
 		# is cut from a tile `_is_water` answers true for, and this branch returns
 		# before the line below that would have said so: without this it drew with
 		# whatever surface the previous tile happened to leave behind.
@@ -9068,7 +8743,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	# column happens to sit on.
 	@warning_ignore("integer_division")
 	var cap: int = _band_tile(tx, ty, maxi(here / BAND - 1, 0)) if is_volume else tile
-	# A RELEASED APRON ROW IS FLOOR AND WEARS THE FLOOR. Its own drawing is the
+	# A released apron row is floor and wears the floor. Its own drawing is the
 	# front of the table now standing over it: see `_settle_aprons`.
 	if _floor_art.has(at):
 		cap = int((_floor_art[at] as Vector2i).x)
@@ -9083,7 +8758,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		_sink = SINK_TERRAIN
 		return
 	var tilted: bool = _tilted(at)
-	# THE NEAR WALL KEEPS ITS TOP AND IT IS THE ONE THING OF IT LEFT. Its faces are
+	# The near wall keeps its top and it is the one thing of it left. Its faces are
 	# culled away, so what a camera to the south sees of the room's south wall is a
 	# cream band lying across the bottom of the frame with nothing under it. The
 	# top of a wall is only worth drawing on the walls that are still there.
@@ -9099,7 +8774,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		)
 	_sink = SINK_TERRAIN
 
-	# NO RISER BETWEEN TWO TILTED TILES. The tilt already carries one into the next
+	# No riser between two tilted tiles. The tilt already carries one into the next
 	# along a shared edge both of them computed the same way, so a face here would
 	# be a wall standing out of the slope. Everything else keeps its skirt: where a
 	# roof meets anything that is not one, its outermost corners are its own
@@ -9111,7 +8786,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	_roof_side(tx, ty, tilted, here, Vector2i(-1, 0), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 	if _tufted[at] == 1:
 		_tufts(tx, ty, float(here), atlas, _long_grass[at] == 1)
-	# A MODEL STANDING ON A FLOOR THAT IS STILL A FLOOR, which is tall grass's own
+	# A model standing on a floor that is still a floor, which is tall grass's own
 	# arrangement and the sea rock's: the tile keeps its quad, its surface and its
 	# sink, and the thing drawn on it stands up out of it. Every other modelled
 	# class is a cutout and reaches `_place_model` through the branch above, so
@@ -9127,34 +8802,30 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		_emit_stairs(_stair_at[at], atlas)
 
 
-## TALL GRASS: the floor keeps the drawing and the tufts stand up out of it.
+## Tall grass: the floor keeps the drawing and the tufts stand up out of it.
 ##
-## The cartridge draws the tufts on the ground and then draws them AGAIN over the
-## player as they walk through, and that overdraw is the whole statement: the
-## grass is taller than they are. Standing a slab of the same drawing up says it
-## in geometry, and because each TILE stands at its own depth the player walks
-## between the two rows of a cell exactly as the 2D view meant.
+## The cartridge draws the tufts on the ground and then again over the player
+## walking through, and that overdraw is the statement that the grass is taller
+## than they are. Standing a slab of the same drawing up says it in geometry, and
+## because each tile stands at its own depth the player walks between the two rows
+## of a cell exactly as the 2D view meant.
 ##
-## Only the tufts stand. The commonest index in the tile is the ground it is
-## drawn on, and everything else is a blade; runs of blade along a row become one
-## box each, which is what keeps a field of it affordable.
+## Only the tufts stand: the commonest index in the tile is the ground they are
+## drawn on and everything else is a blade, with runs of blade along a row becoming
+## one box each.
 ##
-## One tile is ONE piece at full height. The reference split each tile again into
-## its top and bottom halves and stood those at two depths, which cuts every
-## blade in half and reads as two stubs rather than a clump.
+## One tile is one piece at full height. The reference split each tile into halves
+## at two depths, which cuts every blade in half and reads as two stubs.
 const TUFT_THICK: float = 2.0
-## How much taller LONG grass stands than tall grass, as a multiple of the rows
-## its own drawing has.
+## How much taller long grass stands than tall grass, as a multiple of its own
+## drawing's rows.
 ##
-## The cartridge separates the two in the collision byte and draws its own tile
-## for each, and the long one is already the taller drawing: dense blades over a
-## ground line, filling its tile where tall grass is a sparse tuft. So most of
-## the difference arrives for nothing, because a tuft stands at the pixel row the
-## artist put it on. What the drawing CANNOT say is that the long grass reaches
-## past the player, and the cartridge says that elsewhere: it doubles the
-## encounter rate there, which is the same statement in the only other language
-## the hardware had. Eight pixels of art becomes fourteen, which is under a walk
-## cell and over the head of a sprite drawn sixteen tall.
+## The cartridge separates the two in the collision byte and draws its own tile for
+## each, and the long one is already the taller drawing, so most of the difference
+## arrives for nothing. What the drawing cannot say is that it reaches past the
+## player, and the cartridge says that by doubling the encounter rate there. Eight
+## pixels of art becomes fourteen, which is under a walk cell and over the head of
+## a sprite drawn sixteen tall.
 const LONG_GRASS_STRETCH: float = 1.75
 
 
@@ -9170,7 +8841,7 @@ func _tufts(
 	var middle: float = _world_z(ty) + TILE * 0.5
 	var back: float = middle - TUFT_THICK * 0.5
 	var front: float = middle + TUFT_THICK * 0.5
-	# ONE PHASE PER CLUMP, off the tile's own position, so a field bends in
+	# One phase per clump, off the tile's own position, so a field bends in
 	# patches rather than as one sheet. Per tile rather than per cell, which is
 	# what makes the two rows of a cell move against each other the way the 2D
 	# view's overdraw implies they are separate.
@@ -9179,7 +8850,7 @@ func _tufts(
 	_sink_uv2 = Vector2(0.0, phase)
 	_tuft_foot = base
 	_tuft_span = float(edge) * stretch
-	# THE BLADES ARE CUT INTO RECTANGLES, not into one box per row of pixels, and
+	# The blades are cut into rectangles, not into one box per row of pixels, and
 	# it is the same greedy cut `_cutout` makes for exactly the same reason: a
 	# blade is a VERTICAL thing, so the pixels above and below each other are the
 	# same run over and over and were being stood up as eight stacked boxes with
@@ -9196,7 +8867,7 @@ func _tufts(
 		for px: int in edge:
 			if taken[py * edge + px] == 1 or blade[py * edge + px] == 0:
 				continue
-			# DOWN THE COLUMN FIRST AND THEN ACROSS, which is the opposite of the
+			# Down the column first and then across, which is the opposite of the
 			# order a cutout is cut in and is what the drawing asks for: a blade is
 			# a vertical thing. Taking the row's run first and extending it down
 			# only while every column of it continues fragments a dithered tuft
@@ -9472,36 +9143,29 @@ func _ledge_at(tx: int, ty: int) -> int:
 	return _ledge[ty * _size.x + tx]
 
 
-## What lies past the edge of the map, in two parts: the RING, which is the
-## border block STOOD UP, and the SKIRT beyond it, which is that ring's own floor
-## carried out to the horizon.
+## What lies past the edge of the map, in two parts: the ring, which is the border
+## block stood up, and the skirt beyond it, which is that ring's own floor carried
+## out to the horizon. Eighteen maps end in a tree line, sixteen in a hedge, twenty
+## in open sea.
 ##
-## The ring is the cartridge's own answer and there was none before: eighteen maps
-## end in a tree line, sixteen in a hedge, twenty in open sea. The skirt is what
-## keeps the world from stopping dead a few cells out, which is the one thing a
-## perspective view shows that a tile page never had to answer for.
+## How deep the ring goes is decided by what it buys, and for most maps that is one
+## block: a border block that lies flat is drawn to the horizon by the skirt
+## already, and one block is enough to put the border block's own floor under it,
+## so a coast runs out as sea instead of as beach. A carved drawing stops at one
+## block for the bill: a hedge bush is about 170 triangles a tile, and a ring eight
+## blocks deep put 2.3M triangles round one town against the 246k the town costs.
 ##
-## HOW DEEP the ring goes is decided by WHAT IT BUYS, and for most maps that is
-## one block. A border block that lies FLAT, which is open ground on sixteen maps
-## and open sea on twenty, is drawn to the horizon by the skirt already: one
-## block of ring is enough to put the border block's own floor under it, and the
-## skirt finds that floor rather than the map's own edge, so a coast now runs out
-## as sea instead of as beach. A CARVED drawing stops at one block for a
-## different reason, which is the bill: a hedge bush is about 170 triangles a
-## tile, and a ring eight blocks deep of it put 2.3M triangles round one town
-## against the 246k the town itself costs, and took the game from 9.3M to 37M.
-##
-## A STAMPED MODEL is the one thing worth repeating. A tree emits no geometry at
-## all, only an instance, so eighteen maps that end in a tree line can really end
-## in a wood four blocks deep. Deeper again is free to draw and is not free to
-## RESOLVE: the ring is resolved with the map and that pass is not sliced over
-## frames, so eight blocks put the largest map's resolve from 78 ms to 186.
+## A stamped model is the one thing worth repeating, since a tree emits no geometry
+## at all, so a map ending in a tree line can really end in a wood four blocks deep.
+## Deeper is free to draw and not free to RESOLVE: the ring is resolved with the map
+## and that pass is not sliced, so eight blocks put the largest map's resolve from
+## 78 ms to 186.
 ##
 ## Both depths are a whole number of BLOCKS on purpose: the ring is the border
 ## block repeated, and a drawing anchored to the block grid inside the map has to
 ## stay anchored to it outside.
 ##
-## OUT OF DOORS ONLY. A room ends at its walls and there is nothing past them:
+## Out of doors only. A room ends at its walls and there is nothing past them:
 ## carrying anything out of a house would lay its lino across the void it is
 ## drawn against. The host is what says which a map is.
 const RING_TILES: int = 4
@@ -9510,7 +9174,7 @@ const BORDER_TILES: int = 32
 var _border: Dictionary = {}
 var _outside: bool = false
 
-## THE ROOM SHELL, which is the indoor answer to the same question the ring is
+## The room shell, which is the indoor answer to the same question the ring is
 ## the outdoor one to: what is past the edge of the map. See
 ## `profile.gd:ROOM_WALL` for what it is and `_measure_room` for how it is built.
 ##
@@ -9559,18 +9223,15 @@ func _ring_depth(source: RefCounted, shape: RefCounted) -> int:
 	return RING_TILES_MODELLED
 
 
-## THE WALL BEHIND THE FURNITURE THAT STANDS AGAINST IT.
+## The wall behind furniture that stands against it.
 ##
-## An object hands every tile it covers back to the floor. That is right for a
-## bench in the middle of a room and it opens a hole where a bookcase stands
-## against the room's north wall: the cartridge draws the bookcase OVER the wall's
-## own tiles, so with the bookcase lifted out of them there is nothing behind it
-## but lino, and the shell is a walk cell further north again.
+## An object hands every tile it covers back to the floor, which is right for a
+## bench in the middle of a room and opens a hole where a bookcase stands against
+## the north wall: the cartridge draws the bookcase OVER the wall's own tiles.
 ##
 ## So the room's first walk cell keeps a wall wherever an object took one, at the
-## shell's height and in the shell's plaster. ONLY where an object covers: a tile
-## the cartridge itself left as floor along that row is a doorway or a gap, and
-## filling those in would wall a room up.
+## shell's height and in its plaster. Only where an object covers: a tile the
+## cartridge left as floor along that row is a doorway.
 func _measure_room_behind() -> void:
 	if _room_wall.is_empty() or _object_covered.is_empty():
 		return
@@ -9605,24 +9266,19 @@ func _room_wall_tile(tx: int, ty: int) -> int:
 	return int(row[posmod(tx - _margin.x, row.size())])
 
 
-## THE ROOM SHELL, STOOD UP.
+## The room shell, stood up: two things that are one wall, the ring of plaster
+## this file puts round the map and the wall the cartridge draws along the room's
+## north edge, raised from one cell to the two the shell stands. Raised, the drawn
+## wall reads its upper bands off the ring behind it, which is why the upper course
+## comes out plaster rather than a stretched window.
 ##
-## Two things, and they are one wall: the ring of plaster this file puts round the
-## map, and the wall the cartridge draws along the room's north edge, raised from
-## the one cell it is drawn as to the two the shell stands. Raised, the drawn wall
-## reads its upper bands off the ring behind it, which is `_band_tile` doing what
-## it already does and is why the upper course comes out plaster rather than a
-## stretched window.
+## The base is the whole of the care here: a band's art is the row that far north
+## of the base, so a careless base paints the room's floor up the inside of its own
+## south wall. Down the side strips the tile's own row will do; along the south
+## strip it has to be the strip's own bottom row.
 ##
-## THE BASE IS THE WHOLE OF THE CARE HERE. A band's art is the row that far north
-## of the base, so a base chosen carelessly paints the room's floor up the inside
-## of its own south wall. Down the two side strips the tile's own row will do,
-## since every row of those columns is shell; along the south strip it has to be
-## the strip's own bottom row.
-##
-## AND A RUN ALREADY TWO CELLS TALL IS LEFT ALONE. The bookcases stand against the
-## same north wall and resolve to the same class; raised with it they would be
-## three cells of bookcase through the ceiling.
+## A run already two cells tall is left alone: the bookcases against the same wall
+## resolve to the same class and would be three cells through the ceiling.
 func _measure_room() -> void:
 	if _room_wall.is_empty():
 		return
@@ -9652,27 +9308,22 @@ func _measure_room() -> void:
 			_room[at] = ROOM_DRAWN
 
 
-## THE FILLER AN INTERIOR IS PADDED OUT TO ITS RECTANGLE WITH, STOOD UP.
+## The filler an interior is padded out to its rectangle with, stood up.
 ##
-## A Generation II interior is a room in the corner of a larger rectangle and the
-## cartridge fills the rest with a black block: map 11,21 is a 64x64 whose rooms
-## take a third of it, and 22840 tiles over 77 maps resolve to `void`. The game
-## clamps its camera to the room, so a player never sees it. This view holds a
-## whole map at once and shows it, as a black plate lying level with the floor
-## with the rooms furnished on top of it.
+## A Generation II interior is a room in the corner of a larger rectangle with the
+## rest filled by a black block: 22840 tiles over 77 maps resolve to `void`. The
+## game clamps its camera to the room so a player never sees it; this view holds a
+## whole map at once and showed it as a black plate level with the floor.
 ##
-## A ROOM IS CUT OUT OF A MASS, so the filler is that mass: the same two cells the
-## shell stands, in the same plaster, which closes the outside of every wall and
-## gives the rooms whose cartridge wall runs along one edge only a face on the
-## other three. `_room_faces` says why nothing has to be culled.
+## A room is cut out of a mass, so the filler is that mass: the same two cells the
+## shell stands, in the same plaster, which closes the outside of every wall.
+## `_room_faces` says why nothing has to be culled.
 ##
-## ONLY THE FIELD THAT REACHES THE MAP'S OWN EDGE. A void region enclosed by floor
-## is a hole in that floor, and standing one up puts a plaster pillar in the
-## middle of a room; the padding is the region that runs out to the rectangle.
+## Only the field that reaches the map's own edge: a void region enclosed by floor
+## is a hole in that floor, and standing one up puts a pillar in a room.
 ##
-## ONLY INDOORS, through `_room_wall`, which `resolve` leaves empty for an outside
-## map and for a tileset the survey has named no blank wall on. Outdoor void is
-## the ground past the border ring and stays exactly where `_settle_void` put it.
+## Only indoors, through `_room_wall`, which `resolve` leaves empty outdoors and
+## for a tileset the survey has named no blank wall on.
 func _measure_room_fill() -> void:
 	if _room_wall.is_empty():
 		return
@@ -9736,7 +9387,7 @@ func _measure_room_fill() -> void:
 
 ## The floor carried out past the ring, as one flat quad per tile WITH SIDES.
 ##
-## A SKIRT FLOOR IS READ PER COLUMN, `_skirt_floor` scanning inward from each
+## A skirt floor is read per column, `_skirt_floor` scanning inward from each
 ## edge tile for something flat, so two columns of the same edge answer 0 and 16
 ## wherever the map's own perimeter steps; and the ring the skirt is laid against
 ## steps the same way. Emitted as a top quad alone that is not a surface but a
@@ -9851,20 +9502,15 @@ func _skirt_side(
 var _skirt_fence_done: Dictionary = {}
 
 
-## A FENCE RUNS PAST THE MAP EDGE, because the drawing does.
+## A fence runs past the map edge, because the drawing does.
 ##
-## The cartridge's border block carries the map's own art out, so the ring keeps
-## four more tiles of a fence and then it stops dead in open ground: a run walking
-## north out of Cerulean ends in mid air with the path carrying on under it. The
-## floor is already carried the whole depth of the skirt and this is the same
-## claim about the thing standing on it.
+## The border block carries the map's art out, so the ring keeps four more tiles of
+## fence and then stops dead in open ground. The floor is already carried the whole
+## depth of the skirt and this is the same claim about the thing standing on it.
 ##
-## ONLY THE ARM THAT POINTS OUT. A fence cell holds two arms and the one running
-## ALONG the edge is a fact about the tiles beside it, none of which is out here;
-## carrying it lays a rail across open ground at right angles to the run. So the
-## skirt takes the perpendicular arm alone, and only where the edge cell has it,
-## which is what distinguishes a fence walking out of the map from one lying
-## along its boundary.
+## Only the arm that points out. A fence cell holds two arms, and the one running
+## ALONG the edge is a fact about the tiles beside it, none of which is out here,
+## so carrying it lays a rail across open ground at right angles to the run.
 func _skirt_fence(
 	tx: int, ty: int, edge: Vector2i, ground: float, atlas: RefCounted
 ) -> void:
@@ -9889,26 +9535,21 @@ func _skirt_fence(
 
 ## The tile id and height of the floor at one grid edge position, as a Vector2i.
 ##
-## THE RING'S OWN FLOOR, and only the ring's. Past the map the ground is the
-## border block's, so the search is the depth of the ring and no further: on the
-## twenty sea maps and the sixteen open ones that is the border block's own tile
-## in every column, and a shoreline still carries the water out rather than the
-## beach because the water is what the border block draws.
+## The ring's own floor, and only the ring's. Past the map the ground is the
+## border block's, so the search is the depth of the ring and no further: a
+## shoreline carries the water out rather than the beach, because the water is what
+## the border block draws.
 ##
-## A ring with no floor anywhere in it, which is a hedge or a tree line, falls
-## back to the map's own edge ONCE for the whole map rather than per column.
-## Per column was the older rule and it is wrong here: a town whose path meets
-## its boundary laid an orange runway to the horizon, and a town whose north side
-## is eight tiles of building drew nothing at all and opened a hole in the ground
-## plane. A wrong patch of grass reads as grass; a hole reads as a hole.
+## A ring with no floor anywhere in it, which is a hedge or a tree line, falls back
+## to the map's own edge once for the whole map rather than per column. Per column
+## was the older rule and is wrong: a town whose path meets its boundary laid an
+## orange runway to the horizon, and a town whose north side is eight tiles of
+## building drew nothing and opened a hole in the ground plane.
 ##
-## BUT THE COLUMN BESIDE IT IS ASKED FIRST, and it is asked because the whole-map
-## answer is a fact about the WHOLE perimeter and is used at ONE point on it.
-## Cerulean's is water, its sea being most of its boundary, and the two columns a
-## fence runs north out of hold no floor in any of their four ring rows: two
-## strips of sea eight pixels below the grass ran twenty-eight tiles out to the
-## horizon on either side of a path. One tile east is the same path, and along
-## the edge is where a skirt column's own floor is.
+## But the column beside it is asked first, because the whole-map answer is a fact
+## about the whole perimeter used at one point on it. Cerulean's is water, and the
+## two columns a fence runs north out of hold no floor in any of their ring rows,
+## so two strips of sea ran twenty-eight tiles out either side of a path.
 const SKIRT_ALONG: int = 8
 
 
@@ -9964,7 +9605,7 @@ func _commonest_edge_floor() -> Vector2i:
 					and tx != box.end.x - 1 and ty != box.end.y - 1:
 				continue
 			var index: int = ty * _size.x + tx
-			# A RAMP IS FLAT ART AND IS NOT A FLOOR. The rim of a rock shelf is
+			# A ramp is flat art and is not a floor. The rim of a rock shelf is
 			# resolved flat so its drawing can lie on the slope, and counting it
 			# here paved the whole outside of Ecruteak in cliff face.
 			if _art[index] != ART_FLAT or _tiles[index] < 0 or _ramp[index] == 1:
@@ -9996,16 +9637,14 @@ func _ground_tile_at(at: int) -> int:
 	return int(_ground_by_id.get(_klass[at], -1))
 
 
-## A FACADE TILE THAT DOES NOT DRAW ONLY FACADE, narrowed to the part that is.
+## A facade tile that does not draw only facade, narrowed to the part that is.
 ##
-## The wall's own box shrinks off the edges the drawing says are ground, and the
-## strip that leaves is floor, drawn at whatever the neighbour beside it stands
-## at and wearing that neighbour's art. `profile.gd:FACADE_MARGIN` says why.
+## The wall's box shrinks off the edges the drawing says are ground, and the strip
+## that leaves is floor, drawn at whatever the neighbour stands at and wearing its
+## art. `profile.gd:FACADE_MARGIN` says why.
 ##
-## Everything else about the tile is unchanged: the box still folds the same
-## drawing, still skirts to the same neighbours and still caps at the same
-## height, so this is one narrower box and one quad of floor rather than a new
-## kind of thing.
+## Everything else is unchanged: one narrower box and one quad of floor rather than
+## a new kind of thing.
 func _emit_margined(
 	tx: int, ty: int, here: int, cap: int, left: int, right: int,
 	atlas: RefCounted
@@ -10136,24 +9775,21 @@ func _roof_side(
 	_side(tx, ty, here, _beside(tx, ty, step), normal, shade, atlas)
 
 
-## A ROOF IS TILTED, NOT STEPPED, and the whole of it is one rule at the corners.
+## A roof is tilted, not stepped, and the whole of it is one rule at the corners.
 ##
 ## `_roof_row` drops a roof tile a band per `ROOF_DROP`, which is what the drawing
-## says; laid out as one flat quad per tile that reads as a ziggurat, a band at a
-## time, where the cartridge draws a slope. So a roof tile's top is a quad with
-## FOUR corner heights, and each corner takes the mean of the roof tiles that
-## touch it.
+## says; laid out as one flat quad per tile that reads as a ziggurat. So a roof
+## tile's top is a quad with four corner heights, each the mean of the roof tiles
+## touching it.
 ##
-## That is continuous BY CONSTRUCTION and it is why nothing here can open a hole:
-## two roof tiles sharing an edge compute both of its corners from the same set
-## of neighbours, so their surfaces meet exactly whatever their nominal heights
-## are. It is also why the roof's outer edge stays where it was: past the last
-## roof tile there is nothing to average with, so the outermost corners keep the
-## tile's own height and the wall under them still reaches it.
+## That is continuous by construction: two roof tiles sharing an edge compute both
+## its corners from the same neighbours, so their surfaces meet exactly. It is also
+## why the outer edge stays put: past the last roof tile there is nothing to average
+## with, so the outermost corners keep the tile's own height.
 ##
 ## `_heights` is left at the nominal band. What stands on a roof, what the battle
-## traces its sight lines through and what the skirt below it reaches are all
-## questions about the storey, not about the slope across one tile.
+## traces its sight lines through and what the skirt reaches are questions about the
+## storey, not about the slope across one tile.
 func _roof_corner(tx: int, ty: int, dx: int, dy: int) -> float:
 	var total: float = 0.0
 	var found: int = 0
@@ -10184,7 +9820,7 @@ func _face_roof(tx: int, ty: int, uv: Rect2, shade: Color) -> void:
 	var b := Vector3(x1, _roof_corner(tx, ty, 1, 1), z1)
 	var c := Vector3(x1, _roof_corner(tx, ty, 1, -1), z0)
 	var d := Vector3(x0, _roof_corner(tx, ty, -1, -1), z0)
-	# THE NORMAL IS THE TILT'S, not UP. A gable's one band over one tile is a
+	# The normal is the tilt's, not UP. A gable's one band over one tile is a
 	# slope of five degrees and nobody could see the difference; a great roof
 	# falling twelve tiles from its ridge is a real 45 degree plane, and lighting
 	# it as though it were the floor makes its two pitches the same brightness at
@@ -10195,7 +9831,7 @@ func _face_roof(tx: int, ty: int, uv: Rect2, shade: Color) -> void:
 	_quad(a, b, c, d, normal, uv, shade)
 
 
-## ONE TILE OF THE ROCK RIM, as the ramp `_measure_ramps` measured.
+## One tile of the rock rim, as the ramp `_measure_ramps` measured.
 ##
 ## Its top is a quad on four corner heights rather than one, wearing the tile's
 ## own drawing: the cartridge draws the rim as the rock's face and that face is
@@ -10241,7 +9877,7 @@ func _ramp_side(
 	normal: Vector3, shade: Color, uv: Rect2
 ) -> void:
 	var to := Vector2i(tx + step.x, ty + step.y)
-	# A RIM ON THE GRID'S OWN EDGE FACES THE SKIRT, and the skirt is out of the
+	# A rim on the grid's own edge faces the skirt, and the skirt is out of the
 	# grid. Refusing the face there is what left a line of sky the length of every
 	# map that carries its border block raised: the ring's outermost row is rim,
 	# its top slopes down to the boundary, and nothing stood under that slope.
@@ -10308,7 +9944,7 @@ func _side(
 		return
 	if not _room_faces(tx, ty, normal):
 		return
-	# A ROOM WALL IS ONLY EVER SEEN FROM INSIDE, so the shading that tells a box's
+	# A room wall is only ever seen from inside, so the shading that tells a box's
 	# four sides apart has nothing to tell apart here: what it does instead is
 	# darken three walls of every room to the north face's own 0.64 and leave the
 	# fourth bright, which reads as three walls in shadow in a room with no sun in
@@ -10363,15 +9999,14 @@ func _side(
 ## far side of things, which reads as a world of floating slabs.
 ## One point of a turned object, rotated a quarter about its own footprint.
 ##
-## AN OBJECT IS DRAWN FACING THE EYE and nearly every one of them stands that
-## way, because a 2.5D drawing is a portrait taken from where the camera is. A
-## shelf against a side wall is not: the cartridge draws its END, and stood up
-## face-on it is a shelf turned inside the wall it stands against. The turn is a
-## quarter about the middle of the drawing's own footprint, so it needs a
-## footprint as wide as it is deep and every object claiming it has one.
+## An object is drawn facing the eye and nearly every one stands that way, because
+## a 2.5D drawing is a portrait taken from where the camera is. A shelf against a
+## side wall is not: the cartridge draws its END, and stood up face-on it is a
+## shelf turned inside the wall it stands against. The turn is a quarter about the
+## middle of the drawing's own footprint, so it needs a footprint as wide as it is
+## deep and every object claiming it has one.
 ##
-## Faces keep the shade the emitter gave them. A room has no sun in it, so the
-## front face's shade is the front face's shade whichever way it ends up looking.
+## Faces keep the shade the emitter gave them: a room has no sun in it.
 func _turned(point: Vector3) -> Vector3:
 	return Vector3(
 		_turn_pivot.x - (point.z - _turn_pivot.z),
@@ -10415,7 +10050,7 @@ func _tri(
 
 
 func _push(vertex: Vector3, normal: Vector3, uv: Vector2, shade: Color) -> void:
-	# THE TERRAIN CASE IS TESTED FIRST AND RETURNS, and that is not a style
+	# The terrain case is tested first and returns, and that is not a style
 	# choice: this runs once per VERTEX, about 25 million times over the game, and
 	# terrain is 94% of them. Written as a `match` with the two rare sinks first it
 	# cost 3.4 s of the emit, measured over every map with `tools/cost.gd`, for a
@@ -10431,7 +10066,7 @@ func _push(vertex: Vector3, normal: Vector3, uv: Vector2, shade: Color) -> void:
 		_tuft_normals.push_back(normal)
 		_tuft_uvs.push_back(uv)
 		_tuft_colors.push_back(shade)
-		# HOW FAR UP ITS OWN CLUMP THIS VERTEX STANDS, read off the vertex rather
+		# How far up its own clump this vertex stands, read off the vertex rather
 		# than handed down per quad. The sway is squared through this, so a box
 		# spanning several rows of the drawing has to lean by MORE at its top than
 		# at its foot; one value for the whole box pins the two together and a

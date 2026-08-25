@@ -8,11 +8,10 @@ extends RefCounted
 ## only ever change how a tile LOOKS in this view: collision, warps, triggers
 ## and scripts read the same data they always did.
 ##
-## Most of the world needs no entry. `tile_shape.gd` resolves a tile from the
-## cell's own collision permission, which in Generation II is real per-cell data
-## rather than a walkable-tile list. Pin a tile here when that reads the drawing
-## wrong: a ledge lip that should lie low, a roof that should wear its art on
-## top, a canopy that should not stand as a full 16px wall.
+## Most of the world needs no entry: `tile_shape.gd` resolves a tile from the
+## cell's own collision permission, which Generation II stores per cell. Pin a
+## tile here when that reads the drawing wrong: a ledge lip that should lie low, a
+## roof that should wear its art on top, a canopy that should not stand a wall.
 ##
 ## Pins are per tileset number, because a tile id means nothing without one.
 ## Surveying a tileset is the procedure in `../README.md`.
@@ -28,18 +27,17 @@ const HEIGHTS: Dictionary = {
 	&"ground": 0,
 	# Water recesses so a shoreline shows a lip rather than a painted seam.
 	&"water": -8,
-	# THE SEA ROCK LIES AT THE WATER'S OWN LEVEL, because it lies IN the water. It
-	# is the one class that is flat terrain and a model at once: the tile stays
-	# water, ripples and takes the shore rule, and the pebbles stand up out of it.
+	# A sea rock lies at the water's own level, because it lies IN the water: the
+	# tile stays water, ripples and takes the shore rule, and the stone stands up
+	# out of it.
 	&"sea_rock": -8,
 	&"void": 0,
 	&"ledge": 8,
 	&"wall": 16,
 	&"fence": 8,
-	# A KERB: masonry drawn one course tall and standing half a cell, which is
-	# what rings a flower bed and what holds the water in a fountain. `wall` is a
-	# whole cell and `ledge` is a lip you step down off; this is neither, and the
-	# two drawings that wanted it were each coming out as something else entirely.
+	# A kerb: masonry one course tall standing half a cell, which rings a flower
+	# bed and holds the water in a fountain. `wall` is a whole cell and `ledge` is
+	# a lip you step down off; this is neither.
 	&"kerb": 8,
 	&"sign": 16,
 	&"roof": 24,
@@ -58,10 +56,9 @@ const HEIGHTS: Dictionary = {
 	&"facade": 16,
 	&"roof_edge": 24,
 	&"roof_corner": 24,
-	# A cutout carries no height of its own: how tall it stands is COUNTED off the
-	# drawing, because the drawing is what the reviewer measured. A concrete
-	# bollard is 15 px of art on a 16 px cell and a wooden sign is 14, and no
-	# class constant would have found either.
+	# A cutout carries no height of its own: it is counted off the drawing. A
+	# concrete bollard is 15 px of art on a 16 px cell and a wooden sign is 14,
+	# and no class constant would find either.
 	&"post": 0,
 	&"sign_post": 0,
 	&"notice_case": 0,
@@ -69,28 +66,26 @@ const HEIGHTS: Dictionary = {
 	&"sapling": 0,
 	&"tombstone": 0,
 	&"flowers": 0,
-	# THE MEADOW FLOWER counts its height off its own drawing like every other
-	# cutout, which is one tile: ankle height, and the full pass's own reading of
-	# all three tilesets that draw it.
+	# The meadow flower counts its height off its own drawing like every other
+	# cutout, which is one tile: ankle height.
 	&"flower": 0,
 	&"planter": 0,
 	&"palm": 0,
 	&"statue": 0,
-	# A STATUE ON A PILLAR carries no height of its own either: how tall it stands
-	# is counted off its own drawing, which is two cells of it.
+	# A statue on a pillar counts its height off its own drawing, two cells of it.
 	&"statue_pillar": 0,
 	&"idol": 0,
 	&"stand": 0,
 	&"lie": 0,
-	# A STOOL is a turned model and counts its own height off its own drawing,
-	# exactly as a boulder does.
+	# A stool is a turned model and counts its height off its drawing, as a
+	# boulder does.
 	&"stool": 0,
 	&"canopy": 0,
 	&"tree": 0,
 	&"boulder": 0,
-	# A RAILING stands half a cell, which is the reviewer's own answer: a fence
-	# with posts and a rail you see over. Its drawing is a line seen from above
-	# and states no height at all, so this is the whole of what says how tall.
+	# A railing stands half a cell: a fence with posts and a rail you see over.
+	# Its drawing is a line seen from above and states no height, so this is the
+	# whole of what says how tall.
 	&"railing": 8,
 	# A raised flat surface seen from above: a counter, a table top, a stool. One
 	# cell, because that is what a counter is in a game built on 16px cells.
@@ -98,10 +93,9 @@ const HEIGHTS: Dictionary = {
 	# A thing standing ON furniture carries no height of its own either: how tall
 	# it is comes from its own rows and where it starts comes from the table.
 	&"on_furniture": 0,
-	# Stairs. Flat for now, and the class exists so a pass can RECORD them: a
-	# step built as a lip in the middle of a walkable path is worse than a step
-	# built flat, and the ramp needs the ground on both sides of it to have a
-	# height first, which is open work.
+	# Stairs, flat for now: the class exists so a pass can record them. A step
+	# built as a lip in a walkable path is worse than one built flat, and a ramp
+	# needs the ground either side to have a height first.
 	&"stairs": 0,
 	# Tall grass is FLOOR. It is walked through, not over, and what stands up in
 	# it is tufts: see TUFTS below.
@@ -135,7 +129,7 @@ const DEPTHS: Dictionary = {
 	&"planter": 12,
 	&"palm": 12,
 	&"statue": 10,
-	# A STATUE ON A PILLAR STANDS ON A WHOLE CELL, which is the reviewer's own
+	# A statue on a pillar stands on a whole cell, which is the reviewer's own
 	# measurement of it: "in a 3D world the statue would be 1 cell on the ground
 	# and 2 cell high". It is round, so each row's own drawn run is its diameter
 	# and this only says the cap is the cell rather than two thirds of it.
@@ -155,59 +149,35 @@ const DEPTHS: Dictionary = {
 	&"stool": 16,
 }
 
-## The cutouts that are ROUND IN PLAN rather than flat slabs.
+## The cutouts that are round in plan rather than flat slabs.
 ##
-## A bollard, a bush and a tree are round things and a slab of them reads as a
-## sheet of paper from above. The plan is an ellipse across each row's own run,
-## and every face still wears the FRONT drawing's texel at its own column: the
-## reviewer's call, and the right one, because the drawing's outline is dark and
-## a naive revolve would paint the whole object its own outline colour.
-## WHICH CLASSES ARE HELD UP ON A STEM. The shape itself is DRAWN rather than
-## declared, and `shape/stems.gd` is where it lands: this only says which classes
-## go and look for one.
-##
-## Everything else carved here is drawn standing on the ground, so its own bottom
-## row IS its foot. A flower is drawn LOOKED DOWN ON: the cartridge draws the
-## bloom and nothing else, because from directly above a stem is hidden under the
-## petals it holds up. Carved literally the bloom therefore hangs in the air with
-## the grass showing under it, and stood on the floor the head sits in the grass.
-##
-## SO ONE IS BUILT, and it is the only thing in this file put into the world that
-## the cartridge does not draw. That is why it is DRAWN BY A PERSON on
-## `tools/stem_page.py` rather than authored as a thickness here: a stem is thin,
-## it bends, and no number says either.
+## A bollard, a bush and a tree are round, and a slab of one reads as paper from
+## above. The plan is an ellipse across each row's run, and every face still wears
+## the FRONT drawing's texel at its own column: the drawing's outline is dark, and
+## a naive revolve would paint the whole object its outline colour.
 const STEMS: Dictionary = {
 	&"flower": true,
 }
 
-## THE FLOOR A STANDING DRAWING IS PAINTED WITH where there is none beside it,
-## per tileset and per CLASS.
+## The floor a standing drawing is painted with where there is none beside it,
+## per tileset and per class.
 ##
 ## `mesher.gd:_ground_art` asks the two tiles around a cutout what it stands on,
-## and inside a wood, a hedge or a border ring the answer is nothing: no tile
-## within two steps in any direction is flat ground. It used to fall back to the
-## tile's OWN drawing, so every tree in the game stood on a flat picture of a
-## tree, which is 187171 of the game's 231633 modelled tiles.
+## and inside a wood, a hedge or a border ring nothing within two steps is flat
+## ground. It used to fall back to the tile's own drawing, so every tree in the
+## game stood on a flat picture of a tree: 187171 of 231633 modelled tiles.
 ##
-## WHAT A DRAWING STANDS NEXT TO, counted over every map wearing the tileset.
-## Three cheaper rules were built and each was refused by its own picture: the
-## nearest flat ground anywhere spread the town square into the wood and paved
-## New Bark's forest, the map's commonest perimeter floor is water on any map
-## with a shoreline and flooded it, and the nearest ground BY COLOUR is unstable,
-## giving the same tree four different floors on four maps of one tileset.
-## Counting per MAP fails for the same reason the first does: New Bark's ring
-## hugs its square, so pavement wins 145 to 85 there and grass wins 4599 to 2307
-## over tileset 1 entire, where the routes outnumber the towns.
+## This is what a drawing stands next to, counted over every map wearing the
+## tileset. Three cheaper rules were each refused by a picture: nearest flat
+## ground anywhere paved New Bark's forest; the map's commonest perimeter floor is
+## water on any map with a shoreline; and nearest ground by colour is unstable,
+## giving one tree four floors over four maps.
 ##
-## PER CLASS, because one tileset carries both a wood and a quay. Tileset 3's
-## bushes stand on grass and its bollards stand on pavement, and one answer for
-## the whole tileset puts one of the two on the other's floor.
+## Per class, because one tileset carries both a wood and a quay: tileset 3's
+## bushes stand on grass and its bollards on pavement.
 ##
-## GENERATED by `tools/ground.gd` and never transcribed. Against Crystal, as
-## every other tileset-keyed table in this file is.
-##
-## A tileset or a class with no entry keeps the drawing's own art, which is what
-## anything with ground beside it never needs.
+## Generated by `tools/ground.gd` against Crystal, never transcribed. A tileset or
+## class with no entry keeps the drawing's own art.
 const GROUND: Dictionary = {
 	1: {
 		&"tree": 5,  # 4517 of 9920
@@ -277,20 +247,17 @@ const GROUND: Dictionary = {
 	},
 }
 
-## THE CAVE MOUND: the hillside a cave entrance is cut into, per tileset.
+## The cave mound: the hillside a cave entrance is cut into, per tileset.
 ##
-## `door` is the drawing of the entrance itself and `body` is the rock the mound
-## is made of. The mound is the run of `body` tiles CONNECTED TO A DOOR, and the
-## door is what makes that safe: tileset 3 draws its mountains out of tiles 1, 17,
-## 36, 39 and 55, and those are 15150 tiles over 32 maps, the whole vocabulary of
-## every cliff and ledge in Johto. The four door tiles are 10 placements on 9
-## maps and they are only ever a cave mouth, so seeding from them raises the nine
-## hillsides that have one and touches no ledge anywhere else.
+## `door` is the entrance drawing and `body` the rock the mound is made of. The
+## mound is the run of `body` tiles CONNECTED TO A DOOR, and the door is what
+## makes that safe: tileset 3's mountain tiles are 15150 tiles over 32 maps, the
+## whole vocabulary of every cliff and ledge in Johto, while its four door tiles
+## are 10 placements on 9 maps and are only ever a cave mouth.
 ##
-## The reviewer measured Cianwood's at 12 tiles by 8 and two walk cells high with
-## every side at 45 degrees, the door included. Nothing here says 12 by 8: the
-## footprint is whatever the drawing connects, and the slope is a fact about the
-## height, so the same rule gives each of the nine its own outline.
+## Nothing here states a footprint: it is whatever the drawing connects, and the
+## 45 degree slope is a fact about the height, so each of the nine gets its own
+## outline.
 const MOUNDS: Dictionary = {
 	3: {
 		&"door": [72, 73, 88, 89],
@@ -329,31 +296,26 @@ const ROUND: Dictionary = {
 	&"stool": true,
 }
 
-## The cutouts whose mask is cut from the drawing's own OUTLINE rather than from
+## The cutouts whose mask is cut from the drawing's own outline rather than from
 ## the colours of the ground around it.
 ##
-## A tree canopy is the case and it is not a small one. The ball is drawn in the
-## same two greens the grass beneath it is dithered from, so no set of "ground"
-## indices can separate the two: include the greens and the flood eats the lit
-## half of the tree, leave them out and it keeps half the lawn. What DOES bound
-## the drawing is its own dark outline. `mesher.gd:_structure_mask` has the rule
-## and the reference had it first.
+## A tree canopy is the case: the ball is drawn in the same two greens the grass
+## beneath it is dithered from, so no set of "ground" indices separates them.
+## Include the greens and the flood eats the lit half of the tree; leave them out
+## and it keeps half the lawn. What does bound the drawing is its own dark
+## outline. See `mesher.gd:_structure_mask`.
 ##
-## The value is HOW MANY of the darkest shades form that boundary, because that
-## is a fact about the drawing and not about the rule. A tree draws a ring and
-## one shade is the ring. A drawing that only rings its top and opens at the foot
-## wants two, the reference's second reading of the same rule: see
-## `notice_case` below, which is the first thing to claim it.
+## The value is how many of the darkest shades form that boundary, which is a fact
+## about the drawing. A tree draws a ring in one shade; a drawing that rings its
+## top and opens at the foot wants two, which `notice_case` is the first to claim.
 ##
-## A CARVED CLASS TAKES THIS RULE EXACTLY AS A MODELLED ONE DOES. Every class
-## here was a model until the National Park's notice cabinet, and the note that
-## said a carved class cut on its outline draws nothing was measured and is
-## wrong: `mesher.gd:_cutout` carves an outline-cut mask like any other.
+## A carved class takes this rule exactly as a modelled one does:
+## `mesher.gd:_cutout` carves an outline-cut mask like any other.
 const OUTLINE: Dictionary = {
 	&"canopy": 1,
 	&"tree": 1,
 	&"bush": 1,
-	# THE CUT TREE IS DRAWN AS A DITHER and it is the reason this pin matters
+	# The cut tree is drawn as a dither and it is the reason this pin matters
 	# here: its crown is a checkerboard of its own dark shades against the grass's
 	# own two, so the ground rule keeps every other pixel and drops the rest. It
 	# is ringed in the darkest shade like every other plant.
@@ -364,7 +326,7 @@ const OUTLINE: Dictionary = {
 	&"boulder": 1,
 	# The pebble is drawn against open water and ringed the same way.
 	&"sea_rock": 1,
-	# A BOLLARD'S TOP FACE IS DRAWN IN THE PAVING'S OWN INDEX, which is what put
+	# A bollard's top face is drawn in the paving's own index, which is what put
 	# the holes in it: the cap is index 0 and so is the pavement it stands on, so
 	# the ground rule cut the middle out of every one of them and left a ring. The
 	# dark ring the cartridge draws round it closes on one shade.
@@ -372,25 +334,20 @@ const OUTLINE: Dictionary = {
 	# A stool stands on a carpet or on floorboards drawn in its own shades, and it
 	# is drawn inside a dark ring like everything else indoors.
 	&"stool": 1,
-	# THE WOODEN ROUTE SIGN, and it wants TWO for the same reason the cabinet
-	# below does, that cabinet being this drawing at the park's own scale. Its
-	# board is painted the FLOOR'S own index inside a frame the floor's own
+	# The wooden route sign wants two, for the same reason the cabinet below
+	# does. Its board is painted the FLOOR's own index inside a frame the floor's
 	# palette also draws, so the ground rule ranks the frame as ground and the
-	# flood walks in through it; what stood was whatever `FILLED` could put back,
-	# and a column whose only drawn pixel is low down was filled only from there,
-	# so tileset 1's sign came out as a board with a slit of open air between it
-	# and each of its two posts. The frame closes on the darkest shade round the
-	# top and the sides and meets the ground in the middle shade, which is the
-	# second shade's whole job.
+	# flood walks in through it. The frame closes on the darkest shade round the
+	# top and sides and meets the ground in the middle shade.
 	&"sign_post": 2,
-	# THE NATIONAL PARK'S NOTICE CABINET, and it wants TWO. Its frame is the
+	# The National Park's notice cabinet, and it wants TWO. Its frame is the
 	# darkest shade and closes round the top and the sides, but its lower panel is
 	# drawn in the middle shade and meets the ground in it, so one shade lets the
 	# flood up through the foot and out again: 148 pixels come back with a two-row
 	# slot cut clean through the case. The second shade closes that foot, and the
 	# whole cabinet stands at 222.
 	&"notice_case": 2,
-	# THE STONE IDOL, and it is the pin that made the square carve legible rather
+	# The stone idol, and it is the pin that made the square carve legible rather
 	# than the fill. Both rooms draw it in the floor's own shades, so the ground
 	# rule cuts INSIDE the plinth and `FILLED` can only put back a column that
 	# still has a pixel somewhere in it: the pedestal came back as loose plates
@@ -401,38 +358,31 @@ const OUTLINE: Dictionary = {
 
 ## The classes that lie flat AND stand a thin slab of their own drawing up.
 ##
-## Tall grass is the one, and it is neither a floor nor an object. The cartridge
-## draws the tufts from above, on the ground, and then draws them AGAIN over the
-## player's feet as they walk through: the overdraw is what says the grass is
-## taller than they are. A diorama has to say the same thing with geometry, so
-## the floor keeps the drawing and the tufts stand up out of it, one thin slab
-## per tile at that tile's own depth. The player then walks BETWEEN the two rows
-## of a cell, which is what the 2D view meant.
+## Tall grass is the one. The cartridge draws the tufts on the ground and then
+## draws them again over the player walking through, and that overdraw is what
+## says the grass is taller than they are. A diorama says it with geometry: the
+## floor keeps the drawing and the tufts stand out of it, one thin slab per tile
+## at that tile's own depth, so the player walks between the two rows of a cell.
 ##
-## The reference learned the shape of this the hard way and the note is worth
-## keeping: one TILE is one standing piece at full height. Splitting each tile
-## again into its top and bottom halves and standing those at two depths cuts
-## every blade in half, and a clump reads as two stubs.
+## One TILE is one standing piece at full height. Splitting each tile again into
+## its halves and standing those at two depths cuts every blade in half.
 const TUFTS: Dictionary = {
 	&"tall_grass": true,
 }
 
-## The classes that BEND IN THE WIND, carved drawing and stem alike.
+## The classes that bend in the wind, carved drawing and stem alike.
 ##
 ## `world/wind.gd` is the weather and `mesher.gd:_tufts` is how a clump reaches
-## it: the standing geometry goes to the tuft sink, which carries how far up its
-## own thing each vertex stands, and the shader leans it by the square of that.
-## A carved cutout can go to the same sink and gets the same bend for nothing.
+## it: standing geometry goes to the tuft sink, which carries how far up its own
+## thing each vertex stands, and the shader leans it by the square of that.
 ##
-## ONLY THE MEADOW FLOWER, and the reason it is the only one is `STEMS`. The
-## bloom is held up on a post one pixel thick, which is the one carved thing in
-## this file that a breeze would visibly move; the class beside it, `flowers`, is
-## a course of brick round a bed and masonry does not sway. Anything standing on
-## its own foot is a bush, a bollard or a sign, and a sign that leans is broken.
+## Only the meadow flower, because of `STEMS`: its bloom is held up on a post one
+## pixel thick, which is the one carved thing here a breeze would visibly move.
+## `flowers` beside it is a course of brick round a bed. Anything standing on its
+## own foot is a bush, a bollard or a sign, and a sign that leans is broken.
 ##
-## The whole thing bends together, root pinned at the GROUND rather than at the
-## stem's own head, so the post leans and carries the bloom rather than the bloom
-## sliding off the top of a rigid post.
+## It bends as a whole, pinned at the ground rather than at the stem's head, so
+## the post leans and carries the bloom.
 const SWAYS: Dictionary = {
 	&"flower": true,
 }
@@ -448,7 +398,7 @@ const MODEL: Dictionary = {
 	&"canopy": true,
 	&"tree": true,
 	&"bush": true,
-	# THE CUT TREE, which is a small tree drawn as its own silhouette and is
+	# The cut tree, which is a small tree drawn as its own silhouette and is
 	# therefore a portrait of a symmetric thing, the third row of the pipeline
 	# table. Carved it was the worst thing on the tileset: a dithered crown cut
 	# per pixel run is a lattice of separated columns with the paving, the wall
@@ -457,14 +407,14 @@ const MODEL: Dictionary = {
 	&"boulder": true,
 	&"sea_rock": true,
 	&"stool": true,
-	# THE POTTED PLANT AND THE POTTED PALM, which are a crown, a stalk and a POT,
+	# The potted plant and the potted palm, which are a crown, a stalk and a POT,
 	# and the one drawing here whose bottom rows are a thing rather than the
 	# shadow under one. Carved per pixel the crown is a lattice with the wall
 	# visible through it and the pot is a slab; turned, the drawing states all
 	# three: see `model.gd:Measure.potted`.
 	&"planter": true,
 	&"palm": true,
-	# THE CONCRETE BOLLARD, which the carved path revolved per row into a ribbed
+	# The concrete bollard, which the carved path revolved per row into a ribbed
 	# drum with the paving showing THROUGH it. See `COLUMN` for the shape and
 	# `OUTLINE` for the holes.
 	&"post": true,
@@ -498,50 +448,28 @@ const POTTED: Dictionary = {
 	&"palm": true,
 }
 
-## The modelled classes that are STONE rather than growing.
+## The modelled classes that are stone rather than growing.
 ##
-## A rock sits on the ground exactly as a shrub does and is read the same way up,
-## so `SHRUB` covers its shape. What it is not is alive: it is barely ragged, it
-## does not bend in the wind, and it is not the dark mass a hedge is. See
+## A rock sits on the ground as a shrub does and is read the same way up, so
+## `SHRUB` covers its shape. What it is not is alive: barely ragged, it does not
+## bend in the wind, and it is not the dark mass a hedge is. See
 ## `model.gd:Measure.rock`.
-## HOW TALL A MODELLED THING STANDS against how tall it is DRAWN.
-##
-## The drawing states a width honestly and a height not at all, and everything
-## turned so far has been able to take its own drawn height because it is drawn
-## standing: a bush, a rock, a tree once its foreshortening is undone. A round
-## STOOL is not. Its top half is the seat seen from ABOVE, which is depth on the
-## page and no height at all, so read literally a knee-high seat stands a full
-## walk cell and comes out a barrel.
-##
-## Nothing but a person can settle the number, which is what the reviewer already
-## did twice for carved things: the long flower bed is no taller than the short
-## one, and the school chair's twelve drawn rows are six. 0.6 of sixteen drawn
-## rows is ten world pixels, between that chair and the player's own height,
-## which is where the pass put it: "waist high", "a knee-high seat".
-##
-## Unlisted takes the class's own default, 1.3 for a tree and 1.0 for anything
-## sitting on the ground. See `model.gd:Measure.stretch`.
-##
-## IT IS READ ON THE CARVED PATH TOO, through `mesher.gd:_carve_y`, so the table
-## means the same thing whichever way a drawing is built. Nothing carved claims
-## it: the potted plant was the candidate and the reviewer measured it at its own
-## drawn 32 px in round twenty-four.
 const STRETCH: Dictionary = {
 	&"stool": 0.6,
-	# A PEBBLE IN WATER IS MOSTLY UNDER IT. Its drawing is a whole 8px oval because
+	# A pebble in water is mostly under it. Its drawing is a whole 8px oval because
 	# the cartridge has no way to draw a half-sunk one, so read at 1.0 it stands
 	# its full width proud of the sea and comes out a row of little bollards. Half
 	# is the waterline: what shows is a cap of stone breaking the surface, which is
 	# what the drawing means rather than what it measures.
 	&"sea_rock": 0.5,
-	# A CUT TREE IS NOT FORESHORTENED, which is the whole reason it takes a number
+	# A cut tree is not foreshortened, which is the whole reason it takes a number
 	# here. `tree`'s own 1.3 corrects a sprite that draws its trunk BEHIND its
 	# crown and so states no height at all; this drawing states all of it, a
 	# ragged crown over four rows of bare stem over a flared foot, and stretching
 	# that stands a full-sized tree where the cartridge draws a waist-high one.
 	# Read at 1.0 it is 15 px across and 16 tall, which is its own drawing.
 	&"sapling": 1.0,
-	# A BOLLARD IS DRAWN TALLER THAN IT STANDS, for the reason this table exists:
+	# A bollard is drawn taller than it stands, for the reason this table exists:
 	# seven of its fourteen drawn rows are the LID seen from above, which is depth
 	# on the page and no height at all, so read literally it comes out a drum
 	# nearly as tall as the player. The reviewer measured it at 9 or 10 world
@@ -554,7 +482,7 @@ const STRETCH: Dictionary = {
 const ROCK: Dictionary = {
 	&"boulder": true,
 	&"sea_rock": true,
-	# A STOOL IS FURNITURE AND READS THE SAME WAY A STONE DOES, which is the whole
+	# A stool is furniture and reads the same way a stone does, which is the whole
 	# reason it takes this and not the plant's reading. It is small, so one world
 	# pixel per voxel rather than the tree's two, or a 16px seat comes out six
 	# voxels across and is a pillow. It does not sway. And its colour is BY BAND:
@@ -562,27 +490,22 @@ const ROCK: Dictionary = {
 	# pedestal, which is a horizontal rule and not an exposure one, and exposure
 	# would take the lightest tone for every face of a thing nothing stands over.
 	&"stool": true,
-	# A CONCRETE BOLLARD is stone by every one of those readings.
+	# A concrete bollard is stone by every one of those readings.
 	&"post": true,
 }
 
 
-## The modelled classes that are a straight COLUMN rather than a turned
-## silhouette: the same radius all the way up, and a FLAT top.
+## The modelled classes that are a straight column rather than a turned
+## silhouette: the same radius all the way up, and a flat top.
 ##
-## A turn is right for anything drawn as a portrait of a rounded body, which is
-## most of what this pipeline builds. A bollard is not one. The reviewer's own
-## words for it in round twenty-seven: "they are not like a ball, they are a
-## standing cylinder, so the upper part is flat, it is not rounded". The drawing
-## agrees and says why the turn cannot know: what a bollard's sprite draws is its
-## flat top seen from ABOVE with its side below, so the rows that taper are the
-## far edge of the cap rather than a body narrowing, and a revolve reads that
-## taper as a dome.
+## A turn is right for anything drawn as a portrait of a rounded body. A bollard
+## is not one: its sprite draws the flat top seen from ABOVE with the side below,
+## so the rows that taper are the far edge of the cap rather than a body
+## narrowing, and a revolve reads that taper as a dome.
 ##
 ## The widest row is the radius, the drawn height is the height, and `model.gd`
-## does the rest. Colour comes from `ROCK`'s own band reading, which is what puts
-## the light on top and the dark at the foot, since that is where the drawing
-## puts them.
+## does the rest. Colour comes from `ROCK`'s band reading, which puts the light on
+## top and the dark at the foot, since that is where the drawing puts them.
 const COLUMN: Dictionary = {
 	&"post": true,
 }
@@ -607,37 +530,28 @@ const SPANS: Dictionary = {
 	# bottom half in exactly equal numbers, against 846 short ones drawn in a
 	# single cell. The short one is the same class collapsed by its placement.
 	&"tree": Vector2i(1, 2),
-	# A STATUE ON A PILLAR, and the reviewer's words are the whole specification:
-	# "the bottom cell is the pillar base, and the upper one is the statue laying
-	# above it. since pokemon 2D world is seen slightly from above, they are both
-	# taking 2 cells vertically and 1 horizontally. in a 3D world the statue would
-	# be 1 cell on the ground and 2 cell high".
+	# A statue on a pillar: the bottom cell is the base and the upper one the
+	# statue above it, so in 3D it is one cell on the ground and two cells high.
+	# The extra cell is HEIGHT and not depth, which is why this is not in LYING;
+	# without it each cell was cut and revolved on its own and every one stood as
+	# two drums stacked.
 	#
-	# So the extra cell is HEIGHT and not depth, which is the potted plant's case
-	# and not the long flower bed's, and it is why this is not in LYING. Without
-	# it each cell was cut and revolved on its own and every one of these stood as
-	# two drums stacked, a lump above a pillar with a seam between them.
-	#
-	# ITS OWN CLASS RATHER THAN `statue`, and that is the whole reason there are
-	# two. The full pass named seven tilesets `statue`, all seven drawn one cell
-	# over one cell, and moving the class moved all of them: tileset 26's came out
-	# a chewed banded column, plainly worse than the flat pieces it replaced, so
-	# whatever that drawing is it is not this. A span is a fact about a DRAWING and
-	# a class is how the profile addresses one, so the drawings a person has
-	# actually read get their own.
+	# Its own class rather than `statue`, because a span is a fact about a DRAWING
+	# and moving the class moves all seven tilesets the pass named `statue`:
+	# tileset 26's came out a chewed banded column, worse than the flat pieces it
+	# replaced.
 	&"statue_pillar": Vector2i(1, 2),
 	&"idol": Vector2i(1, 2),
 }
 
-## The cutouts whose extra cells are DEPTH rather than height.
+## The cutouts whose extra cells are depth rather than height.
 ##
-## Two drawings this size and they mean opposite things. The potted plant's four
-## rows are leaves above a pot: it stands, as tall as the drawing. The long
-## flower bed's four rows are the same bed carrying on away from the eye: it is
-## no taller than the small bed beside it, only longer, so each of its cells
-## stands its own two rows at its own depth. Only the mask is cut over the whole
-## drawing, because a cell in the middle of the bed has no ground on its own
-## border for the flood to come in through.
+## Two drawings this size mean opposite things. The potted plant's four rows are
+## leaves above a pot, so it stands as tall as the drawing. The long flower bed's
+## four rows are the same bed carrying on away from the eye, so it is no taller
+## than the small bed, only longer, and each cell stands its own two rows at its
+## own depth. Only the mask is cut over the whole drawing, because a cell in the
+## middle of the bed has no ground on its border for the flood to come in through.
 const LYING: Dictionary = {
 	&"flowers": true,
 	&"lie": true,
@@ -651,7 +565,7 @@ const LYING: Dictionary = {
 ## bottommost drawn pixel puts the board back, and the poles under it with it.
 const FILLED: Dictionary = {
 	&"sign_post": true,
-	# A BOULDER'S RING IS NOT CLOSED. A tree draws a ring of its darkest shade all
+	# A boulder's ring is not closed. A tree draws a ring of its darkest shade all
 	# the way round and the flood stops at it; a rock is drawn against water or
 	# against a cave floor of its own palette and its outline has gaps in it, so
 	# the flood walks in and eats the stone, leaving the outline dots and the
@@ -660,84 +574,60 @@ const FILLED: Dictionary = {
 	# but shading came back with ONE tone for the sea rock. Filling each column
 	# between its topmost and bottommost drawn pixel puts the stone back.
 	&"boulder": true,
-	# A STOOL'S SEAT IS RINGED AND ITS LEGS ARE NOT. Printed as text, tileset 19's
-	# is a closed ring of the darkest shade round the cushion and then splayed legs
-	# with the floor showing between them and reaching the drawing's own bottom
-	# edge, so the flood walks straight up through the legs and leaves the seat
-	# standing on scraps. Filling each column puts a pedestal under it, which is
-	# also the only thing a revolve can make of splayed legs. Measured both ways
-	# and the two pictures are the same, because the seat is what the profile is
-	# read off and the legs reach as wide as it does; kept because it is the safer
-	# reading of an open ring and it costs nothing here.
+	# A stool's seat is ringed and its legs are not: tileset 19's is a closed ring
+	# round the cushion and then splayed legs with the floor showing between them,
+	# so the flood walks up through the legs and leaves the seat on scraps.
+	# Filling each column puts a pedestal under it, which is the only thing a
+	# revolve can make of splayed legs anyway.
 	&"stool": true,
-	# A DITHER HAS NO RING AT ALL, which is the meadow flower's whole difference
-	# from everything else on this list. Printed as text it is a checkerboard of
-	# red, pink and pale green over the whole 8x8 with no silhouette anywhere in
-	# it, so the flood walks between its own pixels and what is left is a SPRAY:
-	# revolved per body, each surviving pixel became a lump of its own with the
-	# world visible between them, which is the reviewer's holes.
-	# Filling each column between its topmost and bottommost drawn pixel is what
-	# makes it one clump, and it still wears every texel the cartridge drew.
-	# CUT ON THE GROUND'S OWN COLOURS rather than on an outline, which is what
-	# keeps it TIGHT. A drawing's mask is cut over its whole span box, and a
-	# flower is one tile inside a walk cell of grass: read as an outline every
-	# tile in that box offers its own darkest shade, the grass included, so the
-	# fill ran the full sixteen rows and the bloom came back a cube. The ground
-	# rule eats the grass, so only the bloom's own rows have anything to fill
-	# between.
-	&"flower": true,
-	# THE DEPARTMENT STORE'S PALM is the flower's case at four times the size, and
-	# it is why it has a class of its own rather than sharing the potted plant's.
-	# Its crown is a dither of three greens against the shop floor's own blue with
-	# no silhouette round it, so the ground rule walks between its own pixels and
-	# each survivor is hulled as a body of its own: the taller of the two palms,
-	# whose drawing is three rows of crown with no stalk between them, came back as
-	# a spray of loose leaves with the shop showing through it.
+	# A dither has no ring at all, which is the meadow flower's difference from
+	# everything else here: a checkerboard of red, pink and pale green over the
+	# whole 8x8 with no silhouette in it, so the flood walks between its own
+	# pixels and each survivor becomes a lump with the world visible between them.
 	# Filling each column between its topmost and bottommost drawn pixel makes it
-	# one clump, exactly as it does for the flower.
-	# NOT PUT ON `planter` ITSELF, which was built and photographed first: the
-	# potted plant of tilesets 5, 11 and 28 is drawn inside its own outline and
-	# wants none of it, and filling it squares off a crown whose shape the reviewer
-	# chose in round twenty-four and closes the gap between the leaves and the urn.
-	# Two drawings, two classes.
+	# one clump, still wearing every texel the cartridge drew.
+	#
+	# Cut on the ground's own colours rather than on an outline, which is what
+	# keeps it tight: a flower is one tile inside a walk cell of grass, and read
+	# as an outline every tile in the box offers its own darkest shade, grass
+	# included, so the fill ran all sixteen rows and the bloom came back a cube.
+	&"flower": true,
+	# The department store's palm is the flower's case at four times the size,
+	# which is why it has a class of its own. Its crown is a dither of three
+	# greens against the shop floor's blue with no silhouette round it, so the
+	# ground rule walks between its pixels and each survivor is hulled on its own:
+	# the taller palm came back as a spray of loose leaves. Filling each column
+	# makes it one clump, as it does for the flower.
+	#
+	# Not put on `planter` itself, which was built and photographed first: the
+	# potted plant of tilesets 5, 11 and 28 is drawn inside its own outline, and
+	# filling it squares off the crown and closes the gap to the urn.
 	&"palm": true,
-	# THE STONE IDOL, which is `statue_pillar` with this added and `ROUND` taken
-	# away, and it is a class rather than a pin because those are the only two
-	# things about it that differ.
+	# The stone idol: `statue_pillar` with this added and `ROUND` taken away,
+	# which are the only two things about it that differ.
 	#
 	# It fills its own 16x32 box edge to edge in the box's own shades, so there is
-	# no ground inside the drawing for the border flood to cut against and whatever
-	# the flood eats it eats out of the statue: down one side in the Ruins, leaving
-	# pale sticks, and much further in the wooden hall, leaving the head in loose
-	# pieces above its plinth. Filling each column puts the stone back and carving
-	# it square keeps the face, which a revolve of a filled drawing cannot: turned
-	# AND filled it is a featureless drum, which was rendered and is why the flood
-	# was left alone for as long as it was.
-	#
-	# ASKED TWICE. Round fifteen showed the Ruins copy both ways and the turn was
-	# taken; round thirty-four showed both rooms with the plates numbered and the
-	# answer was the square carve for both. The first page was refused outright for
-	# want of the numbers, which is worth more than the answer: "identify clearly
-	# each image with a number or before / after".
+	# no ground inside the drawing for the border flood to cut against and
+	# whatever it eats it eats out of the statue. Filling each column puts the
+	# stone back and carving it square keeps the face, which a revolve of a filled
+	# drawing cannot: turned AND filled it is a featureless drum.
 	&"idol": true,
 }
 
-## THE OBJECTS, per tileset number. A thing that is not a tile and does not fit
-## the grid.
+## The objects, per tileset number: things that are not tiles and do not fit the
+## grid.
 ##
-## Everything else here resolves a tile and stands it up where that tile sits. A
-## wall or a canopy is drawn tile by tile and comes out right that way. A CHAIR is
-## not: it is drawn as four corners across four tiles, straddling the seam between
-## them, and tileset 13's tile 74 is the desk's bottom-left leg, the chair's
-## top-left corner and the floor between the two at once. No pin can be right
-## about that tile, because the tile is three things.
+## Everything else here resolves a tile and stands it up where that tile sits,
+## which is right for a wall or a canopy. A chair is drawn as four corners across
+## four tiles, and tileset 13's tile 74 is the desk's bottom-left leg, the chair's
+## top-left corner and the floor between them at once, so no pin can be right
+## about it.
 ##
-## So an object is declared by the ARRANGEMENT OF TILE IDS it is drawn out of,
-## which is what identifies it wherever the map places it, and `mesher.gd`
-## `_measure_objects` finds every occurrence, gives every tile it covers back to
-## the FLOOR, and stands one thing of the declared size at the drawing's own
-## position. Two objects may claim the same tile and both are drawn: the desk and
-## the chair below it do.
+## So an object is declared by the arrangement of tile ids it is drawn out of,
+## which identifies it wherever the map places it. `mesher.gd:_measure_objects`
+## finds every occurrence, gives every tile it covers back to the floor, and
+## stands one thing of the declared size at the drawing's own position. Two
+## objects may claim the same tile and both are drawn.
 ##
 ## Each declaration says:
 ##
@@ -754,20 +644,17 @@ const FILLED: Dictionary = {
 ##   depth   how far it reaches away from the eye, in world pixels
 ##   height  how tall it stands
 ##
-## DEPTH AND HEIGHT ARE THE DRAWING'S OWN ROW COUNTS wherever it draws a top: the
-## desk's top band is 16 rows and the reviewer measured the desk at 15 or 16 deep,
-## its face is 6 rows and they measured 6 or 7 high. Where a drawing has no top
-## band at all the depth is not in the picture and is authored: their number for
-## the chair is 6.
+## Depth and height are the drawing's own row counts wherever it draws a top: the
+## desk's top band is 16 rows and its face is 6. Where a drawing has no top band
+## the depth is not in the picture and is authored.
 ##
 ## A -1 in the arrangement is a tile the object covers and has no opinion about.
-## OUTSIDE is the other thing a rectangle can hold and the SHIP needed it: a
-## bounding box round something that is not rectangular holds tiles that are not
-## the object at all, and giving open sea back to the floor puts a still slab in
-## the middle of a harbour. An OUTSIDE tile is matched against nothing, is not
-## covered, and keeps whatever it already was. It is still part of the rectangle
-## the MASK is cut over, which is the whole reason to name it rather than shrink
-## the box: see the ship.
+## OUTSIDE is the other thing a rectangle can hold, and the ship needed it: a
+## bounding box round something not rectangular holds tiles that are not the
+## object, and giving open sea back to the floor puts a slab in a harbour. An
+## OUTSIDE tile is matched against nothing, is not covered, and keeps what it was.
+## It is still part of the rectangle the MASK is cut over, which is the whole
+## reason to name it rather than shrink the box.
 const OUTSIDE: int = -2
 
 const OBJECTS: Dictionary = {
@@ -784,16 +671,13 @@ const OBJECTS: Dictionary = {
 			&"height": 6,
 		},
 		# The chair, 12 px square in the middle of four tiles, drawn face-on with a
-		# back: no rows of it are seen from above, so its depth and its height are
-		# both the reviewer's, 6 and 6.
+		# back: no rows of it are seen from above, so its depth and height are both
+		# authored at 6.
 		#
-		# THE DRAWING IS NOT TAKEN AT ITS WORD HERE and that is round eleven's
-		# answer. Its twelve rows were stood up as twelve pixels first, which is a
-		# chair with a back and reads as a cabinet beside a desk half its height.
-		# Three builds went in front of the reviewer and they took their own numbers
-		# for both: a drawing being tall on screen is not a thing being tall in the
-		# world, which is the correction they made once before, about the flower
-		# bed. What a face-on drawing states honestly is its WIDTH.
+		# The drawing is not taken at its word here. Its twelve rows stood up as
+		# twelve pixels is a cabinet beside a desk half its height: a drawing being
+		# tall on screen is not a thing being tall in the world, and what a face-on
+		# drawing states honestly is its WIDTH.
 		{
 			&"name": &"chair",
 			&"tiles": [[74, 75], [90, 91]],
@@ -804,25 +688,20 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	9: [
-		# THE SHIP, and it is the largest thing in the game: fifteen tiles by six,
-		# moored at the foot of the pier on both port maps and drawn the same way on
-		# each. The reviewer's own answer named this machinery before it existed:
-		# "flag every single part of the boat to have its global size, and just make
-		# a voxel model directly where those tiles are".
+		# The ship, the largest thing in the game: fifteen tiles by six, moored at
+		# the foot of the pier on both port maps.
 		#
-		# ITS BOX IS A TILE OF OPEN WATER WIDER THAN ITSELF ON EVERY SIDE, and that
-		# margin is the object. A mask is cut by flooding in from the border, and the
-		# border of the hull's own rectangle is half hull: the flood read three of
-		# the four palette indices as sea and ate the ship. Ringed in water the ring
-		# is 91% one index, the flood stops at the paint and the mask is the ship.
-		# The margin tiles are OUTSIDE, so the sea is not handed to the floor.
+		# Its box is a tile of open water wider than itself on every side, and that
+		# margin is what makes the mask work: a mask floods in from the border, and
+		# the border of the hull's own rectangle is half hull, so the flood read
+		# three of the four indices as sea and ate the ship. Ringed in water the
+		# ring is 91% one index and the flood stops at the paint. The margin tiles
+		# are OUTSIDE, so the sea is not handed to the floor.
 		#
 		# The window is the drawing and the arrangement is the rectangle it was cut
-		# from: 120 px by 48, starting a tile in and a tile down. Its top forty rows
-		# are the decks seen from above, laid across forty pixels of water; the last
-		# eight are the hull, standing eight above the waterline. Both are the
-		# drawing's own row counts, which is the rule wherever a drawing has a top
-		# band at all.
+		# from: 120 px by 48, a tile in and a tile down. Its top forty rows are the
+		# decks seen from above and the last eight are the hull, both the drawing's
+		# own row counts.
 		{
 			&"name": &"ship",
 			&"tiles": [
@@ -842,7 +721,7 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	14: [
-		# THE SAME CHAIR AGAIN, on a tileset that draws it 12 by 11 filling a whole
+		# The same chair again, on a tileset that draws it 12 by 11 filling a whole
 		# walk cell rather than straddling four tiles, and lays it out in a
 		# chequerboard with the floor. It shares no tile with anything, so what it
 		# gains here is not the finding but the SIZE: carved as a silhouette it stood
@@ -858,7 +737,7 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	24: [
-		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
+		# A ladder standing on the ground, which is the reviewer's other kind: "a
 		# ladder going upstair, its placed on the ground". A portrait seen face-on
 		# with no rows above it at all, so it is the chair's own case with nothing
 		# but the numbers changed: one cell tall because that is what it has to be
@@ -871,7 +750,7 @@ const OBJECTS: Dictionary = {
 			&"depth": 3,
 			&"height": 16,
 		},
-		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
+		# A ladder standing on the ground, which is the reviewer's other kind: "a
 		# ladder going upstair, its placed on the ground". A portrait seen face-on
 		# with no rows above it at all, so it is the chair's own case with nothing
 		# but the numbers changed: one cell tall because that is what it has to be
@@ -886,18 +765,12 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	11: [
-		# THE THIRD CHAIR, and the numbers are the reviewer's own from round eleven
-		# rather than a new question: a chair drawn 12 px square over four tiles,
-		# face-on, with a backrest and no top band at all. Tileset 13 draws the same
-		# thing at the same size and they measured it 6 deep and 6 high, over its
-		# twelve drawn rows, because a drawing being tall on screen is not a thing
-		# being tall in the world.
+		# The third chair: 12 px square over four tiles, face-on, with a backrest
+		# and no top band, so it takes tileset 13's chair's own 6 deep and 6 high
+		# over its twelve drawn rows.
 		#
-		# The pass named all four tiles `sure`: "the top-left quarter of a small
-		# wooden chair drawn as its own outline", "the left of the seat, the
-		# cross-rails and the left legs". Printed as text the drawing sits at x2..13
-		# and y2..13 with two clear rows of floor above and below it, so the mask
-		# cuts cleanly on the outline and needs no filling.
+		# The drawing sits at x2..13 and y2..13 with two clear rows of floor above
+		# and below, so the mask cuts cleanly on the outline and needs no filling.
 		{
 			&"name": &"chair",
 			&"tiles": [[14, 15], [30, 31]],
@@ -908,7 +781,7 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	8: [
-		# THE SAME CHAIR A FOURTH TIME, drawn 12 px square over a whole walk cell on
+		# The same chair a fourth time, drawn 12 px square over a whole walk cell on
 		# the chequered floor of the Goldenrod flower shop and two houses. Its four
 		# tiles are its own and the block places it against floor tile 1 on every
 		# side, so nothing here is new but the ids: it takes the 6 and 6 the reviewer
@@ -923,7 +796,7 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	10: [
-		# AND A FIFTH, under the desks of the Goldenrod radio studio, drawn a row
+		# And a fifth, under the desks of the Goldenrod radio studio, drawn a row
 		# lower in its cell than tileset 8 draws it. The desk above it is already a
 		# counter and stands correctly; only the chair fell to `stand` and was
 		# revolved into a drum.
@@ -935,19 +808,16 @@ const OBJECTS: Dictionary = {
 			&"depth": 6,
 			&"height": 6,
 		},
-		# THE LABORATORY'S TWO BENCHES, and they are one thing declared twice
-		# because the cartridge draws them at two widths. Both are the same
-		# section: two tile rows of the top seen from above, then one of the apron
-		# seen face-on with a leg at each end of it.
+		# The laboratory's two benches, one thing declared twice because the
+		# cartridge draws them at two widths. Both are two tile rows of top seen
+		# from above over one of apron seen face-on, with a leg at each end.
 		#
-		# ONE TILE HIGH AND NOT TWO, which is the reviewer's own correction and
-		# worth more than it looks. The apron is 8 rows of drawing, so 8 world
-		# pixels; what the resolver made of these tiles before was `surface` at
-		# that class's own 16, and a bench standing a whole walk cell is a counter.
-		# The DEPTH is the top band's own 16 rows, which is the rule everywhere a
-		# drawing has a top band at all.
+		# One tile high and not two: the apron is 8 drawn rows, so 8 world pixels,
+		# where the resolver made these `surface` at that class's 16 and a bench
+		# standing a whole walk cell is a counter. The depth is the top band's own
+		# 16 rows.
 		#
-		# WRAPPED, because a bench stands in the middle of a room and is seen from
+		# Wrapped, because a bench stands in the middle of a room and is seen from
 		# behind and from both ends. See `mesher.gd:_object_wrap`.
 		{
 			&"name": &"bench",
@@ -959,16 +829,14 @@ const OBJECTS: Dictionary = {
 			&"wrap": true,
 			&"foot": true,
 		},
-		# THE TERMINAL ON OAK'S BENCH, and it is the one thing here that is a TRY
-		# rather than a reading. The cartridge draws it seen from above, so the
-		# bench's own top band carries it honestly and flat, and the question asked
-		# was whether it can be better than that. This stands the machine up on the
-		# bench as its own box: its own drawing face-on, its top repeated across its
-		# depth, and `rise` putting its foot on the bench rather than on the floor.
+		# The terminal on Oak's bench, and it is a try rather than a reading: the
+		# cartridge draws it seen from above, so the bench's top band carries it
+		# flat and honestly. This stands it up as its own box, its drawing face-on
+		# with its top repeated across its depth, and `rise` putting its foot on
+		# the bench.
 		#
-		# THE FLAT ART UNDER IT STAYS. Two objects may cover one tile and both are
-		# drawn, and the bench cannot be told to leave a hole in its own top, so
-		# what is behind the standing machine is still the drawing lying down.
+		# The flat art under it stays: the bench cannot be told to leave a hole in
+		# its own top, so the drawing is still lying down behind the machine.
 		{
 			&"name": &"terminal",
 			&"tiles": [[10, 11], [26, 27]],
@@ -979,18 +847,14 @@ const OBJECTS: Dictionary = {
 			&"rise": 8,
 			&"cap": 4,
 		},
-		# THE BOOKCASE, and there are twelve of them on this map in three groups of
-		# four, at 12,0 and 12,12 and 0,12. One is TWO TILES WIDE AND FOUR TALL and
-		# the reviewer read it out tile by tile: the top row is its flat top seen
-		# from above, and the three rows under it are its front, so it stands three
-		# tiles.
+		# The bookcase, twelve of them on this map in three groups of four. Two
+		# tiles wide and four tall: the top row is its flat top seen from above and
+		# the three under it are its front, so it stands three tiles.
 		#
-		# A PLAIN BOX, which is the other half of what they said. Shelves are drawn
-		# on the front and the back and on neither end, so the back takes the face
-		# and the two ends take the top's own texture, which is what `box` is. Left
-		# to the resolver these were `wall`, measured off the column at four tile
-		# rows, so each stood a whole cell taller than it is and wore its shelves
-		# on all four sides.
+		# A plain box: shelves are drawn on the front and back and on neither end,
+		# so the back takes the face and the ends take the top's texture. Left to
+		# the resolver these were `wall` measured at four tile rows, standing a
+		# whole cell too tall and wearing shelves on all four sides.
 		{
 			&"name": &"bookcase",
 			&"tiles": [[5, 7], [3, 4], [3, 4], [53, 54]],
@@ -1011,7 +875,7 @@ const OBJECTS: Dictionary = {
 			&"window": Rect2i(2, 1, 11, 14),
 			&"top": 7,
 			&"depth": 11,
-			# EIGHT PIXELS, half a walk cell, and the reviewer's own measurement of
+			# Eight pixels, half a walk cell, and the reviewer's own measurement of
 			# it. The drawing is 14 rows tall on two cells, and stood up at its own
 			# row count the can came out waist high beside a bench 8 px tall.
 			&"height": 8,
@@ -1034,21 +898,17 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	17: [
-		# THE MAGNET TRAIN TICKET GATE, two of them side by side at the head of the
-		# stairs with the walkway between, and the largest thing left in the `stand`
-		# fallback that is one drawing rather than a tail. Revolved, each was a drum
-		# in a doorway.
+		# The Magnet Train ticket gate, two of them side by side at the head of the
+		# stairs. Revolved by the fallback, each was a drum in a doorway.
 		#
-		# One cell wide and two deep: a cream body running 24 rows AWAY from the eye,
-		# which is the gate seen from above, and a dark chunk of 8 rows at its near
-		# end, which is its face. So the depth is the drawing's own 24 and the height
-		# is its own 8, the rule the desk, the stone vessel and the ship all took;
-		# the reviewer confirmed the 8 in round twenty-two against 12 and 16.
+		# One cell wide and two deep: a cream body running 24 rows away from the eye
+		# seen from above, and a dark chunk of 8 rows at its near end, its face. So
+		# depth 24 and height 8, the rule the desk, the stone vessel and the ship
+		# all took.
 		#
 		# The window is the whole rectangle: the gate's dark side rails run to the
-		# tile edge over its middle rows, so there is no margin to crop to. The flood
-		# still cuts it, because those rails ARE the outline it stops at and the rest
-		# of the border is the station's plain grey floor.
+		# tile edge over its middle rows, so there is no margin to crop to. The
+		# flood still cuts it, since those rails ARE the outline it stops at.
 		{
 			&"name": &"ticket_gate",
 			&"tiles": [[53, 54], [55, 56], [57, 58], [59, 60]],
@@ -1059,20 +919,15 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	26: [
-		# THE STONE VESSEL, and it needs no person at all: it draws a TOP BAND, so
-		# the band's own row count IS the depth and the rows below it are the face.
-		# The pass read all four tiles `sure` and split them for us: 80 and 81 are
-		# "the ridged lid seen from slightly ABOVE with the ridges reading as the
-		# top surface", 82 and 83 "its boxy base, whose dark rectangular panel is
-		# drawn FACE-ON". Eight rows each, so eight deep and eight high, over a
-		# whole cell of width. Squat, which is the pass's own word for it.
+		# The stone vessel, which needs no person: it draws a top band, so the
+		# band's row count is the depth and the rows below it are the face. Tiles
+		# 80 and 81 are the ridged lid seen from above, 82 and 83 the boxy base
+		# drawn face-on. Eight rows each, so eight deep and eight high.
 		#
-		# FILLED, and printing the mask is what said so. This drawing fills its cell
+		# Filled, which printing the mask is what said. The drawing fills its cell
 		# edge to edge in the same golds the brick floor is dithered from, so the
 		# border the flood comes in from IS the vessel: it walks in through the
-		# ridges and eats the body, which is the boulder's case and the ship's.
-		# Filling each column between its topmost and bottommost drawn pixel puts
-		# the box back, and the box is what the thing is.
+		# ridges and eats the body, as it does a boulder and the ship.
 		{
 			&"name": &"vessel",
 			&"tiles": [[80, 81], [82, 83]],
@@ -1082,7 +937,7 @@ const OBJECTS: Dictionary = {
 			&"height": 8,
 			&"filled": true,
 		},
-		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
+		# A ladder standing on the ground, which is the reviewer's other kind: "a
 		# ladder going upstair, its placed on the ground". A portrait seen face-on
 		# with no rows above it at all, so it is the chair's own case with nothing
 		# but the numbers changed: one cell tall because that is what it has to be
@@ -1097,12 +952,10 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	23: [
-		# THE RIDGE ALONG THE GREAT ROOF, and the declaration IS the reviewer's own
-		# rule for telling it from the wooden bridge drawn out of the same tile:
-		# "the one on the roof has a mirrored tile on its right, while the wooden
-		# floor never has this mirrored tile next to it". An object is found by its
-		# ARRANGEMENT, so [80, 81] is that sentence written down, and it matches on
-		# the roof and nowhere else in the game.
+		# The ridge along the great roof. The rule that tells it from the wooden
+		# bridge drawn out of the same tile is that the roof's has a mirrored tile
+		# on its right and the floor never does, so the arrangement [80, 81] is
+		# that sentence written down and matches nowhere else in the game.
 		#
 		# Unpinned and left to the collision the crest came out 48 px of wall down
 		# the middle of the roof, because the run of it is four tiles deep and the
@@ -1120,29 +973,24 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	25: [
-		# THE NATIONAL PARK'S TIERED FOUNTAIN, and it is the first object that is
-		# TURNED rather than stood up. A round stone basin in three tiers with a
-		# spout on top, drawn as its own silhouette on the paving, four placements
-		# on three maps.
+		# The National Park's tiered fountain, the first object that is turned
+		# rather than stood up: a round stone basin in three tiers with a spout on
+		# top, four placements on three maps.
 		#
-		# NO PIN CAN REACH IT AND THAT IS THE POINT. The drawing is 18 px wide
-		# across THREE tiles and centred on the seam between two of them, so it
-		# fits neither a cell nor a `SPANS` box, whose start is grid-aligned at
-		# `tx - posmod(tx, across.x)`. An arrangement of tile ids is not tied to
-		# the grid at all and finds it wherever the map puts it. The tiles either
-		# side of the drawing are paving and are part of the rectangle the mask is
-		# cut over, which is what the WINDOW is for: it keeps them out of the
-		# profile the turn is read from without shrinking the box the flood needs.
+		# No pin can reach it. The drawing is 18 px wide across THREE tiles and
+		# centred on the seam between two of them, so it fits neither a cell nor a
+		# grid-aligned `SPANS` box. The tiles either side are paving and are part
+		# of the rectangle the mask is cut over, which is what the window is for:
+		# it keeps them out of the profile the turn is read from without shrinking
+		# the box the flood needs.
 		#
-		# TWO SHADES OF OUTLINE, the park's cabinet having established the reading
-		# on the same paving: cut on one shade the basin comes back as its own tier
-		# lines and 92 loose pixels, which turns into a stack of rings with holes
-		# between them. On two it is the solid 230-pixel silhouette a revolve wants.
+		# Two shades of outline: cut on one the basin comes back as its tier lines
+		# and 92 loose pixels, which turns into a stack of rings with holes between
+		# them. On two it is the solid 230-pixel silhouette a revolve wants.
 		#
-		# HOW TALL IT STANDS is the one authored number, as it is for every turned
-		# thing whose drawing is partly seen from above: three quarters of the
-		# sixteen rows it is drawn. `depth` says nothing about a turned body, which
-		# is as deep as it is wide, so it is not declared.
+		# Its height is authored, as it is for every turned thing whose drawing is
+		# partly seen from above. `depth` says nothing about a turned body, which is
+		# as deep as it is wide.
 		{
 			&"name": &"fountain",
 			&"tiles": [[76, 77, 78], [92, 93, 94]],
@@ -1151,15 +999,13 @@ const OBJECTS: Dictionary = {
 			&"model": true,
 			&"outline": 2,
 		},
-		# THE PARK BENCH, four tiles wide and three tall, five of them on this map
-		# and the reviewer's own reading of the rows: the top one is the back, the
-		# middle one the seat, the bottom one a leg at each end with the shadow
-		# between them. See `mesher.gd:_object_seat`, which is the builder those
-		# three rows needed and the only object here with a back.
+		# The park bench, four tiles wide and three tall, five of them on this map.
+		# The top row is the back, the middle the seat, the bottom a leg at each
+		# end with the shadow between them. See `mesher.gd:_object_seat`, the only
+		# object builder here with a back.
 		#
-		# NO PIN COULD REACH IT EITHER. Its rows resolved `wall` over `surface`,
-		# so the bench stood as one slatted slab a whole walk cell tall and the
-		# people sat in front of it rather than on it.
+		# No pin could reach it either: its rows resolved `wall` over `surface`, so
+		# the bench stood as one slatted slab a whole walk cell tall.
 		{
 			&"name": &"bench",
 			&"tiles": [[7, 8, 9, 10], [23, 24, 25, 26], [39, 40, 41, 42]],
@@ -1169,7 +1015,7 @@ const OBJECTS: Dictionary = {
 			&"height": 17,
 			&"seat": true,
 		},
-		# THE BIN, AND IT IS OPEN. It was pinned `boulder` and read exactly as a
+		# The bin, and it is open. It was pinned `boulder` and read exactly as a
 		# rock is, which put a solid grey lump on the paving: the one thing a
 		# drawing seen from in front cannot say is that its mouth is a hole, and
 		# the drawing does say it, in the dark ring it paints across its top rows.
@@ -1178,7 +1024,7 @@ const OBJECTS: Dictionary = {
 		{
 			&"name": &"bin",
 			&"tiles": [[90, 91], [19, 130]],
-			# THE WINDOW IS THE VESSEL AND NOT ITS SHADOW. Cut over the whole
+			# The window is the vessel and not its shadow. Cut over the whole
 			# 14 px the mask reaches, the can came out wider than it is tall and
 			# read as a barrel; the outermost column either side is the shading
 			# the cartridge lays on the paving under it.
@@ -1190,7 +1036,7 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	29: [
-		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
+		# A ladder standing on the ground, which is the reviewer's other kind: "a
 		# ladder going upstair, its placed on the ground". A portrait seen face-on
 		# with no rows above it at all, so it is the chair's own case with nothing
 		# but the numbers changed: one cell tall because that is what it has to be
@@ -1205,7 +1051,7 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	30: [
-		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
+		# A ladder standing on the ground, which is the reviewer's other kind: "a
 		# ladder going upstair, its placed on the ground". A portrait seen face-on
 		# with no rows above it at all, so it is the chair's own case with nothing
 		# but the numbers changed: one cell tall because that is what it has to be
@@ -1218,7 +1064,7 @@ const OBJECTS: Dictionary = {
 			&"depth": 3,
 			&"height": 16,
 		},
-		# A LADDER STANDING ON THE GROUND, which is the reviewer's other kind: "a
+		# A ladder standing on the ground, which is the reviewer's other kind: "a
 		# ladder going upstair, its placed on the ground". A portrait seen face-on
 		# with no rows above it at all, so it is the chair's own case with nothing
 		# but the numbers changed: one cell tall because that is what it has to be
@@ -1233,16 +1079,13 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	18: [
-		# A PARKED BICYCLE, and it is the flattest thing in the game: "side view
-		# drawn FACE-ON as its own silhouette, about 3 tiles wide and 2 tall", four
-		# of them along the bike shop wall. Revolved by the fallback each of its
-		# seven tiles became a drum, so a bicycle read as a row of bollards.
+		# A parked bicycle, the flattest thing in the game: a side view drawn
+		# face-on, three tiles wide and two tall, four of them along the bike shop
+		# wall. Revolved by the fallback each of its seven tiles became a drum.
 		#
-		# It is the ladder's case: a portrait with no top band, so its height is what
-		# it takes to be one and its depth is what two wheels are. The fourth tile of
-		# the top row is the reviewer's own "just floor with a small bicycle wheel
-		# visible because of perspective", so the box covers it and the object says
-		# nothing about it.
+		# A portrait with no top band, so its height is what it takes to be one and
+		# its depth is what two wheels are. The fourth tile of the top row is floor
+		# with a wheel showing over it, so the box covers it and says nothing.
 		{
 			&"name": &"bicycle",
 			&"tiles": [[12, 13, 14, -1], [28, 29, 30, 31]],
@@ -1251,24 +1094,17 @@ const OBJECTS: Dictionary = {
 			&"depth": 3,
 			&"height": 16,
 		},
-		# THE LEAGUE'S CARVED GOLD PILLAR, two of them either side of the door, and
-		# it is the last of the `stand` tail that a picture showed wrong. A round
-		# column two tiles wide and FOUR tall, its capital carved and its foot in a
-		# dark base ring on the cream courtyard.
+		# The League's carved gold pillar, two of them either side of the door: a
+		# round column two tiles wide and four tall.
 		#
-		# A CELL CUT IT IN HALF AND THE FALLBACK REVOLVED EACH HALF, so what stood
-		# was two drums of different widths, one on the other, a walk cell of pillar
-		# where four tiles are drawn. `SPANS` cannot reach it: the shaft is drawn
-		# out of one pair of ids repeated down two cells, so the box a placement
-		# tests is the shaft alone and the capital above it belongs to the rows
-		# `stand` had already cut away. An arrangement of ids has no such trouble,
-		# and the repeat is what identifies this drawing rather than what defeats
-		# it.
+		# A cell cut it in half and the fallback revolved each half, so two drums of
+		# different widths stood one on the other. `SPANS` cannot reach it either,
+		# since the shaft is one pair of ids repeated down two cells, so the box a
+		# placement tests is the shaft alone. An arrangement of ids has no such
+		# trouble, and the repeat is what identifies the drawing.
 		#
-		# It is TURNED, being a column, and it stands the 32 rows it is drawn: a
-		# pillar is a vertical thing seen face-on, so the drawing states its height
-		# as honestly as its width, which is the Bell Tower's own reading at a
-		# smaller size.
+		# Turned, being a column, and it stands the 32 rows it is drawn: a pillar
+		# seen face-on states its height as honestly as its width.
 		{
 			&"name": &"pillar",
 			&"tiles": [[193, 194], [195, 196], [197, 198], [197, 198]],
@@ -1278,7 +1114,7 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	22: [
-		# A LOW PADDED SEAT, 2x2 tiles, standing in rows on the carpet of the big
+		# A low padded seat, 2x2 tiles, standing in rows on the carpet of the big
 		# room, and the drawing states both its numbers itself: "its top surface
 		# drawn from ABOVE and its sides folded in", ten rows of top over six of
 		# face, which is the split every object with a top band is read by.
@@ -1292,28 +1128,23 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	1: [
-		# THE BELL TOWER, and it is the tallest thing in the game and the clearest
-		# case yet of a drawing whose FOOTPRINT is not its picture. Seven tiers of
-		# pagoda are drawn one above the other in a column sixteen tiles tall, and
-		# every pass here read them as seven storeys of facade stacked on each
-		# other: a leaning slab that runs off the top of any frame.
+		# The Bell Tower, the tallest thing in the game and the clearest case of a
+		# drawing whose FOOTPRINT is not its picture: seven tiers of pagoda drawn
+		# one above the other in a column sixteen tiles tall, which every pass read
+		# as seven storeys of facade stacked into a leaning slab.
 		#
-		# The reviewer read it as what it is: "the tower should be a 8x8 tiles
-		# square base. then its just a giant tower that goes up. in 3D the tower is
-		# only taking 8x8 tiles from above. but in 2D since its faking perspective,
-		# the tower is 6 large, but then its very very long in the vertical axis.
-		# so for us it will be empty here."
+		# It is an 8x8 tile square base with a tower going up from it; the drawn
+		# height is the 2D view faking perspective.
 		#
-		# So the object is the whole drawn rectangle and the BOX is its bottom
-		# quarter: `depth` 64 against a window 128 rows tall puts the near face at
-		# the drawing's foot and the far face eight tiles north of it, which is the
-		# square base, and the drawing hangs down the height one drawn pixel per
-		# world pixel. The rows above the base are covered like any other object
-		# tile and come back as the floor beside them, which is the whole of "just
-		# fill this empty space at floor level with whatever is around".
+		# So the object is the whole drawn rectangle and the box is its bottom
+		# quarter: `depth` 64 against a 128-row window puts the near face at the
+		# drawing's foot and the far face eight tiles north, and the drawing hangs
+		# down the height one drawn pixel per world pixel. The rows above the base
+		# are covered like any other object tile and come back as the floor beside
+		# them.
 		#
 		# The last two rows of the arrangement are the rock ring under the tower,
-		# which the reviewer calls flat floor: covering them is what lays it flat.
+		# which is flat floor: covering them is what lays it flat.
 		{
 			&"name": &"bell_tower",
 			&"tiles": [
@@ -1345,23 +1176,19 @@ const OBJECTS: Dictionary = {
 			&"depth": 64,
 			&"height": 128,
 		},
-		# SPROUT TOWER IS THE SAME PAGODA WITH THREE TIERS INSTEAD OF SEVEN, and it
-		# is the same drawing tile for tile: its tiers, its doorway and the rock ring
-		# at its foot are the rows the Bell Tower is built out of, under a wide roof
-		# of its own. Only the tier COUNT differs, so the arrangement the Bell Tower
-		# is found by cannot reach it and it was left to the passes below.
+		# Sprout Tower is the same pagoda with three tiers instead of seven, tile
+		# for tile, under a wide roof of its own. Only the tier count differs, so
+		# the Bell Tower's arrangement cannot reach it.
 		#
-		# What they made of it is worse than the Bell Tower's leaning slab, and it is
-		# the painting rather than the passes: a column of a painting is a section
-		# through a building, and a tower's storeys are stacked in PERSPECTIVE rather
-		# than side by side, so the wall flood cuts them apart at each eave and each
-		# comes back as a separate building standing on the ground. Three storeys
-		# three deep, with the eaves left standing between them as two thin spires.
+		# Left to the painting it came out worse than the Bell Tower's leaning
+		# slab: a column of a painting is a section through a building, and a
+		# tower's storeys are stacked in perspective rather than side by side, so
+		# the wall flood cuts them apart at each eave and each comes back as its own
+		# building on the ground, with the eaves standing between them as spires.
 		#
 		# So it is the Bell Tower's reading at its own size: the whole drawn
-		# rectangle, the BOX its bottom eight rows, and the drawing hung down the
-		# height one drawn pixel per world pixel. `depth` 64 is the reviewer's own
-		# 8x8 footprint for this drawing, which is the same base at the same width.
+		# rectangle, the box its bottom eight rows, and `depth` 64 for the same 8x8
+		# footprint.
 		{
 			&"name": &"sprout_tower",
 			&"tiles": [
@@ -1386,16 +1213,15 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	6: [
-		# THE KITCHEN TABLE, four tiles square with a stool at each corner. Read out
-		# tile by tile: 10,6 to 13,9 is its top seen from above and 10,10 to 13,10
-		# is its apron, so it is one tile high and its top is TWO WALK CELLS deep,
-		# which is the largest top band in this file. Wrapped, since a table stands
-		# in the middle of a room and the apron is what every side of it shows.
+		# The kitchen table, four tiles square with a stool at each corner: 10,6 to
+		# 13,9 is its top seen from above and 10,10 to 13,10 its apron, so it is one
+		# tile high and its top is two walk cells deep, the largest top band here.
+		# Wrapped, since a table stands in the middle of a room.
 		#
-		# IT TAKES TWO STRAYS WITH IT. 10,10 and 13,10 are its own front corners and
-		# fell to `stand` and `post` on their own, which put a black slab and a grey
-		# lump on the floor in front of it. An object hands every tile it covers
-		# back to the floor, so declaring the table is what removes them.
+		# It takes two strays with it: 10,10 and 13,10 are its own front corners and
+		# fell to `stand` and `post`, putting a black slab and a grey lump on the
+		# floor in front of it. An object hands every tile it covers back to the
+		# floor, so declaring the table removes them.
 		{
 			&"name": &"table",
 			&"tiles": [
@@ -1416,7 +1242,7 @@ const OBJECTS: Dictionary = {
 		# a section rather than from the drawing: see `mesher.gd:_object_stool`. Its
 		# drawing sits in the middle of its two cells, so the window is the twelve
 		# pixels it actually occupies and not the sixteen it is declared over.
-		# THE COMPUTER AND ITS DESK. See `mesher.gd:_object_terminal`.
+		# The computer and its desk. See `mesher.gd:_object_terminal`.
 		{
 			&"name": &"terminal",
 			&"tiles": [[64, 65], [32, 33], [66, 67]],
@@ -1425,7 +1251,7 @@ const OBJECTS: Dictionary = {
 			&"height": 30,
 			&"terminal": true,
 		},
-		# THE CARVING IN THE MIDDLE OF THE TABLE, a figure on a plinth, standing
+		# The carving in the middle of the table, a figure on a plinth, standing
 		# ON the table: `rise` is the table's own eight pixels. It is a BOX
 		# wearing its own drawing on all four sides, which the reviewer chose over
 		# the turned build: a revolve cannot know the figure is a dog and returned
@@ -1453,7 +1279,7 @@ const OBJECTS: Dictionary = {
 			&"height": 8,
 			&"stool": true,
 		},
-		# THE HALF WALL between the kitchen and the room, and the one thing here
+		# The half wall between the kitchen and the room, and the one thing here
 		# that was nearly right already: it stood at the correct height and wore its
 		# own FACE on its top. 6,0 to 7,5 is the top seen from above and 6,6 to 7,7
 		# is the face, two tiles of it, so it stands two tiles.
@@ -1475,7 +1301,7 @@ const OBJECTS: Dictionary = {
 			&"depth": 48,
 			&"height": 16,
 		},
-		# THE TELEVISION ON ITS STAND, against the wall, which is a different thing
+		# The television on its stand, against the wall, which is a different thing
 		# from the free-standing set below however much of the drawing they share:
 		# this one is two and a half tiles tall and its bottom row is the stand.
 		{
@@ -1487,7 +1313,7 @@ const OBJECTS: Dictionary = {
 			&"depth": 14,
 			&"height": 20,
 		},
-		# THE FRIDGE, two tiles high, with 4,1 to 5,1 its top seen from above. What
+		# The fridge, two tiles high, with 4,1 to 5,1 its top seen from above. What
 		# it wore up there before was the front of the thing above it, which is the
 		# roof the reviewer saw bleeding over it.
 		{
@@ -1517,7 +1343,7 @@ const OBJECTS: Dictionary = {
 			&"depth": 16,
 			&"height": 16,
 		},
-		# AND THE CHEST OF DRAWERS, which is that section a third time.
+		# And the chest of drawers, which is that section a third time.
 		{
 			&"name": &"drawers",
 			&"tiles": [[14, 15], [58, 59]],
@@ -1526,15 +1352,15 @@ const OBJECTS: Dictionary = {
 			&"depth": 16,
 			&"height": 16,
 		},
-		# A TELEVISION STANDING FREE IN THE ROOM, "2 tiles wide and 2 tall, waist
-		# high", drawn FACE-ON as a casing with a blue screen in it. Revolved it was
-		# a drum with the screen smeared round it.
+		# A television standing free in the room, two tiles wide and two tall, drawn
+		# face-on as a casing with a blue screen. Revolved it was a drum with the
+		# screen smeared round it.
 		#
-		# It FILLS its cell edge to edge in the casing's own dark shade, so there is
+		# It fills its cell edge to edge in the casing's own dark shade, so there is
 		# no ground inside the drawing for the flood to cut against and the mask is
 		# taken whole. What a face-on drawing states honestly is its width, so the
-		# two numbers a person owns are here: waist high is 12, and a Game Boy era
-		# television is nearly as deep as it is wide.
+		# height and depth are authored: waist high is 12, and a television of the
+		# period is nearly as deep as it is wide.
 		{
 			&"name": &"television",
 			&"tiles": [[6, 7], [22, 23]],
@@ -1545,11 +1371,11 @@ const OBJECTS: Dictionary = {
 			&"height": 12,
 		},
 	],
-	# THE POKEMON CENTRE, read out tile by tile by the reviewer. Every Centre in
+	# The Pokemon Centre, read out tile by tile by the reviewer. Every Centre in
 	# the game is the same room: two of them compared tile for tile are identical
 	# over all 320 of them, so one declaration serves all 33 maps of this tileset.
 	7: [
-		# THE COUNTER, ten tiles of it across the room. One tile row of top seen
+		# The counter, ten tiles of it across the room. One tile row of top seen
 		# from above and one of the front seen face-on, and the reviewer's own
 		# height for it is that one tile: a counter you are served over, not a wall.
 		{
@@ -1564,7 +1390,7 @@ const OBJECTS: Dictionary = {
 			&"depth": 8,
 			&"height": 8,
 		},
-		# THE END OF THE COUNTER, where it turns and runs away from the eye with the
+		# The end of the counter, where it turns and runs away from the eye with the
 		# till on it. One tile row of top and one of front, the same slab at the
 		# same height as the long one.
 		{
@@ -1576,7 +1402,7 @@ const OBJECTS: Dictionary = {
 			&"depth": 16,
 			&"height": 8,
 		},
-		# AND THE STRIP OF IT THAT REACHES THE WALL, which is ALL top: seen from
+		# And the strip of it that reaches the wall, which is ALL top: seen from
 		# above along its whole length, since the room's own north wall is what
 		# stands at the far end of it. A drawing with no face band anywhere in it
 		# takes the counter's own top for its two sides, which is what it wears.
@@ -1589,7 +1415,7 @@ const OBJECTS: Dictionary = {
 			&"depth": 24,
 			&"height": 8,
 		},
-		# THE MACHINES' DESK. The reviewer read the whole bank at 0,0 to 5,3 as a
+		# The machines' desk. The reviewer read the whole bank at 0,0 to 5,3 as a
 		# dark table one tile high with the Centre's machines standing on it, so the
 		# desk is its own bottom two tile rows: the row above seen from above, which
 		# is what carries the printer flat, and the row below face-on.
@@ -1602,7 +1428,7 @@ const OBJECTS: Dictionary = {
 			&"depth": 8,
 			&"height": 8,
 		},
-		# THE HEALING MACHINE, standing ON that desk rather than on the floor, which
+		# The healing machine, standing ON that desk rather than on the floor, which
 		# is what `rise` is for and what the laboratory's terminal spends it on. Two
 		# tile rows of drawing, so 16 px, over the desk's 8: three tiles in all,
 		# which is the height the reviewer gave the machine beside it.
@@ -1617,7 +1443,7 @@ const OBJECTS: Dictionary = {
 			&"rise": 8,
 			&"cap": 4,
 		},
-		# THE SCREEN ON THE SAME DESK, the same reading at two tiles wide.
+		# The screen on the same desk, the same reading at two tiles wide.
 		{
 			&"name": &"desk_screen",
 			&"tiles": [[4, 5], [20, 21]],
@@ -1629,7 +1455,7 @@ const OBJECTS: Dictionary = {
 			&"rise": 8,
 			&"cap": 4,
 		},
-		# THE PC IN THE CORNER, three tiles of drawing with no top band in it at
+		# The PC in the corner, three tiles of drawing with no top band in it at
 		# all: a cabinet with a screen and a keyboard on its front, stood at the
 		# height the reviewer counted. Wrapped, since the room's own north wall is
 		# behind it and its ends are what the room sees.
@@ -1644,7 +1470,7 @@ const OBJECTS: Dictionary = {
 			&"wrap": true,
 			&"cap": 4,
 		},
-		# THE WAITING CHAIRS, four of them, one walk cell each. HALF A TILE HIGH,
+		# The waiting chairs, four of them, one walk cell each. Half a tile high,
 		# which is the reviewer's own measurement and the only number here a drawing
 		# cannot state: what the drawing does say is where the seat stops and the
 		# front of it starts, twelve rows down, so the seat is 12 px deep and the
@@ -1662,7 +1488,7 @@ const OBJECTS: Dictionary = {
 	# THE SHOP. The dept store shares this tileset and draws none of these
 	# arrangements, so nothing below reaches it.
 	12: [
-		# THE SHELVES, and they are the lab bookcase again: a top row seen from
+		# The shelves, and they are the lab bookcase again: a top row seen from
 		# above over three tile rows of front, standing three tiles and not four.
 		# Stood at four they wore their own lid as the top of their face, which is
 		# what the reviewer saw. A plain BOX, since a shelf carries its goods on the
@@ -1700,7 +1526,7 @@ const OBJECTS: Dictionary = {
 			&"box": true,
 			&"foot": true,
 		},
-		# THE SHELF AGAINST THE SIDE WALL, TURNED. Same section as the others and
+		# The shelf against the side wall, TURNED. Same section as the others and
 		# the same three tiles, but the cartridge draws its END rather than its
 		# front, so it is the one object in this file that does not face the eye.
 		# See `mesher.gd:_turned`.
@@ -1715,7 +1541,7 @@ const OBJECTS: Dictionary = {
 			&"foot": true,
 			&"turn": true,
 		},
-		# THE SHOP COUNTER RUNNING AWAY FROM THE EYE, the Centre's corner again:
+		# The shop counter running away from the eye, the Centre's corner again:
 		# seven tile rows of top, the till among them lying flat on it, and the
 		# front at the near end. One tile high, as the Centre's is.
 		{
@@ -1730,7 +1556,7 @@ const OBJECTS: Dictionary = {
 			&"depth": 64,
 			&"height": 8,
 		},
-		# THE REST OF THAT COUNTER, WHICH IS DRAWN NOWHERE. It runs on behind the
+		# The rest of that counter, which is drawn nowhere. It runs on behind the
 		# shelves standing in front of it, so its four remaining tiles carry shelf
 		# and no counter anywhere in them: the shelves find the place and `art`
 		# names the counter's own two tiles to build it out of. See
@@ -1746,7 +1572,7 @@ const OBJECTS: Dictionary = {
 			&"height": 8,
 		},
 	],
-	# THE SAME KITCHEN, DRAWN AGAIN. Tileset 5 seats four of the round stools
+	# The same kitchen, drawn again. Tileset 5 seats four of the round stools
 	# round a square table exactly as tileset 6 does, out of its own tile ids,
 	# and neither was declared here: the table fell to `table` as a bare 8 px
 	# slab and every stool to `surface`, which stood a whole walk cell of the
@@ -1776,7 +1602,7 @@ const OBJECTS: Dictionary = {
 		# same seat seen from above over the same splayed legs. Built from a
 		# section, so the window is the twelve pixels the drawing occupies rather
 		# than the sixteen it is declared over. See `mesher.gd:_object_stool`.
-		# THE COMPUTER AND ITS DESK. See `mesher.gd:_object_terminal`.
+		# The computer and its desk. See `mesher.gd:_object_terminal`.
 		{
 			&"name": &"terminal",
 			&"tiles": [[64, 65], [32, 33], [66, 67]],
@@ -1785,7 +1611,7 @@ const OBJECTS: Dictionary = {
 			&"height": 30,
 			&"terminal": true,
 		},
-		# THE CARVING IN THE MIDDLE OF THE TABLE, a figure on a plinth, standing
+		# The carving in the middle of the table, a figure on a plinth, standing
 		# ON the table: `rise` is the table's own eight pixels. It is a BOX
 		# wearing its own drawing on all four sides, which the reviewer chose over
 		# the turned build: a revolve cannot know the figure is a dog and returned
@@ -1816,28 +1642,23 @@ const OBJECTS: Dictionary = {
 	],
 }
 
-## THE STAIRCASES, per tileset number, found the same way an object is.
+## The staircases, per tileset number, found the same way an object is.
 ##
-## A flight is FOUR TILES and a perspective drawing of one, which is the
-## reviewer's own answer: a 2x2 tile box, four steps on a 45 degree ramp, going
-## either up or down. Measured over the whole game: 288 flights, 272 of them a
-## single walk cell, drawn out of 54 distinct arrangements over 22 tilesets.
+## A flight is four tiles and a perspective drawing of one: a 2x2 tile box, four
+## steps on a 45 degree ramp, going up or down. Over the whole game: 288 flights,
+## 272 of them a single walk cell, from 54 distinct arrangements over 22 tilesets.
 ##
-## THEY DO NOT CHANGE LEVEL. Every one of the 288 has the same ground on both
-## sides of it, because these are WARP staircases: you step on one and leave the
-## floor entirely. So a ramp between two levels is not what is being built here
-## and open work 2 has the measurement that says so. What is built is the flight
-## itself, as the drawing shows it.
+## They do not change level. All 288 have the same ground on both sides, because
+## these are WARP staircases: you step on one and leave the floor entirely. What
+## is built is the flight itself, as the drawing shows it.
 ##
-## `step` is the direction it DESCENDS in the world plane, or climbs where `down`
-## is false, and it is the one thing a person has to say: the reviewer read
-## tileset 7's as going "from right to left to go underground", which is west.
+## `step` is the direction it descends in the world plane, or climbs where `down`
+## is false, and it is the one thing a person has to say.
 ##
-## `corner` REPLACES `step` for a landing where two runs meet, and names both
-## climb directions at once: (1, -1) climbs east and north, which is a raised
-## platform's bottom-left corner. A tread there is an L wrapping the corner
-## rather than a strip across a cell, and `mesher.gd:_emit_stair_corner` has the
-## one line the whole shape falls out of.
+## `corner` replaces `step` for a landing where two runs meet and names both climb
+## directions at once: (1, -1) climbs east and north, which is a raised platform's
+## bottom-left corner. A tread there is an L wrapping the corner rather than a
+## strip across a cell; see `mesher.gd:_emit_stair_corner`.
 const STAIRS: Dictionary = {
 	5: [
 		{
@@ -1940,7 +1761,7 @@ const STAIRS: Dictionary = {
 		},
 	],
 	15: [
-		# THE GRAND STAIRCASE, and the only flight in the game that is not one walk
+		# The grand staircase, and the only flight in the game that is not one walk
 		# cell. Four tiles by four, a banister down each edge and the treads
 		# between them, and the reviewer counted what it does: four steps in each
 		# half, so eight over the whole of it, climbing TWO levels rather than one.
@@ -1977,7 +1798,7 @@ const STAIRS: Dictionary = {
 		},
 	],
 	18: [
-		# THE LEAGUE'S PLATFORM, and the only staircase in the game that is a real
+		# The League's platform, and the only staircase in the game that is a real
 		# level change rather than a warp. Three runs round the edge of a floor that
 		# stands one level up, and they can only be built because that floor is
 		# PAINTED: see `shape/levels.gd` and open work 5. Built without it they
@@ -2003,28 +1824,25 @@ const STAIRS: Dictionary = {
 			&"step": Vector2i(0, -1),
 			&"steps": 5,
 		},
-		# THE SOUTH SKIRT either side of the carpet, which is the same five steps
-		# the carpet climbs, drawn on the same dais and running between the carpet
-		# and each corner landing. Folded onto a one-level wall it read as steps
-		# from most angles and as a painted stripe from above.
+		# The south skirt either side of the carpet: the same five steps the
+		# carpet climbs, running between it and each corner landing. Folded onto a
+		# one-level wall it read as a painted stripe from above.
 		{
 			&"tiles": [[145, 145], [142, 142]],
 			&"down": false,
 			&"step": Vector2i(0, -1),
 			&"steps": 5,
 		},
-		# THE TWO CORNER LANDINGS, where the west and east runs meet the south
-		# skirt, and the only flight in the game that TURNS. The reviewer read both
-		# and their words are the specification: "both horizontal and vertical steps
-		# are meeting, so to go up you walk from bottom left to top right", and the
-		# same for the bottom right the other way about.
+		# The two corner landings, where the west and east runs meet the south
+		# skirt: the only flight in the game that turns. Both horizontal and
+		# vertical steps meet, so going up you walk from bottom left to top right,
+		# and the same the other way about at the bottom right.
 		#
-		# A key of tileset and tile is NOT unique here: 136 is the first tile of the
-		# west run as well, and only the whole arrangement tells the two apart.
-		# THE SOUTH SKIRT either side of the carpet, which is the same five steps
-		# the carpet climbs, drawn on the same dais and running between the carpet
-		# and each corner landing. Folded onto a one-level wall it read as steps
-		# from most angles and as a painted stripe from above.
+		# A key of tileset and tile is not unique here: 136 is the first tile of the
+		# west run too, and only the whole arrangement tells the two apart.
+		# The south skirt either side of the carpet: the same five steps the
+		# carpet climbs, running between it and each corner landing. Folded onto a
+		# one-level wall it read as a painted stripe from above.
 		{
 			&"tiles": [[136, 144], [141, 142]],
 			&"down": false,
@@ -2067,7 +1885,7 @@ const STAIRS: Dictionary = {
 		},
 	],
 	23: [
-		# A LADDER'S HOLE, and it is a stairwell with no steps in it. The reviewer
+		# A ladder's hole, and it is a stairwell with no steps in it. The reviewer
 		# reads these as "a hole in the ground with a ladder inside it going
 		# underground", and the drawing is a dark shaft with the ladder's rails
 		# showing in it, so the cartridge's own picture of the hole laid on the
@@ -2094,7 +1912,7 @@ const STAIRS: Dictionary = {
 		},
 	],
 	24: [
-		# A LADDER'S HOLE, and it is a stairwell with no steps in it. The reviewer
+		# A ladder's hole, and it is a stairwell with no steps in it. The reviewer
 		# reads these as "a hole in the ground with a ladder inside it going
 		# underground", and the drawing is a dark shaft with the ladder's rails
 		# showing in it, so the cartridge's own picture of the hole laid on the
@@ -2107,7 +1925,7 @@ const STAIRS: Dictionary = {
 			&"step": Vector2i(0, -1),
 			&"steps": 0,
 		},
-		# A LADDER'S HOLE, and it is a stairwell with no steps in it. The reviewer
+		# A ladder's hole, and it is a stairwell with no steps in it. The reviewer
 		# reads these as "a hole in the ground with a ladder inside it going
 		# underground", and the drawing is a dark shaft with the ladder's rails
 		# showing in it, so the cartridge's own picture of the hole laid on the
@@ -2164,7 +1982,7 @@ const STAIRS: Dictionary = {
 		},
 	],
 	30: [
-		# A LADDER'S HOLE, and it is a stairwell with no steps in it. The reviewer
+		# A ladder's hole, and it is a stairwell with no steps in it. The reviewer
 		# reads these as "a hole in the ground with a ladder inside it going
 		# underground", and the drawing is a dark shaft with the ladder's rails
 		# showing in it, so the cartridge's own picture of the hole laid on the
@@ -2177,7 +1995,7 @@ const STAIRS: Dictionary = {
 			&"step": Vector2i(0, -1),
 			&"steps": 0,
 		},
-		# A LADDER'S HOLE, and it is a stairwell with no steps in it. The reviewer
+		# A ladder's hole, and it is a stairwell with no steps in it. The reviewer
 		# reads these as "a hole in the ground with a ladder inside it going
 		# underground", and the drawing is a dark shaft with the ladder's rails
 		# showing in it, so the cartridge's own picture of the hole laid on the
@@ -2198,7 +2016,7 @@ const STAIRS: Dictionary = {
 		},
 	],
 	35: [
-		# NOT A STAIRCASE AND NOT A LADDER: "a hole in the ground, the wooden planks
+		# Not a staircase and not a ladder: "a hole in the ground, the wooden planks
 		# are broken". A pit is what a stairwell is once its steps are taken out, so
 		# this costs one declaration and no code, and it is the same thing the
 		# bicycle ramp of tileset 23 wants in open work 14.
@@ -2211,31 +2029,23 @@ const STAIRS: Dictionary = {
 	],
 }
 
-## The tiles that draw the FACE of a terrain cliff, per tileset number.
+## The tiles that draw the face of a terrain cliff, per tileset number.
 ##
-## Not a class and deliberately not one: a cliff face stands up and is textured
-## exactly like any other wall, and what is different about it is what is BEHIND
-## it. The reviewer's own words: "rock walls are two tiles high, and then its the
-## higher flat floor". So the ground north of a cliff is not the ground in front
-## of it a few tiles further on; it is a PLATEAU, standing on top of the wall,
-## which no per-column measurement can ever reach because a column measures one
-## height and a cliff is two.
+## Not a class, deliberately: a cliff face stands up and is textured like any
+## other wall, and what differs is what is BEHIND it. A rock wall is two tiles
+## high with the higher flat floor above it, so the ground north of a cliff is a
+## PLATEAU standing on top of the wall, which no per-column measurement can reach
+## because a column measures one height and a cliff is two.
 ##
-## Every face tile of the cliff belongs here: the rim, the corners, the crest and
-## the cave mouth cut into the foot of one are all one wall, and listing them all
-## is what lets a column's own run of them be read as a whole. What a tile must
-## NOT be listed as is the face of anything that is not terrain: a house wall has
-## a floor behind it, not a plateau.
+## Every face tile belongs here: the rim, the corners, the crest and a cave mouth
+## cut into the foot of one are all one wall, and listing them all is what lets a
+## column's run of them be read whole. What must not be listed is the face of
+## anything that is not terrain: a house wall has a floor behind it.
 ##
-## `FRONTS` is the subset that faces the SCREEN, with the raised floor
-## immediately above the drawing. Only a front says which side of the wall is up:
-## the west rim of the same cliff carries the plateau on one side and the low
-## ground on the other, and every one of those rims is in `CLIFFS` to bound and
-## to be measured with, and in `FRONTS` never.
-##
-## Mined from the full pass's own descriptions in the survey directory, which
-## name a cliff face as such and say what stands above it, and cross-read against
-## the reviewer's answers for tileset 3.
+## `FRONTS` is the subset facing the screen, with the raised floor immediately
+## above the drawing. Only a front says which side of the wall is up: the west rim
+## of the same cliff carries the plateau on one side and low ground on the other,
+## so those rims are in `CLIFFS` and never in `FRONTS`.
 const CLIFFS: Dictionary = {
 	# Routes: the raised brown rock shelf, its four rims and the cave mouth in it.
 	# 75 is the SOUTH-WEST corner and was the one tile of the ring missing here,
@@ -2246,7 +2056,7 @@ const CLIFFS: Dictionary = {
 	# stood 32 px beside an 8 px shelf.
 	1: [76, 59, 61, 75, 77, 43, 45, 70, 71, 86, 87],
 	# The tan rock face under a raised earth terrace, AND THE WHOLE RING ROUND A
-	# ROCK PATCH, which tileset 2 draws out of the same ids tileset 1 does. Only
+	# Rock patch, which tileset 2 draws out of the same ids tileset 1 does. Only
 	# 76 was listed, so Saffron's sea rocks came out as craters: the front face
 	# stood and the three sides and the four corners stayed flat, which left a
 	# square of walkable rock 8 px down inside a ring 8 and 16 px up. See the
@@ -2267,24 +2077,18 @@ const FRONTS: Dictionary = {
 	4: [44],
 }
 
-## The LIP: the plateau's own far edge, drawn from above with the seam INSIDE the
+## The lip: the plateau's far edge, drawn from above with the seam inside the
 ## drawing rather than under it.
 ##
-## A cliff shows its face where it faces the screen and nothing at all where it
-## faces away, so the far edge of a plateau is one flat row carrying a black line
-## along its top and the low ground carries on immediately above it. Nothing
-## stands between the two, which is exactly the leak that matters: the flood that
-## carries a plateau's height across it would run straight out over the seam and
-## take half the map with it. A lip therefore ENDS a region and then takes the
-## height of the region on its own south side, which is the side its drawing
-## belongs to.
-##
-## The reviewer's tileset 3 tile 1: "the far (top) edge row of the raised stone
-## platform's walkable upper surface; the black line along its top is the seam
-## where the platform meets the pale ground beyond".
+## A cliff shows its face toward the screen and nothing at all away from it, so
+## the far edge of a plateau is one flat row with a black line along its top and
+## the low ground immediately above. Nothing stands between the two, which is the
+## leak that matters: the flood carrying a plateau's height would run out over the
+## seam and take half the map with it. So a lip ends a region and then takes the
+## height of the region on its own south side.
 const LIPS: Dictionary = {
 	3: [1],
-	# THE NORTH RIM OF THE ROUTE SHELF, and it is the fourth side of every rock
+	# The north rim of the route shelf, and it is the fourth side of every rock
 	# patch in the game. The pass reads it as what a lip is: "the top lip of the
 	# raised brown rock shelf, drawn from ABOVE, looking down onto the rim". Its
 	# class is `ledge`, which stands it a flat 8 px band whatever the rock behind
@@ -2296,27 +2100,23 @@ const LIPS: Dictionary = {
 	2: [44],
 }
 
-## THE TILES THAT DRAW A FENCE FACE-ON, as ROWS of tile ids, top row first and
+## The tiles that draw a fence face-on, as rows of tile ids, top row first and
 ## each row left to right, per tileset number.
 ##
-## A fence runs both ways and the cartridge draws the two runs differently: the
-## one going ACROSS is a portrait of the fence, posts and rails seen from the
-## side over two tile rows, and the one going AWAY is a line seen from above with
-## its shadow beside it. Only the first says what a fence looks like, so it is
-## the one the model is read from and the same model is turned to serve the other,
-## which is the reviewer's own instruction: "just do the same normal fence model".
+## A fence runs both ways and the cartridge draws the two runs differently: across
+## is a portrait of the fence, posts and rails seen from the side over two tile
+## rows, and away is a line seen from above with its shadow beside it. Only the
+## first says what a fence looks like, so the model is read from it and turned to
+## serve the other.
 ##
-## THE PERIOD IS THE DRAWING'S, NOT THE TILE'S, which is what the rows are for. A
-## fence whose posts come one per tile is one tile wide and is laid down twice
-## across a walk cell; the National Park's arch is a 16 px drawing whose apex
-## sits on the seam between two tiles, and cutting it at that seam and repeating
-## either half would build two half arches back to back. A row as wide as the
-## cell is laid down once.
+## The period is the drawing's and not the tile's, which is what the rows are for.
+## A fence whose posts come one per tile is laid down twice across a walk cell;
+## the National Park's arch is a 16 px drawing whose apex sits on the seam between
+## two tiles, and cutting there would build two half arches back to back.
 ##
-## Everything else about the shape is read off these tiles and nothing is
-## authored: how tall it stands, where its posts are, how thick its rails are and
-## where the gaps between them are. `mesher.gd:_fence_profile` has the rules that
-## reading needs.
+## Everything else is read off these tiles and nothing is authored: how tall it
+## stands, where its posts are, how thick its rails are and where the gaps are.
+## See `mesher.gd:_fence_profile`.
 const FENCES: Dictionary = {
 	# The white fence round Ecruteak's yards: 90 is the post top and the upper
 	# rail, 89 the shafts, the foot and the shadow under it.
@@ -2331,36 +2131,32 @@ const FENCES: Dictionary = {
 	# went from a solid kerb to open pavement. A tileset belongs in both tables
 	# or in neither.
 	4: [[90], [89]],
-	# THE NATIONAL PARK'S WOODEN FENCE, and it is the drawing the two-tile period
+	# The National Park's wooden fence, and it is the drawing the two-tile period
 	# exists for: an arched top over a solid rail, drawn as a 16 px pair with the
 	# arch's apex on the tile seam. 35 and 36 are the arch, 51 and 52 the rail.
 	25: [[35, 36], [51, 52]],
 }
 
 
-## THE ROOM SHELL, per tileset: the arrangement of tile ids a blank interior wall
+## The room shell, per tileset: the arrangement of tile ids a blank interior wall
 ## is drawn with, top row first, repeated over the shell.
 ##
 ## A Game Boy camera never stands outside a room, so the cartridge draws the one
-## wall the player looks AT and nothing else: two tile rows along the north edge,
-## and the other three sides are not drawn at all. In three dimensions the camera
-## does stand outside, and what it found was a floor with furniture on it and no
-## room around it.
+## wall the player looks at and nothing else: two tile rows along the north edge,
+## with the other three sides undrawn. In three dimensions the camera does stand
+## outside, and what it found was furniture on a floor with no room around it.
 ##
-## So a room is given the shell it always had. `mesher.gd:_measure_room` rings the
-## map with this drawing, one walk cell deep, standing two cells, and raises the
-## wall the cartridge DOES draw to meet it. The upper course is this same drawing
-## rather than a stretch of the window or the poster below it, which is the
-## reviewer's own instruction against the lab's own tiles: reuse the blank wall to
-## fill the wall a level higher.
+## So `mesher.gd:_measure_room` rings the map with this drawing, one walk cell
+## deep and two cells tall, and raises the wall the cartridge does draw to meet
+## it. The upper course is this same drawing rather than a stretch of the window
+## or poster below it.
 ##
-## Per tileset, because a tile id means nothing without one. A tileset with no
-## entry gets no shell and its interiors are drawn exactly as they were.
-## THE BLANK COURSE AND NOT THE WHOLE WALL. Tileset 10 draws its wall as plaster
-## over a blue skirting, and the skirting is the foot of the one wall the
-## cartridge places. Repeated up a shell two cells tall it is a stripe every other
-## band, and repeated across the shell's top it is a striped ledge, so what is
-## reused is the plaster alone.
+## It is the blank course and not the whole wall: tileset 10 draws plaster over a
+## blue skirting, and repeated up a shell two cells tall that skirting is a stripe
+## every other band and a striped ledge across the top.
+##
+## Per tileset, since a tile id means nothing without one. A tileset with no entry
+## gets no shell and its interiors are drawn as they were.
 const ROOM_WALL: Dictionary = {
 	# The Kanto laboratory and the houses that share its tileset.
 	10: [[1, 1]],
@@ -2368,7 +2164,7 @@ const ROOM_WALL: Dictionary = {
 	# repeats up a wall on its own: 17 is eight rows of panelling whose top half
 	# and bottom half are the same drawing.
 	6: [[17]],
-	# THE POKEMON CENTRE. 2 is the dark panelling its north wall is drawn out of,
+	# The Pokemon Centre. 2 is the dark panelling its north wall is drawn out of,
 	# every tile of it from the healing machine round to the stairwell, and it
 	# repeats on its own the way the house's does.
 	7: [[2]],
@@ -2376,12 +2172,12 @@ const ROOM_WALL: Dictionary = {
 	# every wall it has is shelves, and the two tiles between the counter and the
 	# door are the whole of the plaster the cartridge shows.
 	12: [[17]],
-	# THE GYM AND CLUB TILESET, 57 indoor maps and the most of any in the game.
+	# The gym and club tileset, 57 indoor maps and the most of any in the game.
 	# 0 is the blue panelling, blank but for the stripe it is ruled with, and it
 	# stands both courses on its own: over every map on the tileset it is the pair
 	# above a standing tile 264 times, more than twice the window beside it.
 	5: [[0]],
-	# THE DEPARTMENT STORE AND THE OFFICES ABOVE IT. The blue counter band, 92 and
+	# The department store and the offices above it. The blue counter band, 92 and
 	# 93 over 16, is every blank wall the cartridge draws on the tileset: 470
 	# placements, five times the lockers beside it.
 	8: [[92, 93], [16, 16]],
@@ -2392,58 +2188,58 @@ const ROOM_WALL: Dictionary = {
 	# side of a joint, which is why 37,39/53,55 and 39,38/55,54 come back level at
 	# 66 each: they are the same wall read off its two alignments.
 	15: [[37, 39], [53, 55]],
-	# THE TRADITIONAL HOUSE, whose plaster repeats on one tile the way the ordinary
+	# The traditional house, whose plaster repeats on one tile the way the ordinary
 	# house's does.
 	16: [[17]],
-	# THE LIGHTHOUSE, 4 over 20 and 144 placements.
+	# The lighthouse, 4 over 20 and 144 placements.
 	28: [[4], [20]],
 	# THE SHIP.
 	11: [[65], [77]],
-	# THE LABORATORY AND THE ROOMS THAT SHARE IT: 2 stands both courses alone, 80
+	# The laboratory and the rooms that share it: 2 stands both courses alone, 80
 	# placements against 12.
 	14: [[2]],
-	# THE CAVERN, and a cave takes one for the same reason a room does: its edge is
+	# The cavern, and a cave takes one for the same reason a room does: its edge is
 	# rock everywhere the map draws rock and nothing at all where it does not. 38
 	# is the plain rock face, 124 placements against 18.
 	30: [[38]],
-	# THE DARK CAVERN, which draws its rock out of the same three ids as 30 and
+	# The dark cavern, which draws its rock out of the same three ids as 30 and
 	# splits its placements evenly between them.
 	24: [[38]],
-	# THE PARK'S BUILDINGS AND THE RUINS CHAMBERS, which share a tileset. 192
+	# The park's buildings and the ruins chambers, which share a tileset. 192
 	# placements, six times anything else, and the same wall in both.
 	19: [[94, 95], [74, 75]],
-	# THE GAME CORNER.
+	# The Game Corner.
 	26: [[8, 9], [10, 11]],
 	# THE STATION. Three candidates come back level at 8 placements each and the
 	# count cannot choose between them; the picture can. The 84 two of them share
 	# is a HEDGE, and a hedge ringed the platform in green. 138 and 139 over 154
 	# and 155 is the grey block the platform's own walls are drawn out of.
 	13: [[138, 139], [154, 155]],
-	# THE POWER PLANT AND THE ROOMS THAT SHARE IT, 17 over 16 and 90 placements.
+	# The power plant and the rooms that share it, 17 over 16 and 90 placements.
 	27: [[17], [16]],
-	# THE ICE PATH. 82 over 83 is the candidate that repeats a single tile across
+	# The ice path. 82 over 83 is the candidate that repeats a single tile across
 	# and it is the wrong one: it is a dark barred wall, and ringing an icy cavern
 	# with it put a cellar door round the ice. 132 and 133 over 148 and 149 is the
 	# blue rock the cavern is cut from, and a wall two ids wide is still blank.
 	29: [[132, 133], [148, 149]],
-	# THE MAGNET TRAIN STATION. 48 stands both courses alone, 92 placements against
+	# The Magnet Train Station. 48 stands both courses alone, 92 placements against
 	# 20 for the ticket gate beside it.
 	17: [[48]],
-	# THE UNDERGROUND.
+	# The underground.
 	22: [[84, 85], [80, 81]],
 	# THE MANSION.
 	18: [[70, 71], [86, 87]],
-	# THE TRAIN CARRIAGE.
+	# The train carriage.
 	20: [[2]],
-	# THE GOLDENROD UNDERGROUND WAREHOUSE, which is the tileset's ONE map. 2 is the
+	# The Goldenrod Underground Warehouse, which is the tileset's ONE map. 2 is the
 	# blue panelling and it repeats on its own; the count's own winner pairs it
 	# with 131 and 138, which are a WINDOW'S two corners, so every room on the
 	# tileset was ringed in the top left of a window. `tools/room_wall.gd` is the
 	# count, with the picture beside it that says which candidate is blank.
 	21: [[2]],
-	# THE BATTLE TOWER'S CAVERN, one map and the same rock face repeated.
+	# The Battle Tower's cavern, one map and the same rock face repeated.
 	1: [[61]],
-	# THE FOUR CHAMBERS OF THE RUINS, one map each and one tileset each, drawing
+	# The four chambers of the ruins, one map each and one tileset each, drawing
 	# the same wall: 6 is the blank course and what sits under it is the carving
 	# that tells the four apart.
 	33: [[6]],
@@ -2453,16 +2249,15 @@ const ROOM_WALL: Dictionary = {
 }
 
 
-## Which part of a BUILDING a class depicts, and how far a sloped roof tile has
+## Which part of a building a class depicts, and how far a sloped roof tile has
 ## fallen from the flat section beside it, in 8px bands.
 ##
-## A Generation II building packs several surfaces into one drawing: the bottom
-## rows are the facade seen face-on, the rows above are the roof seen from above,
-## and the roof's sides fall away by a band or two per column at the gable. No
-## single class covers that, and a tile id is not a band: what decides a height
-## is where a tile sits in the building's own grid, which `mesher.gd` measures.
-## These say only which of the two surfaces a drawing is, and how far down the
-## slope it sits, both of which are facts about the drawing alone.
+## A building packs several surfaces into one drawing: the bottom rows are the
+## facade face-on, the rows above the roof from above, and the roof's sides fall a
+## band or two per column at the gable. No single class covers that, and a tile id
+## is not a band: what decides a height is where a tile sits in the building's own
+## grid, which `mesher.gd` measures. These say only which surface a drawing is and
+## how far down the slope it sits.
 const BUILDING: Dictionary = {
 	&"facade": &"wall",
 	&"roof": &"roof",
@@ -2474,7 +2269,7 @@ const ROOF_DROP: Dictionary = {
 	&"roof_corner": 2,
 }
 
-## HOW MUCH OF A FACADE TILE IS NOT THE FACADE, in pixels off its left and right
+## How much of a facade tile is not the facade, in pixels off its left and right
 ## edges, per tileset and tile.
 ##
 ## A wall's end tile does not draw only wall. The reviewer read tileset 3's tile
@@ -2511,24 +2306,21 @@ const FACADE_MARGIN: Dictionary = {
 	},
 }
 
-## WHICH FACADE TILES ARE THE FRONT SLOPE OF A ROOF, per tileset and tile.
+## Which facade tiles are the front slope of a roof, per tileset and tile.
 ##
-## A facade is a wall seen face-on and it stands up square, which is right for a
-## wall and wrong for the other thing Generation II draws face-on. Tileset 1's
-## houses do not draw their roof from above at all: they draw the front PITCH of
-## it, four rows of plank or of speckled tile over two rows of wall, and the full
-## pass reads every one of them the same way, "drawn FACE-ON, this is the front
-## slope of the roof and not a view from above". Stood up square that is a barn:
-## a tall box with roof texture down its upper half and a flat lid, on every
-## house of the twenty-four maps tileset 1 carries.
+## A facade is a wall seen face-on and stands up square, which is wrong for the
+## other thing Generation II draws face-on: tileset 1's houses draw the front
+## PITCH of their roof, four rows of plank or speckled tile over two rows of wall.
+## Stood up square that is a barn, a tall box with roof texture down its upper
+## half and a flat lid, on every house of the twenty-four maps tileset 1 carries.
 ##
-## So those bands LEAN BACK over the building's own footprint, one tile of depth
-## per band of height, which is the reference's band table
-## (`sprite_to_voxel_methodology.md`, "the taper rate IS the slope"). The fold
-## already makes a house as deep as its drawing is tall, so the pitch leans back
-## INTO the footprint and the building's total height does not move by a pixel.
+## So those bands lean back over the building's footprint, one tile of depth per
+## band of height, which is the reference's band table
+## (`sprite_to_voxel_methodology.md`). The fold already makes a house as deep as
+## its drawing is tall, so the pitch leans back into the footprint and the total
+## height does not move.
 ##
-## Per TILE and not per class, for `FACADE_MARGIN`'s reason: which surface a
+## Per tile and not per class, for `FACADE_MARGIN`'s reason: which surface a
 ## drawing depicts is a fact about that drawing, and `facade` covers both.
 const FACADE_SLOPE: Dictionary = {
 	# The plank roof of the wooden house, six tiles across and four rows down over
@@ -2561,7 +2353,7 @@ const ART: Dictionary = {
 	&"roof": &"top",
 	&"bed": &"top",
 	&"wall": &"upright",
-	# A FENCE IS NOT A WALL AND IS NOT A DRAWING STOOD UP. It is a run of posts
+	# A fence is not a wall and is not a drawing stood up. It is a run of posts
 	# with rails between them, so it is built from its own drawing as real
 	# geometry on the CENTRE LINE of its cell: see `mesher.gd:_fence`.
 	&"fence": &"fence",
@@ -2629,11 +2421,11 @@ const TILESETS: Dictionary = {
 		&"flower": [3],
 		# The wooden route sign: 14 px with a row of floor top and bottom.
 		&"sign_post": [70, 71, 86, 87],
-		# THE METAL RAILING round Goldenrod's lawns, 2200 tiles and the largest
+		# The metal railing round Goldenrod's lawns, 2200 tiles and the largest
 		# thing left in the full pass's `stand` fallback after the boulders. Two
 		# rails: 16 runs north to south, 32 east to west.
 		&"railing": [16, 32],
-		# THE ROUND WHITE CAP, 33, drawn where two rail runs meet and again on its
+		# The round white cap, 33, drawn where two rail runs meet and again on its
 		# own in fours inside the pen at 51,15. One drawing and one shape, so it is
 		# its own class and not a corner of the railing: a BALL of the drawn 8px
 		# across, which is what a turn of a circle is.
@@ -2645,11 +2437,10 @@ const TILESETS: Dictionary = {
 		# what stands NEXT to it: grass under a ledge lip, and the stone floor
 		# of a plateau.
 		#
-		# AND 4, THE STEP THROUGH THE LEDGE, which the generated pass called a lip
-		# and which is the flat pale tread the player walks down: 126 tiles on 21
-		# maps, and the reviewer's own item. A LIP IS THE BLOCKED CELL A HOP
-		# PASSES OVER, so a tile whose every placement is WALKABLE is not one, and
-		# that test is what found this and the four tilesets below.
+		# And 4, the step through the ledge, which the pass called a lip and which
+		# is the flat pale tread the player walks down: 126 tiles on 21 maps. A lip
+		# is the blocked cell a hop passes over, so a tile whose every placement is
+		# walkable is not one, and that test found this and the four tilesets below.
 		&"ground": [17, 44, 57, 4],
 		&"tall_grass": [82],
 		# A lip drawn from above, lying low. Where the collision says a lip can be
@@ -2675,7 +2466,7 @@ const TILESETS: Dictionary = {
 	},
 	# Pokemon Centers, shops and houses, on 57 maps.
 	5: {
-		# THE BOOK AND THE PENCIL LYING ON THE TABLE, 70/71/86/87, are the table:
+		# The book and the pencil lying on the table, 70/71/86/87, are the table:
 		# a drawing seen from ABOVE, at the height of the thing it is lying on.
 		# The pass called them `on_furniture`, which stands a drawing up on the
 		# furniture it is drawn on, so a book two tiles tall came out as a slab
@@ -2692,67 +2483,59 @@ const TILESETS: Dictionary = {
 		# The potted plant, eight tiles: two wide and four tall, leaves over pot.
 		&"planter": [8, 9, 10, 11, 24, 25, 26, 27],
 	},
-	# TALL GRASS, pinned from the full pass's own words. Which CELLS are tall
+	# Tall grass, pinned from the full pass's own words. Which CELLS are tall
 	# grass is the cartridge's own answer and `Gen2WorldCollision.is_grass` gives
 	# it, so these pins are an OVERRIDE and no longer the only reading: they stand
 	# a drawing up where no collision code says so.
 	1: {
 		# The paving in front of the mart door, walked on and drawn flat.
 		&"ground": [154],
-		# THE CAVE MOUTH, and it was lying on the floor. Two tiles by two of black
-		# opening cut into the foot of the rock, which the pass reads four times
-		# over as "drawn FACE-ON as an opening in the cliff face, part of a doorway
-		# two tiles wide and two tall". `CLIFFS` has listed it from the start and
-		# that pin could never fire: a cliff has to be a VOLUME first, and the cell
-		# is walked into, so the collision resolved it to floor and the arch was
-		# painted flat on the ground in a gap in the rock.
+		# The cave mouth, which was lying on the floor: two tiles by two of black
+		# opening cut into the foot of the rock. `CLIFFS` has listed it from the
+		# start and that pin could never fire, because a cliff has to be a VOLUME
+		# first and the cell is walked into, so the collision resolved it to floor
+		# and the arch was painted flat on the ground.
 		#
-		# A DOORWAY IS DRAWN STANDING EVEN THOUGH IT IS WALKED THROUGH, which is
-		# the reviewer's own rule for the houses: "it should also be vertical
-		# facing texture, but player just walk through it since no collision".
-		# Standing, it joins the rock structure and takes the rock's own height and
-		# the rim's own slope, which is what they asked for: "make it a vertical
-		# wall and use same degree as adjacent wall".
+		# A doorway is drawn standing even though it is walked through, which is the
+		# same rule the houses take. Standing, it joins the rock structure and takes
+		# the rock's own height and the rim's own slope.
 		&"wall": [70, 71, 86, 87],
-		# THE WHITE FENCE round the yards, and it is three tiles for two runs: 90
+		# The white fence round the yards, and it is three tiles for two runs: 90
 		# over 89 is the run drawn face-on going ACROSS, and 74 is the run going
 		# AWAY, drawn as a line from above with its shadow beside it. All three
 		# take the class and `mesher.gd:_fence` builds the same model for each,
 		# turned to whichever way the run goes. 74 is also the lower half of a
 		# CORNER, where the cartridge draws it under a 90.
 		&"fence": [74, 89, 90],
-		# THE MEADOW FLOWER, and this pin is on all three tilesets that draw it,
+		# The meadow flower, and this pin is on all three tilesets that draw it,
 		# 1, 3 and 25, at the same id. `flowers` is the brick flower BED, a real
 		# solid a cell wide that the same word had been carrying, and the two want
 		# opposite geometry: the bed is a box and this is a clump of blooms in the
 		# grass. See the class in `FILLED`.
 		&"flower": [3],
 		&"tall_grass": [4],
-		# THE PINK BRICK WALL of the small house, which the pass read as paving and
-		# which is why every one of those houses was a roof block over a hole. The
-		# same slot draws both: 592 placements lie in walkable cells on 3 maps and
-		# are the brick causeway the pass described, 458 lie in blocked cells on 16
-		# and are the wall between the windows and the eave. Tileset 2 pins the same
-		# drawing `facade` and calls it "the pale blue brick wall of a shop".
-		# The COLLISION is what tells them apart and it already does: a building pin
-		# in a walkable cell resolves back to ground, which is the rule tileset 3's
-		# tile 35 was given for exactly this.
+		# The pink brick wall of the small house, which the pass read as paving,
+		# which is why every one of those houses was a roof block over a hole. One
+		# slot draws both: 592 placements lie in walkable cells on 3 maps and are a
+		# brick causeway, 458 lie in blocked cells on 16 and are the wall between
+		# the windows and the eave. The collision tells them apart, since a building
+		# pin in a walkable cell resolves back to ground.
 		&"facade": [7],
-		# THE ROUTE NOTICE BOARD, 78 of them over 22 maps and the largest thing left
+		# The route notice board, 78 of them over 22 maps and the largest thing left
 		# in the full pass's `stand` fallback. `stand` is ROUND, so a board with a
 		# frame, four lines of writing and two legs was revolved into a drum. It is
 		# the same drawing as tileset 3's wooden route sign, which the reviewer
 		# measured themselves: a plate on posts, cut on its own outline and standing
 		# as many pixels as it is drawn.
 		&"sign_post": [78, 79, 94, 95],
-		# THE SEA ROCK, and it is WATER with stones in it rather than a stone
+		# The sea rock, and it is WATER with stones in it rather than a stone
 		# standing on the floor. Pinned `boulder` it stood at 0 while the sea lay at
 		# -8, so 802 cells of chained 8px pebbles came out as a run of pale slabs
 		# eight pixels proud of the water: the reviewer's own words are stuff going
 		# out of the water, in blue, above rocks. `sea_rock` keeps the tile flat
 		# water, ripple and shore rule included, and stands the pebbles on it.
 		&"sea_rock": [88],
-		# THE CONIFER, and tileset 1 is 29 maps: more of the game's outdoors than
+		# The conifer, and tileset 1 is 29 maps: more of the game's outdoors than
 		# any other. Six tiles, drawn as a pointed top over an optional middle over
 		# a foot, and the middle is what makes a tall one: 3696 cells carry
 		# [30,31,46,47] and exactly 3696 carry [46,47,62,63], so every tall tree is
@@ -2760,7 +2543,7 @@ const TILESETS: Dictionary = {
 		# short one. `SPANS` declares the tall one and the placement collapses it.
 		&"tree": [30, 31, 46, 47, 62, 63],
 	},
-	# THE SAME TREE AGAIN, and tilesets 2 and 4 draw it out of the same six slots
+	# The same tree again, and tilesets 2 and 4 draw it out of the same six slots
 	# tileset 1 does: a top at [30,31], a foot at [62,63] and a middle that makes
 	# a tall one, which is [46,47] there and [19,21] here. Every block that places
 	# it is the conifer's own arrangement, top over middle over middle over foot
@@ -2773,7 +2556,7 @@ const TILESETS: Dictionary = {
 		&"tree": [30, 31, 19, 21, 62, 63],
 		# The same sea rock tileset 1 draws, at the same id.
 		&"sea_rock": [88],
-		# THE SAME METAL RAILING TILESET 1 DRAWS, at the same three ids, dividing
+		# The same metal railing tileset 1 DRAWS, at the same three ids, dividing
 		# pavement from grass instead of enclosing a yard. The full pass read both
 		# tilesets and gave the same three roles: 90 the round post tops and the top
 		# rail, 89 the post stubs and the kerb under them, 74 the run seen end-on
@@ -2788,7 +2571,7 @@ const TILESETS: Dictionary = {
 		# instead of on grass. One placement on one map, and it is here so the two
 		# tilesets cannot drift apart: the conifer went the same way.
 		&"sign_post": [78, 79, 94, 95],
-		# AND THE SAME RAILING AGAIN, at the same three ids, which is the third
+		# And the same railing again, at the same three ids, which is the third
 		# tileset to draw it and the one that was left out. `mask_print` reads
 		# 74, 89 and 90 here pixel for pixel identical to tileset 1's, so a run
 		# that stands as posts and a rail beside Ecruteak's yards came out on map
@@ -2796,7 +2579,7 @@ const TILESETS: Dictionary = {
 		# box. Nothing is authored here that tilesets 1 and 2 have not said.
 		&"fence": [74, 89, 90],
 	},
-	# EVERY BOULDER IN THE GAME, and each of these is one walk cell drawn as a
+	# Every boulder in the game, and each of these is one walk cell drawn as a
 	# 2x2-tile stone: 268 of them standing in the sea off Olivine, 775 on the cave
 	# floors of tileset 24 and 133 ice rocks on the snow of tileset 29. They stood
 	# as `stand`, the full pass's fallback for something standing, which carved
@@ -2821,21 +2604,17 @@ const TILESETS: Dictionary = {
 	},
 	17: {
 		&"tall_grass": [87],
-		# THE BRONZE FIGURE ON A STONE PLINTH, twelve of them over three maps and
+		# The bronze figure on a stone plinth, twelve of them over three maps and
 		# drawn over two different bases: the second swaps the base's top row for
 		# [16, 1], which this tileset draws nowhere else, so both are pinned or half
 		# a drawing resolves no span at all.
 		&"statue_pillar": [72, 73, 88, 89, 74, 75, 90, 91, 16, 1],
 	},
-	# THE BIG TREE, and it is one whole block: four tiles by four, canopy, trunk
-	# and the shadow ellipse it stands in, described tile by tile in the full
-	# pass and standing as one plain box before this.
-	#
-	# Tileset 31 draws the same tree at the same sixteen ids, and once the mask is
-	# cut on the drawing's own outline the two profiles agree to the decimal. It
-	# was held back while the tree was CARVED, because a crown filling its block
-	# edge to edge revolves into a drum and a dither's row jitter turns that into a
-	# stack of plates; turning a model off the same silhouette has neither fault.
+	# The big tree, one whole block: four tiles by four of canopy, trunk and the
+	# shadow ellipse it stands in, standing as one plain box before this. Tileset
+	# 31 draws it at the same sixteen ids and the two profiles agree once the mask
+	# is cut on the drawing's own outline. Held back while the tree was CARVED,
+	# because a crown filling its block edge to edge revolves into a drum.
 	31: {
 		&"canopy": [
 			12, 13, 14, 15, 28, 29, 30, 31, 44, 45, 46, 47, 60, 61, 62, 63,
@@ -2847,7 +2626,7 @@ const TILESETS: Dictionary = {
 		],
 		# The meadow flower, the same id and the same drawing as tileset 1's.
 		&"flower": [3],
-		# THE NATIONAL PARK'S WOODEN FENCE, the last drawing in the game a fence
+		# The National Park's wooden fence, the last drawing in the game a fence
 		# was owed. Both runs of it take the class and `mesher.gd:_fence` builds
 		# the same model for each, turned to whichever way the run goes: 35 and 36
 		# over 51 and 52 is the run drawn face-on going ACROSS, an arch on four
@@ -2856,7 +2635,7 @@ const TILESETS: Dictionary = {
 		# the run going AWAY, drawn from above, and 43 is the beam where the two
 		# meet at a corner.
 		&"fence": [5, 27, 35, 36, 37, 38, 43, 51, 52, 53, 54, 67, 83],
-		# THE RAISED FLOWER BED, and it is a brick kerb round a bed of flowers.
+		# The raised flower bed, and it is a brick kerb round a bed of flowers.
 		# Read as a `planter` every tile of the rim stood up as a potted plant a
 		# cell and a half tall, so a bed 32 tiles long came out as a row of pink
 		# and brown boxes at a dozen different heights with the flowers lost in
@@ -2865,7 +2644,7 @@ const TILESETS: Dictionary = {
 		# inside it is already answered, since tile 3 is the meadow flower and
 		# tile 1 is grass.
 
-		# THE FOUNTAIN'S BASIN WALL, which is the same course of masonry doing the
+		# The fountain's basin wall, which is the same course of masonry doing the
 		# same job round water instead of round flowers. Tile 20 is the pool and
 		# tile 21 is the wall that holds it, and BOTH resolved `water`: the shore
 		# pass then read the wall as a bank and ramped it DOWN into the pool, so
@@ -2874,69 +2653,55 @@ const TILESETS: Dictionary = {
 		# pass then lifts the water it encloses to the height of what rings it,
 		# which is the paving. See `_settle_ponds`.
 		&"kerb": [21, 55, 56, 57, 71, 73, 87, 88, 89],
-		# THE NATIONAL PARK'S BIN is an OBJECT and not a pin: it is drawn nowhere
-		# at all, because the paving is dithered in the same greys the bin is, so
-		# the ground flood walks straight through its flanks. It stood as a rock
-		# for a round on that reading; the mouth is a hole and `_object_bin` is
-		# what builds one. See the declaration in `OBJECTS`.
-		# THE NOTICE CABINET BESIDE IT, and it was drawn nowhere for the same
-		# reason: a glazed case in a dark frame standing on two posts, one walk
-		# cell over four tiles, six placements on two maps. The pass split it
-		# between `stand` and `post`, and both cut their mask on the colours of the
-		# ground, which here is dithered in the case's own greys.
+		# The National Park's bin is an OBJECT and not a pin: the paving is
+		# dithered in the same greys the bin is, so the ground flood walks through
+		# its flanks and it was drawn nowhere. Its mouth is a hole and
+		# `_object_bin` builds one. See the declaration in `OBJECTS`.
 		#
-		# It is FLAT and FACE-ON where the bin is round, so it is carved rather
-		# than turned: a board in a frame on posts, which is the wooden route
-		# sign's shape, cut on its own outline and standing the fourteen rows it is
-		# drawn.
+		# The notice cabinet beside it was drawn nowhere for the same reason: a
+		# glazed case in a dark frame on two posts, one walk cell over four tiles.
+		# It is flat and face-on where the bin is round, so it is carved rather
+		# than turned, cut on its own outline and standing its fourteen drawn rows.
 		&"notice_case": [69, 70, 85, 86],
 	},
-	# THE SAME STATUE ON THE SAME PILLAR, which the full pass had as `statue` and
+	# The same statue on the same pillar, which the full pass had as `statue` and
 	# which came out a heap of loose pieces. It is not one of the two the reviewer
 	# read, and it is here because it is the same arrangement, [66,67/82,83] over
 	# [68,69/84,85], and because the picture of it is plainly better.
 	14: {
 		&"statue_pillar": [66, 67, 82, 83, 68, 69, 84, 85],
 	},
-	# THE POKE BALL ON ITS PILLAR, the pair that flanks a doorway at the League and
+	# The poke ball on its pillar, the pair that flanks a doorway at the League and
 	# the Centers, about eighteen of them. Top cell the ball, bottom cell the base.
 	15: {
 		&"statue_pillar": [32, 33, 48, 49, 34, 35, 50, 51],
 	},
-	# THE RHYHORN ON ITS PILLAR, and the statues that share its base, standing
-	# round the walls of a wooden hall. The commonest drawing in the game that had
-	# no word for it: 485 tiles resolved to the full pass's catch-all for something
+	# The Rhyhorn on its pillar and the statues sharing its base, round the walls
+	# of a wooden hall: 485 tiles resolved to the pass's catch-all for something
 	# standing, and this is most of them. The base [54,55] is drawn under more than
-	# one statue, which is why the tiles above it are pinned with it: half a drawing
-	# pinned and half not resolves no span at all.
+	# one statue, so the tiles above it are pinned with it: half a drawing pinned
+	# and half not resolves no span at all.
 	#
-	# THE HEALING MACHINE IS NOT ONE OF THESE, and that is a measured refusal
-	# rather than an oversight. A dome on a box is a statue on a pillar in
-	# everything the geometry says, so it was pinned here, built and photographed:
-	# turned, the box comes back narrower than its own drawing and the dome shrinks
-	# onto it over a dark gap, where the fallback stands a legible red dome on a
-	# grey cabinet. What it is drawn as is a BOX with a round lid, and nothing here
-	# turns half a drawing.
+	# The healing machine is not one of these, and that is a measured refusal: a
+	# dome on a box is a statue on a pillar in everything the geometry says, but
+	# turned, the box comes back narrower than its drawing and the dome shrinks
+	# onto it over a dark gap. It is drawn as a BOX with a round lid, and nothing
+	# here turns half a drawing.
 	#
-	# ALL OF THEM ARE `idol` AND THE SHARED BASE IS WHY. The reviewer's answer in
-	# round thirty-four was the square carve for the idol; [54,55] is the bottom
-	# row of the creature as well, and a box whose rows are not all one class
-	# resolves no span at all, so the creature comes with it or the idol keeps its
-	# own drawing cut cell by cell. Built both ways and photographed: the creature
-	# is no worse square, and the idol is unrecognisable turned.
+	# All of them are `idol`, and the shared base is why: [54,55] is the bottom row
+	# of the creature too, and a box whose rows are not all one class resolves no
+	# span at all, so the creature comes with it or the idol is cut cell by cell.
+	# The creature is no worse square and the idol is unrecognisable turned.
 	23: {
 		&"idol": [34, 35, 50, 51, 18, 19, 54, 55, 74, 75, 90, 91, 76, 92],
 	},
-	# THE OTHER FIVE THE FULL PASS CALLED `statue`, all of them the same
-	# arrangement as the three above: a 2x4 run of tiles, one walk cell wide and
-	# two tall, the upper cell the figure and the lower one the base it stands on.
-	# Held back a round because moving the CLASS had moved all seven at once and
-	# tileset 26's was read as coming out worse; photographed one at a time it does
-	# not, and what it replaced there is two thin pipes.
+	# The other five the pass called `statue`, all the same arrangement as the
+	# three above: a 2x4 run, one walk cell wide and two tall, the upper cell the
+	# figure and the lower the base. Held back a round because moving the class had
+	# moved all seven at once; photographed one at a time each is better.
 	#
-	# THE LEAGUE'S HALL, eight of them down a red carpet on map 16,7, and the
-	# clearest drawing of the arrangement in the game: a round head on a tiered
-	# pedestal with open floor either side of it.
+	# The League's hall, eight of them down a red carpet on map 16,7, is the
+	# clearest drawing of the arrangement in the game.
 	18: {
 		&"statue_pillar": [152, 153, 154, 155, 156, 157, 158, 159],
 	},
@@ -2944,80 +2709,60 @@ const TILESETS: Dictionary = {
 	10: {
 		&"statue_pillar": [76, 77, 92, 93, 78, 79, 94, 95],
 	},
-	# THE RUINS OF ALPH, 42 of them over nine maps, and it is the SAME DRAWING
-	# tileset 23 places in its wooden hall, pixel for pixel over both cells and
-	# only the palette apart.
+	# The Ruins of Alph, 42 of them over nine maps: the same drawing tileset 23
+	# places in its wooden hall, pixel for pixel and only the palette apart.
 	#
-	# IT IS CARVED SQUARE, which is the reviewer's answer in round thirty-four,
-	# taken over the turn they had chosen for this room alone in round fifteen. The
-	# question changed because the second room was put beside it: the same drawing
-	# is eaten much further in the wooden hall, and shown both at once with the
-	# plates numbered they took the carve for both. See `idol` under `FILLED`.
+	# Carved square, which was chosen over the turn once both rooms were shown
+	# together: the same drawing is eaten much further in the wooden hall. See
+	# `idol` under `FILLED`.
 	26: {
 		&"idol": [14, 15, 30, 31, 46, 47, 62, 63],
 	},
-	# THE SCHOOL'S NORTH WALL, which the full pass read as three more flights of
-	# stairs and the reviewer read tile by tile. One run holds two real flights set
-	# into it, [163,164,179,180], which is declared in STAIRS and stays; what is on
-	# either side of them is not. 165 and 181 are the wall's END, "the very left
-	# edge is a small section of a vertical wall, the middle part is just the
-	# floor", so they lie flat. Twenty tiles on one map, all of them 21,15.
-	# ITS POTTED PLANT is the same drawing tileset 5 and tileset 11 draw and takes
-	# the same class, at ONE CELL: "the leafy top of a potted plant, its own
-	# silhouette cut out against the wall behind; it sits on the pot below (tiles
-	# 94/95) which stands on the pink floor". A `planter` counts its own height
-	# off its own drawing, so the size is the placement's business and not the
-	# pin's. Cut cell by cell it was one cell anyway, so what moves is the class:
-	# `stand` revolved it into a striped green drum eight pixels tall on the floor
-	# beside a cabinet three times its height.
+	# The school's north wall, which the pass read as three more flights of stairs.
+	# One run holds two real flights, [163,164,179,180], declared in STAIRS; what is
+	# either side of them is not. 165 and 181 are the wall's end, a small section of
+	# vertical wall with floor beside it, so they lie flat. Twenty tiles on map
+	# 21,15.
+	#
+	# Its potted plant is the drawing tilesets 5 and 11 draw and takes the same
+	# class, at one cell. A `planter` counts its height off its own drawing, so the
+	# size is the placement's business; what moves is the class, since `stand`
+	# revolved it into a striped green drum eight pixels tall.
 	13: {
 		&"ground": [165, 181],
 		&"planter": [46, 47, 94, 95],
 	},
-	# THE ROUND STOOLS, and they were the largest thing left in the `stand`
-	# fallback that is one drawing rather than a tail.
+	# The round stools, the largest thing left in the `stand` fallback that is one
+	# drawing rather than a tail: 2x2 tiles, waist high, drawn as their own
+	# silhouette. `stand` is ROUND but CARVED, so each cell was cut on its own and
+	# stood at the class's eight pixels, a pink wafer where the cartridge draws a
+	# seat.
 	#
-	# The pass read every one of them and its words are the specification: tileset
-	# 19's is "a round pink stool with a red rim and dark splayed legs, drawn as
-	# its own SILHOUETTE against the chequered floor; the stool is 2x2 tiles, waist
-	# high, and they stand in rows beside the blue tables". `stand` is ROUND but it
-	# is CARVED, so each cell was cut on its own and stood at the class's own eight
-	# pixels: a pink wafer on the floor where the cartridge draws a seat.
+	# A round seat on a pedestal is a portrait of a symmetric thing and is turned
+	# like a boulder rather than like a plant: see ROCK.
 	#
-	# A round seat on a pedestal is a portrait of a symmetric thing, which is the
-	# third row of the pipeline table, and it is turned like a boulder rather than
-	# like a plant: see ROCK.
-	#
-	# ITS BALL ORNAMENT takes `boulder` in the same room and for the same reason a
-	# rock does rather than a plant: "a large red and white ball-shaped ornament,
-	# drawn as its own SILHOUETTE with a heavy dark outline, 2x2 tiles, about waist
-	# high, standing free in the middle of the room floor". One world pixel per
-	# voxel, no sway, colour BY BAND, which is how a sphere is drawn.
+	# Its ball ornament takes `boulder` in the same room for the same reason: one
+	# world pixel per voxel, no sway, colour by band, which is how a sphere is
+	# drawn.
 	19: {
 		&"stool": [7, 8, 23, 24],
 		&"boulder": [72, 73, 88, 89],
 	},
-	# TWO STOOLS ON ONE TILESET, drawn out of different tiles and only the palette
-	# apart: "a round pink cushioned stool with a dark pedestal" and "a round tan
-	# stool with a dark pedestal", on the carpet and on the plank floor.
+	# Two stools on one tileset, drawn out of different tiles and only the palette
+	# apart, on the carpet and on the plank floor.
 	#
-	# ITS ROUND TABLE IS NOT ONE, though it is the same drawing a size up: pinned
-	# `stool` and photographed, the turn eats the dark splayed legs and returns a
-	# pale mushroom, where the carved fallback keeps a cream top over a dark base.
-	# A stool's legs are a pedestal and a table's are four thin ones with carpet
-	# between them, which is what a revolve cannot hold.
+	# Its round table is not one, though it is the same drawing a size up: turned,
+	# the dark splayed legs are eaten and it returns a pale mushroom, where the
+	# carved fallback keeps a cream top over a dark base. A stool's legs are a
+	# pedestal and a table's are four thin ones with carpet between them.
 	27: {
 		&"stool": [44, 45, 60, 61, 39, 40, 55, 56],
 	},
-	# A THIRD TILESET DRAWS THE SAME STOOL, four of them round a table, and it was
-	# left out because its two rows were pinned differently: the seat as `top` and
-	# the legs as `stand`, so the class it wanted could not be read off either row
-	# alone. The pass's words are the same drawing as the other two, "the round
-	# padded seat drawn from ABOVE as a light disc with a dark rim" over "the dark
-	# legs and the shadow under the seat, its own SILHOUETTE with floorboards
-	# showing through the gaps", which is exactly what `STRETCH` was measured for:
-	# half of a stool's drawing is the seat seen from above, which is depth on the
-	# page and no height at all.
+	# A third tileset draws the same stool, four of them round a table. It was left
+	# out because its two rows were pinned differently, the seat as `top` and the
+	# legs as `stand`, so the class could not be read off either row alone. Half of
+	# a stool's drawing is the seat seen from above, which is depth on the page and
+	# no height at all, which is what `STRETCH` was measured for.
 	6: {
 		&"stool": [2, 3, 18, 19],
 	},
@@ -3026,106 +2771,88 @@ const TILESETS: Dictionary = {
 		# The tread at the foot of the shop counter, walked on and drawn flat.
 		&"ground": [16],
 	},
-	# THE POTTED PLANT, which is the drawing tileset 5 already calls `planter`: a
-	# leafy crown over a stalk over a pot, two tiles across and four down, one walk
-	# cell wide and two tall, standing on its own on a chequered floor. The full
-	# pass split every one of them between two classes, so no row of one named the
-	# drawing and the whole group sat in the `stand` tail as a squat pot with a
-	# tuft of leaves beside it, cut cell by cell.
+	# The potted plant, the drawing tileset 5 already calls `planter`: a leafy
+	# crown over a stalk over a pot, one walk cell wide and two tall. The pass split
+	# every one between two classes, so no row named the drawing and the group sat
+	# in the `stand` tail as a squat pot with a tuft of leaves beside it.
 	#
-	# IT STANDS ITS OWN 32 PX, which is the reviewer's own answer in round
-	# twenty-four, shown the same plant built at four heights in the room it
-	# stands in. An earlier session read the full height as a green column as tall
-	# as the bookcase beside it and shelved the whole build for it; the reader who
-	# owns that judgement was asked and disagreed.
+	# It stands its own 32 px, chosen from four heights built in the room it stands
+	# in. An earlier session read the full height as too tall and shelved the build
+	# on that guess.
 	11: {
 		&"planter": [44, 45, 60, 61, 46, 47, 62, 63],
 	},
-	# THE PORT'S TWO PLANTS, and they are the first drawing in the game to want
-	# HALF A CELL of height. The brown pot is "two tiles wide and three tall, two
-	# rows of leaves over one row of pot", so its box's bottom row is the floor it
-	# stands on: see `mesher.gd:_measure_cutouts`, which cuts the box back to the
-	# rows the drawing uses rather than collapsing it.
+	# The port's two plants, the first drawing in the game to want half a cell of
+	# height. The brown pot is two tiles wide and three tall, two rows of leaves
+	# over one of pot, so its box's bottom row is the floor it stands on: see
+	# `mesher.gd:_measure_cutouts`, which cuts the box back to the rows the drawing
+	# uses rather than collapsing it.
 	#
-	# The grey urn is the tileset 11 plant's own size, two tiles by four, and it
-	# is drawn under TWO different crowns, "a tangle of golden-brown branches" and
-	# "a dark mass of red blossoms". Both are the same plant and both take the
-	# class: the urn's own tiles are shared between them, so neither could be
-	# pinned without the other.
+	# The grey urn is the tileset 11 plant's size and is drawn under two different
+	# crowns. Both take the class: the urn's tiles are shared between them, so
+	# neither could be pinned without the other.
 	28: {
 		&"planter": [
 			30, 31, 46, 47, 62, 63,
 			69, 70, 85, 86, 7, 8, 23, 24, 9, 25, 48, 49,
 		],
 	},
-	# ONE MORE OF THE SAME PLANT, found the same way and taking the same class:
+	# One more of the same plant, found the same way and taking the same class:
 	# "the dark green foliage of a potted plant, its own silhouette drawn from the
 	# front" over "the red planter box at its foot", two tiles by four.
 	#
 	12: {
 		&"planter": [74, 75, 8, 9, 137, 138, 167, 168],
 	},
-	# TILESET 21 DRAWS ONE PALM AT TWO HEIGHTS, which is what its blocks say and
-	# what a tile list hides. Read on map 11,21, its only one: tall ones at tile
-	# rows 28-31, a cell wide and two tall, and short ones at rows 30-31 out of the
-	# same crown and pot with the middle left out. That is exactly what `SPANS`
-	# means by the largest the drawing gets, so both fall out of one pin and the
-	# placement chooses between them.
+	# Tileset 21 draws one palm at two heights, which its blocks say and a tile
+	# list hides: tall ones at tile rows 28-31 and short ones at 30-31 out of the
+	# same crown and pot with the middle left out. That is what `SPANS` means by
+	# the largest the drawing gets, so both fall out of one pin.
 	#
-	# The two tall ones differ by one row, [206,207] against a second [190,191],
-	# which is a stalk against a third row of crown. An earlier reading took that
-	# for the flower bed's case, a drawing that tiles into a continuous row, and
-	# left the whole group in the `stand` tail standing eight pixels tall.
-	# It is a `palm` and not a `planter` because of the same one row: see `FILLED`.
+	# The two tall ones differ by one row, a stalk against a third row of crown. An
+	# earlier reading took that for the flower bed's case and left the group in the
+	# `stand` tail eight pixels tall. It is a `palm` and not a `planter` because of
+	# the same row: see `FILLED`.
 	21: {
 		&"palm": [174, 175, 190, 191, 206, 207, 222, 223],
 	},
 }
 
-## The tiles the PASS pinned and a person has taken back.
+## The tiles the pass pinned and a person has taken back.
 ##
-## The table above corrects the pass by naming a better class, and there is one
-## correction it cannot make that way: a tile whose right answer is NO PIN AT
-## ALL. A plain standing wall is exactly that, deliberately, because the
-## automatic resolution stands a blocked tile up already and MEASURES its height
-## off the drawing where a pin would force one.
+## The table above corrects the pass by naming a better class. The one correction
+## it cannot make that way is a tile whose right answer is NO PIN AT ALL, which a
+## plain standing wall is: the automatic resolution stands a blocked tile up
+## already and measures its height off the drawing where a pin would force one.
 ##
-## Tileset 13's 162 is the reviewer's own reading: the pass called
-## [161,162,177,178] a flight of stairs and they call it "a vertical wall, and a
-## metal fence joining the wall", the fence drawn thin down the left edge because
-## it runs away from the eye. Standing as stairs it cut a stairwell into a wall.
+## Tileset 13's 162 is a vertical wall with a metal fence joining it, the fence
+## drawn thin down the left edge because it runs away from the eye; the pass called
+## [161,162,177,178] a flight of stairs, which cut a stairwell into the wall.
 ##
-## The fence itself is left painted on the wall rather than built as a `railing`:
-## it shares its tiles with the wall, so a railing pin, which turns a tile into
-## floor with a rail on it, would open a hole through the wall it is joined to.
+## The fence is left painted on the wall rather than built as a `railing`: it
+## shares its tiles with the wall, and a railing pin turns a tile into floor with a
+## rail on it, which would open a hole through the wall.
 const UNPINNED: Dictionary = {
 	13: [162],
-	# THE MAGNET TRAIN STATION'S CREAM PILLARS, which the pass called `stand` and
+	# The Magnet Train Station's cream pillars, which the pass called `stand` and
 	# revolved into drums standing in a wall. They are the vertical strips between
 	# the blue brick panels and they are the wall: unpinned and blocked, a tile
-	# resolves `wall` and stands the full cell, flush with the brick beside it,
-	# which is the reviewer's own answer in round twenty-two.
+	# resolves `wall` and stands the full cell, flush with the brick beside it.
 	#
-	# THE SAME TWO IDS ARE THE TICKET GATE'S MIDDLE ROWS, so this cannot be done
-	# without the gate below and the gate cannot be done without this. An object is
-	# found by its whole ARRANGEMENT and overrides whatever its tiles resolved to,
-	# so the gate keeps its shape while these tiles stop being a class of their own.
+	# The same two ids are the ticket gate's middle rows, so neither can be done
+	# without the other. An object is found by its whole arrangement and overrides
+	# whatever its tiles resolved to, so the gate keeps its shape.
 	17: [55, 56],
-	# ONE DRAWING THAT IS TWO THINGS, and the largest group left in the `stand`
-	# tail: 116 tiles that the pass revolved into a row of chests marching up a
-	# roof. The reviewer read both places in round twenty-four and they are not
-	# the same thing at all: on the tower's great roof it is "an upper small thing
-	# on the roof", and in the wooden hall it is "just a bridge made of wood where
-	# you can walk onto".
+	# One drawing that is two things, and the largest group left in the `stand`
+	# tail: 116 tiles the pass revolved into a row of chests marching up a roof. On
+	# the tower's great roof it is a crest; in the wooden hall it is a wooden bridge
+	# you walk onto.
 	#
-	# THEIR RULE FOR TELLING THEM APART IS THE MIRRORED NEIGHBOUR: the roof pairs
-	# 80 with 81, which is 80 drawn the other way round, and the bridge never has
-	# one beside it. The COLLISION says the same thing and says it per cell, which
-	# is cheaper and is what an unpinned tile already reads: the hall's 48 tiles
-	# are walkable and the roof's 68 are blocked. So both answers fall out of
-	# taking the pin away. The bridge lies flat and is walked on; the crest stands
-	# and has its height measured off its own column, which is what a blocked tile
-	# with no pin does everywhere else in the game.
+	# The rule for telling them apart is the mirrored neighbour: the roof pairs 80
+	# with 81, which is 80 drawn the other way round, and the bridge never has one.
+	# The collision says the same thing per cell and is cheaper: the hall's 48 tiles
+	# are walkable and the roof's 68 are blocked. So both answers fall out of taking
+	# the pin away.
 	23: [80, 81],
 }
 

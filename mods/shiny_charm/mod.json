@@ -5,5 +5,5 @@
 	"api_version": 16,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
-	"description": "The reward the completed Pokedex never gave you. Finish it, take the diploma from the GAME designer in Celadon, and he hands a charm over with it: three rolls at a rare colour instead of one, for as long as it is in your KEY ITEMS pocket."
+	"description": "Complete the Pokedex, get your diploma from the GAME designer in Celadon, and he hands you a Shiny Charm. While it is in your bag, wild Pokemon are three times more likely to be shiny."
 }

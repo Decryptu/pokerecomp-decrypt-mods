@@ -1,8 +1,8 @@
 extends RefCounted
 
-## Registers one stats-screen page and returns. Nothing here is a scene node,
-## nothing here draws: the page answers WHERE its strings go and the host writes
-## them into the lower half with the screen's own font and dividers.
+## Registers one stats-screen page and returns. Nothing here draws: the page
+## answers with strings and where they go, and the host writes them with the
+## screen's own font and dividers.
 
 const Page := preload("page.gd")
 

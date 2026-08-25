@@ -1,105 +1,55 @@
 # Voxel 3D
 
-The overworld as a voxel diorama, and the fight staged on the map it started on.
-The same map, the same collision, the same palettes: geometry extruded from what
-the game already decoded, textured with the cartridge's own tileset art. No 3D
-assets ship with this mod, and none could, because everything it draws comes out
-of the player's own cartridge.
+The overworld drawn in 3D, and the battle staged on the map it started on. Same
+map, same collision, same palettes: geometry built out of what the game already
+decoded, textured with the cartridge's own tile art. No 3D assets ship with this
+mod, because everything it draws comes from the player's cartridge.
+
+## Turning it on
+
+Three ways, all the same switch: the VIEW row at the top of the start menu's
+MODS entry, the same switch on the mod's page in the launcher, and `V` where the
+game's development keys are enabled. Choosing this mod draws both the overworld
+and the battle, since both renderers are registered under one id.
+
+Switching views takes about a fifth of a second to resolve a map and build a
+mesh, so the host hides it behind the cartridge's own battle-transition wipe: it
+blacks the screen, builds the renderer on the black frame, and opens again.
 
 ## Controls
 
-Nine controls, DECLARED to the host rather than read as keycodes, so every one
-of them is rebindable in the launcher's controls card and can be carried on the
-on-screen pad. The defaults:
+Nine controls, declared to the host rather than read as raw keys, so all of them
+are rebindable in the launcher's controls card and can go on the on-screen pad.
 
 | Control | Key | Pad | Does |
 | --- | --- | --- | --- |
 | Zoom in / out | `=` / `-`, or the wheel | shoulders | Zoom the lens, in both views |
-| Camera up / down | `I` / `K` | right stick | Raise and lower the camera, in both views |
-| Swing left / right | `J` / `L` | right stick | Battle: swing the shot around the arena |
+| Camera up / down | `I` / `K` | right stick | Raise and lower the camera |
+| Swing left / right | `J` / `L` | right stick | Battle: swing around the arena |
 | Push in / pull back | `E` / `Q` | | Overworld: move the eye |
 | Recentre | `0` | right stick press | Back to the framing the view opened at |
 
-Zoom and recentre are the keys the game already zooms the flat view with, so
-one key means one thing whichever view is up: `=` and `+` in, `-` out, `0` back
-to the default framing, the keypad's own three with them, and the wheel either
-way. Only the eye, which the flat view has no counterpart for, is this mod's
-own.
+Zoom and recentre are the keys the game already zooms the 2D view with, so one
+key means one thing in either view. RECENTRE is also a row in the MODS menu, for
+a player who has never opened the controls card.
 
-Turning this view on is one choice and the host owns it, and there are three
-ways to it. The start menu's MODS entry carries a VIEW row at the top, stepped
-left and right like any other; the mod's own page in the launcher carries the
-same switch; and `V` cycles views live where the game's development keys are
-enabled. All three are one path, so whichever is used the other two agree.
-Choosing this mod draws the overworld and the fight alike, since both renderers
-are registered under the one id.
+Tap for one step, hold to glide: held past a fifth of a second a control moves at
+the rate you are pushing it, so a stick half over glides at half speed.
 
-THE SWITCH IS COVERED. Standing this view up means resolving a map and meshing a
-window, which is a fifth of a second the game would otherwise spend frozen on the
-press. The host closes the cartridge's own battle-transition scatter over the
-picture, builds the renderer on the frame the screen is fully black, and opens
-the same frames backwards, so the cost is paid behind a wipe rather than in front
-of one. Nothing here draws it: a cover this mod animated would freeze on exactly
-the frames it exists to hide, because the build and the animation are the one
-thread.
+Both views zoom the lens and never the distance, because the rig works out its
+field of view from where the eye sits. The dolly is the overworld's alone, since
+the battle camera is solved against the hardware's picture slots. The battle
+camera stops where the composition does: left at the shot the rig was solved for,
+right side-on, down at the rig's low stance, up 45 degrees above it.
 
-What this view owes the wipe is to be FINISHED when it opens. A map is normally
-built a slice a frame, so that what is already on screen keeps being drawn while
-the next map lands; behind a black field there is nothing on screen and a smooth
-frame rate is worth nothing, so the first build of a view is spent whole inside
-the frame the host hands it. Only the first: a warp reuses the same renderer and
-has no wipe over it, and there the map still fills in as it lands.
-
-TAP FOR A NOTCH, HOLD TO GLIDE. A press moves the shot one rung and eases to it,
-which is what a key wants; a stick is not a press, and stepping it a rung per
-push is the one control here that felt wrong on a pad or a phone. Held past a
-fifth of a second, a control moves the goal at the rate it is being pushed, so a
-stick half over glides at half the speed and a key held down runs at full. Seven
-rungs a second, which crosses the overworld's whole pitch range in under two.
-
-Why declared and not read: a screen turns every bound event into one of the
-cartridge's eight buttons and takes it before a renderer is offered anything, so
-a mod key that is also a binding never arrives. These were `W`, `A`, `S` and `D`,
-which are the d-pad's own defaults, and the pitch and the swing had therefore
-never once fired. Nothing warned, because both sides were behaving correctly. A
-declared default in that position is now dropped and REPORTED by the host
-instead. The wheel stays an event, because pointer motion is exactly what the
-screen has no opinion about, and its direction is the one part of the binding
-that is a preference rather than a decision.
-
-RECENTRE is also a press in the MODS menu, which is not a duplicate: an action
-has to be bound to something before it exists, and the player most likely to have
-lost the camera is the one who has never opened the controls card.
-
-One binding, in `steering.gd`, and both views read it, so a control means one
-thing in the mod. Both views zoom the LENS and never the distance: a rig
-derives its field of view from where the eye sits, so moving the eye instead
-would change the perspective without changing the framing. The dolly is the
-overworld's alone, because the battle's seat is solved against the hardware's
-own picture slots and moving it is what breaks them.
-
-Both axes of the battle camera stop where the composition does. Left stops at the
-shot the rig was solved for, because there is nothing to the left of it; right
-ends side on, with both battlers the same distance away instead of one behind the
-other. Down stops at the rig's own low stance and up is 45 degrees above it, taken
-about what the lens is aimed at so the pair stays framed the whole way.
-
-Movement and interaction keys never reach the mod: the world screen claims what
-it needs and offers the rest, so the camera can be steered while the game is
-still played on the grid it always was.
-
-The game's own SCREEN FILL zoom, on `+`, `-`, `0` and the wheel, is not claimed
-over this view and does not have to be: its ladder counts screen pixels per
-HARDWARE pixel, and there is no hardware pixel here. Those events reach this
-mod's own dolly and lens instead, which is why `=` and `-` still pull the eye
-about.
+Movement and interaction keys never reach the mod. The world screen takes what it
+needs and offers the rest, so the game is still played on the grid it always was.
 
 ## Settings
 
-Five, in the start menu's MODS entry and on this mod's own page in the launcher.
-Both surfaces are built by the host out of one registration in `options.gd`, so
-this mod writes no settings screen. Values are per installation and not per save:
-a draw distance must not change when a slot is loaded.
+Five rows, in the start menu's MODS entry and on the mod's page in the launcher,
+all from one registration in `options.gd`. Values are per installation, not per
+save: a draw distance must not change when a slot is loaded.
 
 | Setting | Rungs | Does |
 | --- | --- | --- |
@@ -107,1163 +57,677 @@ a draw distance must not change when a slot is loaded.
 | RES | FULL, 1/2, 1/3, 1/4 | How many window pixels the 3D pass draws one of |
 | WHEEL | NORMAL, INVERTED | Which way a wheel notch zooms |
 | ANGLE | LOW, MID, HIGH | The pitch the overworld camera opens at |
-| CAMERA | RECENTRE | A press, not a rung: put the shot back the way it opened |
+| CAMERA | RECENTRE | A press: put the shot back the way it opened |
 
-RES is where the frame time is on a device that cannot afford the window it was
-given. The 2D page is 160x144 whatever the window is; this view is drawn at the
-window's own pixel count, which on a phone panel is a hundred times the area
-through a shader with six fetches in it. A divisor is quadratic in all of it, so
-a half is a quarter of the work and a third a ninth: on the largest shot in the
-game, 151 MB of video memory at FULL, 92 at a half, 81 at a third. It is not a
-compromise on the art either way, because the picture is a Game Boy's own texels
-and a divisor draws them larger rather than blurrier. The default is the
-platform's: FULL on a desktop, a half on a phone or a tablet.
+**RES** is where the frame time is on a device that cannot afford its window. The
+2D page is 160x144 whatever the window is; this view draws at the window's own
+pixel count, which on a phone is a hundred times the area. A divisor is quadratic
+in all of it, so a half is a quarter of the work. It costs no art quality, since
+the picture is Game Boy texels and a divisor draws them larger rather than
+blurrier. Default: FULL on desktop, a half on phone or tablet.
 
-DISTANCE is the other half of it. The biggest map meshes whole in 39 ms of
-geometry and in 13 ms at sixteen cells, for the same picture: at the default
-pitch the eye frames about sixteen cells of ground and no more. A LOW camera is
-the case that sees past a window, because its top edge runs nearly level and
-reaches ninety cells out, and there the cut edge shows. FULL is for that.
+**DISTANCE** is the other half. The biggest map meshes whole in 39 ms and in
+13 ms at sixteen cells for the same picture, because at the default pitch the eye
+only frames about sixteen cells of ground. A LOW camera reaches ninety cells out,
+and FULL is for that.
 
-Walking out of the middle of the window rebuilds it around you. The map is
-resolved once and only the geometry is emitted again, so a recentre is the cheap
-two thirds of a build, and the margin is a third of the distance so it is not
-most steps.
+## How a map is built
 
-AND MOST OF THAT REBUILD IS WORK ALREADY DONE. A window that has moved by the
-margin shares four fifths of its chunks with the one before it, and until the
-mesher kept them, every one was built again: a recentre on a wooded route was
-about eighty milliseconds of geometry, spread over nineteen frames at the slice
-budget, every six cells walked. It is the whole of this view's frame-time tail.
-So a chunk is cut to the MAP rather than to the window, which makes its
-rectangle a fact about the map instead of about where the player was standing,
-and one already built is handed straight back. A recentre is three to thirty
-milliseconds now instead of eighty to a hundred and fifty, and in the game the
-frames that rebuild fall from sixty-six in twelve seconds to sixteen. The cost is
-a fringe of up to fifteen tiles past the window, which the frustum rejects, and
-half a megabyte of video memory.
+Maps are built in chunks of 16 tiles square, one mesh each, because the engine
+culls per instance: as one mesh a map could only be accepted or rejected whole,
+and at most camera angles half of it is behind the eye. Stamped models are
+grouped on the same grid, which is where a filled window pays most: on the
+largest shot in the game, 5.39M triangles in 116 draws becomes 1.26M in 166.
 
-What a cached chunk may not depend on is its neighbours, and a house, an object,
-a flight of stairs or a fence can each cross a chunk edge. Each such structure
-has one owner, the chunk that reached it first, and a chunk sharing one with
-another chunk is never cached, so what it holds can never be a house drawn twice
-or not at all. `tools/mesh_cache_probe.gd` is the proof: a window reached by
-walking, and a window built by a mesher carried from another map, both have to
-draw exactly what a mesher that has never seen the map draws, on every map of
-every cartridge.
-
-The map is built in CHUNKS of 16 tiles square, one mesh each, because the engine
-culls per instance: as one mesh a map can only be accepted or rejected whole, and
-at any camera angle most of it is behind the eye. Measured on the default shot,
-about half the geometry falls outside the frustum on a town and on the largest
-route alike.
-
-The stamped models are grouped on the same grid, and that is where a filled
-window pays most: a camera 42 degrees tall on a wide window frames about a
-quarter of a circle, and one MultiMesh per drawing over the whole window has the
-window for a bounding box, so a forest went in whole whichever way the shot
-pointed. On the largest shot in the game, 5.39M triangles in 116 draws becomes
-1.26M in 166.
-
-A build is spread over frames rather than taken in one: a surveyed town is 200 ms
-of geometry, which was a visible stop on every warp. Whatever is already on
-screen keeps being drawn while the next map builds, so the map arrives a moment
-late instead of the frame stopping. A battle also keeps the map it resolved, so a
+A build is spread over frames rather than taken in one, since a town is 200 ms of
+geometry and that was a visible stop on every warp. Whatever is on screen keeps
+being drawn while the next map builds. A battle keeps the map it resolved, so a
 second fight on the same route pays for the geometry alone.
 
-## The text box, and where a Game Boy pixel lands
+Walking out of the middle of the window rebuilds it around you. The map is
+resolved once and only the geometry is emitted again, and the margin is a third
+of the draw distance so this is not most steps. Chunks are cut to the map rather
+than to the window, which makes a chunk's rectangle a fact about the map instead
+of about where the player was standing, so a rebuild reuses four fifths of them:
+3 to 30 ms instead of 80 to 150.
 
-Over this view the screen's own text box is drawn with its FIELD at 0.75 and its
-frame and glyphs solid, so a prompt reads exactly as well and the map is still
-there behind it. The overworld pans the shot up only where a box would actually
-cover the player, who stands at the middle of the frame: the cartridge's own box
-is the bottom third and reaches nowhere near, so an ordinary conversation moves
-the camera not at all, and a box that does reach past the middle pushes the shot
-just far enough to clear it. The battle never pans: each battler is pinned to its
-own hardware picture slot, which is what makes a collision with the box
-impossible in the first place.
+A cached chunk may not depend on its neighbours, and a house, an object, a
+staircase or a fence can each cross a chunk edge. Each structure has one owner,
+the chunk that reached it first, and a chunk that shares one is never cached.
+`tools/mesh_cache_probe.gd` proves a window reached by walking and a window built
+by a reused mesher both draw what a fresh mesher draws, on every map.
 
-A box's rectangle arrives in the cartridge's own pixels, and WHERE ONE OF THOSE
-LANDS is a second question now. Framed, this view's surface was a whole multiple
-of 160x144 and the mapping was the surface itself; filling the window it is not,
-so the game says where the Game Boy screen sits inside it and everything measured
-in hardware pixels goes through that: the pan above, and the fight's panels,
-bars, text and battlers. Working it out here instead put the battle's panels at
-seven window pixels per hardware pixel where the game's own text box was drawn at
-six, and eighty pixels up the frame from it, in a 1600x900 window.
+## The 2D screens over the top
 
-## When a Game Boy screen takes the picture
+Over this view the text box is drawn with its field at 0.75 and its frame and
+glyphs solid, so a prompt reads as well as ever and the map is visible behind it.
+The overworld only pans up when a box would actually cover the player, which the
+cartridge's bottom-third box never does. The battle never pans, since each
+battler is pinned to its own hardware picture slot.
 
-The pack, the party, the PC, the dex, the trainer card, an evolution, a hatch,
-the day-care, the slot machine, card flip and the encounter transition are all
-laid out in 160x144 and own the whole picture while they are up. Over a framed
-screen the game paints its own bars around them; it does not paint them over this
-view, because a letterbox around a rectangle this view never used would crop a
-picture that had already filled the window. So it says so instead and the
-surround is closed here, in the pass over the finished frame, black and to the
-edge of the window.
+The pack, party, PC, dex, trainer card, evolutions, hatches, the day-care, the
+slot machine, card flip and the encounter transition are all laid out in 160x144
+and own the whole picture while they are up. Over a framed screen the game paints
+bars around them; here a letterbox would crop a picture that had filled the
+window, so the surround is closed in this mod's own final pass instead: black, to
+the edge of the window.
 
-A fight, though, FILLS the window with the map it started on, because a battle
-staged on the place has as much to put out there as the overworld had a frame
-earlier. Only the arena grows: the panels, the bars and the text stay hardware
-pixels in the same centred rectangle they were always laid out in.
+A battle fills the window with the map it started on. Only the arena grows: the
+panels, bars and text stay hardware pixels in the same centred rectangle.
 
-## The encounter closing, and a warp fading
-
-`DoBattleTransition` is the one screen the cartridge draws that has no world in
-it: twenty by eighteen cells blacked out a few at a time in one of the game's
-own patterns, with a trainer's Poke Ball stamped over the top in graphics tiles.
-It is drawn here now, in the cartridge's own cells over the diorama, at the
-rectangle the Game Boy screen occupies, with the surround already closed around
-it. Before, an encounter in this view cut from the map straight to the fight.
-
-Repainted per cell that MOVED. A transition is two hundred frames and every one
-is a different picture; a step writes a handful of cells, and repainting all
-23040 pixels each time would be most of a frame on its own.
-
-A WARP FADES TOO, on the same pass. `FadeOutToWhite` and its four siblings walk
-four palette orders, two frames each, and the last of them takes every one of the
-background's levels to the brightest or to the darkest; before, this view cut to
-the new map on the frame the cartridge was at its whitest. A level pinned at
-either end has no colour left in it, which is where the restatement below had to
-grow a rule: adding the difference is right in the middle of the range and is not
-at the ends, where a fade to white was leaving a saturated yellow at its own hue
-because its luminance was already nearly one and the lift had nowhere to go. The
-last of the range is taken to the level flat instead. Nothing between the
-hardware's own four levels moves, and neither does any frame with no whole-screen
-effect on it.
-
-A trainer's flash is the one part with no exact answer here. `StartTrainerBattle`
-writes one background palette across the whole screen, which on the hardware
-recolours the map to two of the ball's own colours; a diorama has continuous tone
-rather than four levels, so the same permutation is read as the curve through
-those four levels and applied to the whole picture, which is exactly what a move
-animation's whole-screen flash already does in the fight. The ball itself takes
-the permutation on its own colours, since the pass over the frame runs under this
-layer rather than over it.
+Two whole-screen effects the cartridge draws are reproduced here. The encounter
+transition blacks out 20x18 cells a few at a time with a Poke Ball stamped over
+the top, drawn in the cartridge's own cells over the diorama and repainted only
+where a cell moved. And a warp fade walks four palette orders two frames each,
+read here as a curve over the four levels a Game Boy palette has: adding the
+difference is right in the middle of the range and not at the ends, so the last
+step is taken to the level flat rather than left at a saturated hue.
 
 ## The battle
 
 `Gen2BattleScreen` hands over display values and, once per battle, a
 `Gen2BattleWorldContext` saying where the encounter happened. That is enough to
-rebuild the map from its records with the same mesher the overworld uses and
-stand the two battlers on it.
+rebuild the map with the same mesher the overworld uses and stand the battlers on
+it.
 
-### The entrance
+**The entrance.** Two trainers slide in from opposite sides, the opponent sends
+out first, the player's picture walks off, and a ball puts a Pokemon where each
+was standing. The host resolves that as what each square holds and how far its
+picture stands from its resting place, so the pictures stand exactly where their
+Pokemon will. The slide is spent in hardware pixels across the screen rather than
+as a walk over the ground, because the cartridge slides a picture, not a person.
 
-A fight does not open with two Pokemon standing on the field. Two trainers slide
-in from opposite sides, the opponent sends out first, the player's own picture
-walks off, and a ball puts a Pokemon where each was standing. The host resolves
-that for a view with no background plane to read it off, as what each square
-holds and how far the picture on it stands from its resting place, so the
-opponent's class picture and the player's own back pic stand on the map exactly
-where their Pokemon will, and the panels arrive one at a time with the Pokemon
-they describe.
+The whole picture is grey while the intro runs, which is the cartridge writing its
+own grey over every background palette. Here it is both a pass over the diorama
+and the palette the battlers are drawn in, since greying only the world left two
+colour figures in a black and white one. An Unown is drawn as the letter it
+actually is, and a Pokemon behind a substitute is the cartridge's own doll.
 
-The slide is spent in hardware pixels across the screen rather than as a walk
-over the ground, and deliberately: the cartridge slides a picture, not a person,
-and a battler is already drawn in that unit. A picture part way off the field
-casts nothing, since the sun sees a card standing on ground it is not standing
-on yet.
+**The shot is solved, not chosen.** Each battler is pinned to its patch of ground
+and drawn in hardware pixels at the size the cartridge drew it, so the camera
+decides where the fight appears. It has to land those two patches on the
+hardware's picture slots: bottom centre of the 6x6 for the player's and of the
+7x7 for the foe's. Four coordinates, four equations, and `battle/arena.gd`'s rig
+is the solution: a 23.6 degree lens about five cells back and two above the
+floor, with the battlers three cells apart. Landing those marks is also what
+keeps the panels and text box from colliding with a battler.
 
-The opponent standing behind their Pokemon for the rest of the fight is this
-view's own staging and it waits for the send-out. Through the entrance the
-cartridge's own answer wins.
+The arena's axis is the map's north with the foe at the north end and the eye to
+the east, which decides who is on which side. Ground is chosen by the shape the
+fight needs, three cells down a column with a one-cell apron, and every candidate
+is tested down both sight lines: a fence or a building corner can hide a battler
+on cells that are perfectly walkable. Stamped models take part at their model
+height, so a tree cannot be picked as open foreground.
 
-THE WHOLE PICTURE IS GREY WHILE THE INTRO RUNS, which is the cartridge writing
-its own grey over every background palette. Here it is both a pass over the
-diorama and the palette the two battlers are drawn in, because they are a layer
-above that pass: greying only the world left two figures in full colour standing
-in a black and white one.
+A pinned picture is not in the 3D scene, so each battler hands the sun an upright
+card of the same drawing, drawn into the shadow pass only. The shadow is the
+animal's own silhouette: it lands on the floor, climbs a wall and drapes over a
+ledge. Overworld actor cards get theirs the same way.
 
-AND THE TWO PICTURES A BATTLER CAN BE OTHER THAN ITSELF ARE DRAWN. An Unown is
-drawn as the letter it actually is rather than as the first one, and a Pokemon
-behind a substitute is the doll, which the cartridge builds out of the monster
-overworld sprite and draws in whichever palette its side of the field is using.
+The eye breathes rather than sitting still, since a flat picture has no parallax
+until something moves: a one degree orbit with a smaller dolly under it, on a
+different period so they never sync. It rides the arm from what the lens is aimed
+at, so the battlers stay in the middle of the frame and only the background moves.
 
-### The shot
+**Two layers.** The map is geometry at window resolution; the panels, bars and
+text box stay hardware pixels at whole-number scale. Each panel gets a light
+translucent backing, since the cartridge draws black glyphs straight onto white
+and over a route they would be black on grass. What is behind it is blurred as
+well as tinted, because a dithered path shows every texel through the writing and
+the two compete.
 
-The shot is a solve, not a taste. Each battler is pinned to its patch of ground
-and drawn in hardware pixels at the size the cartridge drew it, wherever that
-patch projects to, so the camera is what decides where the fight appears. It has
-to land those two patches on the hardware's own picture slots, bottom centre of
-the 6x6 for the player's and of the 7x7 for the foe's. Four coordinates, four
-equations, and `battle/arena.gd`'s rig is their solution: a 23.6 degree lens from
-about five cells back and two above the floor, with the two battlers three cells
-apart.
+A battler is cut out of its field by region, not by colour: the field is colour
+index 0 and so is every white inside the drawing, so the cut floods in from the
+border through index 0 alone and stops at the drawing's black outline.
 
-Landing those marks is also what keeps the fight readable. The panels and the
-text box are drawn where the hardware draws them, and a composition that puts
-each battler in its own hardware slot cannot collide with either.
+**Move animations** are drawn as the hardware drew them, on their own layer. That
+works because an animation is authored against the two picture slots the
+cartridge puts its battlers in, and the camera is solved to land both battlers in
+those slots, so a beam aimed at the far slot is already aimed at the far Pokemon.
 
-A pinned picture is not in the 3D scene and has nothing to cast, so each battler
-also hands the sun an upright card of the same drawing at the same size, drawn
-into the shadow pass and nowhere else. The shadow that falls is the animal's own
-silhouette, and being a real shadow it lands on the floor, climbs a wall behind
-it and drapes over a ledge from the light the terrain already casts by. Actor
-cards in the overworld are given theirs the same way.
+An animation's second half reaches the whole screen: the hardware flashes by
+rewriting its background palettes with one byte, and that byte is a permutation,
+colour i drawn as colour `(byte >> i * 2) & 3`. That is a tone curve over four
+levels, and a sixth of every move carries one. The diorama reads it as a smooth
+line through those four points, moving luminance alone; the battlers take the
+permutation exactly, since a pic really is four palette entries.
 
-The arena's axis is the map's own north, the foe at the north end, and the eye
-sits east of it: east is what decides which battler is on which side, and it is
-the hardware's layout arrived at by standing in the right place rather than by
-mirroring anything. Ground is chosen by the shape the fight needs, three cells
-down a column with a one-cell apron, and every candidate is tested down both
-sight lines, because walkable is not the same question as visible: a fence or a
-building corner hides a battler completely while the cells it stands on are
-perfectly walkable. Stamped models take part in that test at their model height,
-not at the flat ground column beneath them, so a tree cannot be selected as the
-camera's open foreground.
+The third half is one a diorama cannot copy: eight animations scroll the
+background a different distance on every scanline. There are no scanlines here,
+and warping the world row by row would move a texel off the pixel it was drawn
+on, so the whole list of offsets is read as the single displacement it averages
+to and the camera is shaken by it.
 
-The eye breathes rather than sitting still, because a flat picture has no
-parallax until something moves and a fight is the one place here where nothing
-does: a one degree orbit with a smaller dolly under it, on a period of its own so
-the two never come back into step. It rides the arm from what the lens is aimed
-at, so the pair stays nailed to the middle of the frame and only what is behind
-them moves. Small on purpose: the shot is a solve, so drifting it carries both
-battlers off their marks, and this carries them about three hardware pixels.
-
-Two layers, because a battle is two things at once. The map is geometry at window
-resolution; the panels, the bars and the text box stay hardware pixels, drawn at
-whole-number scale over the top so a Game Boy pixel is still a square. Each panel
-gets a light translucent backing, because the cartridge draws black glyphs
-straight onto the white field and over a route they would be black on grass. What
-is behind that backing is BLURRED as well as tinted, which is a different job: a
-translucent rectangle over a dithered path shows every texel of the path through
-the writing, so the two compete. Blurring separates them without making the
-backing any more solid, and the world behind it is still visible, still the right
-colour and still moving.
-
-A battler is cut out of that field by region rather than by colour. The field is
-colour index 0, and so is every white inside the drawing: an eye highlight, a
-tooth, Marill's belly. The cut floods in from the border through index 0 alone
-and stops at the drawing's own black outline, so what the outline encloses
-survives and only the field is removed.
-
-A move animation is drawn as the hardware drew it, on a layer of its own over
-the top. That works for a reason worth stating: an animation is authored against
-the two picture slots the cartridge puts its battlers in, and the camera is
-solved to land both battlers in those very slots, so a beam aimed at the far slot
-is already aimed at the far Pokemon and nothing has to be re-aimed. What the
-breathing adds on top is corrected per sprite, lerped along the line between the
-two, since an orbit carries the near battler one way and the far one the other
-and a single offset for the whole layer would cancel itself.
-
-An animation has a second half, and it is the one that reaches the whole screen.
-The hardware flashes by rewriting its BACKGROUND palettes, one byte written
-across all seven at once, and that byte is a permutation: colour i of every
-palette drawn as colour `(byte >> i * 2) & 3`. So what it has is not an overlay,
-it is a TONE CURVE over the four levels a Game Boy palette has, and a sixth of
-every move played carries one. The diorama takes that curve read as a smooth line
-through those four points, exact at each of the hardware's own levels, moving
-luminance alone so a picture's colour survives everything but the ends. The two
-battlers take the permutation exactly instead, because a pic really is four
-palette entries and the map is a lookup among them.
-
-A move has a third half, and it is the one a flat screen does that a diorama
-cannot copy: eight of the game's animations scroll the background a different
-distance on every scanline, which is a wobble. There are no scanlines here, and
-warping the world row by row would move the cartridge's own texel off the pixel
-it was drawn on, which is the one thing this view never does. So the whole list
-of offsets is read as the single displacement it averages out to, and the camera
-is shaken by it. The picture jumps, which is what the wobble MEANT, and both
-battlers jump with it, because the shake is applied to the seat and the aim
-together and the rig's whole point is that the pair stays where it put them.
-
-## How a flat drawing becomes a solid
+## Turning flat art into solids
 
 A Game Boy overworld drawing is a fake-3D projection: it packs several facings
 into one flat image. Roofs are drawn seen from above, walls seen face-on. So
 voxelizing is not one operation. It is classifying each tile by which surface it
 depicts, then applying the matching geometry.
 
-Three models come out of that, and `shape/mesher.gd` builds them:
+`shape/mesher.gd` builds three models:
 
 | Model | Tiles | Geometry |
 | --- | --- | --- |
 | flat | ground, water | one quad. Water is recessed, so a shoreline shows a lip |
-| top art | ledges, roofs, beds | a box wearing its own art on the TOP face |
-| volume | walls, canopies, facades | a box whose SOUTH face folds the artwork upright, 8px band by band, band k sampling the map row k tiles north of the structure's base |
+| top art | ledges, roofs, beds | a box wearing its art on the TOP face |
+| volume | walls, canopies, facades | a box whose SOUTH face folds the art upright, 8px band by band |
 
 The fold is the whole trick. Most of Generation II is drawn face-on, so standing
 the drawing up is what turns a wall into a wall.
 
-## A jumping ledge comes out of the collision, not out of a drawing
+**Where a shape comes from.** `shape/tile_shape.gd` resolves every tile in this
+order:
 
-Nothing in the tile layer says which way a ledge can be hopped, and no drawing
-does either: the answer is in the collision byte, and `Gen2WorldCollision`
-decodes it against the cartridge's own rule. The code sits on the cell the player
-stands on, so the ledge is the blocked cell the hop passes over, and the lip is
-drawn in the far half of it.
+1. a pin in `shape/profile.gd`, unless it is a building pin in a walkable cell:
+   one plain tile draws both a house wall and the pavement in front of it
+2. the walk cell's collision says water, so the tile is water
+3. the walk cell's collision says walkable, so the tile is ground
+4. anything left is a volume
 
-Those tiles are built as a wedge: a ramp rising a band toward the drop and a
-vertical face at it. Which is the collision rule drawn as a shape. Going the way
-the hop goes, the ground rises and falls away under you; coming back, there is a
-small wall in front of you.
+Steps 2 and 3 work per cell because that is what collision has: one permission
+byte per 2x2 walk cell. A tile in a walkable cell is ground whatever it is drawn
+as, which keeps flowers, grass tufts and the gaps between fence posts from
+extruding into pillars. Only a pin overrides that.
 
-Where perpendicular ledge runs end around the same corner, their grid
-intersection inherits both slopes. The corner is one continuous wedge rather
-than the flat tile that neither individual hop crosses.
+**How tall a thing is** is measured, in walk cells. Every run of volume cells up a
+column takes the run's period: the shortest stretch at its southern end that the
+cells behind it repeat. A house of three different cells has no repeat and stands
+three cells tall; a fence line running north is one cell repeated twenty times
+and stands one cell tall however far it runs. Reading the raw length instead
+turns a town into a maze of 48px walls. A facade is measured the same way in tile
+rows. Then connected cells are flooded into one structure and the height most of
+its cells measured caps all of it, so a hedge T-junction does not stand three
+cells tall in a knee-high maze.
 
-The player and a scripted NPC follow the host's own vertical jump offset while
-crossing one. The card rises and lands; its shadow and the camera stay on the
-ground, so a hop reads as movement rather than as a camera shake.
+**Cutting a drawing out of its background.** Colour cannot say where a drawing
+ends: a bollard is white on a pale path and a bush is green on grass. The border
+can. The ground runs to the edge of the cell and the drawing does not, so the
+indices making up most of the cell's border ring are the ground, and what the
+flood cannot reach through them is the drawing.
 
-Before that they stood a full walk cell tall, because a blocked cell with no pin
-is a wall like any other, and a route was fenced by 16px walls you could not see
-over. 1380 cells of 72 maps are hopped over.
+That fails completely on tree canopies, which are drawn in the same two greens
+the grass under them is dithered from. So those classes flood through every pixel
+that is not the drawing's darkest shade, which is its outline. How many shades
+bound one is per drawing: a tree draws its ring in one, and a drawing that meets
+the ground in a paler shade needs two.
 
-## A building is several of those at once
+**A drawing bigger than one cell** is masked over the whole drawing, or the flood
+runs along the seam between its cells. What the extra rows mean is the drawing's
+business: the potted plant's four rows are leaves above a pot, so it stands as
+tall as the drawing with every tile at the depth of the foot, while the long
+flower bed's four rows are the same bed carrying on away from the eye, so each
+cell stands its own two rows at its own depth. How big a drawing can be comes
+from its class; whether a placement is that big comes from the map.
 
-One house drawing packs the lot: the bottom rows are the facade seen face-on,
-the rows above are the roof seen from above, and a taller section behind can put
-another facade above that roof again. So no single model covers a building, and
-a tile id is not a band. The profile says only which of the two surfaces each
-drawing is, and how far a sloped roof tile has fallen from the flat section
-beside it; where it ends up is measured off the building's own grid.
+## Buildings
+
+One house drawing packs the lot: the bottom rows are the facade seen face-on, the
+rows above are the roof seen from above, and a taller section behind can put
+another facade above that roof. The profile says only which of the two surfaces
+each drawing is, and how far a sloped roof tile has fallen from the flat section
+beside it.
 
 Rows are read from the bottom of the map up, so a column knows what it stands on
-before it is asked how high it reaches. A run of facade rows folds face-on as one
-wall, lifted by whatever is under it. A roof row lies flat at the height its own
-row agrees on and passes that height up to whatever stands on it.
+before it is asked how high it reaches. A run of facade rows folds as one wall,
+lifted by whatever is under it. A roof row lies flat at the height its own row
+agrees on and passes that height up.
 
-A BUILDING IS NO DEEPER THAN IT IS WIDE. The fold reads a drawing's height as
-depth, which is a house for a drawing eight tiles wide and six tall and a slab
-for a tower eight wide and twenty-eight. The drawn height is a fact about the
-facade, nothing in the cartridge says how deep a building is, and the other
-measurement the drawing gives is its width. Only the body is shortened: the
-height does not move, and the rows behind it keep their tiles and come out as the
-ground the building stands in, taken from the map beside their own row.
+**A building is no deeper than it is wide.** The fold reads a drawing's height as
+depth, which is a house for a drawing eight wide and six tall and a slab for a
+tower eight wide and twenty-eight. The drawn height is a fact about the facade;
+the other measurement the drawing gives is its width. Only the body is shortened,
+and the rows behind it come out as the ground the building stands in.
 
 The row agrees, not the column, because the columns carrying a gable have no wall
-under them at all: the flat section is what knows how high the roof is, and a
-sloped tile is that height less the band or two its drawing has fallen. A run
-breaks at every column that is not roof, so two buildings never agree with each
-other.
+under them: the flat section knows how high the roof is, and a sloped tile is
+that height less the band or two it has fallen. A roof tile's top is a quad with
+four corner heights, each the mean of the roof tiles touching it, so a fall reads
+as a tilt rather than a ziggurat, and two roof tiles sharing an edge compute both
+its corners from the same neighbours.
 
-A roof tile's top is a quad with four corner heights, each the mean of the roof
-tiles touching it, so a fall reads as a tilt rather than as a ziggurat. That is
-continuous by construction: two roof tiles sharing an edge compute both of its
-corners from the same neighbours, so their surfaces meet exactly whatever their
-nominal heights are.
+A drop is normally a fall from the flat section of the same roof. A great roof
+has no flat section at all, its whole twelve-tile width falling from ridge to
+eaves, so there the drop is a rate: each tile falls one more band than the last.
+Which end is the ridge is decided by what lies beyond, since a roof falls away
+from the floor a person stands on and toward the void.
 
-How far a tile has fallen is read two ways, and one map in the game is why. A
-drop is a fall from the FLAT section of the same roof, which is what a gable is
-drawn as: one band down beside the flat, two at the corner of the house. A great
-roof has no flat section in the run at all. Its whole width is the pitch, twelve
-tiles of it falling from a ridge to the eaves, and there the drop is read as a
-RATE instead: each tile falls one more band than the tile before it. Which end of
-such a run is the ridge is the one thing no drawing says, and what answers it is
-what lies beyond, since a roof falls away from the floor a person stands on and
-toward the void past the edge of the world.
+**Some houses draw no roof from above.** Every wooden house in Johto and every
+small brick one draws the front pitch face-on: four rows of plank or tile over
+two rows of wall. Folded square that is a barn, so the profile names those tiles
+and their bands lean back over the building's footprint, a tile of depth per band
+of height. The top band stays put and each band below steps down and forward.
+Two readings refuse that: a roof deck standing on the run means the face-on band
+is that deck's fascia, and a column drawing roof more than once is a stack of
+storeys, like Ecruteak's seven-gallery dance hall.
 
-SOME HOUSES DRAW NO ROOF FROM ABOVE AT ALL. Every wooden house in Johto, and
-every small brick one, draws the front PITCH of its roof face-on instead: four
-rows of plank or of speckled tile over two rows of wall. Folded up square that is
-a barn, a tall box with roof texture down its upper half and a flat lid, which is
-what every house on the largest outdoor tileset in the game used to be. So the
-profile names those tiles, and the bands they draw LEAN BACK over the building's
-own footprint, a tile of depth per band of height. The total height does not
-move: the topmost band stands where it did and each band below it steps down and
-forward until the wall, so the pitch is redistributed inside the footprint the
-fold already gave the house, and the tilt above turns the steps into one plane.
+`shape/houses.gd` holds a hundred drawings painted per pixel and matched by
+arrangement, produced with `tools/house_export.gd`, `house_page.py` and
+`house_pins.gd`. 226 placements on 63 maps, standing up 327 buildings.
 
-Two readings refuse it, and both are drawings rather than caution. A roof deck
-standing on the run means the face-on band is that deck's fascia and belongs on
-the wall where it is drawn. And a column drawing roof MORE THAN ONCE is a stack
-of storeys rather than a house with a pitch on top: Ecruteak's dance hall is
-seven galleries each with its own plank band, and read as one run its roof would
-reach the ground.
+## Ledges, doors and two levels of ground
+
+**A ledge** comes out of the collision byte, not out of a drawing:
+`Gen2WorldCollision` decodes it, and the ledge is the blocked cell the hop passes
+over. Those tiles are built as a wedge, a ramp rising toward the drop and a
+vertical face at it, so going the way the hop goes the ground falls away under
+you and coming back there is a small wall in front of you. Where perpendicular
+runs meet at a corner, their intersection inherits both slopes. The player and
+scripted NPCs follow the host's own jump offset while crossing; the card rises
+and lands while its shadow and the camera stay on the ground. 1380 cells on 72
+maps are hopped over, and before this they were 16px walls you could not see
+over.
+
+**A door** is walkable, so every pass that reads collision called it ground and
+the doorway came out as a hole through the building with the door's drawing lying
+flat in front of it. So the cartridge is asked instead: a cell whose collision is
+a door, its second door code, or a cave takes the height of the wall around it,
+and the face machinery paints its drawing on. Warp carpets are deliberately not
+among those codes, since a carpet is a floor you walk onto and every map edge has
+one.
+
+**A rock wall is two heights**, the wall and the stone floor standing on top of
+it, and no measurement of a column reaches that, because the column through the
+floor up there is drawn as plain ground. The cliff says so instead: its face is
+named in the profile, and the run of face in each column says the flat ground
+north of it is on top and the flat ground south of it is the ground plane. Both
+are carried across by flooding, because a plateau is a region and not a strip,
+and a region that ends up with both answers is left alone: a plateau always opens
+somewhere, so a leak is a contradiction rather than a wrong height.
+
+What stands beside a tile is read at the edge the two share. A box is one height
+and a rim is four, one per corner, so a face closed against a rim's single
+measured height is closed against nothing. The lower of the two shared corners is
+what a face reaches down to, which can only add face and never take one away.
+
+## Objects that are not tiles
+
+A chair is drawn as four corners across four tiles, and one tile is the desk's
+bottom-left leg, the chair's top-left corner and the floor between them at once,
+so every possible answer for that tile is wrong.
+
+So an object is identified by the arrangement of tile ids it is drawn out of,
+which finds it wherever the map places it and whatever block boundary it
+straddles. Every tile the arrangement covers goes back to being floor, and one
+thing of the object's size is stood up. Two objects may cover the same tile and
+both are drawn, which is what a desk and the chair tucked under it do.
+
+A 2.5D drawing is a top and a front stacked: the first rows lie across the
+object's depth, the rest hang down its height. Where a drawing has a top band
+those two row counts are the depth and the height; where it has none, which is a
+chair drawn face-on, the depth has to be given. Height is not the drawing's to
+say either, since a chair's twelve drawn rows stood up as twelve pixels is a
+cabinet beside a desk half its height. What a face-on drawing states honestly is
+its width.
+
+**Where it stands** is the collision's to say. A drawing puts its front-bottom
+corner at its own bottom row, and the cartridge draws a free-standing bench's
+apron on the walk cell in front of the one the bench blocks, so read literally the
+box came out half a cell into open floor. A box standing on floor a body can stand
+on is pulled back to the near edge of the last cell the drawing covers that is
+blocked all the way across, and only where that clears the box entirely. Fourteen
+placements move over the whole game. A chair, a stool and a ladder stand on cells
+the cartridge lets you walk onto, which is its answer and not a placement to
+correct.
+
+An object may be **turned** rather than stood up, because a round drawing wants a
+lathed model. Sixteen things are declared this way: a desk, five chairs, a ship, a
+stone vessel, a ticket gate, a fountain, a great roof's ridge, a parked bicycle, a
+television, a low padded seat, an open bin and a park bench. Three of them are
+what a fallback that revolves a drawing cannot do: a bicycle drawn side-on is a
+portrait three tiles wide, and turned it came out as a row of bollards.
+
+The bench is the one with a back, and it is why objects have their own builder:
+its three drawn rows are the back, the seat and a leg at each end, so what is
+authored is the depth and the three heights.
+
+A **kerb** is terrain rather than an object: one course of masonry standing half a
+cell, which rings a flower bed and holds the water in a fountain. A **sea rock**
+is stone drawn in the water rather than standing on it, so the tile stays flat
+water and the stone stands out of it; read as a boulder it goes looking for a
+floor and always finds one.
+
+The largest is the ship at the port, fifteen tiles by six, and it added one rule:
+a bounding box is not a footprint. The tiles in the box that are not the object
+are open sea, so they are declared as outside it and stay sea, while remaining
+part of the rectangle the mask is cut over, because a mask floods in from the
+border and the border of the hull's rectangle is half hull.
+
+A **staircase** is found the same way. Generation II draws a flight as a
+perspective view over four tiles, and stepping onto one leaves the floor rather
+than climbing it, so a down flight is a hole: the cell's floor goes a walk cell
+below the ground and everything skirts down to it, which is the same code that
+draws a cliff. A ladder in a shaft is that with the steps taken out.
 
 ## Past the edge of the map
 
-Past its edge, the cartridge repeats the map's own BORDER BLOCK, and so does
-this. It is stood up rather than flattened: eighteen maps end in a tree line,
-sixteen in a hedge, twenty in open sea. The ring is not painted on afterwards
-either. The map is resolved INSIDE it, so a tree out there is measured, masked,
-modelled and stamped by the same code that does it inside the map, and the seam
-between the two is skirted like any other change of height. The world is still
-measured from the map's own corner.
+Past its edge the cartridge repeats the map's own border block, and so does this,
+stood up rather than flattened: eighteen maps end in a tree line, sixteen in a
+hedge, twenty in open sea. The map is resolved inside the ring, so a tree out
+there is measured, masked, modelled and stamped by the same code that does it
+inside the map.
 
-How deep the ring goes is decided by what it buys. One block for most of them; a
-flat border gains nothing from more, because the floor beyond is carried out to
-the horizon anyway, and gains everything from one, because that floor is now the
-BORDER's rather than the map's own edge, so a coast runs out as sea and not as
-beach. Four blocks where the block is a stamped model, since a tree emits no
-geometry at all and a route can really end in a wood. A carved drawing stays at
-one block because of what repeating it costs: a hedge bush is about 170 triangles
-a tile.
+How deep the ring goes is decided by what it buys. One block for most, which is
+what makes a coast run out as sea and not as beach. Four blocks where the block
+is a stamped model, since a tree emits no geometry at all and a route can really
+end in a wood. A carved drawing stays at one block, since a hedge bush is about
+170 triangles a tile.
 
-THE RING IS THE MAP NEXT DOOR wherever there is one. The cartridge pads a
-connection by three blocks, which is everything a Game Boy screen could reach
-past a seam, and past that the host places the whole neighbouring map on the
-connection graph. So a ring four blocks deep reads the real map for its
-outermost block instead of repeating this one's border block: over Crystal that
-is 1977 blocks on 68 of the 77 outdoor maps, and it is the difference between a
-tree line at a seam being a skyline with gaps in it and being one flat mass of
-canopy. A neighbour on ANOTHER TILESET is refused and takes the border block,
-because its blocks are numbered in its own tileset and this mesher resolves one
-grid against one atlas; 68 blocks in the game are that.
+**The ring is the map next door** wherever there is one, since the host places
+the whole neighbouring map on the connection graph: 1977 blocks on 68 of
+Crystal's 77 outdoor maps. It is the difference between a tree line at a seam
+being a skyline with gaps and being one flat mass of canopy. A neighbour on
+another tileset is refused and takes the border block, since its blocks are
+numbered in its own tileset.
 
 Beyond the ring the floor runs on for thirty-two tiles, so a route ends at a
-horizon instead of at a cliff of nothing and a fight staged near an edge is not
-shot against sky. That floor is the nearest flat tile inward, which is why a
-shoreline carries the water out and not the beach, and where a column meets
-nothing but structures it takes the commonest floor along the map's perimeter
-rather than leaving a hole.
+horizon instead of a cliff of nothing. That floor is the nearest flat tile
+inward, which is why a shoreline carries the water out and not the beach.
 
-## And past the mesh, the region
+**Indoors the ring is a room.** A Game Boy camera never stands outside a room, so
+the cartridge draws only the wall the player looks at, which from any bearing but
+due north read as furniture on a floor with no room around it. So the map is
+ringed one cell deep and two cells tall with the blank wall course that tileset
+is drawn with, and the wall the cartridge does draw is raised to meet it.
+Twenty-nine tilesets name that course, covering 308 of the game's 311 interiors.
+A cavern gets a ring cut from its own rock face. The three interiors with no
+shell are a gym whose perimeter the cartridge really does draw, and two maps the
+game files as caves and paints as forest.
 
-The mesh is bounded twice over: DISTANCE builds a window around the player and
-nothing outside it, and even at FULL the map ends at that skirt. On a screen the
-size of a Game Boy's, that edge was never in the frame. On one that fills the
-window, at a low camera, pulled back, it is.
+The floor out there is a solid and not a lid: it is read per column, so two
+columns of one edge answer at two heights wherever the perimeter steps, and each
+skirt tile closes down to whatever stands beside it.
 
-So past the mesh the ground carries on, flat, one quad a map, folded on the GPU
-the way the game folds its own 2D page: block byte, `$00` to the border block,
-metatile slot, tile, texel. Where those maps go is the connection graph the 2D
-view is drawn from, so the two agree about what is over the hill, and the map
-header's own border block fills whatever no map covers, out to the horizon.
-Nothing is baked, and the map you are standing on shares the sheet the tile
-animation repaints, so the flowers past the window open with the flowers inside
-it.
+## The far field
 
-IT IS ALSO THE LEVEL OF DETAIL, and that is the part worth having: where the
+Past the mesh the ground carries on, flat, one quad a map, folded on the GPU the
+way the game folds its own 2D page: block byte, metatile slot, tile, texel. Where
+those maps go is the connection graph the 2D view uses, so the two agree about
+what is over the hill, and the map header's border block fills whatever no map
+covers. Nothing is baked, and the loaded map shares the sheet the tile animation
+repaints, so flowers past the window open with the ones inside it.
+
+It is also the level of detail, and that is the part worth having: where the
 window cuts, what carries on is the same map with its height thrown away, which
-is what a Game Boy drew in the first place. The near ground is a diorama and the
-far ground is the page it was read off. Ten draws and three thousand triangles
-on the largest shot in the game, against tens of maps of geometry for the same
-picture.
+is what a Game Boy drew in the first place. Ten draws and three thousand
+triangles on the largest shot in the game, against tens of maps of geometry for
+the same picture.
 
-The people standing on those maps are drawn with it, because the 2D view draws
-them. They are the game's own read-only copies and take no part in anything: no
-step, no script, no collision, and they cannot be talked to. On the cartridge
-they do not exist at all until their own map is loaded.
+The people on those maps come with it, because the 2D view draws them. They are
+the game's own read-only copies: no step, no script, no collision, and they
+cannot be talked to.
 
-AERIAL PERSPECTIVE is what makes a flat far field read as distance rather than
-as a page laid down beside the diorama. Its colour is the sky's own horizon
-rather than a chosen grey, so the ground fades into exactly what is above it and
-the hour carries both. It begins nine hundred world pixels out, which is past
-everything a player is playing in: the eye sits 190 back at the default pitch
-and frames sixteen walk cells, so at that rung the picture is pixel for pixel
-what it was. Indoors there is no sky and no haze.
+**Aerial perspective** is what makes a flat far field read as distance rather
+than a page laid beside the diorama. Its colour is the sky's own horizon rather
+than a chosen grey, so the ground fades into what is above it and the hour
+carries both. It starts nine hundred world pixels out, past everything a player
+is playing in. Indoors the far field is off entirely: carrying a floor out of a
+house would lay its lino across the void.
 
-Out of doors only: a room ends at its walls and there is nothing past them, so
-carrying a floor out of a house would lay its lino across the void it is drawn
-against. `Gen2WorldPhoneHost.is_outside_environment` is the host's own answer to
-which a map is.
+**Trees and buildings stand on it.** A far map is walked once, tile by tile,
+asking the tileset which drawing stands where, which costs about 11 ms a map
+against the quarter of a second a real resolve takes. Each drawing wears a card
+cut from its own map's sheet by `shape/mesher.gd:far_card_for`, named by its whole
+arrangement of tiles through `shape/far_drawings.gd`, so a neighbour's conifers
+are its own and not this map's. `tools/far_drawings.gd` checks that against a real
+resolve over the 229 outdoor maps of the three cartridges: 0 differ, every card
+pixel for pixel the mesh's own. One simplification is deliberate: a drawing gets
+one card rather than its own bodies, so a cell of four sea rocks is one rock out
+there. `world/far_houses.gd` stands a far building as a roof over a footprint with
+a wall under the front, painted off that map's sheet: a box and not a house, since
+out here a map has to be stood up in milliseconds.
 
-Indoors the ring is a ROOM instead. A Game Boy camera never stands outside a
-room, so the cartridge draws the one wall the player looks at and leaves the
-other three sides undrawn; from any bearing but due north that read as a floor
-with furniture on it and no room around it. So the map is ringed one cell deep
-and two cells tall with the blank course that tileset's own walls are drawn
-with, and the wall the cartridge does draw is raised to meet it. Twenty-nine
-tilesets name that course, which is 308 of the game's 311 interiors.
-
-A CAVERN TAKES ONE TOO, and for the same reason: its edge is rock everywhere the
-map draws rock and nothing at all where it does not, so the ring is cut from the
-same rock face and a cave ends in stone rather than in air. The three interiors
-with no shell are the ones that must not have one: a gym whose perimeter the
-cartridge really does draw, and two maps the game files as caves and paints as
-forest.
-
-The floor out there is a SOLID and not a lid. It is read per column, so two
-columns of one edge answer at two heights wherever the map's perimeter steps, and
-a surface with no sides at a step is an open crack the height of the step. Each
-skirt tile closes down to whatever stands beside it, another skirt tile or the
-ring, in the floor's own drawing.
-
-AND THE RING IS NOT A CLIFF EDGE. A rock rim is cut where a shelf meets ground
-that stands lower, and the world past the grid is not lower: it is the skirt,
-carrying this map's own floor out at this map's own height. Reading it as ground
-cut the outermost ring of every raised map into a rim that dropped sixteen pixels
-in one tile, which left a trench between the ring and the skirt, open on both
-sides, running the whole perimeter of the map.
-
-At any draw distance short of FULL the window clips most of it. At FULL it is
-paid for whole, and on a large route that is about as much geometry again as the
-map itself.
+**Past every map** the cartridge fills everything with one border block repeated
+to the horizon, and on forty of the seventy-seven outdoor maps every tile of it
+is a tree. The same cards stand on a ring round the eye. The ring has to reach
+the horizon or it does nothing, since the page and a standing wood differ in tone
+rather than shape and a short ring draws a pale band across the distance. It does
+not have to be thick: a 16px card at three thousand pixels hides 450 pixels of
+ground behind it, so every eighth block closes the distance and four doubling
+rungs out to 4800 pixels cost about 12700 cards against 624000 for the same reach
+paved solid. It is rebuilt when the eye has drifted 512 world pixels, measured as
+a circle rather than a lattice, since a grid rebuilds every time the player steps
+back and forth over one of its lines.
 
 ## Near it is turned, far it is the drawing again
 
-A stamped model is 700 to 1200 triangles and a route wears hundreds of them, so
-models are 87 per cent of all outdoor geometry: 34.4 million triangles of the
-39.3 the game's 77 outdoor maps come to. That is worth paying where the player
-is standing and nowhere else.
+A stamped model is 700 to 1200 triangles and a route wears hundreds, so models
+are 87 per cent of all outdoor geometry. That is worth paying where the player is
+standing and nowhere else.
 
-So past a ring 35 cells from the EYE, a stamp stops being a turned solid and
-becomes the cartridge's own drawing stood up: two crossed quads, four triangles,
-wearing the tileset's pixels with everything that is not the thing cut away. The
-mask doing the cutting is the one the solid is carved from, so what stands out
-there is exactly what would have been turned. Same height, same width, same wind
-phase, so a tree crossing the ring does not change size or step out of time.
+Past a ring 35 cells from the eye, a stamp becomes the cartridge's own drawing
+stood up: two crossed quads wearing the tileset's pixels with everything that is
+not the thing cut away. The mask is the one the solid is carved from, so what
+stands out there is exactly what would have been turned, at the same height,
+width and wind phase, and a tree crossing the ring does not change size or step
+out of time. Route 32, the thickest wood in the game, goes from 1,096,319
+triangles to 470,943 at the same camera.
 
-The ring is on the eye and not on the player because the camera stands back: a
-ring round the player spends half itself behind the shot. It moves when the
-window rebuilds rather than when the camera swings, since a rebuild is dear and a
-swing is neither, so a hard swing leaves it where the last step put it.
+The ring is on the eye and not the player, because a ring round the player spends
+half itself behind the shot. It moves when the window rebuilds rather than when
+the camera swings.
 
-Route 32, the thickest wood in the game, goes from 1,096,319 triangles to
-470,943 at the same camera. Up close the flat ones read as cardboard, which is
-what the ring is for; at 35 cells nothing the default camera frames is flat at
-all.
+## The sky, the hour and the sun
 
-## And trees on the horizon
+The sky is generated: a ramp of six bands, deepest overhead, with a checkerboard
+of the next band down dithered into the bottom of each. That dither is how a
+machine with four colours to a palette got a fifth and a sixth out of them, and
+it is what makes the bands read as a gradient rather than stripes. Six bands
+rather than four, because four between two hues shows every step and lands one on
+the muddy middle.
 
-The pages past the mesh carry the same drawings. A map out there is walked once,
-tile by tile, asking the tileset which drawing stands where, which is a question
-about the tile ids and the collision and nothing else and so costs about 11 ms a
-map against the quarter of a second a real resolve does. Every map it finds them
-on stands them, the loaded one past its own window included.
+**The ramp's two ends are the hour's own.** Generation II has no sky palette, but
+it keeps a blue pair in one of its background slots at every hour, and reading
+that pair from the row itself, before the map loader hands those slots to a
+town's roof colours, gives a sky that follows the clock and that nothing here
+authored. Morning is the exception, because its pair is byte for byte day's: its
+horizon is the sunrise colour from the row beside it and its deep end is the blue
+the water is drawn with at that hour. A caller with no hour, which is a room and
+the model turntable, gets a ramp made from the background colour alone.
 
-It is four per cent of the frame's triangles on the widest horizon in the game,
-and it is the difference between a neighbour reading as a landmass and reading as
-a green rug laid on the sea.
+**The camera has to be low enough to see any of it.** The eye looks down by its
+own pitch, so with a 42 degree lens the top of the frame sits at 21 degrees minus
+the pitch, and at the default 50 that edge is 29 degrees below the horizon. The
+ANGLE row's lowest rung at 14 degrees is what frames any sky at all. The bands
+are pinned to elevation rather than to the frame, so pitching the camera slides
+the frame up a sky that stays put.
 
-EACH DRAWING WEARS ITS OWN CARD, CUT FROM ITS OWN MAP'S SHEET. The detail ring
-inside the mesh has always swapped a drawing for its own card, tree and bush
-alike, and the horizon has been wrong about it three times over.
+**Everything follows that clock**, including the things carrying their own
+colours. The terrain is textured from the sheet, so repainting the sheet moves
+it; a tree, a bush and every other stamped drawing read their colours when they
+were measured and carry them in their vertices, so `mesher.gd:begin_recolour` and
+`recolour_step` measure every cached model again against the repainted sheet and
+rewrite the mesh, the cut-out and the far twin in place. It is spread over
+frames, since it is 15.1 ms on a wooded route and a dropped frame on the hour
+would be the largest stall this view has.
 
-First it wore ONE card for all of it, the biggest drawing the loaded map turned:
-a bush out there was drawn as a tree, a neighbour's own trees were drawn as this
-map's, and a whole coast of low scrub came out as a wall of tall canopy with the
-water behind it hidden. That was written down as invisible at the distance it is
-drawn. It is not: dollying the camera out to the rig's own limit is the whole of
-what it takes, and the left third of the horizon on route 26,1 is a worked
-example.
+**The sun moves with the hour.** It rises in the east, climbs and sets in the
+west, so shadows swing about a hundred degrees between morning and night and a
+still picture says what time it is. It stays in the southern half of the sky at
+every hour, which is not taste: a volume folds its art onto its south face, so a
+sun crossing to the north would put every drawing in the game into its own
+shadow. A low sun rakes, landing less light on flat ground and more on upright
+faces, so morning carries more energy than day to stand the same ground up.
 
-Then the card was looked up by the TILE a drawing starts at. A drawing is many
-tiles and only one of them is that corner, so most far cells matched nothing and
-fell back to the tree, and where a tile id did match it matched whatever other
-drawing began at the same id: route 26's conifers came back as its bushes and the
-skyline went flat. A drawing is named by its whole arrangement of tiles, which is
-how `shape/mesher.gd` names every model mesh it builds, or it is not named at all.
-`shape/far_drawings.gd` is what reads that name back off a map nothing resolved.
+Its shadow is not split into cascades, and that is a third of the frame. A
+parallel-split shadow draws the scene once per cascade, which is the answer to a
+shadow that has to reach a landscape; this one reaches 600 world pixels at most
+and DISTANCE caps it again at the mesh window. Measured on route 26,1 at the
+lowest camera, one split against four: 0.64% of pixels differ at DISTANCE 12,
+which is run-to-run noise, 1.17% at 16, then 8.50% at 24 and 12.40% at FULL. At
+the default that is 4.55 ms a frame down to 3.03 at 2560x1440.
 
-And naming it was still not enough while the cards were the LOADED map's. A
-quarter of the far foliage in the game is a drawing the loaded map does not hold
-and another sixteenth is on another tileset entirely, and all of it wore the one
-tree. So each map cuts its own: `shape/mesher.gd:far_card_for` takes a drawing's
-tiles, its class and the tile sheet the far ground beside it is already drawn
-with, and hands back the same card the resolve would have cut. `tools/far_drawings.gd`
-is the guard and checks both halves against a real resolve, the boxes and the
-cards, over the 229 outdoor maps of the three cartridges: 0 differ, 174 drawings a
-cartridge, every card pixel for pixel the mesh's own.
+The cartridge's DARK palette row outdoors is near black with the standing cards
+bright, and that is the cartridge: `frame.gd` skips tinting that row because its
+texels are already black, and a card carries the hour's sprite palette, which is
+what the 2D view draws in an unlit cave.
 
-Measured at no change in frame time, in draws or in triangles: the same cells are
-standing, in a few more MultiMeshes, and those are kept rather than refilled per
-frame. A map is walked and cut ONE A FRAME, which is what the ground under it
-already does with its sheet.
+## Water
 
-One simplification is left and is deliberate: a drawing gets one card rather than
-its own bodies, so a cell of four sea rocks is one rock out there.
+Everything else in this view is paint stood up and lit. Water is a mirror, and
+the 2D view says so in the only way it can, by cycling the ripple art in place.
+So the surface is lifted out of the terrain mesh and given three things a flat
+drawing cannot carry.
 
-## And the world past every map
+The sky in the lake is the sky over it, mixed by Fresnel, so far water is bright
+and near water keeps the cartridge's blue. The surface is not flat: two long
+waves cross it and their gradient is the normal everything else is read through,
+done per fragment so no vertex moves and the water cannot tear from its bank.
 
-Past the maps the cartridge fills everything with one BORDER BLOCK, repeated to
-the horizon, and on forty of the seventy-seven outdoor maps every tile of that
-block is a tree. So the game's own maps stood a skyline and the ground all round
-them was a flat page with tree art smeared across it.
+**The swell belongs to the lake, not to the player.** It is worked out from where
+each piece of water is in the world, so a crest sits over the same patch of sea
+however you walk around it. Read from where the fragment is on the screen
+instead, which is what a fragment shader is handed by default, the whole sea
+slides with the camera. The sun is hung by angle rather than screen position,
+because the reflection of a sun high in the sky lands off the top of the frame at
+every hour: what is asked is how nearly a piece of water is tilted to bounce the
+sun into the eye, so the glitter rides the waves and goes out at night.
 
-The same cards stand on it, on a ring round the eye. The ring has to reach the
-horizon or it does nothing, because the page and a standing wood are different
-TONES rather than different shapes: the page shows mostly the light ground the
-trees are drawn on, and a ring that stops short draws a pale band across the
-distance. And it does not have to be thick out there. A card is 16 pixels tall
-and the eye sits about a hundred above the ground, so at three thousand pixels it
-is seen at two degrees and hides four hundred and fifty pixels of ground behind
-it: every eighth block still closes the distance completely. Four rungs doubling
-out to 4800 world pixels come to about 12700 cards against 624000 for the same
-reach paved solid, and photographed against the solid one at four camera pitches
-the two differ by about what two runs of the same shot differ by.
+**The bank is baked, because a fragment cannot see it.** A piece of water knows
+where it is and what the sheet paints there, and both say the same thing in the
+middle of a lake as a tile from the beach. So `mesher.gd:_measure_bank` walks
+outward from every piece of land at the end of the resolve and hands
+`world/water.gd` one texel a tile of distance, over six tiles.
 
-It is rebuilt when the eye has drifted 512 world pixels from where it was built,
-which is a circle and not a lattice: quantising the centre to a grid rebuilds
-every time the player steps back and forth over one of its lines, and that is
-once a second on a walk that turns round.
+Foam is a white line where that distance is about 0.6 tiles, riding the swell's
+crest so it runs up the beach and back. It is thresholded against a checkerboard
+rather than faded, because the hardware has two colours to put on a waterline and
+so does this. The same number takes the water toward the palest colour of its own
+row near the bank and the deepest away from it, at 45% over 1.5 tiles and 60%
+past 2.5. The half strengths are the point: at full strength every canal and
+river in the game is shallow across its whole width and turns to sand. Foam is
+the hour's own white, so it is cream at sunrise and violet at night.
 
-WHERE IT STARTS IS THE MESHER'S OWN ANSWER. `shape/mesher.gd:stamped_bounds_tiles`
-is all the ground the mesh can stamp a model into, which is the map inside its
-border ring: the ring stands from exactly there, the loaded map's own walk covers
-everything inside it, and a neighbouring map is kept out of it. A constant
-clearance instead left a flat band two cells wide between the two, and a
-neighbour standing its own cards over the mesh's ring solids drew the same tree
-twice.
+The lookup is clamped, and past the field is open water. A camera standing
+outside the mesh sees water whose coordinates are off the field, and a wrapping
+sampler answers the far side of the map, which on 26,3 is land, so the entire sea
+behind the camera foamed over.
 
-## And the floor has no hole in it
+The far sea takes the same sky the near sea does: `far_field.gd`'s page shader
+grades a texel matching that map's own water row toward the sky's horizon, so the
+two do not meet at a hard line. A far map keeps its own row, so a distant lake is
+graded in the colours the cartridge painted it with. It gets no waterline, no
+swell and no glint, since those maps are drawings rather than surfaces.
 
-The loaded map's flat page sat two world pixels under the ground plane, with the
-two layers beneath it sunk further so the depth buffer could sort them. The hole
-in the page is cut to what the MESH emitted, so the page carried on from exactly
-there, two pixels lower, and nothing draws the face of that step: at the window's
-edge it read as a hole in the floor running the width of the frame, at every
-draw distance. The overworld's camera only ever looks north and that is the one
-direction the step faces.
+**Water is stood in, not on.** It lies eight pixels below the land it is recessed
+from, and everything standing on it, a surfing player, a swimmer, a wild Pokemon
+on a surf cell, sat at the height of the land instead: a whole band clear of the
+surface with daylight in the gap. On a Game Boy screen that was a few pixels;
+drawn at window resolution it is a boat in the air. They now stand on the surface
+and two pixels into it, so the waterline crosses the drawing. Two rather than
+more, because the cartridge's art already draws the waterline: a swimmer is a
+head and shoulders and the surf blob is half sunk.
 
-The page is flush with the ground now. The two under it stay sunk, because they
-meet each other and this page rather than the mesh, and their own seam sits
-inside the mesh's own bounds.
+## Grass, trees and the things that bend
 
-## And the buildings on them
+**Tall grass.** The cartridge draws the tufts on the ground and then draws them
+again over the player walking through, which is how a flat tile page says the
+grass is taller than they are. A diorama says it with geometry: the floor keeps
+the drawing and a thin slab of the same drawing stands out of it, one slab per
+tile, so the player walks between the two rows of a cell exactly as the 2D view
+meant. The blades are cut into the largest rectangles that fit inside the drawing
+rather than one box per row of pixels, and the sway is read off each vertex, going
+by the square of how far up its clump a point stands so a tall box leans more at
+its top than its foot.
 
-A town out there was the last flat thing in the frame. `world/far_houses.gd`
-stands one as what the cartridge draws it as: a roof laid over a footprint with a
-wall under the front of it, painted tile for tile off that map's own sheet.
+**A tree is modelled, not carved.** A Game Boy sprite of a tree is a portrait at a
+fixed angle: the crown is drawn flat and wide so it reads against the grass, and
+the trunk is mostly hidden behind it. That is a picture of a tree, not a plan of
+one, and six ways of carving that silhouette all came out a drum, a stack of
+plates or a black hedge.
 
-A BOX AND NOT A HOUSE, deliberately. `shape/houses.gd` is a hundred drawings
-painted per pixel and matched by arrangement, and the mesher spends a resolve on
-them; out here a map has to be stood up in milliseconds. What is available is the
-profile's own `facade` and `roof`, which is enough to say where a building is,
-how deep its roof is drawn and how tall its wall is. 203 buildings over the 60
-outdoor maps of Crystal that hold one, a few thousand triangles a town, one mesh
-a map so a town is drawn or culled together.
+So `shape/model.gd` builds a voxel trunk and crown from three authored
+proportions, and everything else comes off the cartridge: how big the thing is
+and what colours to paint it, taken from the drawing's own palette with the dark
+outline left out. An outline is how a drawing separates itself from a flat
+background; a solid in a real light does not need one, and reusing it is what
+painted every carved attempt black. One mesh is built per distinct tree and
+stamped wherever that tree stands, so a forest of two hundred is one tree of
+geometry drawn two hundred times.
 
-## A little out of focus, in pixels
+The silhouette is read down from its widest row, which is what lets the same
+recipe turn a conifer: a fir's top row is two pixels across, and reading from the
+top mistakes that point for the trunk. The crown is ragged, and the jitter that
+does it is a fact about a direction rather than a voxel: rolled per voxel it
+draws a speckle with the ground visible through it, while rolled per direction
+there is one radius per ray and the silhouette is as ragged as before. It only
+ever cuts in, since a crown wider than its own cell is a hedge standing on the
+road.
+
+Bushes, saplings and boulders go the same way, and the differences are the
+interesting part. A bush is not a small tree: a tree's sprite is foreshortened
+and its trunk is drawn behind its crown, so reading a bush that way stands it on
+a stalk. The small tree that can be Cut needs both corrections taken off, since
+it draws its own stem and its own height. A boulder is not a plant at all: one
+world pixel per voxel rather than two, because a 16px stone six voxels across is
+a pillow; it does not sway; and its colour is read in horizontal bands, since a
+stone is drawn pale where the sky reaches it and dark underneath. A round stool
+adds the one thing none of the others needs: half its drawing is the seat seen
+from above, which is depth and no height, so its height is authored per class.
+
+**The flower's stem** is the one thing here the cartridge does not draw. A flower
+is drawn looked down on, so there is a bloom and no stem, and a bloom carved
+where it is drawn hangs in the air. The stem is drawn by hand in
+`shape/stems.gd` rather than guessed at as a thickness, because a stem is thin
+and it bends and no number says either. It goes to the same sink the standing
+tufts do, hinged at the soil rather than at the stem's head.
+
+**Motes** are the other invention: leaves drift across the daylight and
+fireflies come out at night. Forty of them ride a box around wherever the camera
+is aimed, on three drift cycles that share no factor. Nothing is simulated and
+nothing is stored between frames. It is one file and four lines.
+
+## Depth of field
 
 The frame's finishing pass coarsens toward the horizon: the same picture sampled
 on a grid that grows with distance, four pixels at the far end. Not a blur. The
-one kind of soft focus a Game Boy could have had is a bigger pixel, and a
-gaussian over this art reads as a photograph of a screen. A blur was tried and it
-also smears along the horizon line, where the ground's distance runs away and the
-sky is gathered into it.
+one soft focus a Game Boy could have had is a bigger pixel, and a gaussian over
+this art reads as a photograph of a screen.
 
-The distance is WORKED OUT and not sampled. A canvas pass has no depth buffer,
-but it has a camera looking down at a world that is mostly a plane, so where the
-eye stands, how far it is tilted and how wide it sees give every row of the
-picture a distance across the ground. It is the ground's distance and not the
-pixel's, so a tall thing close by wears the haze of the ground behind its head;
-what this is spent on lies on the plane, so it does not show.
+The distance is worked out rather than sampled. A canvas pass has no depth
+buffer, but it has a camera looking down at a world that is mostly a plane, so
+where the eye stands, how far it is tilted and how wide it sees give every row of
+the picture a distance across the ground.
 
-IT IS A LOOK AND NOT A SAVING, and the measurement is worth keeping because the
-intuition is so strong the other way: drawing the whole frame at a quarter of its
-resolution, sixteen times fewer fragments, changes the frame time by nothing at
-all. Fragments are free here and triangles are not.
+It is a look and not a saving: drawing the whole frame at a quarter resolution,
+sixteen times fewer fragments, changes the frame time by nothing at all.
+Fragments are free here and triangles are not. The pass runs at the mesh's
+resolution rather than the container's, so the hour's tint, the depth of field,
+the grey and the mask are all quadratic in RES like everything else.
 
-## The sky and the hour
-
-Above that horizon the sky is generated: a ramp of six bands, deepest overhead,
-with a checkerboard of the next band down dithered into the bottom of each. That
-dither is how a machine with four colours to a palette got a fifth and a sixth
-out of them, and it is what makes the bands read as a gradient rather than as
-stripes.
-
-THE RAMP'S TWO ENDS ARE THE HOUR'S OWN. Generation II has no sky palette, but it
-does keep a blue pair in one of its background slots at every hour, and reading
-that pair from the row itself, before the map loader hands those two slots to a
-town's roof colours, is a sky that follows the clock and that nothing here
-authored. Morning is the one exception, because its pair is byte for byte day's
-and taking it would leave the two hours sharing one sky: morning's horizon is the
-sunrise colour from the row beside it and its deep end is the blue the water on
-the map is drawn with at that same hour. Where a caller has no hour to offer,
-which is a room and the model turntable, the ramp is made out of the background
-colour alone, the same colour the 2D view fills its margins with.
-
-THE CAMERA HAS TO BE LOW ENOUGH TO SEE ANY OF IT. The eye looks down by its own
-pitch, so with a 42 degree lens the top of the frame sits at 21 degrees minus the
-pitch: at the default 50 that edge is 29 degrees BELOW the horizon, and this
-whole section is invisible. Until the ANGLE row grew a LEVEL rung at 14 degrees,
-no rung on it framed a single pixel of sky and the only way to find one was to
-hold the camera key down to the rig's own floor of 12.
-
-The bands are pinned to ELEVATION rather than to the frame, so pitching the
-camera slides the frame up a sky that stays put. How much elevation they span is
-measured off the rig and not chosen: the eye looks down by its own pitch, so with
-a 42 degree lens the shallowest shot in the ladder frames sixteen degrees of sky
-and every steeper one frames none.
-
-EVERYTHING FOLLOWS THAT CLOCK, including the things that carry their own
-colours. The terrain is textured from the sheet, so repainting the sheet for a
-new hour moves it; a tree, a bush and every other stamped drawing read their
-colours when they were measured and carry them in their vertices, so each is
-measured again against the repainted sheet and its mesh rewritten in place. It is
-spread over frames on the same budget the mesh build spends, because crossing an
-hour is not a reason to drop a frame.
-
-The sun moves with the hour, not just its colour. It rises in the east, climbs,
-and sets in the west, so shadows swing about a hundred degrees between morning
-and night and a still picture says what time it is. It stays in the SOUTHERN half
-of the sky at every hour, which is not taste: a volume folds the artwork onto its
-south face at full strength, so a sun crossing to the north would put every
-drawing in the game into its own shadow. A low sun rakes, landing less light on
-flat ground and more on the upright faces, so morning carries more energy than
-day to stand the same ground up; all four rows are metered the same way the
-energies are, and the frame still tops out just under 255.
-
-ITS SHADOW IS NOT SPLIT INTO CASCADES while it has no distance to cover, and that
-is a third of the frame. A parallel-split shadow spends its map where the eye is
-by drawing the scene once per cascade: it is the answer to a shadow that has to
-reach a landscape, and it costs four passes over the geometry to get it. This
-shadow reaches six hundred world pixels at the most and the DISTANCE setting caps
-it again at the mesh window, which at the default is 256, and one orthogonal map
-over 256 world pixels of Game Boy art is already finer than the art. Measured on
-route 26,1 at the lowest camera, one split against four, counting the pixels that
-differ by more than a level of eight: 0.64% at DISTANCE 12, which is the noise
-between two runs, 1.17% at 16 and all of it a pixel of movement on a shadow's
-edge, then 8.50% at 24 and 12.40% at FULL, where the far shadows start to go. So
-the split is kept where it earns its four passes and dropped where it does not.
-At the default that is 4.55 ms a frame to 3.03 on a 2560x1440 window with the
-same picture, and in the game a walk on a wooded route goes 5.43 ms at the median
-to 4.17.
-
-## Water, and the sun in it
-
-Everything else in this view is paint stood up and lit. Water is a MIRROR, and
-the 2D view says so in the only way it can, by cycling the ripple art in place.
-So the surface is lifted out of the terrain mesh and given three things the flat
-drawing cannot carry. The sky in the lake is the sky over it, mixed in by
-Fresnel, so the far water is bright and the near water keeps the cartridge's own
-blue. The surface is not flat: two long waves cross it and their gradient is the
-normal everything else is read through, done per fragment so no vertex moves and
-the water cannot tear away from its own bank.
-
-THE SWELL BELONGS TO THE LAKE AND NOT TO THE PLAYER. It is worked out from where
-each piece of water is in the WORLD, so a crest sits over the same patch of sea
-however you walk around it, and the sun's glitter stays on the water it was on.
-Read from where the fragment was on the SCREEN instead, which is what a fragment
-shader is handed by default, the whole sea slid along with the camera and swung
-when it turned. And the sun is in it, hung by
-ANGLE rather than by screen position, because the reflection of a sun most of the
-way up the sky lands off the top of the frame at every hour: what is asked is how
-nearly a piece of water is tilted to bounce the sun into the eye, which is a fact
-about the swell, so the glitter rides the waves and goes out at night with the
-light.
-
-THE BANK IS BAKED, BECAUSE A FRAGMENT CANNOT SEE IT. A piece of water knows
-where it is in the world and what the sheet paints there, and both say the same
-thing in the middle of a lake as they do a tile from the beach, so foam and a
-shallow are not things the water can work out for itself. The mesher already
-owns the answer: the same test that lifted the surface out of the terrain is
-walked outward from every piece of land, once with the resolve, and how far each
-tile of water lies from the nearest bank goes to the shader as one texel a tile.
-
-A white line sits where that distance is about half a tile, and the crest of the
-swell carries it up the beach while the trough takes it back. It is THRESHOLDED
-against a checkerboard rather than faded, because the hardware has two colours to
-put on a waterline and so does this. The same number takes the water toward the
-palest colour of its own row near the bank and toward the deepest away from it,
-both held under half strength: a canal and a river are two tiles wide, and at
-full strength every one of them turns to sand. The foam is the hour's own white,
-which is the colour the 2D view fills its margins with, so it is cream at sunrise
-and violet at night and goes out with the light.
-
-Past the edge of that field, which is what a camera standing outside the mesh
-looks across, the answer is open water: what is off the field is unknown, and the
-honest answer to unknown here is the one that draws nothing.
-
-The ground past the mesh gets no waterline, no swell and no glint: those maps are
-drawings rather than surfaces, so a far island has the beach its own art draws
-and nothing added. IT DOES GET THE SKY, and it has to. A drawing of the sea is
-the cartridge's flat blue, and the sea in front of it is that same blue mixed
-toward the sky by Fresnel, so the two met at the map's edge as two different
-colours with a hard line between them. Out there the water is only ever seen at
-a grazing angle, which is the one place the Fresnel has a single answer, so the
-far page takes that share of the same horizon: a texel matching that map's own
-water row, and no other, is graded exactly as the near sea is.
-
-WATER IS STOOD IN AND NOT ON. It lies eight pixels below the land it is recessed
-from, and everything the map stands on it, a surfing player, a swimmer, a wild
-Pokemon on a surf cell, sat at the height of the LAND instead: a whole band clear
-of the surface, with its shadow on the water under it and daylight in the gap. On
-a Game Boy screen the sprite was the same few pixels either way. Drawn at the
-window's resolution it is a boat in the air.
-
-They now stand on the water's own surface and two pixels into it, so the
-waterline crosses the drawing. Two rather than a quarter of the sprite because
-the cartridge's own art already draws the waterline: a swimmer is a head and
-shoulders and the surf blob is a thing half sunk, so a deeper draught sinks them
-twice and the sea comes up to their eyes. The water is opaque and writes depth,
-so nothing is clipped or masked; the surface simply stands in front of what is
-under it.
-
-## A door stands in its wall
-
-A door is walkable, so every pass that reads collision calls it ground, and a
-column stood at nothing: the doorway came out as a hole punched clean through the
-building with the door's own drawing lying flat on the floor in front of it.
-
-Two answers were already here and neither reaches far enough. A `MOUNDS` pin
-names the cave mouths of one tileset. A painting names the drawings a person
-corrected, and a painting matches a whole rectangle, so it can never reach the
-BORDER RING, where the cartridge repeats part of a block and a house is cut in
-half by construction. That ring is where the fault was found.
-
-So the cartridge is asked instead, and it answers everywhere: a cell whose
-collision is a door, its second door code, or a cave takes the height of the wall
-around it, and the face machinery paints its drawing on exactly where the
-cartridge drew it. The warp CARPETS are deliberately not among those codes, since
-a carpet is a floor you walk onto and every map edge has one. It costs about a
-millisecond of the resolve on a map, and the test that guards it is two array
-reads: nothing standing beside a tile means no doorway to stand up.
-
-## The tile sheet animates, and the geometry spans all of it
+## Tile animation
 
 The cartridge rewrites one or two tiles of its sheet every frame: the water
 ripples, the flowers open and shut, a whirlpool turns. This view repaints those
 tiles on the one sheet every mesh samples, so a change moves every instance of
 that tile at once, which is what the hardware does.
 
-A DRAWING THAT ANIMATES IS CUT FROM ALL OF ITS FRAMES AND NOT FROM ONE. A
-billboard is a mask of the drawing, and the sheet is only ever showing one frame,
-so cutting from whichever frame the map happened to load on left the geometry
-short wherever a later frame drew further out and standing empty wherever only an
-earlier one drew. The mask is the union of every frame the tile is ever shown as
-and the texture, which follows the sequence, trims the rest. It shows most in a
-bed of meadow flowers.
+A drawing that animates is cut from all of its frames and not from one. The sheet
+only ever shows one frame, so cutting from whichever frame the map loaded on left
+the geometry short where a later frame drew further out and standing empty where
+only an earlier one drew. The mask is the union of every frame the tile is ever
+shown as, and the texture trims the rest. It shows most in a bed of meadow
+flowers.
 
 ## Sprites another mod puts in the world
 
-A mod can register a world ACTOR: one sprite the host drives a frame at a time
+A mod can register a world actor: one sprite the host drives a frame at a time
 and resolves into the same `Gen2WorldSprite` the map's own objects carry. A
 Pokemon following the player is one. This view takes them through `set_actors`
 and stands each one up as a card on the cell it names, with its own shadow, so
 the same follower is behind the player in both views and `V` swaps between them
-without either one losing it.
+without losing it. The host resolves the art, the palette, the hour and, for a
+party icon, its own two frames.
 
-Nothing about them is this mod's to decide. The host resolves the art, the
-palette, the hour and, for a party icon, its own two frames; a card is drawn
-here from that and from nothing else.
-
-Visible wild Pokemon use the same actor path. Their host-resolved four colours
-override the ordinary icon row so shininess remains visible, and the optional
-encounter handle stands each tile of the cartridge's shiny sparkle around the
-Pokemon's centre. The built-in view and the diorama therefore share the same
-population, palette and live animation rather than approximating either one.
-
-## The one thing here the cartridge does not draw
-
-Everything else in this view is the cartridge's own drawing restated. Every
-shape, every colour and every height is read out of what the host decoded from
-the cartridge, and where a judgement was needed a person made it about a picture
-that was already there.
-
-Two things are not. A flower is drawn looked down on, so the cartridge draws the
-bloom and no stem at all, and a bloom carved where it is drawn hangs in the air:
-the stem under it is drawn by hand rather than guessed at as a thickness, because
-a stem is thin and it bends and no number says either.
-
-AND IT BENDS. The stem and the bloom over it go to the same sink the standing
-grass does, so a flower leans in the wind the tufts around it are leaning in, off
-the one gust crossing the map and with its own tile's phase on top. It hinges at
-the soil rather than at the stem's head: a post standing rigid under a head that
-moves is exactly the fault that squaring the bend was introduced to fix. No
-shader and no geometry is added, and no triangle is either, since routing a
-carved drawing to the sink the blades already use is the whole of it.
-
-And leaves drift across the daylight while fireflies come out at night. Forty
-motes ride a box around wherever the camera is aimed, each on three drift cycles
-that share no factor, and the fireflies pulse. Nothing is simulated and nothing
-is stored between frames. It is the one piece of atmosphere in the frame that is
-invented, it is one file and four lines, and it comes out again as easily as it
-went in.
-
-## A drawing bigger than one cell
-
-A cutout stands the drawing's own silhouette up, and some drawings are bigger
-than the cell they start in. The mask is cut over the whole drawing, or the flood
-runs along the seam between its cells: a cell in the middle of a flower bed has
-no ground on its own border for the flood to come in through, and would be eaten
-whole.
-
-What those extra rows MEAN is the drawing's own business, and two drawings of the
-same size mean opposite things. The potted plant's four rows are leaves above a
-pot, so it stands as tall as the drawing and every tile of it sits at the depth
-of the foot; giving each row its own depth would leave the leaves beside the pot.
-The long flower bed's four rows are the same bed carrying on away from the eye,
-so it is no taller than the short bed beside it and each of its cells stands its
-own two rows at its own depth.
-
-How big a drawing can be comes from the class; whether a given placement is that
-big comes from the map, because the short bed and the long one are drawn out of
-the same top and bottom tiles.
-
-And a drawing is a whole number of TILES, where a cell is two of them. A potted
-plant three tiles tall fills one cell and the top half of the next, so the bottom
-row of its box is the floor it stands on: the box is cut back to the rows the
-drawing uses rather than given up on, which is what stands a plant on its own pot
-instead of beside it.
-
-## A thing that is not a tile at all
-
-Everything above resolves a tile and stands it up where that tile sits, and for a
-wall, a roof or a canopy that is right, because the cartridge draws those tile by
-tile. Some things are not drawn that way. A chair is drawn as four corners across
-four tiles and no one of them is a chair: one tile is the desk's bottom-left leg,
-the chair's top-left corner and the floor between the two at once, so every
-possible answer for that tile is wrong.
-
-So an OBJECT is identified by the ARRANGEMENT OF TILE IDS it is drawn out of,
-which finds it wherever the map places it and whatever block boundary it
-straddles. Every tile the arrangement covers goes back to being floor, and one
-thing of the whole object's size is stood up at the drawing's own position. Two
-objects may cover the same tile and both are drawn, which a desk and the chair
-tucked under it do.
-
-A 2.5D drawing is a TOP AND A FRONT STACKED, and that is the whole reading: the
-first rows are the surface seen from above and are laid across the object's depth,
-the rest are the face and hang down its height. Where a drawing has a top band at
-all, those two row counts ARE the depth and the height. Where it has none, which
-is a chair drawn face on, the depth is not in the picture and has to be given.
-
-How TALL a thing is, though, is not the drawing's to say. A chair's twelve drawn
-rows stood up as twelve pixels is a cabinet beside a desk half its height. What a
-face-on drawing states honestly is its width.
-
-WHERE it stands is the collision's to say, and the drawing and the collision
-disagree. A drawing puts its front-bottom corner at its own bottom row, so
-everything else stands behind it; the cartridge draws a free-standing bench's
-apron on the walk cell IN FRONT of the one the bench blocks. Read at its word the
-box came out half a cell into open floor, which is a player walking into the
-front of a desk and the starters' Pokeballs left off the back edge of Elm's
-bench, floating behind it rather than standing on it. So a box that stands on
-floor a body can stand on is pulled back to the near edge of the last cell the
-drawing covers that is blocked the whole way across, and the move is kept only
-where it clears the box entirely. Over the whole game fourteen placements move,
-by six to sixteen pixels, and the ship does not: no placement of a hull ringed in
-sea stands on rock alone. A chair, a stool and a ladder stand on cells the
-cartridge lets you walk onto, which is its answer and not a placement to correct.
-
-An object may also be TURNED rather than stood up, because a drawing that is
-round wants the model below rather than a slab: the park's tiered stone fountain
-is 18 px wide across three tiles and centred on the seam between two of them, so
-nothing keyed to the cell grid reaches it at all. Its window is what keeps the
-paving either side of it out of the profile the turn is read from, and how tall
-it stands is the declaration's, since a turned body is as deep as it is wide.
-
-Sixteen things are declared this way: a desk, five chairs, a ship, a stone
-vessel, a ticket gate, a fountain, the ridge along a great roof, a parked
-bicycle, a television, a low padded seat, an open bin and a park bench. Three of
-them are what a fallback that REVOLVES a drawing cannot do: a bicycle drawn
-side-on is a portrait three tiles wide, and turned it came out as a row of
-bollards.
-
-The bench is the one with a BACK, and it is why an object has a builder of its
-own at all. Everything else here is a surface seen from above over a face seen
-face-on, which is what a 2.5D drawing is; a park bench is a face, a surface and a
-second face stacked, so its three drawn rows are the back, the seat, and a leg at
-each end with the bench's own shadow between them. Each piece wears the row it is
-drawn in. What is authored is the depth and the three heights, since a drawing
-seen face-on states none of them.
-
-A KERB is the other thing the park needed and it is terrain rather than an
-object: one course of masonry standing half a cell, which is what rings a flower
-bed and what holds the water in a fountain. Both had been read as something else
-entirely, and the fountain's was the worse of the two, pinned as water along with
-the pool it holds, so the shore rule read the one thing keeping the water in as a
-bank and sloped it down into the pool. A field ringed by a kerb then stands ON
-it, which is what makes a raised bed raised, and water ringed by one comes up to
-meet the ground outside, which is what makes a fountain a fountain.
-
-A SEA ROCK is the case where a class is neither: stone drawn IN the water rather
-than standing on it, so the tile stays flat water, ripples and takes the shore
-rule, and the stone stands up out of it. Anything read as a boulder instead goes
-looking for a floor and always finds one, since a drawing with no ground beside
-it falls back to the floor its tileset is commonest on: the Ruins of Alph's stone
-then stood on brick doilies out in the open sea, and on the paving and the dirt
-wherever the causeway ran past it.
-
-The largest of them is the ship at the port, fifteen tiles by six, and it added
-the one rule the smaller ones did not need: a bounding box is not a footprint. The
-box around something that is not rectangular holds tiles that are not the object,
-and here they are open sea, so they are declared as outside it and keep being sea.
-They stay part of the rectangle the mask is cut over, and that is the point of
-naming them rather than cropping the box down: a mask is cut by flooding in from
-the border, and the border of the hull's own rectangle is half hull. Ringed in one
-tile of open water the flood stops at the paint, and what is left is the ship.
-
-A staircase is found the same way and is its own shape. Generation II draws a
-flight as a perspective view over four tiles, and stepping onto one leaves the
-floor entirely rather than climbing anything, so a down flight is a HOLE: put the
-cell's floor a walk cell below the ground and everything around it skirts down to
-it, which is the same code that draws a cliff. A ladder in a shaft is that with
-the steps taken out.
-
-## Cutting a drawing that is painted in the ground's own colours
-
-The mask asks where a drawing ends, and colour cannot say: a bollard is white on
-a pale path and a bush is green on grass. What can say it is the border. The
-ground runs to the edge of the cell and the drawing does not, so the indices
-making up most of the cell's border ring are the ground and everything the flood
-cannot reach through them is the drawing.
-
-That fails on one family of drawings, and it fails completely. A tree canopy is a
-ball drawn in the SAME two greens the grass under it is dithered from. Put those
-greens in the ground set and the flood eats the lit half of the tree; leave them
-out and it keeps half the lawn. No set of indices exists that separates them,
-which only shows if you look at the mask as a picture.
-
-What bounds such a drawing is its own outline, and an outline is the darkest
-shade in the tile. So those classes flood through every pixel that is NOT that
-shade, and what the flood cannot reach is the tree. How MANY shades bound one is
-the drawing's own business rather than the rule's: a tree draws a ring in one,
-and a case that meets the ground in a paler shade needs two. The shadow pooled under a
-canopy is dark but is not enclosed by the outline, so it floods away with the
-grass, which is what should happen to it.
-
-## Tall grass lies flat and stands up at the same time
-
-The cartridge draws the tufts on the ground and then draws them again over the
-player as they walk through. That overdraw is the whole statement: the grass is
-taller than they are, and a flat tile page can only say so by drawing it twice.
-
-A diorama says it with geometry. The floor keeps the drawing and a thin slab of
-the same drawing stands out of it, one slab per tile at that tile's own depth, so
-the player walks between the two rows of a cell exactly as the 2D view meant.
-Only the blades stand: whatever index the tile spends most of itself on is the
-ground they are drawn on.
-
-The blades are cut into the largest rectangles that fit inside the drawing rather
-than into one box per row of pixels, which is the same cut a carved drawing gets
-and keeps the picture texel for texel. Down the column first and then across,
-because a blade is a vertical thing, and the sway is read off each vertex: the
-bend goes by the square of how far up its own clump a point stands, so a box
-several rows tall has to lean more at its top than at its foot.
-
-## Some things are MODELLED, not carved
-
-A tree is where standing the drawing up stops working, and it is worth saying
-why. A Game Boy sprite of a tree is a portrait of one at a fixed angle: the crown
-is drawn flat and wide so it reads against the grass, and the trunk is mostly
-hidden behind it. That is a picture of a tree, not a plan of one. Six ways of
-carving that silhouette were built and measured, and every one came out a drum, a
-stack of plates or a black hedge.
-
-So the tree is modelled. `shape/model.gd` builds a voxel trunk and crown from
-three authored proportions, and everything else still comes off the cartridge:
-how big the thing is, and what colours to paint it, taken from the drawing's own
-palette with the dark outline left out. An outline is how a drawing separates
-itself from a flat background; a solid standing in a real light does not need
-one, and reusing it is what painted every carved attempt black.
-
-One mesh is built per distinct tree and stamped wherever that tree stands, so a
-forest of two hundred is one tree of geometry drawn two hundred times and culled
-as a single instance. It is cheaper than the flat wall it replaces.
-
-The silhouette is read down from its WIDEST row, which is what lets the same
-recipe turn a conifer. A fir is pointed: its top row is two pixels across, and a
-reading that starts at the top mistakes that point for the trunk and comes out a
-disc on a stump. How TALL a tree is drawn is the drawing's business too, so the
-one class covers both the conifer drawn in a single cell and the one drawn in
-two, and the placement is what says which.
-
-The crown is ragged rather than lathed, and the jitter that does it is a fact
-about a DIRECTION rather than about a voxel. Rolled per voxel it draws no
-surface at all: what comes back is a speckle a couple of voxels thick with as
-many gaps as leaves in it, and the ground behind a bush is visible through the
-middle of it. Rolled per direction there is one radius per ray, everything
-inside it is solid, and the silhouette is as ragged as before. It only ever cuts
-IN, because the drawing states the width and a crown wider than its own cell is
-a hedge standing on the road beside it.
-
-Bushes, saplings and boulders go the same way, and the differences between them
-are the interesting part. A bush is not a small tree: a tree's sprite is
-foreshortened and its trunk is drawn behind its crown, so reading a bush that way
-stands it on a stalk. The small tree that can be Cut is the opposite and needs
-both corrections taken off: it draws its own stem, so it stands on one, and it
-draws its own height, so nothing stretches it. A boulder is not a plant at all: it takes one world pixel per voxel
-rather than two, because a 16px stone six voxels across is a pillow; it does not
-sway; and its colour is read in horizontal BANDS off the drawing, since a stone
-is drawn pale where the sky reaches it and dark underneath.
-
-The stone's reading is also what put a drawing back that was not being built at
-all. The National Park's bin stands on paving dithered in the same greys the bin
-itself is drawn in, so the rule that cuts a drawing out of the ground around it
-had nothing to cut on and the flood ate the whole thing: on that paving the mod
-drew no bin. Cut on its own dark outline instead, it came back, and it came back
-solid, which is the one thing a bin is not. It is declared as an object now and
-built HOLLOW: an empty cylinder narrowing to its foot, with a band round it and a
-darker inside. The taper is the drawing's own width at each row and the shades
-are the drawing's; what a picture seen from in front cannot say is that the mouth
-is open at all, and that is the whole of what the model adds.
-
-The notice cabinet beside it is the same fault answered the other way. It is flat
-and face-on rather than round, so it is carved rather than turned: a board in a
-frame on two posts, standing the rows it is drawn. What it needed was TWO shades
-of outline instead of one. A drawing's own dark frame is what bounds it, and this
-one closes round the top and the sides but meets the paving in a paler shade, so
-cutting on one shade let the flood up through its foot and took a slot out of the
-middle of the case.
-
-A round stool takes the stone's reading and adds the one thing none of the others
-needs. Everything above can take its own DRAWN height, because a tree, a bush and
-a rock are all drawn standing. Half of a stool's drawing is the seat seen from
-ABOVE, which is depth on the page and no height at all, so read literally a
-knee-high seat stands a full walk cell and comes out a barrel. How tall a
-modelled thing stands is therefore authored, per class, against how tall it is
-drawn.
-
-## Where a shape comes from
-
-`shape/tile_shape.gd` resolves every tile, in this order:
-
-1. a pin in `shape/profile.gd`, except a building pin in a walkable cell: one
-   plain tile draws both a house wall and the pavement in front of it, and a
-   building is never walked on
-2. the walk cell's collision permission is water, so the tile is water
-3. the walk cell's collision permission is walkable, so the tile is ground
-4. anything left is a volume
-
-Steps 2 and 3 work at CELL granularity because that is the granularity collision
-has: Generation II stores one permission byte per 2x2 walk cell. A tile in a
-walkable cell is ground the player is standing on whatever it is drawn as, which
-is what keeps flowers, grass tufts and the gaps between fence posts from
-extruding into pillars. Only a pin overrides that.
-
-## How tall a thing is
-
-An unpinned volume's height is measured, not assumed, and measured in walk cells
-because that is what the world is built out of.
-
-Every run of volume cells up a column takes the run's PERIOD: the shortest
-stretch at the run's southern end that the cells behind it immediately repeat. A
-house of three different cells has no repeat and stands three cells tall. A fence
-line running north is one cell repeated twenty times, and stands one cell tall
-however far it runs. Reading the run's raw length instead is what turns a town
-into a maze of 48px walls.
-
-A facade is measured the same way, in tile rows rather than in cells: a plaza's
-brick pavement is eight rows of the one tile, and its length would stand a
-monolith where there is a low wall.
-
-Then the structure as a whole agrees. A period is a fact about one column, and a
-hedge meeting another hedge at a T-junction has no repeat in the column through
-the junction, so that one column stood three cells tall in the middle of a
-knee-high maze. Connected cells are flooded into one structure and the height
-most of its cells measured caps all of it. It can only bring a column down: one
-that measured short measured short off its own drawing, which is evidence rather
-than an accident.
-
-## Two levels of ground
-
-A rock wall is not one height, it is two: the wall, and the stone floor behind it
-standing on top of the wall. No measurement of a column can reach that, because
-the column through the floor up there is drawn as plain ground.
-
-The cliff itself is what says so. Its face is named in the profile, and the run
-of face in each column gives two answers: the flat ground north of the run is up
-on top of it, the flat ground south of it is where the ground plane is. Both are
-carried across the floor by flooding it, because a plateau is a region and not a
-strip, and a region that ends up with both answers is left alone rather than
-guessed at. A plateau always opens somewhere, round a diagonal corner or at a way
-up, and a leak through one of those reaches ground the cliff is standing on, so
-the answer is a contradiction and not a wrong height.
-
-The plateau's far edge is one flat row with the seam drawn inside it and the low
-ground carrying on immediately above; it ends the region and then takes the
-height of what is south of it. A pool with nothing but raised floor around it
-rises with the floor and keeps its recess.
-
-WHAT STANDS BESIDE A TILE IS READ AT THE EDGE THE TWO SHARE. A box is one height
-and a rim is four, one per corner, so the single height a rim was measured at is
-not the height it has where it meets its neighbour. A face closed against that
-number is closed against nothing, and the crack is at every corner where a rim
-runs into a step: the lower of the two shared corners is what a face reaches down
-to, which can only ever add face and never take one away.
+Visible wild Pokemon use the same path. Their host-resolved four colours override
+the ordinary icon row so shininess stays visible, and the optional encounter
+handle stands each tile of the cartridge's shiny sparkle around the Pokemon.
 
 ## Surveying a tileset
 
-The measurement is right for most of the world and wrong for the drawings that
+The height measurement is right for most of the world and wrong for drawings that
 depict something other than a wall. Finding those is a loop, and its unit is the
-BLOCK: 4x4 tiles on 2x2 walk cells, which is what Generation II authors the world
+block: 4x4 tiles on 2x2 walk cells, which is what Generation II authors the world
 out of. A tree, a sign, a fence corner or a stretch of path is one block.
 
 ```bash
@@ -1271,14 +735,14 @@ Godot --path <pokerecomp> -s <this checkout>/tools/survey.gd -- <cache> all out/
 python3 tools/survey_sheet.py out/
 ```
 
-That lays every block a tileset places beside the mod's own build of it, numbered,
-one sheet per tileset and about eight seconds for the whole game.
+That lays every block a tileset places beside the mod's own build of it,
+numbered, one sheet per tileset, about eight seconds for the whole game.
 
-1. Read the sheet. The cartridge's drawing is the authority for what a thing IS.
+1. Read the sheet. The cartridge's drawing is the authority for what a thing is.
 2. Write the failures as a list: `#4 bookcase, #6 planter, #22 bed`.
-3. Pin them in `shape/profile.gd` under the tileset's number, with the class whose
-   art mode matches what the drawing depicts.
-4. Re-shoot the whole tileset, not the blocks that were pinned: heights are
+3. Pin them in `shape/profile.gd` under the tileset's number, with the class
+   whose art mode matches what the drawing depicts.
+4. Re-shoot the whole tileset, not just the blocks that were pinned: heights are
    measured per column, so a pin changes what its neighbours measure.
 5. Every map sharing that tileset inherits the pins.
 
@@ -1286,21 +750,14 @@ A pin is presentational and can only ever be. Collision, warps, triggers and
 scripts read the same data they always did, and a fix that seems to need a
 collision change is the wrong fix.
 
-## Two tables of pins
-
-`shape/profile.gd` is hand-authored from the reviewer's own measurements off the
-drawing. `shape/profile_pass.gd` is generated from a full pass over every tileset
-in the game, where the same ringed picture that makes a tileset answerable by a
-person is read tile by tile, and the answers become pins. The hand table wins
-wherever both name a tile, and the generated one can be thrown away and rebuilt.
-All thirty-five tilesets are covered: 3618 tiles read, 2168 of them pinned, the
-rest left to the automatic resolution because it already stands a wall up and
-measures its height off the drawing where a pin would force one.
-
-The pass is measured rather than trusted: run blind against a tileset the
-reviewer had already answered, it agreed on 63 of the 67 tiles they had settled,
-and every miss was one it had marked short of sure. What it cannot settle goes
-back to a person with its own description already written in.
+`shape/profile.gd` is hand-authored from measurements off the drawing.
+`shape/profile_pass.gd` is generated from a full pass over every tileset, where
+the same ringed pictures are read tile by tile and the answers become pins. The
+hand table wins wherever both name a tile, and the generated one can be thrown
+away and rebuilt. All thirty-five tilesets are covered: 3618 tiles read, 2168
+pinned, the rest left to automatic resolution. Run blind against a tileset that
+had already been answered by hand, the pass agreed on 63 of the 67 settled tiles,
+and every miss was one it had marked short of sure.
 
 ## Layout
 
@@ -1315,7 +772,9 @@ world/water.gd       the water surface: the sky by Fresnel, the swell, the sun
 world/wind.gd        what makes grass and foliage bend, and part around a walker
 world/motes.gd       the drifting leaves and the fireflies
 world/far_field.gd   the ground past the mesh: the maps around this one, flat
-world/frame.gd       the pass over the finished picture, the hour's tint, the bars
+world/far_foliage.gd the trees and bushes standing on those maps
+world/far_houses.gd  the buildings on those maps, as boxes
+world/frame.gd       the pass over the finished picture: tint, focus, the bars
 world/transition.gd  DoBattleTransition's own cells, over the map it closes on
 world/camera_rig.gd  pitch, distance, lens and the ease between settings
 battle/renderer.gd   the battle Node: the arena, the battlers and the panels
@@ -1327,8 +786,10 @@ shape/map_source.gd  the map, live from the world or read from its records
 shape/tile_shape.gd  tile -> shape class
 shape/profile.gd     hand-authored pins, the objects, the staircases, the classes
 shape/profile_pass.gd  the generated second table, one pin per tile of the game
+shape/far_drawings.gd  what stands on a far map, read without resolving it
+shape/houses.gd      the houses painted per pixel
 shape/levels.gd      the ground levels a person painted, where one has
-shape/model.gd       a sprite TURNED into a model: trees, bushes, boulders
+shape/model.gd       a sprite turned into a model: trees, bushes, boulders
 shape/stems.gd       the flower's stem, drawn by hand because nothing draws one
 shape/mesher.gd      map -> one static mesh
 ```

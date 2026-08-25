@@ -3,10 +3,9 @@ extends RefCounted
 ## The 3D stage both views are built on: a viewport of its own, the daylight, the
 ## terrain mesh and the material it is drawn with.
 ##
-## Owning this in one place is what lets a battle be staged on the map. The
-## overworld and the fight are the same geometry, the same tileset texture and
-## the same time of day; what differs is where the camera stands and what else is
-## in the scene, and that is all the two renderers hold themselves.
+## Owning this in one place is what lets a battle be staged on the map: the
+## overworld and the fight are the same geometry, texture and hour, and what
+## differs is where the camera stands and what else is in the scene.
 
 const Sky3D: GDScript = preload("sky.gd")
 const Water3D: GDScript = preload("water.gd")
@@ -23,51 +22,41 @@ const DAY_LIGHT: Array[Color] = [
 	Color(1.0, 0.94, 0.86), Color(1.0, 1.0, 0.98),
 	Color(0.72, 0.76, 1.0), Color(0.45, 0.5, 0.7),
 ]
-## METERED AGAINST THE DRAWING, not chosen for brightness.
+## Metered against the drawing, not chosen for brightness. Flat ground carries
+## vertex colour 1.0 and the cartridge's own texel, so what lands on it is how far
+## the picture is pushed past the art: at the first values a third of the day
+## frame came out pinned at 255 with nothing left to draw.
 ##
-## Flat ground carries vertex colour 1.0 and the cartridge's own texel, so what
-## lands on it is exactly how far the picture is pushed past the art. At the
-## first values it measured about 1.25, and a path texel is already white at 1.0:
-## a third of the day frame came out pinned at 255 with nothing above it left to
-## draw, which is what reads as a burnt, over-exposed screen.
+## These put the brightest thing in the frame just under the top. The cut looks
+## large because the output is sRGB encoded; nothing here is dim, it is exposed.
 ##
-## These put the brightest thing in the frame just under the top. They look like
-## a large cut because the output is sRGB encoded, where halving the light
-## darkens the picture by about a quarter; nothing here is dim, it is exposed.
-##
-## Each is paired with its own row of SUN_ROTATION below and cannot be read
-## without it: how much light lands on flat ground is the energy times the sine
-## of the sun's elevation, so moving a row's sun and leaving its energy alone
-## changes the exposure the metering settled. Day is both values as first
-## measured; the other three are re-metered against their own elevations.
+## Each is paired with its own row of `SUN_ROTATION` and cannot be read without
+## it: light on flat ground is the energy times the sine of the sun's elevation,
+## so moving a sun without its energy changes the exposure.
 const DAY_ENERGY: Array[float] = [0.58, 0.52, 0.38, 0.29]
 const DAY_AMBIENT: Array[Color] = [
 	Color("#8b8298"), Color("#9aa2b4"), Color("#4a5478"), Color("#2b3350"),
 ]
-## WHERE THE SUN STANDS, per time of day, as the light's own pitch and bearing.
+## Where the sun stands, per time of day, as the light's pitch and bearing.
 ##
-## A colour alone is not a time of day: with one fixed direction every shadow in
-## the game falls the same way at dawn as at dusk, which is the one cue a still
-## picture has for what hour it is. So the sun rises in the EAST, climbs, and
-## sets in the west, and the shadows swing about a hundred degrees across a day.
+## A colour alone is not a time of day: with one fixed direction every shadow
+## falls the same way at dawn as at dusk. So the sun rises in the east, climbs and
+## sets in the west, and shadows swing about a hundred degrees across a day.
 ##
-## It stays in the SOUTHERN half of the sky at every hour, and that is not a
-## style choice: a volume folds the artwork onto its SOUTH face at full strength,
-## so a sun that crossed to the north would put every drawing in the game into
-## its own shadow. What is left to move is the bearing, which is what a shadow
-## shows, and the elevation, which is how far a shadow is stretched.
+## It stays in the southern half of the sky at every hour, which is not a style
+## choice: a volume folds the artwork onto its south face at full strength, so a
+## sun crossing to the north would put every drawing in the game into its own
+## shadow.
 ##
-## METERED like the energies beside them, at all four rows and on the town the
-## first metering used. A low sun rakes: it lands less light on flat ground and
-## more on the upright faces, so morning carries more energy than day to stand
-## the same ground up, and the frame still tops out just under 255.
+## Metered like the energies beside them. A low sun rakes, landing less light on
+## flat ground and more on upright faces, so morning carries more energy than day
+## to stand the same ground up.
 const SUN_ROTATION: Array[Vector3] = [
 	Vector3(-40.0, 42.0, 0.0), Vector3(-58.0, -35.0, 0.0),
 	Vector3(-46.0, -62.0, 0.0), Vector3(-42.0, -62.0, 0.0),
 ]
-## The sky's share. Low on purpose: ambient lands on every face equally, so it is
-## the term that flattens the shading and lifts the floor of the picture, and the
-## sun is what should be paying for the light.
+## The sky's share. Low: ambient lands on every face equally, so it is the term
+## that flattens the shading, and the sun should be paying for the light.
 const AMBIENT_ENERGY: float = 0.28
 
 ## How far the eye sees and how far shadows are cast when the whole map is
@@ -76,49 +65,43 @@ const AMBIENT_ENERGY: float = 0.28
 const FAR_DEFAULT: float = 8000.0
 const SHADOW_DISTANCE_DEFAULT: float = 600.0
 
-## How far the sun's shadow may reach, in world pixels, before it is worth
-## SPLITTING the shadow map into cascades at all.
+## How far the sun's shadow may reach, in world pixels, before splitting the
+## shadow map into cascades is worth it.
 ##
-## A parallel-split shadow spends its map where the eye is, by drawing the scene
-## once per cascade: it is the answer to a shadow that has to cover a landscape,
-## and it is four passes over the geometry to get it. This view's shadow does not
-## cover a landscape. [constant SHADOW_DISTANCE_DEFAULT] caps it at six hundred
-## world pixels and the mesh window caps it again at the DISTANCE setting, which
-## at the default is 256, and one orthogonal map over 256 world pixels of Game
-## Boy art is already finer than the art.
+## A parallel-split shadow draws the scene once per cascade, which is the answer
+## to a shadow covering a landscape. This one does not:
+## [constant SHADOW_DISTANCE_DEFAULT] caps it at 600 world pixels and the mesh
+## window caps it again at DISTANCE, 256 by default, and one orthogonal map over
+## 256 world pixels of Game Boy art is already finer than the art.
 ##
-## THE NUMBER IS MEASURED, on route 26,1 at the lowest camera, one split against
-## four, counting the pixels that differ by more than a level of eight:
+## Measured on route 26,1 at the lowest camera, one split against four, counting
+## pixels differing by more than a level of eight:
 ##
 ##   reach 192 (DISTANCE 12)   0.64%, which is the run to run noise floor
 ##   reach 256 (DISTANCE 16)   1.17%, a pixel of movement on shadow edges
 ##   reach 384 (DISTANCE 24)   8.50%, and the far shadows begin to go
 ##   reach 600 (FULL)         12.40%, half the picture loses its shadows
 ##
-## So the split is kept where it earns its four passes and dropped where it does
-## not. At the default distance the frame goes 4.26 ms to 2.92 ms on a 2560x1440
-## window with the same picture, which is a third of it: see
-## `tools/stage_bench.gd`, the instrument all four numbers came off.
+## So the split is kept where it earns its four passes. At the default distance
+## the frame goes 4.26 ms to 2.92 ms on a 2560x1440 window with the same picture.
+## See `tools/stage_bench.gd`.
 const ONE_SPLIT_REACH: float = 256.0
 
-## AERIAL PERSPECTIVE, in world pixels, and the one thing that lets a flat far
-## field read as distance rather than as a page laid down beside the diorama.
+## Aerial perspective, in world pixels: what lets a flat far field read as
+## distance rather than a page laid beside the diorama.
 ##
-## `far_field.gd` carries the ground out to the far plane, which is hundreds of
-## walk cells of 8 pixel art seen nearly edge on: minified that hard it shimmers
-## when the camera moves, and where it meets the mesh the change from voxels to a
-## flat page is a line across the picture. Both are the same fault, which is that
-## nothing in the frame said the far ground was FAR.
+## `far_field.gd` carries the ground to the far plane, hundreds of walk cells of
+## 8 pixel art seen nearly edge on: minified that hard it shimmers as the camera
+## moves, and where it meets the mesh the change reads as a line across the
+## picture. Both are the same fault, that nothing said the far ground was far.
 ##
-## Its colour is the SKY'S OWN HORIZON rather than a chosen grey, so what the
-## ground fades into is exactly what is above it and the hour carries both: see
+## Its colour is the sky's own horizon rather than a chosen grey, so the ground
+## fades into what is above it and the hour carries both: see
 ## `sky.gd:set_background`. Indoors there is no sky and no haze.
 ##
-## BEGIN IS PAST EVERYTHING THE PLAYER IS PLAYING IN. The eye sits 190 world
-## pixels back at the default pitch and frames about sixteen walk cells, so a
-## haze starting at nine hundred cannot touch the map being walked on even at the
-## lowest camera; what it reaches is the far field and the outer edge of a FULL
-## distance mesh.
+## It begins past everything the player is playing in: the eye sits 190 world
+## pixels back at the default pitch and frames about sixteen walk cells, so a haze
+## starting at nine hundred cannot touch the map being walked on.
 const HAZE_BEGIN: float = 1400.0
 const HAZE_END: float = 5200.0
 ## Squared rather than linear, so the near half of the ramp is nearly nothing and
@@ -176,23 +159,17 @@ func _init() -> void:
 	# `set_render_scale`.
 	container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
-	# THE PASS RUNS AT THE MESH'S OWN RESOLUTION AND NOT THE WINDOW'S.
+	# The pass runs at the mesh's resolution and not the window's. On the
+	# container's material it was drawn once per WINDOW pixel however far RES had
+	# shrunk what was under it, so the hour's tint, the depth of field and the
+	# mask were the one thing here that did not get cheaper as the divisor went
+	# up, which is the rung a phone reaches for.
 	#
-	# `frame.gd` used to live on the container's material, which is drawn once
-	# per WINDOW pixel however far RES has shrunk what is under it: the hour's
-	# tint, the depth of field and the mask were the one thing in this view that
-	# did not get cheaper as the divisor went up, and RES is the rung a phone
-	# reaches for. Measured on an M4 at 2560x1440 the pass is lost in the noise
-	# at RES 1 and 0.34 ms of a 2.97 ms frame at RES 4, which is the shape of the
-	# fault rather than its size: everything else there is sixteen times cheaper
-	# and this was not.
-	#
-	# So the picture goes through a viewport of its own, at the divided size,
-	# and THAT is what the container blows back up. The pass is quadratic in the
-	# divisor like everything else now. It does not move the picture: the tint is
-	# a multiply and commutes with a nearest upscale, the depth of field already
-	# worked in the viewport's own texels, and the mask's edges land on divisor
-	# boundaries, which is where every other edge in this view already lands.
+	# So the picture goes through a viewport of its own at the divided size, and
+	# that is what the container blows back up. It does not move the picture: the
+	# tint is a multiply and commutes with a nearest upscale, the depth of field
+	# already worked in the viewport's texels, and the mask's edges land on
+	# divisor boundaries.
 	_pass_viewport = SubViewport.new()
 	_pass_viewport.transparent_bg = false
 	_pass_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -224,7 +201,7 @@ func _init() -> void:
 	_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	_environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	_environment.ambient_light_energy = AMBIENT_ENERGY
-	# AERIAL PERSPECTIVE: see HAZE_BEGIN. Its colour is the sky's own and moves
+	# Aerial perspective: see HAZE_BEGIN. Its colour is the sky's own and moves
 	# with the hour, so it is set with the background rather than here.
 	_environment.fog_mode = Environment.FOG_MODE_DEPTH
 	_environment.fog_depth_begin = HAZE_BEGIN
@@ -247,9 +224,8 @@ func _init() -> void:
 	# the drawings up is that they sit ON something.
 	_light.shadow_enabled = true
 	_light.directional_shadow_max_distance = SHADOW_DISTANCE_DEFAULT
-	# The geometry is axis-aligned boxes on a flat plane, which is the shape that
-	# shows shadow acne worst; a normal bias rather than a depth one keeps the
-	# contact edge where the box meets the ground.
+	# Axis-aligned boxes on a flat plane show shadow acne worst; a normal bias
+	# rather than a depth one keeps the contact edge where the box meets ground.
 	_light.shadow_normal_bias = 1.5
 	viewport.add_child(_light)
 
@@ -302,7 +278,7 @@ func set_time_of_day(row: int) -> void:
 	_light.light_energy = DAY_ENERGY[_time_of_day]
 	_light.rotation_degrees = SUN_ROTATION[_time_of_day]
 	# The water reflects the same sun, and it is given the direction the light
-	# TRAVELS FROM rather than the one it travels in, because a glint asks where
+	# travels FROM rather than the one it travels in, because a glint asks where
 	# the sun stands. Energy goes into the colour, so a night lake takes almost
 	# none and the term costs nothing when there is nothing to reflect.
 	_water_shader.set_sun(
@@ -349,24 +325,19 @@ func set_interface_mask(screen: Rect2i, masked: bool) -> void:
 
 
 
-## How far the eye is allowed to see, in world pixels, following whatever the
-## mesh was actually built out to. Zero is the whole map.
+## How far the eye may see, in world pixels, following whatever the mesh was
+## built out to. Zero is the whole map.
 ##
 ## The far plane is set past the window rather than at it, so the cut edge of a
-## windowed mesh is somewhere in the frame rather than in the middle of it, and
-## the shadow pass is held to the same reach: shadows are cast per frame, so
-## asking for them across a route no view distance is drawing is the part of a
-## draw distance that actually pays.
-## [param horizon] is whether anything is drawn past the window, which is the
-## overworld and not a battle: see `far_field.gd`.
+## windowed mesh is not in the middle of the frame, and the shadow pass is held to
+## the same reach: shadows are cast per frame, so asking for them across a route
+## nothing is drawing is the part of a draw distance that actually pays.
 ##
-## THE FAR PLANE FOLLOWS THE WINDOW ONLY WHERE THERE IS NOTHING BEHIND IT.
-## Cutting the view at twice the window was right when the world ended at the
-## mesh, and over a far field it would cut the horizon off instead. A battle has
-## no far field and keeps the near plane it always had, which is worth keeping:
-## a small scene under an 8000 unit far plane spends its depth buffer on empty
-## space. The window decides what the SUN is asked for either way, which is the
-## half of a draw distance that actually pays.
+## [param horizon] is whether anything is drawn past the window, which is the
+## overworld and not a battle: see `far_field.gd`. The far plane follows the
+## window only where there is nothing behind it, since over a far field it would
+## cut the horizon off. A battle keeps the near plane it always had, so a small
+## scene does not spend its depth buffer on empty space.
 func set_view_distance(pixels: float, horizon: bool = false) -> void:
 	if pixels <= 0.0:
 		camera.far = FAR_DEFAULT
@@ -388,16 +359,13 @@ func _set_shadow_reach(pixels: float) -> void:
 
 ## How many window pixels the 3D pass draws one of.
 ##
-## THE SCREEN NOW FILLS THE WINDOW, and this view is the one that pays for it:
-## the 2D page is 160x144 whatever the window is, and this is drawn at the
-## control's own pixel count, which on a phone panel is a hundred times the area
-## through a shader with six fetches in it and geometry that leans on the depth
-## buffer rather than a sort. A divisor is quadratic in every part of that, so a
-## half is a quarter of the work and a third is a ninth.
+## The screen fills the window and this view pays for it: the 2D page is 160x144
+## whatever the window is, and this is drawn at the control's own pixel count,
+## which on a phone is a hundred times the area. A divisor is quadratic in all of
+## it, so a half is a quarter of the work and a third a ninth.
 ##
-## It is not a compromise on the art either way: the picture is a Game Boy's own
-## texels, and a divisor draws them larger rather than blurrier. The container
-## is the shrink the SubViewport was built around, so nothing else changes.
+## It is no compromise on the art: the picture is Game Boy texels and a divisor
+## draws them larger rather than blurrier.
 func set_render_scale(divisor: int) -> void:
 	container.stretch_shrink = clampi(divisor, 1, 4)
 
@@ -444,13 +412,10 @@ func advance_far_field(focus: Vector3) -> void:
 	_far.advance(focus, _reach)
 
 
-## The terrain, as one instance per CHUNK.
-##
-## Not one instance for the map: the engine culls per instance, so a single mesh
-## can only be accepted or rejected whole, and at any camera angle most of a
-## route is behind the eye. Instances are pooled and re-pointed rather than
-## rebuilt, because a recentre replaces the set every time the player leaves the
-## middle of the window.
+## The terrain, as one instance per chunk. The engine culls per instance, so one
+## mesh for the map could only be accepted or rejected whole while most of a route
+## is behind the eye. Instances are pooled and re-pointed rather than rebuilt,
+## since a recentre replaces the set every time the player leaves the middle.
 func set_terrain(meshes: Array) -> void:
 	for index: int in meshes.size():
 		if index >= _terrain.size():
@@ -465,22 +430,18 @@ func set_terrain(meshes: Array) -> void:
 		_terrain[index].visible = false
 
 
-## The authored models, one MultiMesh per distinct one.
-##
-## A MultiMesh because a forest is one tree stamped two hundred times: the
-## geometry is uploaded once and the engine draws and culls the lot as a single
-## instance, which is the whole reason a modelled tree costs what a carved one
-## could not.
+## The authored models, one MultiMesh per distinct one: a forest is one tree
+## stamped two hundred times, uploaded once and drawn and culled as one instance,
+## which is why a modelled tree costs what a carved one could not.
 func set_models(models: Array) -> void:
 	for index: int in models.size():
 		if index >= _models.size():
 			var instance := MultiMeshInstance3D.new()
 			viewport.add_child(instance)
 			_models.append(instance)
-		# A FAR STAMP WEARS THE DRAWING and a near one wears its own vertices, so
-		# the material is per entry rather than per pool: see `wind.gd:SPRITE_CODE`.
-		# The instance is pooled and re-pointed, so this is set every time and not
-		# only when the instance is made.
+		# A far stamp wears the drawing and a near one its own vertices, so the
+		# material is per entry rather than per pool: see `wind.gd:SPRITE_CODE`.
+		# Instances are pooled, so this is set every time.
 		var cutout: Texture2D = models[index][3] as Texture2D \
 			if models[index].size() > 3 else null
 		_models[index].material_override = _wind.sprite_material(cutout) \
@@ -490,11 +451,10 @@ func set_models(models: Array) -> void:
 		# The per-instance WIND PHASE, so one mesh stamped across a forest still
 		# bends tree by tree. `mesher.gd` hashes it off the placement's anchor.
 		multi.use_custom_data = true
-		# USE_COLORS IS NOT OPTIONAL HERE. A MultiMesh carrying custom data and no
-		# instance colours hands the shader a BLACK `COLOR` on the compatibility
-		# renderer, and a model's whole colour is its vertex colour, so the forest
-		# comes out in silhouette. White per instance leaves the baked colour
-		# exactly as it was. Found in a picture; the counts were identical.
+		# `use_colors` is not optional: a MultiMesh with custom data and no
+		# instance colours hands the shader a black COLOR on the compatibility
+		# renderer, and a model's whole colour is its vertex colour, so the
+		# forest comes out in silhouette. Found in a picture, not in the counts.
 		multi.use_colors = true
 		multi.mesh = models[index][0]
 		var placements: Array[Transform3D] = models[index][1]
@@ -511,11 +471,9 @@ func set_models(models: Array) -> void:
 		_models[index].visible = false
 
 
-## Where the bank is, and the three colours the shore is drawn in. Both go
-## straight to `water.gd`, which is where what reads them is written: the field
-## is `mesher.gd:bank_field` and the colours are the atlas's, so the foam moves
-## with the hour and goes out with the light. A caller that hands no field, which
-## is a cave pool and the model turntable, switches every term off.
+## Where the bank is, and the three colours the shore is drawn in. Both go to
+## `water.gd`: the field is `mesher.gd:bank_field` and the colours are the
+## atlas's, so the foam moves with the hour. No field switches every term off.
 func set_bank(field: Texture2D, world: Vector2, origin: Vector2, span: float) -> void:
 	_water_shader.set_bank(field, world, origin, span)
 
@@ -524,11 +482,8 @@ func set_shore_colors(foam: Color, shallow: Color, deep: Color) -> void:
 	_water_shader.set_shore_colors(foam, shallow, deep)
 
 
-## The WATER surface, as one instance per chunk that holds any.
-##
-## Same pooling as the terrain and for the same reason. Water is drawn after the
-## terrain by being a separate instance at the same depth: it never overlaps
-## itself, so nothing here has to be sorted.
+## The water surface, one instance per chunk that holds any. Same pooling as the
+## terrain. It never overlaps itself, so nothing here has to be sorted.
 func set_water(meshes: Array) -> void:
 	for index: int in meshes.size():
 		if index >= _water.size():
@@ -546,11 +501,8 @@ func set_water(meshes: Array) -> void:
 		_water[index].visible = false
 
 
-## The standing GRASS, as one instance per chunk that holds any.
-##
-## It casts, and that is not free but is the point: the tufts are the one thing
-## in the frame the player walks INTO rather than past, and a clump with no
-## shadow floats above the floor it is drawn on.
+## The standing grass, one instance per chunk that holds any. It casts, which is
+## not free but is the point: a clump with no shadow floats above its own floor.
 func set_tufts(meshes: Array) -> void:
 	for index: int in meshes.size():
 		if index >= _tufts.size():
@@ -578,11 +530,9 @@ func set_texture(texture: Texture2D) -> void:
 	_wind.set_atlas(texture)
 
 
-## The sky's colour, out of doors as a ramp between the hour's own two ends and
-## indoors as the one colour behind a wall. `atlas.gd:sky_ramp` is what picks the
-## pair and `sky.gd` is what paints between them; handed none, the ramp is made
-## out of the background colour alone, which is what the 2D view fills its
-## margins with.
+## The sky's colour: out of doors a ramp between the hour's two ends, indoors the
+## one colour behind a wall. `atlas.gd:sky_ramp` picks the pair and `sky.gd` paints
+## between them; handed none, the ramp is the background colour alone.
 func set_background(
 	color: Color, outside: bool = true, ramp: PackedColorArray = PackedColorArray()
 ) -> void:
@@ -594,10 +544,9 @@ func set_background(
 	# A room has no sky to take its colour from, and so takes no hour either.
 	_frame.set_outside(outside)
 	_water_shader.set_sky(_sky.horizon, _sky.zenith)
-	# AND THE SEA PAST THE MESH, which is a drawing and cannot reflect anything
-	# for itself. Handed the same horizon and the share the near water takes at a
-	# grazing angle, which is the only angle the far sea is ever seen at, so the
-	# two meet at the map's edge in one colour instead of two.
+	# And the sea past the mesh, which is a drawing and cannot reflect for
+	# itself. It takes the same horizon and the share the near water takes at a
+	# grazing angle, which is the only angle the far sea is seen at.
 	if _far != null:
 		_far.set_sky(_sky.horizon, Water3D.REFLECT_MOST if outside else 0.0)
 	_motes.set_outside(outside)
@@ -646,10 +595,9 @@ func aim_camera(eye: Vector3, target: Vector3) -> void:
 		set_eye_for_depth_of_field(eye, target)
 
 
-## Cards are POOLED rather than rebuilt. The overworld re-places every actor each
-## frame, because a walking one changes drawing four times a step, and building a
-## node per actor per frame churns a few thousand nodes a second for a scene that
-## only ever moves the same dozen.
+## Cards are pooled rather than rebuilt: the overworld re-places every actor each
+## frame, and a node per actor per frame churns thousands a second for a scene
+## that only moves the same dozen.
 var _cards: Array[Sprite3D] = []
 var _cards_used: int = 0
 
@@ -659,12 +607,12 @@ func begin_cards() -> void:
 
 
 ## One flat drawing standing on the map, its feet on [param ground] rather than
-## its centre, which is what every drawing in the game wants.
+## its centre.
 ##
-## A card facing the camera, not a voxel model: a Game Boy drawing of a person or
-## a Pokemon is already a three-quarter view of one, and standing it up flat
-## keeps every frame the cartridge drew. Y is fixed so a card leans with the
-## camera's pitch rather than lying down when the camera goes overhead.
+## A card facing the camera, not a voxel model: a Game Boy drawing of a person is
+## already a three-quarter view of one, and standing it up flat keeps every frame
+## the cartridge drew. Y is fixed so a card leans with the camera's pitch rather
+## than lying down when the camera goes overhead.
 func add_standing_card(
 	texture: Texture2D, ground: Vector3, pixel_size: float = 1.0
 ) -> Sprite3D:
@@ -696,22 +644,18 @@ func end_cards() -> void:
 
 
 ## What a drawing gives the sun: an upright card at its ground point, wearing the
-## same picture at the same size, put into the depth pass and into nothing else.
+## same picture at the same size, put into the depth pass and nothing else.
 ##
-## Everything drawn on this stage is a flat picture that cannot cast for itself.
-## A battler is not even in the 3D scene, being hardware pixels on the layer
-## above; an actor card is, but it turns to the camera, so its own shadow would
-## be whichever way the shot happened to be pointing. This hands the sun a shape
-## that is nobody's view, and one silhouette in the depth pass buys every case at
-## once: the shadow lands on the floor, climbs a wall behind it and drapes over a
-## ledge, from the same light the terrain already casts by, with no case in the
-## code for any of it. A painted ellipse can do none of that, which is why the
-## reference dropped its squashed decals for a real pass
-## (`.references/DRAMATIC_SHAPE/lib/ShadowMap.lua`).
+## Everything on this stage is a flat picture that cannot cast for itself. A
+## battler is not even in the 3D scene, and an actor card turns to the camera, so
+## its shadow would be whichever way the shot was pointing. One silhouette in the
+## depth pass buys every case: the shadow lands on the floor, climbs a wall and
+## drapes over a ledge, from the same light the terrain casts by. A painted
+## ellipse can do none of that, which is why the reference dropped its decals for
+## a real pass (`.references/DRAMATIC_SHAPE/lib/ShadowMap.lua`).
 ##
-## [param pixel_size] is the caller's, because how big the card has to be is a
-## question about where the picture over it was drawn, and only the caller knows
-## that.
+## [param pixel_size] is the caller's, since how big the card has to be is a
+## question about where the picture over it was drawn.
 func add_shadow_caster(texture: Texture2D, ground: Vector3, pixel_size: float) -> void:
 	var caster: Sprite3D = _caster()
 	caster.texture = texture
@@ -734,17 +678,14 @@ var _casters: Array[Sprite3D] = []
 var _casters_used: int = 0
 
 
-## Which way a caster stands: upright, turned so its face is square to the way
-## the sunlight travels.
+## Which way a caster stands: upright, square to the way the sunlight travels.
 ##
-## Not billboarded, and not turned to the camera either. A card lying in the
-## plane of the rays casts a LINE, and the shot is aimed from very near the sun's
-## own bearing, so a card square to the camera is within a few degrees of exactly
-## that: the first attempt drew a dark streak across the grass instead of a
-## Pokemon. Square to the sun is the other extreme and the stable one, the whole
-## silhouette laid down and stretched along the ground by however low the sun
-## sits, at every angle the shot can be swung to. Nobody ever sees the card, so
-## which way it faces is free.
+## Not billboarded and not turned to the camera. A card lying in the plane of the
+## rays casts a line, and the shot is aimed from near the sun's own bearing, so a
+## card square to the camera is within a few degrees of that: the first attempt
+## drew a dark streak across the grass. Square to the sun is the stable extreme,
+## the whole silhouette laid down and stretched by however low the sun sits.
+## Nobody sees the card, so which way it faces is free.
 func _sun_bearing() -> float:
 	var toward: Vector3 = -_light.transform.basis.z
 	return atan2(toward.x, toward.z)
@@ -757,9 +698,8 @@ func _caster() -> Sprite3D:
 		return existing
 	var caster := Sprite3D.new()
 	caster.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
-	# Discarded rather than blended: a blended card writes its whole quad into the
-	# depth pass and the battler's shadow is a rectangle. Discarding is what makes
-	# the drawing's own outline the edge of the shadow.
+	# Discarded rather than blended: a blended card writes its whole quad into
+	# the depth pass and the shadow is a rectangle.
 	caster.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 	caster.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	caster.shaded = false
@@ -776,9 +716,8 @@ func _card() -> Sprite3D:
 		return existing
 	var card := Sprite3D.new()
 	card.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	# A card turns to the camera, so what it casts is a fact about the shot rather
-	# than about the sun, and swinging the camera round swells and pinches it. The
-	# caster beside it is what stands in the sun's way instead.
+	# A card turns to the camera, so what it casts would be a fact about the shot
+	# rather than the sun. The caster beside it stands in the sun's way instead.
 	card.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	card.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	card.shaded = false

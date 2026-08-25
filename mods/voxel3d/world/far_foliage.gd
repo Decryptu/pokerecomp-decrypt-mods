@@ -1,65 +1,51 @@
 extends RefCounted
 
-## TREES ON THE MAPS PAST THE MESH.
+## Trees on the maps past the mesh.
 ##
 ## `far_field.gd` carries the ground out to the horizon as one flat quad a map,
-## folded on the GPU off the cartridge's own block data. It is the map seen from
-## above and it is completely flat, so a route that is a wood on the ground reads
-## out there as a green rug: the one thing a horizon is for, a skyline, is the
-## one thing it cannot draw.
+## which is the map seen from above, so a route that is a wood on the ground reads
+## out there as a green rug: a horizon's whole job is a skyline and that is the one
+## thing a flat page cannot draw.
 ##
-## This stands a tree on it. Not the turned solid, which is 700 to 1200 triangles
-## and out of the question for tens of maps, and not the rebuilt silhouette
-## either: the CUT-OUT DRAWING, four triangles, the same one a stamp inside the
-## mesh wears once it is past the detail ring. So the near wood and the far wood
-## are the same picture at the same size and the seam between mesh and page is
-## one more place where nothing happens.
+## This stands a tree on it. Not the turned solid, 700 to 1200 triangles and out
+## of the question for tens of maps, and not the rebuilt silhouette either: the
+## cut-out drawing, four triangles, the same card a stamp inside the mesh wears
+## past the detail ring. So near wood and far wood are the same picture at the
+## same size.
 ##
-## WHICH CELLS GET ONE is asked of the tileset and not of the map: whether a tile
-## is a model follows from the tile id and the cell's permission and nothing
-## else, so a map is walked once, cell by cell, with no flood and no measure.
-## That is milliseconds against the quarter of a second a real resolve costs, and
-## it is why this can be done for every map on the horizon at all.
+## Which cells get one is asked of the tileset and not the map: whether a tile is a
+## model follows from the tile id and the cell's permission, so a map is walked
+## once, cell by cell, with no flood and no measure. Milliseconds against the
+## quarter of a second a real resolve costs.
 ##
-## EACH DRAWING WEARS ITS OWN CARD, CUT FROM ITS OWN MAP'S SHEET.
+## Each drawing wears its own card, cut from its own map's sheet.
+## `shape/far_drawings.gd` reads which drawing stands where off a map nothing
+## resolved, naming it the way the mesher names it, and
+## `shape/mesher.gd:far_card_for` cuts it out of that map's own sheet. So a
+## conifer is a conifer out there and a map on another tileset is drawn in its
+## own art.
 ##
-## `shape/far_drawings.gd` reads which drawing stands where off a map that was
-## never resolved, naming it the way the mesher names it, and
-## `shape/mesher.gd:far_card_for` cuts that drawing out of that map's own tile
-## sheet, which `far_field.gd` has already painted to draw the ground. So a
-## conifer is a conifer out there, a short tree is a short tree, a bush is a
-## bush, and a map on another tileset is drawn in its own art rather than in
-## this one's.
+## Three earlier readings were wrong, two of them released. Every cell wore ONE
+## card, the biggest drawing the loaded map turned, so the horizon was a single
+## mass of canopy. Then the card was looked up by the TILE a drawing starts at,
+## which is one tile of sixteen, so most cells matched nothing and the rest picked
+## up whatever other drawing began at that id. And naming it was still not enough
+## while the cards were the LOADED map's, since a quarter of the far foliage is a
+## drawing that map does not hold.
 ##
-## THE THREE WAYS THIS HAS BEEN WRONG are worth keeping written down, because two
-## of them were released. First every cell of every far map wore ONE card, the
-## biggest drawing the loaded map turned: a bush was drawn as a tree and the
-## horizon was a single mass of identical canopy. Then the card was looked up by
-## the TILE a drawing starts at, which is one tile of the sixteen a tree is drawn
-## over, so most far cells matched nothing and the few that matched picked up
-## whatever other drawing began at the same id: the skyline went flat and came
-## back as bushes. A drawing is named by its whole arrangement of tiles or it is
-## not named at all. And third, naming it was still not enough while the cards
-## were the LOADED map's: a quarter of the far foliage in the game is a drawing
-## the loaded map does not hold, and another sixteenth is on another tileset
-## entirely, and all of it wore the one tree.
+## One card per drawing and not per cell, which is what the mesh does with its own
+## stamps. One map a frame, walked and cut: see [method _dressing].
 ##
-## ONE CARD PER DRAWING and not per cell, which is what the mesh does with its
-## own stamps: a conifer is drawn over two cells and stands one tree between
-## them, near and far alike.
-##
-## ONE MAP A FRAME, walked and cut. See [method _dressing].
-##
-## One simplification is left and is deliberate: a drawing gets one card rather
-## than its own bodies, so a cell of four sea rocks is one rock out there.
+## One simplification is deliberate: a drawing gets one card rather than its own
+## bodies, so a cell of four sea rocks is one rock out there.
 
 ## World pixels across one block, which is the tile the world past the maps is
 ## paved with. `far_field.gd:BLOCK_PIXELS`.
 const BLOCK: float = 32.0
-## HOW FAR OUT OF BOUNDS A CARD STANDS AND HOW THICKLY, as reach in world pixels
+## How far out of bounds a card stands and how thickly, as reach in world pixels
 ## and the lattice it stands on, in blocks.
 ##
-## THE RING HAS TO REACH THE HORIZON or it does nothing. The flat page and a
+## The ring has to reach the horizon or it does nothing. The flat page and a
 ## standing wood are different TONES, not different shapes: seen from a walking
 ## camera the page shows mostly the light ground its trees are drawn on and the
 ## cards show mostly canopy, so a ring that stops short draws a pale band across
@@ -67,7 +53,7 @@ const BLOCK: float = 32.0
 ## ten thousand world pixels, and a card on every block of that is two hundred
 ## thousand of them.
 ##
-## AND IT DOES NOT HAVE TO BE THICK OUT THERE. A card is 16 pixels tall and the
+## And it does not have to be thick out there. A card is 16 pixels tall and the
 ## eye sits about a hundred above the ground, so at three thousand pixels it is
 ## seen at two degrees and hides four hundred and fifty pixels of ground behind
 ## it. Every eighth block still closes the distance completely; what thins is the
@@ -81,7 +67,7 @@ const BORDER_RUNGS: Array = [[600.0, 1], [1200.0, 2], [2400.0, 4], [4800.0, 8]]
 ## again, in world pixels, and the margin the ring carries on top of its reach so
 ## that wandering changes nothing.
 ##
-## A DRIFT AND NOT A LATTICE. Quantising the centre to a grid rebuilds every time
+## A drift and not a lattice. Quantising the centre to a grid rebuilds every time
 ## the player steps back and forth across one of its lines, which on a walk that
 ## turns round is once a second; a circle round the last centre has no lines to
 ## cross.
@@ -170,7 +156,7 @@ func begin() -> void:
 ## is everything the mesh can stamp into, which its map overlaps: the loaded map's
 ## border ring is the neighbour's own ground and the mesh has already built it.
 ##
-## THE MULTIMESHES ARE KEPT, not rebuilt. Filling one is a transform, a colour
+## The multimeshes are kept, not rebuilt. Filling one is a transform, a colour
 ## and a wind phase per card, and a wood on the horizon is two thousand of them:
 ## doing that every frame for every map in view cost about 0.7 ms of a 4.2 ms
 ## frame on route 26. Nothing in one moves unless the map is placed somewhere
@@ -232,7 +218,7 @@ func _multi(
 	return multi
 
 
-## THE WORLD PAST THE MAPS, which is one block repeated for ever.
+## The world past the maps, which is one block repeated for ever.
 ##
 ## `far_field.gd` fills everything the camera can reach with the loaded map's
 ## border block, and on forty of the seventy-seven outdoor maps every tile of
@@ -267,7 +253,7 @@ func place_border(
 
 ## The ring itself, as `[multimesh, material]` per drawing.
 ##
-## THE BLOCKS ARE GATHERED ONCE and every drawing is stamped off that one list,
+## The blocks are gathered once and every drawing is stamped off that one list,
 ## rather than each drawing walking the ring for itself: the walk is the dear
 ## part and the border block holds one or two drawings.
 func _border_ring(
@@ -278,7 +264,7 @@ func _border_ring(
 	for rung: Array in BORDER_RUNGS:
 		var outer: float = float(rung[0]) + BORDER_STEP
 		var stride: int = int(rung[1])
-		# THE LATTICE IS THE WORLD'S AND NOT THE ANCHOR'S: snapped to absolute
+		# The lattice is the world's and not the anchor's: snapped to absolute
 		# blocks, a tree keeps its place as the ring is rebuilt under it, and only
 		# the density changes as the eye comes nearer.
 		var from := Vector2i(
@@ -362,7 +348,7 @@ func _border_dressing(
 		return {}
 	if _bordered.size() >= MAP_LIMIT:
 		_bordered.clear()
-	# NOT COUNTED AGAINST THE FRAME'S ONE MAP. This walks sixteen tiles and cuts
+	# Not counted against the frame's one map. This walks sixteen tiles and cuts
 	# the one or two drawings they hold, where a map is thousands and a dozen.
 	var cutter: RefCounted = MesherScript.new()
 	var shape: RefCounted = TileShapeScript.new(Profile, map.tileset)
@@ -405,7 +391,7 @@ func _instance() -> MultiMeshInstance3D:
 	return node
 
 
-## WHAT EACH OF ONE MAP'S DRAWINGS WEARS, cut once and kept.
+## What each of one map's drawings wears, cut once and kept.
 ##
 ## The walk that found them is `far_field.gd`'s, budgeted there a map a frame,
 ## because the buildings come off the same pass. What is paid here is the CUTTING:
@@ -426,7 +412,7 @@ func _dressing(
 	# it too: a card and its stamps are the dearest thing here to hold.
 	if _dressed.size() >= MAP_LIMIT:
 		_dressed.clear()
-	# A FACTORY PER MAP AND NOT ONE FOR THE RUN. The mesher caches a drawing's
+	# A factory per map and not one for the run. The mesher caches a drawing's
 	# mask under its tile ids, and `resolve` drops that cache on every map for
 	# the stated reason: a tile id means nothing without the tileset it came
 	# from, and an outline is read against the map's own palette. Nothing here

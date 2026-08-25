@@ -5,5 +5,5 @@
 	"api_version": 9,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
-	"description": "The item the later games sell instead of asking for a friend: use it on a Pokemon that only evolves by being traded and it evolves where it stands, cord and all."
+	"description": "An item that evolves trade-only Pokemon without trading. Sold on the second floor of Goldenrod Dept Store."
 }

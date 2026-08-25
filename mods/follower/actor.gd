@@ -1,35 +1,28 @@
 extends RefCounted
 
 ## The follower as the host drives it: one observation a frame in, one sprite
-## out, and no writes at all.
+## out, no writes.
 ##
-## This is the shape `register_world_actor` asks for. Everything it reads is
-## public on `Gen2WorldAPI` and everything it draws with is the host's: a sprite
-## here names the cartridge's own icon row and nothing else, so the host
-## resolves the strip, the palette, the time of day and the icon's own two
-## frames. An actor gets both of those; a mon-icon MAP object shows frame 0
-## forever, because `GetUsedSprite` copies an icon's eight tiles into both
-## banks and the walking rows of `Facings` land on the same picture.
+## The shape `register_world_actor` asks for. Everything it reads is public on
+## `Gen2WorldAPI`, and a sprite here names the cartridge's own icon row and
+## nothing else, so the host resolves the strip, the palette, the hour and the
+## icon's two frames. An actor gets both frames; a mon-icon map object shows
+## frame 0 forever, since `GetUsedSprite` copies an icon's eight tiles into both
+## banks.
 ##
-## Not a scene node and never one. A follower is a pose, and the pose layer is
-## `docs/MODS.md`'s own answer to a mod that wants one.
-##
-## Three of the actor contract's methods are optional and this one defines all
-## three: `interact` is the press a player facing it spends, `sprites()` carries
-## the heart while it is up, and `take_requests` is the outbox the cry is asked
-## for through. The host owns the bubble's pixels and the cry's audio, as it owns
-## the icon's, so this file still composes nothing and plays nothing.
+## All three optional actor methods are defined here: `interact` for the press,
+## `sprites()` for the heart while it is up, and `take_requests` for the cry. The
+## host owns the bubble's pixels and the cry's audio, so nothing is composed or
+## played here.
 
 const Options := preload("options.gd")
 const Party := preload("party.gd")
 const Trail := preload("trail.gd")
 const Finder := preload("finder.gd")
 
-## How long the heart stays up after a press, in world frames. The mod owns the
-## duration because the emote is a POSE the host draws while it is asked for
-## rather than an edge the host times, and this is the host's own
-## `Gen2WorldAPI.TRAINER_SHOCK_FRAMES`, the one `showemote` the engine spends
-## without a script behind it.
+## How long the heart stays up, in world frames. The mod owns the duration
+## because the emote is a pose the host draws while it is asked for. This is the
+## host's own `Gen2WorldAPI.TRAINER_SHOCK_FRAMES`.
 const HEART_FRAMES: int = 60
 
 var _host: Gen2ModHost = null
@@ -38,21 +31,18 @@ var _world: Gen2WorldAPI = null
 var _trail: RefCounted = Trail.new()
 ## What the player last chose, read on a change rather than every frame.
 var _settings: Dictionary = Options.settings(null)
-## Whether the recall control has put the follower away. Per session and not per
-## save: the host hands a mod its own save namespace through the manifest, and
-## an actor is handed a world, so a recall that outlives a reload is a thing to
-## ask for once anything wants it.
+## Whether the recall control has put the follower away. Per session: an actor
+## is handed a world rather than a save.
 var _recalled: bool = false
 var _pose: Dictionary = {}
 ## Frames of heart left, counted down a frame at a time.
 var _heart: int = 0
-## The one-shot outbox the host drains once a world frame. A cry is an edge and
-## belongs here; the heart is a pose and belongs in `sprites()`.
+## Drained once a world frame. A cry is an edge and belongs here; the heart is a
+## pose and belongs in `sprites()`.
 var _outbox: Array = []
-## Cells asked for on this map, so a pack that is full is not asked to hold one
-## more item on every frame the follower stands there. A successful take sets the
-## site's own event flag and the record answers `taken` forever after, so this
-## only ever holds the asks the world refused.
+## Cells asked for on this map, so a full pack is not asked to hold one more item
+## on every frame. A successful take sets the site's event flag and the record
+## answers `taken` after that, so this only ever holds refusals.
 var _asked: Dictionary = {}
 
 
@@ -87,8 +77,7 @@ func advance_frame() -> void:
 	_look_for_an_item()
 
 
-## What to draw, in the order to draw it. A read, so a second view asking again
-## in the same frame gets the same answer.
+## What to draw. A read, so two views asking in one frame get the same answer.
 func sprites() -> Array:
 	if _world == null or _pose.is_empty() or not bool(_pose.get("out", false)):
 		return []
@@ -109,9 +98,8 @@ func sprites() -> Array:
 ## facing [param cell]. True consumes it, and the host re-reads `sprites()` on
 ## the same frame, so the turn and the heart are up on the frame of the press.
 ##
-## Petting is not a setting: it costs a player nothing they did not go looking
-## for, since the press only ever reaches here when the world had no answer of
-## its own for the cell the follower happens to be standing on.
+## Petting needs no setting: the press only reaches here when the world had no
+## answer of its own for that cell.
 func interact(cell: Vector2i, facing: int) -> bool:
 	if _world == null or _pose.is_empty() or not bool(_pose.get("out", false)):
 		return false
@@ -121,12 +109,11 @@ func interact(cell: Vector2i, facing: int) -> bool:
 	if not bool(member.get("out", false)):
 		return false
 	_trail.face_back(facing)
-	## The pose is answered from `_pose` rather than from the trail, and the read
-	## the host is about to take is this frame's, so the turn lands in both.
+	## `sprites()` answers from `_pose`, so the turn has to land there too.
 	_pose["facing"] = int(_trail.facing())
 	_heart = HEART_FRAMES
-	## A mod may not play a sound. It asks, and the host spends it through the
-	## same player `Script_cry` and the Pokedex's own CRY button use.
+	## A mod may not play a sound. The host spends it through the same player
+	## `Script_cry` and the Pokedex's CRY button use.
 	_outbox.append({
 		"kind": Gen2WorldActors.REQUEST_CRY, "species": int(member["species"]),
 	})
@@ -143,17 +130,15 @@ func take_requests() -> Array:
 ## A hidden item under the follower, or one cardinal step into something it could
 ## not have walked into. `finder.gd` owns the rule; this owns the asking.
 ##
-## The ask is a REQUEST and never the act: taking one writes the bag, the event
-## flag and the save and runs the site's own `verbosegiveitem`, all of which is
-## the host's. The mod names a cell, exactly as a visible-encounter provider
-## names the entry the host starts a battle from.
+## It is a request and never the act: taking one writes the bag, the event flag
+## and the save and runs the site's own `verbosegiveitem`, all the host's.
 func _look_for_an_item() -> void:
 	if _host == null or not bool(_settings[Options.PICKUP]):
 		return
 	if _pose.is_empty() or not bool(_pose.get("out", false)):
 		return
-	## Mid-step it is drawn between two cells and has not arrived yet, and a
-	## record found now would be asked for eight frames running.
+	## Mid-step it has not arrived, and a record found now would be asked for
+	## eight frames running.
 	if (_pose["offset"] as Vector2) != Vector2.ZERO:
 		return
 	var cell: Vector2i = _pose["cell"]
@@ -169,8 +154,8 @@ func _look_for_an_item() -> void:
 	_host.request_hidden_item(found)
 
 
-## Whether anything should be out at all: the recall control, the two movement
-## settings, and a party that has someone to send.
+## The recall control, the two movement settings, and a party with someone in
+## it.
 func _allowed() -> bool:
 	if _recalled:
 		return false
@@ -188,15 +173,13 @@ func _member() -> Dictionary:
 	)
 
 
-## A slot or a movement setting moved. The follower comes back out from under
-## the player rather than sliding across the map from where the last one stood.
+## A slot or a movement setting moved.
 func _on_option_changed(id: StringName, key: StringName, _value: Variant) -> void:
 	if id != _id:
 		return
-	# The MODS menu's own way in, which is the same press the control makes and
-	# has to stay the same press: two paths that toggled separately would let a
-	# player put the follower away with one and be told by the other that it is
-	# still out. A button setting carries a null value and stores nothing.
+	# The MODS menu row is the same press the control makes, and has to stay so,
+	# or the two paths could disagree about whether the follower is out. A button
+	# setting carries a null value and stores nothing.
 	if key == Options.PUT_AWAY:
 		_toggle_recall()
 		return
@@ -213,8 +196,7 @@ func _on_action_changed(id: StringName, key: StringName, pressed: bool) -> void:
 	_toggle_recall()
 
 
-## Away, or back out from under the player rather than sliding across the map
-## from wherever the last one stood.
+## Away, or back out from under the player rather than sliding across the map.
 func _toggle_recall() -> void:
 	_recalled = not _recalled
 	_heart = 0
