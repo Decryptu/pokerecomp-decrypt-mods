@@ -3,8 +3,17 @@ extends SceneTree
 ## Photographs a wild battle against a SHINY Pokemon, at the frame the
 ## cartridge's own sparkle is over it.
 ##
-##   godot --path <pokerecomp> -s tools/shiny_charm_shot.gd -- \
-##       <game> <output.png> [species] [level] [frames] [player species]
+##   godot --path <pokerecomp> --resolution 800x720 \
+##       -s tools/shiny_charm_shot.gd -- \
+##       <game> <output.png> [species] [level] [frames] [player species] [thumbnail]
+##
+## THE RESOLUTION IS PART OF THE COMMAND. The picture is whatever the window is,
+## and 800x720 is the hardware's 160x144 at a whole times five, so the pixels
+## stay square. Any other size scales them by a fraction and the art shears.
+##
+## `thumbnail` centres that picture on the 1280x720 white field every mod's
+## thumbnail is and writes WebP beside the PNG, which is the whole recipe: no
+## second tool and nothing done by hand between them.
 ##
 ## The host's `tools/preview_battle_anim.gd` photographs an entrance but stages
 ## it with `show_matchup`, which has no DVs to give: a fixture wild is always
@@ -21,7 +30,10 @@ extends SceneTree
 ##
 ## Needs a display, since it renders.
 
-const WINDOW_SIZE := Vector2i(1280, 720)
+## The white field a mod's thumbnail is, which the hardware picture is centred
+## on rather than stretched to: 160x144 is 10:9 and no 16:9 canvas holds it
+## whole at a whole scale.
+const THUMBNAIL_SIZE := Vector2i(1280, 720)
 ## `Gen2Stats.is_shiny`'s own word: ATTACK 2, and 10 in each of the other three.
 const SHINY_DVS: int = (2 << 12) | (10 << 8) | (10 << 4) | 10
 ## The red GYARADOS, which is the one shiny the cartridge itself puts in front of
@@ -45,6 +57,7 @@ var _hi: int = -1
 var _cursor: int = 0
 var _settle: int = 0
 var _frames: int = 0
+var _thumbnail: bool = false
 
 
 func _initialize() -> void:
@@ -52,7 +65,7 @@ func _initialize() -> void:
 	if args.size() < 2:
 		push_error(
 			"Usage: shiny_charm_shot.gd -- <game> <output.png> "
-			+ "[species] [level] [frames] [player species]"
+			+ "[species] [level] [frames] [player species] [thumbnail]"
 		)
 		quit(1)
 		return
@@ -71,8 +84,14 @@ func _initialize() -> void:
 			_hi = int(span[1]) if span.size() > 1 else _lo
 		else:
 			_at = int(args[4])
-	if args.size() > 5:
+	if args.size() > 5 and not args[5].is_empty():
 		_player = int(args[5])
+	if args.size() > 6:
+		if args[6] != "thumbnail":
+			push_error("Unknown flag %s" % args[6])
+			quit(1)
+			return
+		_thumbnail = true
 
 	var data: GameData = GameData.open(StringName(args[0]))
 	if data == null:
@@ -80,8 +99,6 @@ func _initialize() -> void:
 		quit(1)
 		return
 
-	root.set_content_scale_size(WINDOW_SIZE)
-	root.size = WINDOW_SIZE
 	var packed: PackedScene = load("res://game/battle/battle_screen.tscn")
 	_screen = packed.instantiate() as Gen2BattleScreen
 	_screen.set_data(data)
@@ -162,5 +179,35 @@ func _write(path: String) -> bool:
 		quit(1)
 		return true
 	print("Wrote %s (%dx%d)" % [path, image.get_width(), image.get_height()])
+	if _thumbnail and not _write_thumbnail(image, path):
+		quit(1)
+		return true
 	quit(0)
+	return true
+
+
+## The picture centred on the white field, at the size it was taken. A grab
+## bigger than the field is refused rather than scaled: the fix is the window,
+## and shrinking pixel art here would hide that the command was wrong.
+func _write_thumbnail(image: Image, path: String) -> bool:
+	if image.get_width() > THUMBNAIL_SIZE.x or image.get_height() > THUMBNAIL_SIZE.y:
+		push_error("A %dx%d picture does not fit %s. Run at --resolution 800x720." % [
+			image.get_width(), image.get_height(), str(THUMBNAIL_SIZE),
+		])
+		return false
+	var canvas := Image.create(THUMBNAIL_SIZE.x, THUMBNAIL_SIZE.y, false, image.get_format())
+	canvas.fill(Color.WHITE)
+	@warning_ignore("integer_division")
+	var at := Vector2i(
+		int((THUMBNAIL_SIZE.x - image.get_width()) / 2),
+		int((THUMBNAIL_SIZE.y - image.get_height()) / 2)
+	)
+	canvas.blit_rect(image, Rect2i(Vector2i.ZERO, image.get_size()), at)
+	var out: String = path.trim_suffix(".png") + ".webp"
+	# Lossless: a WebP that guessed at these colours would be a picture of the
+	# cartridge's palette rather than the palette.
+	if canvas.save_webp(out, false) != OK:
+		push_error("Could not write %s" % out)
+		return false
+	print("Wrote %s (%dx%d)" % [out, THUMBNAIL_SIZE.x, THUMBNAIL_SIZE.y])
 	return true

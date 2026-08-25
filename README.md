@@ -15,6 +15,7 @@ Silver and Crystal recompilation. Each one is interpreted GDScript under
 | <img src="docs/icons/hidden_stats.png" alt="" width="64" height="64"> | [`hidden_stats`](mods/hidden_stats/) | 0.1.1 | A fourth page on a Pokemon's stats screen, in the cartridge's own two-column shape: the DVs it was born with and the stat experience each stat has trained. |
 | <img src="docs/icons/linking_cord.png" alt="" width="64" height="64"> | [`linking_cord`](mods/linking_cord/) | 0.1.1 | An item that evolves a Pokemon which otherwise only evolves by being traded. Buy it on Goldenrod Dept Store's second floor, use it from the pack, pick who it is for. |
 | <img src="docs/icons/quality_of_life.png" alt="" width="64" height="64"> | [`quality_of_life`](mods/quality_of_life/) | 0.1.2 | Seven independent, off-by-default conveniences: field moves from owned HMs, automatic Repel renewal, experience from catches, direct PC access, move-effectiveness hints, battle stat stages and weather indicators. |
+| <img src="docs/icons/shiny_charm.png" alt="" width="64" height="64"> | [`shiny_charm`](mods/shiny_charm/) | 0.1.0 | The reward a finished Pokedex never came with. The GAME designer in Celadon hands a key item over with the diploma, and carrying it draws every wild Pokemon's colours three times instead of once, so a rare one is three times as likely for as long as it is in the pack. |
 
 ## Installing
 
