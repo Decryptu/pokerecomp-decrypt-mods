@@ -1,0 +1,9 @@
+{
+	"id": "shiny_charm",
+	"name": "Shiny Charm",
+	"version": "0.1.0",
+	"api_version": 16,
+	"entry": "mod.gd",
+	"games": ["gold", "silver", "crystal"],
+	"description": "The reward the completed Pokedex never gave you. Finish it, take the diploma from the GAME designer in Celadon, and he hands a charm over with it: three rolls at a rare colour instead of one, for as long as it is in your KEY ITEMS pocket."
+}
