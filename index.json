@@ -71,6 +71,16 @@
 			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/quality_of_life-0.1.2/quality_of_life-0.1.2.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/quality_of_life/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/quality_of_life/thumbnail.webp"
+		},
+		{
+			"id": "shiny_charm",
+			"name": "Shiny Charm",
+			"version": "0.1.0",
+			"games": ["gold", "silver", "crystal"],
+			"description": "The reward the completed Pokedex never gave you. Finish it, take the diploma from the GAME designer in Celadon, and he hands a charm over with it: three rolls at a rare colour instead of one, for as long as it is in your KEY ITEMS pocket.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/shiny_charm-0.1.0/shiny_charm-0.1.0.zip",
+			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/shiny_charm/icon.png",
+			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/shiny_charm/thumbnail.webp"
 		}
 	]
 }
