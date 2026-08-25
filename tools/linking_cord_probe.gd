@@ -10,7 +10,8 @@ extends SceneTree
 ## evolution at all, and an EVERSTONE. Each also asserts whether the cord was
 ## spent, since an item consumed by a refusal is the expensive way to be wrong.
 ##
-##   godot --headless --path <pokerecomp> -s tools/linking_cord_probe.gd -- <game id>
+##   godot --headless --path <pokerecomp> -s tools/linking_cord_probe.gd \
+##       -- <cartridge>
 
 const MOD_ID: StringName = &"linking_cord"
 const LINKING_CORD: int = 256
@@ -56,17 +57,24 @@ const NAME_CASES: Array[Dictionary] = [
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
-	var game: StringName = StringName(args[0]) if not args.is_empty() else &"crystal"
+	var cartridge: String = args[0] if not args.is_empty() else "crystal"
+	## BEFORE the cartridge is opened. `reset()` replaces the shared content
+	## overlay, and a `GameData` opened ahead of it holds the one it is replacing,
+	## so the mod's own item would be missing from every row this probe reads.
 	Gen2ModHost.reset()
+	# Either form: a cache directory or a cartridge id. `GameData` answers which
+	# of the two an argument is, and fills `id` off the manifest either way, so
+	# the host is told the same cartridge whichever was typed.
+	var data: GameData = GameData.open_argument(cartridge)
+	if data == null:
+		print("no cache for %s" % cartridge)
+		quit(1)
+		return
+	var game: StringName = data.id
 	var host: Gen2ModHost = Gen2ModHost.instance()
 	host.set_target_game(game)
 	host.discover()
 	host.load_discovered()
-	var data: GameData = GameData.open(game)
-	if data == null:
-		print("no cache for %s" % game)
-		quit(1)
-		return
 	var ok: bool = _loaded(host)
 	ok = _item(data) and ok
 	ok = _shelf(host, data) and ok

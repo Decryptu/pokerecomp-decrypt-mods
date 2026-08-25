@@ -57,9 +57,6 @@ var _arena: RefCounted = null
 var _held := Steering.Glide.new()
 var _atlas: RefCounted = null
 var _mesher: RefCounted = null
-var _profile: GDScript = null
-var _tile_shape_script: GDScript = null
-var _map_source_script: GDScript = null
 
 ## The two HUD blocks, in hardware tiles, and how far past the drawing their
 ## backing reaches. Derived from `Gen2BattleHud`'s own positions: the enemy's
@@ -112,8 +109,9 @@ var _draw_cells: int = 0
 
 
 func _init() -> void:
-	var modules: Dictionary = _load_modules()
-	_stage = (modules["diorama"] as GDScript).new()
+	_atlas = AtlasScript.new()
+	_arena = ArenaScript.new()
+	_stage = DioramaScript.new()
 	add_child(_stage.container)
 	# The backing goes in first, so both panels sit under every drawn layer. That
 	# order is also what lets the frost read the world: a screen texture holds
@@ -274,15 +272,6 @@ func _process(delta: float) -> void:
 	_follow_anim_drift()
 
 
-func _load_modules() -> Dictionary:
-	_profile = Profile
-	_tile_shape_script = TileShapeScript
-	_map_source_script = MapSourceScript
-	_atlas = AtlasScript.new()
-	_arena = ArenaScript.new()
-	return {"diorama": DioramaScript}
-
-
 ## The map the battle started on, rebuilt from its records.
 ##
 ## The context names the map and its tileset by number and deliberately hands
@@ -306,7 +295,7 @@ func _build_arena() -> void:
 
 	# The GameData with it, so the border ring past this map's edge can follow a
 	# connection into the neighbouring map the way the overworld's does.
-	var source: RefCounted = _map_source_script.new(null, map, tileset, _data)
+	var source: RefCounted = MapSourceScript.new(null, map, tileset, _data)
 	_stage.set_time_of_day(_context.time_of_day)
 	if _atlas.build(_data, map, tileset, _context.time_of_day):
 		_stage.set_texture(_atlas.texture)
@@ -358,7 +347,7 @@ func _resolved_for(
 	if _resolved.has(key):
 		return _resolved[key]
 	var mesher: RefCounted = MesherScript.new()
-	mesher.resolve(source, _tile_shape_script.new(_profile, tileset.number))
+	mesher.resolve(source, TileShapeScript.new(Profile, tileset.number))
 	if _resolved.size() >= RESOLVED_KEPT:
 		_resolved.erase(_resolved.keys()[0])
 	_resolved[key] = mesher

@@ -10,4 +10,4 @@ func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
 	Options.register(host, manifest.id)
 	_provider = Provider.new()
 	_provider.configure(host, manifest.id)
-	host.call("register_visible_encounters", manifest.id, _provider)
+	host.register_visible_encounters(manifest.id, _provider)

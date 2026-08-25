@@ -40,10 +40,15 @@ var _heart: int = 0
 ## Drained once a world frame. A cry is an edge and belongs here; the heart is a
 ## pose and belongs in `sprites()`.
 var _outbox: Array = []
-## Cells asked for on this map, so a full pack is not asked to hold one more item
-## on every frame. A successful take sets the site's event flag and the record
-## answers `taken` after that, so this only ever holds refusals.
-var _asked: Dictionary = {}
+## The cell the follower was last looked at on, which is what makes one ARRIVAL
+## one attempt. The host collapses a cell already queued and one whose flag is
+## already set, so nothing here has to remember which cells have been named, and
+## what is left is the cartridge's own unit: a step. It has to be where the
+## follower STANDS and not where an ask was made, or walking away and back would
+## match the cell of the last ask and say nothing. A pack that was full when the
+## follower walked on is therefore asked again the next time it walks on, which
+## a set of every cell already named could never do.
+var _stood_at := Vector2i.MAX
 
 
 func configure(host: Gen2ModHost, id: StringName) -> void:
@@ -59,7 +64,7 @@ func set_world(world: Gen2WorldAPI) -> void:
 	_world = world
 	_pose = {}
 	_heart = 0
-	_asked = {}
+	_stood_at = Vector2i.MAX
 
 
 ## One world frame, after the player's own step has advanced.
@@ -132,6 +137,13 @@ func take_requests() -> Array:
 ##
 ## It is a request and never the act: taking one writes the bag, the event flag
 ## and the save and runs the site's own `verbosegiveitem`, all the host's.
+##
+## Once per arrival. The host drops an ask for a cell already in its queue and
+## one whose flag is already set, so the only repeat left to rule on is a site
+## that ran and gave nothing, which is the full pack: asking again on the frame
+## after would put its box up forever, and never asking again would leave the
+## item unreachable for the rest of the map. A step is the line between the two
+## and it is the cartridge's own.
 func _look_for_an_item() -> void:
 	if _host == null or not bool(_settings[Options.PICKUP]):
 		return
@@ -142,16 +154,17 @@ func _look_for_an_item() -> void:
 	if (_pose["offset"] as Vector2) != Vector2.ZERO:
 		return
 	var cell: Vector2i = _pose["cell"]
+	if cell == _stood_at:
+		return
+	# Spent on arrival whatever is found, so a cell with nothing on it is not
+	# searched again every frame either.
+	_stood_at = cell
 	var record: Dictionary = Finder.reach(
 		_world.hidden_items(), cell, _world.can_walk_to
 	)
 	if record.is_empty():
 		return
-	var found: Vector2i = record["cell"]
-	if _asked.has(found):
-		return
-	_asked[found] = true
-	_host.request_hidden_item(found)
+	_host.request_hidden_item(record["cell"])
 
 
 ## The recall control, the two movement settings, and a party with someone in

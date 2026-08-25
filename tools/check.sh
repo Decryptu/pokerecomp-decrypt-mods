@@ -78,7 +78,12 @@ fi
 
 scripts=()
 if [ "$WHAT" != "tools" ]; then
-	scripts+=("$HERE"/mods/*/**/*.gd "$HERE"/mods/*/*.gd)
+	# `find` and not a glob: `mods/*/**/*.gd` reaches exactly one directory down
+	# without `globstar`, so a script nested any deeper would be skipped in
+	# silence by the one command whose whole promise is that it reads every one.
+	while IFS= read -r found; do
+		scripts+=("$found")
+	done < <(find "$HERE/mods" -name '*.gd' | sort)
 fi
 if [ "$WHAT" != "mods" ]; then
 	scripts+=("$HERE"/tools/*.gd)

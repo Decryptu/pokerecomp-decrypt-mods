@@ -19,7 +19,8 @@ Every feature has its own switch and every switch is OFF by default.
 The move guide uses the spare cell at the right of each move row. Stat stages use
 the empty lower-left command panel for the player and the space above the enemy
 picture for the opponent, and they hide while the move list's type box needs that
-panel. Enemy stages and weather get the same light background as the battle's
+panel. The player's panel holds five rows, so with more stat changes than that
+active at once the last of them are not drawn. Enemy stages and weather get the same light background as the battle's
 name cards so they stay readable over a 3D arena.
 
 ## What it does not change

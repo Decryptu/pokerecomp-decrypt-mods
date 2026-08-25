@@ -38,6 +38,14 @@ const STAGE_LABELS: Dictionary = {
 ## yield those cells to the move list, whose type box occupies the lower panel.
 const ENEMY_STAGES_AT: Vector2i = Vector2i(13, 0)
 const PLAYER_STAGES_AT: Vector2i = Vector2i(1, 13)
+## The last row of the cartridge's own 20x18 grid. Seven stages can be active at
+## once and the player's block starts five rows from the bottom, so the column
+## can ask for a row the screen does not have. The host refuses a placement
+## outside the grid rather than clipping it, so a column that ran off the bottom
+## would lose rows without either side saying anything: this stops at the edge
+## instead, and what is dropped is the end of [constant STAGE_ORDER], accuracy
+## and evasion, which are the two the cartridge itself never prints a figure for.
+const LAST_ROW: int = 17
 
 var _host: Gen2ModHost
 
@@ -99,6 +107,8 @@ func _stage_side(stages: Dictionary, start: Vector2i, field: bool) -> Array:
 	var out: Array = []
 	var at: Vector2i = start
 	for key: StringName in STAGE_ORDER:
+		if at.y > LAST_ROW:
+			break
 		var stage: int = int(stages.get(key, stages.get(String(key), 0)))
 		if stage == 0:
 			continue

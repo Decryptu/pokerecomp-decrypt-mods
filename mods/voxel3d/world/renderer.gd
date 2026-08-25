@@ -58,9 +58,6 @@ var _rig: RefCounted = null
 ## from a step into a glide. See `steering.gd:Glide`.
 var _held := Steering.Glide.new()
 var _shape: RefCounted = null
-var _profile: GDScript = null
-var _tile_shape_script: GDScript = null
-var _map_source_script: GDScript = null
 
 var _actor_textures: Dictionary = {}
 var _pulse_textures: Dictionary = {}
@@ -145,8 +142,10 @@ var _pending_hole := Rect2()
 
 
 func _init() -> void:
-	var modules: Dictionary = _load_modules()
-	_stage = (modules["diorama"] as GDScript).new()
+	_atlas = AtlasScript.new()
+	_mesher = MesherScript.new()
+	_rig = CameraRigScript.new()
+	_stage = DioramaScript.new()
 	add_child(_stage.container)
 	# After the stage, so the cartridge's own cells are over the world they are
 	# closing on.
@@ -482,16 +481,6 @@ func _glide(delta: float) -> void:
 		_rig.steer_by(command, float(held[command]))
 
 
-func _load_modules() -> Dictionary:
-	_profile = Profile
-	_tile_shape_script = TileShapeScript
-	_map_source_script = MapSourceScript
-	_atlas = AtlasScript.new()
-	_mesher = MesherScript.new()
-	_rig = CameraRigScript.new()
-	return {"diorama": DioramaScript}
-
-
 func _build_atlas() -> bool:
 	if _world == null or _world.current_map == null or _world.current_tileset == null:
 		return false
@@ -526,10 +515,10 @@ func _rebuild() -> void:
 		return
 	var tileset: int = _world.current_tileset.number
 	if _shape == null or tileset != _shape_tileset:
-		_shape = _tile_shape_script.new(_profile, tileset)
+		_shape = TileShapeScript.new(Profile, tileset)
 		_shape_tileset = tileset
 	# Asked before the atlas, because what is behind a wall depends on it.
-	var source: RefCounted = _map_source_script.new(_world)
+	var source: RefCounted = MapSourceScript.new(_world)
 	_outside = source.outside()
 	if _build_atlas():
 		_stage.set_texture(_atlas.texture)

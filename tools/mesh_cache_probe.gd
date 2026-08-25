@@ -21,7 +21,7 @@ extends SceneTree
 ## Headless, and about a minute a cartridge:
 ##
 ##   Godot --headless --path <pokerecomp> -s tools/mesh_cache_probe.gd -- \
-##       <cache> [draw cells] [tileset]
+##       <cartridge> [draw cells] [tileset]
 ##
 ## Exits non-zero on any disagreement, naming the map and both readings.
 
@@ -42,7 +42,7 @@ func _initialize() -> void:
 		print("usage: <cache> [draw cells] [tileset]")
 		quit(2)
 		return
-	var data: GameData = GameData.open_directory(args[0])
+	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache at ", args[0])
 		quit(1)

@@ -37,7 +37,7 @@ func _initialize() -> void:
 	if Gen2ToolPath.refuses(args[3]):
 		quit(2)
 		return
-	var data: GameData = GameData.open_directory(args[0])
+	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache at ", args[0])
 		quit(1)

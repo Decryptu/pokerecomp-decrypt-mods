@@ -38,7 +38,7 @@ func _initialize() -> void:
 		print("usage: -- <game> <group> <map> <out.png> [renderer] [cell x] [cell y]")
 		quit(2)
 		return
-	var data: GameData = GameData.open(StringName(args[0]))
+	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache for %s" % args[0])
 		quit(1)
@@ -117,6 +117,15 @@ func _process(_delta: float) -> bool:
 				print("pulse frame %d: %d sprites" % [
 					pulse_frame + 1, encounters.pulse_sprites().size(),
 				])
+		# A map is left to turn over by spending frames here, and a route that
+		# emptied instead of refilling would photograph as an ordinary picture of
+		# grass. So the count is printed again after the walk, on the same rule
+		# the one above it exists for.
+		if pulse_frames > 0:
+			var after: Variant = _screen.get("_encounters")
+			print("population after %d frames: %d entries" % [
+				pulse_frames, after.entries().size() if after != null else -1,
+			])
 	if _frames < CAPTURE_ON:
 		return false
 	var image: Image = _chrome().capture(_screen, _scale) if _clean else null

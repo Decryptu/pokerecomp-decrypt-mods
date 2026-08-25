@@ -1,9 +1,9 @@
 {
 	"id": "overworld_encounters",
 	"name": "Overworld Encounters",
-	"version": "0.3.0",
-	"api_version": 15,
+	"version": "0.4.0",
+	"api_version": 19,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
-	"description": "Wild Pokemon walk around on the map instead of appearing during random steps. Up to sixteen per map, taken from that map's own encounter table. Shinies are visible before the battle, and Pokemon with very high DVs glow gold."
+	"description": "Wild Pokemon walk around on the map instead of appearing during random steps. Up to sixteen per map, taken from that map's own encounter table. Each one leaves after half a minute and another takes its place, so a route keeps rolling new Pokemon while you stand on it. Shinies never leave, and Pokemon with very high DVs glow gold."
 }

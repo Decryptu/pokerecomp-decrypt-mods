@@ -47,7 +47,7 @@ func _initialize() -> void:
 		print("usage: <cache> <out dir> [classes] [pitch] [bearing]")
 		quit(1)
 		return
-	var data: GameData = GameData.open_directory(args[0])
+	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache at ", args[0])
 		quit(1)

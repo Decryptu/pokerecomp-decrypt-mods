@@ -5,6 +5,9 @@ extends SceneTree
 ## may stand where an object is, the placement must be spread over the map
 ## rather than gathered at one end of it, and no Pokemon may ever wear both the
 ## shiny mark and the excellent-DV glow.
+##
+##   Godot --headless --path <pokerecomp> -s tools/overworld_encounters_probe.gd \
+##       -- <cartridge> [seed] [other seed]
 
 const DEFAULT_SEED: int = 1234
 const OTHER_SEED: int = 5678
@@ -22,6 +25,10 @@ const SPREAD_RATIO: float = 1.5
 ## the claim that they cannot be worn at once is settled by reading all of them
 ## rather than by sampling.
 const DV_WORDS: int = 0x10000
+## How many seeds are tried for a population carrying a shiny. One entry in 8192
+## is shiny, so six a build wants about fourteen hundred of them and this is the
+## bound rather than the count.
+const SHINY_SEED_ATTEMPTS: int = 20000
 
 
 func _initialize() -> void:
@@ -30,7 +37,7 @@ func _initialize() -> void:
 		print("usage: -- <cache directory> [seed] [other seed]")
 		quit(2)
 		return
-	var data: GameData = GameData.open_directory(args[0])
+	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache at %s" % args[0])
 		quit(1)
@@ -94,10 +101,34 @@ func _initialize() -> void:
 		taken.size(), "yes" if clear_spawn else "NO",
 		ROAM_STEPS, "yes" if clear_roam else "NO",
 	])
+	# THE MAP REFRESHES ITSELF. A population turns over on its own timers, a
+	# departure is refilled, a fight frees a slot like a timer does, and a shiny
+	# never leaves. All four are walked on a live provider rather than reasoned
+	# about, and the walk is long enough for every ordinary Pokemon to have gone.
+	var turnover: Dictionary = _turnover(plan, provider_script, context)
+	print("turnover over %d frames: %d left, %d arrived, cap held %s" % [
+		int(turnover["frames"]), int(turnover["left"]), int(turnover["arrived"]),
+		"yes" if bool(turnover["cap_held"]) else "NO",
+	])
+	print("every id is its own Pokemon: %s" % (
+		"yes" if bool(turnover["ids_unique"]) else "NO"
+	))
+	print("a despawn is between %d and %d frames: %s (%d to %d seen)" % [
+		int(provider_script.DESPAWN_MIN_FRAMES), int(provider_script.DESPAWN_MAX_FRAMES),
+		"yes" if bool(turnover["spans_legal"]) else "NO",
+		int(turnover["shortest"]), int(turnover["longest"]),
+	])
+	print("a shiny never counts down: %s, and everyone else does: %s" % [
+		"yes" if bool(turnover["shiny_stays"]) else "NO",
+		"yes" if bool(turnover["timers"]) else "NO",
+	])
+	print("a fought Pokemon frees its slot and is replaced: %s" % (
+		"yes" if bool(turnover["battle_refills"]) else "NO"
+	))
 	# NO POKEMON WEARS BOTH MARKS. Every DV word is read, so this is the claim
 	# settled rather than sampled, and the provider is walked a whole cycle to
 	# prove it puts a glow on nobody else and stays on its own rungs.
-	var glow: Dictionary = _glow_survey(plan, provider_script, crowd)
+	var glow: Dictionary = _glow_survey(plan, provider_script, context)
 	var octiles: Array[int] = _octiles(plan, context)
 	var busiest: int = octiles.max()
 	var quietest: int = maxi(octiles.min(), 1)
@@ -121,13 +152,142 @@ func _initialize() -> void:
 	quit(0 if first_text == again_text and first_text != other_text \
 		and before_pose == after_pose and clear_spawn and clear_roam and spread \
 		and int(glow["both"]) == 0 and bool(glow["only_excellent"]) \
-		and int(glow["rungs"]) <= Gen2WorldEncounters.GLOW_RUNGS + 1 else 1)
+		and int(glow["rungs"]) <= Gen2WorldEncounters.GLOW_RUNGS + 1 \
+		and bool(turnover["cap_held"]) and bool(turnover["ids_unique"]) \
+		and bool(turnover["spans_legal"]) and bool(turnover["shiny_stays"]) \
+		and bool(turnover["timers"]) \
+		and bool(turnover["battle_refills"]) and int(turnover["left"]) > 0 \
+		and int(turnover["arrived"]) > 0 else 1)
+
+
+## A map left to run. Every ordinary Pokemon must leave and be replaced inside a
+## despawn span, the cap must hold the whole way, no id may be handed to two
+## Pokemon, and a shiny must still be standing at the end.
+##
+## The seed is SEARCHED for rather than the shiny planted: a build carrying one
+## is what the mod would actually produce, and a probe that reached past
+## `encounters()` to arrange the population would not be testing the path a
+## player takes. One entry in 8192 is shiny, so a handful of hundred builds finds
+## a map with one on it.
+func _turnover(
+	plan: GDScript, provider_script: GDScript, context: Dictionary
+) -> Dictionary:
+	var maximum: int = 6
+	var settings: Dictionary = context.duplicate(true)
+	settings["generation"] = 7
+	var seed_value: int = _a_shiny_map(plan, settings, maximum)
+	settings["run_seed"] = seed_value
+	var provider: RefCounted = provider_script.new()
+	provider.set_context(settings)
+
+	var shiny_id: StringName = &""
+	var timers: bool = true
+	var live: Dictionary = {}
+	var seen: Dictionary = {}
+	for entry: Dictionary in provider.encounters():
+		live[entry["id"]] = 0
+		seen[entry["id"]] = true
+		var shiny: bool = plan.is_shiny(int(entry["dvs"]))
+		if shiny:
+			shiny_id = StringName(entry["id"])
+		## The timer rides on the entry, so what is exempt is read rather than
+		## inferred: a shiny carries no countdown at all and everybody else does.
+		if shiny == entry.has(provider_script.DESPAWN_AT):
+			timers = false
+
+	var cap_held: bool = true
+	var ids_unique: bool = true
+	var left: int = 0
+	var arrived: int = 0
+	var shortest: int = -1
+	var longest: int = 0
+	var frames: int = int(provider_script.DESPAWN_MAX_FRAMES) + int(provider_script.REFILL_FRAMES) * 4
+	for frame: int in frames:
+		provider.advance_frame()
+		var now: Dictionary = {}
+		for entry: Dictionary in provider.encounters():
+			now[entry["id"]] = true
+			if plan.is_shiny(int(entry["dvs"])) == entry.has(provider_script.DESPAWN_AT):
+				timers = false
+		cap_held = cap_held and now.size() <= maximum
+		for id: Variant in live:
+			if now.has(id):
+				continue
+			left += 1
+			var lived: int = frame - int(live[id])
+			shortest = lived if shortest < 0 else mini(shortest, lived)
+			longest = maxi(longest, lived)
+		for id: Variant in now:
+			if live.has(id):
+				continue
+			arrived += 1
+			ids_unique = ids_unique and not seen.has(id)
+			seen[id] = true
+		var next: Dictionary = {}
+		for id: Variant in now:
+			next[id] = live.get(id, frame)
+		live = next
+
+	## A fight is a departure the timer did not cause. Its slot must be filled by
+	## somebody new rather than left empty for the rest of the map.
+	var fought: StringName = &""
+	var standing: Array = provider.encounters()
+	for entry: Dictionary in standing:
+		if StringName(entry["id"]) != shiny_id:
+			fought = StringName(entry["id"])
+			break
+	var before: int = standing.size()
+	provider.battle_finished(fought, {})
+	var emptied: bool = (provider.encounters() as Array).size() == before - 1
+	for _frame: int in int(provider_script.REFILL_FRAMES) * 3:
+		provider.advance_frame()
+	var after: Array = provider.encounters()
+	var gone: bool = true
+	for entry: Dictionary in after:
+		gone = gone and StringName(entry["id"]) != fought
+	return {
+		"frames": frames, "left": left, "arrived": arrived,
+		"cap_held": cap_held, "ids_unique": ids_unique, "timers": timers,
+		"spans_legal": shortest >= int(provider_script.DESPAWN_MIN_FRAMES) \
+			and longest <= int(provider_script.DESPAWN_MAX_FRAMES),
+		"shortest": maxi(shortest, 0), "longest": longest,
+		"shiny_stays": shiny_id != &"" and live.has(shiny_id),
+		"battle_refills": emptied and gone and after.size() == before,
+	}
+
+
+## A seed whose population on this map carries a Pokemon worth a glow. One DV word
+## in sixty-five is excellent, so this lands almost at once.
+func _a_glowing_map(plan: GDScript, context: Dictionary) -> int:
+	for attempt: int in SHINY_SEED_ATTEMPTS:
+		for entry: Dictionary in plan.build(context, attempt + 1, 6):
+			if plan.is_excellent(int(entry["dvs"])):
+				return attempt + 1
+	return 1
+
+
+## A seed whose population on this map carries a shiny, and the number of builds
+## it took to find one.
+func _a_shiny_map(plan: GDScript, context: Dictionary, maximum: int) -> int:
+	for attempt: int in SHINY_SEED_ATTEMPTS:
+		for entry: Dictionary in plan.build(context, attempt + 1, maximum):
+			if plan.is_shiny(int(entry["dvs"])):
+				return attempt + 1
+	return 1
 
 
 ## The two marks over every DV word there is, and one whole glow cycle out of a
 ## live provider: who it reaches, and how many distinct strengths it spends.
+## The provider is built here rather than borrowed. It used to be handed the one
+## the roaming test had already walked, which stopped meaning anything the moment
+## a population turned over: forty roam steps is longer than a despawn span, so
+## by the time the glow was read the Pokemon it was about had left the map and
+## the survey passed by finding nobody rather than by finding only the right
+## ones. Its own provider, on a seed whose population carries an excellent
+## Pokemon, walked for one glow period, which is a fiftieth of the shortest
+## timer.
 func _glow_survey(
-	plan: GDScript, provider_script: GDScript, provider: RefCounted
+	plan: GDScript, provider_script: GDScript, context: Dictionary
 ) -> Dictionary:
 	var out: Dictionary = {"shiny": 0, "excellent": 0, "both": 0}
 	for dvs: int in DV_WORDS:
@@ -136,6 +296,11 @@ func _glow_survey(
 		out["shiny"] = int(out["shiny"]) + (1 if shiny else 0)
 		out["excellent"] = int(out["excellent"]) + (1 if excellent else 0)
 		out["both"] = int(out["both"]) + (1 if shiny and excellent else 0)
+	var settings: Dictionary = context.duplicate(true)
+	settings["generation"] = 9
+	settings["run_seed"] = _a_glowing_map(plan, settings)
+	var provider: RefCounted = provider_script.new()
+	provider.set_context(settings)
 	var rungs: Dictionary = {}
 	var only_excellent: bool = true
 	for frame: int in int(provider_script.GLOW_PERIOD_FRAMES):

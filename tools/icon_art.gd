@@ -61,7 +61,7 @@ func _initialize() -> void:
 			layers.append(arg)
 			i += 1
 
-	_data = GameData.open_directory(String(args[0]))
+	_data = GameData.open_argument(String(args[0]))
 	if _data == null:
 		print("no cache at ", args[0])
 		quit(1)

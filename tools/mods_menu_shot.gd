@@ -52,7 +52,7 @@ func _capture() -> void:
 		print("mods refused: %s" % str(mods.failures()))
 		quit(1)
 		return
-	var data: GameData = GameData.open(StringName(args[0]))
+	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache for %s" % args[0])
 		quit(1)

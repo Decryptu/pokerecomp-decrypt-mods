@@ -51,8 +51,6 @@ const PAINT_PITCH := "P"
 const PAINT_ROOF := "R"
 const PAINT_FALL_WEST := "<"
 const PAINT_FALL_EAST := ">"
-const PAINT_FALL_NORTH := "^"
-const PAINT_FALL_SOUTH := "v"
 const PAINT_DOOR := "D"
 
 
@@ -62,7 +60,7 @@ func _initialize() -> void:
 		print("usage: <cache> <out dir> [tileset]")
 		quit(1)
 		return
-	var data: GameData = GameData.open_directory(args[0])
+	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache at ", args[0])
 		quit(1)

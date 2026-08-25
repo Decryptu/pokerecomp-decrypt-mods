@@ -30,9 +30,6 @@ const TILE: float = 8.0
 const BLOCK_PIXELS: float = 32.0
 ## Metatile slots in a block, and the row length of the metatile table.
 const BLOCK_SLOTS: int = 16
-## Tiles across the atlas sheet. `atlas.gd:TILES_PER_ROW`, restated because a
-## shader needs it as a number rather than as a constant it cannot read.
-const ATLAS_TILES_PER_ROW: float = 16.0
 
 ## How far under the ground plane each layer sits, in world pixels. The mesh
 ## owns everything from zero up; these are only ever seen where it drew nothing,

@@ -8,7 +8,7 @@ const MOD := "user://mods/voxel3d"
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
-	var data: GameData = GameData.open_directory(args[0])
+	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache")
 		quit(1)
