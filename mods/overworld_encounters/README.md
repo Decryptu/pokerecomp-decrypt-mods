@@ -3,12 +3,33 @@
 Wild Pokemon walk around on the map instead of appearing during random steps.
 Each map holds a limited population drawn from its own active grass, cave and
 surf tables. They only walk on cells where their encounter method applies, they
-disappear on a map change, and meeting one starts the normal wild battle. A
-Pokemon leaves the population once its battle ends, whatever the result, and the
-map does not refill until the next time it is generated.
+disappear on a map change, and meeting one starts the normal wild battle.
 
 Each one moves at most one cell every 1.6 seconds, so you have time to walk
 around them.
+
+## The map keeps turning over
+
+Every wild Pokemon leaves on its own, between thirty seconds and a minute after
+it appears, and another takes its place. So a route is never the same route for
+long: stand on one and its Pokemon, their DVs and their chances of being shiny
+are rolled again and again without you leaving the map.
+
+A Pokemon you fight or catch is a departure like any other. The slot it held is
+freed and somebody else walks into it, rather than the map being one Pokemon
+poorer until you come back.
+
+**A shiny never leaves.** It has no countdown at all, so one that appears while
+you are reading a sign is still there when you look up. Only a map change takes
+one away, which is what it has always been: a warp, a Fly or a teleport clears
+the map and rolls a new one.
+
+The clock counts only while you are walking around. A battle, a menu, the pack
+and a text box all stand still, so a long fight costs nobody their place.
+
+Times of day change what a route offers, and the map turns over into them rather
+than snapping: enter a route in daylight and its day Pokemon are replaced by
+night ones as each one's own time runs out.
 
 ## Where they stand
 
@@ -61,10 +82,14 @@ stationary Pokemon keep their own paths.
 The same seed entering the same map produces the same population, given the same
 map state: who is standing where is part of the answer, since a Pokemon is never
 placed on an occupied cell. Changing `VISIBLE` while standing on a map rebuilds
-against wherever people have walked to.
+against wherever people have walked to. What arrives afterwards is drawn from its
+own stream, so how long you stood on a route does not change the map you walked
+onto.
 
 `tools/overworld_encounters_probe.gd` prints two identical builds and a different
 seed against a real cartridge cache, walks a population through a map with a
-quarter of its cells occupied to prove nothing spawns or steps onto one, and
-counts two hundred populations by eighth of the map to prove the placement is
-spread out.
+quarter of its cells occupied to prove nothing spawns or steps onto one, counts
+two hundred populations by eighth of the map to prove the placement is spread
+out, and runs a map for a full despawn span to prove it turns over inside its
+own limits, holds its cap, hands no id to two Pokemon, refills the slot a battle
+freed, and leaves a shiny standing.

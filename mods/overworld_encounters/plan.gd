@@ -25,26 +25,71 @@ static func build(
 	var count: int = mini(clampi(maximum, 0, 32), candidates.size())
 	var out: Array = []
 	for index: int in count:
-		var candidate: Dictionary = candidates[index]
-		var method: StringName = StringName(candidate["method"])
-		var table: Dictionary = (context.get("tables", {}) as Dictionary).get(method, {})
-		var slots: Array = table.get("slots", [])
-		var slot: Dictionary = _slot(slots, method, random)
-		if slot.is_empty():
-			continue
-		var dvs: int = _dvs(random)
-		var minimum: int = int(slot.get("min_level", 1))
-		var maximum_level: int = maxi(minimum, int(slot.get("max_level", minimum)))
-		out.append({
-			"id": StringName("%s:%d" % [id_prefix, index + 1]),
-			"method": method,
-			"cell": Vector2i(candidate["cell"]),
-			"facing": random.below(4),
-			"species": int(slot.get("species", 0)),
-			"level": minimum + random.below(maximum_level - minimum + 1),
-			"dvs": dvs,
-		})
+		var entry: Dictionary = _make(
+			candidates[index], context, random, index + 1, id_prefix
+		)
+		if not entry.is_empty():
+			out.append(entry)
 	return out
+
+
+## The largest number [method build] can have issued for [param maximum], so a
+## caller minting more of them afterwards knows where its own numbering starts.
+## An id is what a battle result is reported under and what the host dedupes a
+## pulse by, so one is never reused inside a map.
+static func first_free_number(maximum: int) -> int:
+	return clampi(maximum, 0, 32) + 1
+
+
+## ONE more wild, for a map that refills rather than being built once.
+##
+## The same rules the build uses, against the context in force NOW: the host
+## re-resolves `tables` when the hour, a swarm or the Bug Contest moves what a
+## roll would read, and `eligible` when a script switches wilds off, so a
+## replacement is drawn from what the map offers at the moment it appears rather
+## than from what it offered when the player walked on.
+##
+## [param taken] is the cells this caller's own population already holds, which
+## the context cannot know: `occupied` is the MAP's objects. Empty when there is
+## nowhere left to stand.
+static func mint(
+	context: Dictionary, random: RefCounted, taken: Array[Vector2i], number: int,
+	id_prefix: StringName = &"overworld_encounters"
+) -> Dictionary:
+	var candidates: Array = _candidates(context)
+	var free: Array = []
+	for candidate: Variant in candidates:
+		if not taken.has(Vector2i((candidate as Dictionary)["cell"])):
+			free.append(candidate)
+	if free.is_empty():
+		return {}
+	return _make(free[random.below(free.size())], context, random, number, id_prefix)
+
+
+## One entry on one candidate cell. The order the generator is drawn from is part
+## of the answer, so this is written once and both callers spend it the same way.
+static func _make(
+	candidate: Dictionary, context: Dictionary, random: RefCounted, number: int,
+	id_prefix: StringName
+) -> Dictionary:
+	var method: StringName = StringName(candidate["method"])
+	var table: Dictionary = (context.get("tables", {}) as Dictionary).get(method, {})
+	var slots: Array = table.get("slots", [])
+	var slot: Dictionary = _slot(slots, method, random)
+	if slot.is_empty():
+		return {}
+	var dvs: int = _dvs(random)
+	var minimum: int = int(slot.get("min_level", 1))
+	var maximum_level: int = maxi(minimum, int(slot.get("max_level", minimum)))
+	return {
+		"id": StringName("%s:%d" % [id_prefix, number]),
+		"method": method,
+		"cell": Vector2i(candidate["cell"]),
+		"facing": random.below(4),
+		"species": int(slot.get("species", 0)),
+		"level": minimum + random.below(maximum_level - minimum + 1),
+		"dvs": dvs,
+	}
 
 
 ## `CheckShininess`, which is the HOST's answer and not a rule this mod may hold
