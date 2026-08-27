@@ -35,10 +35,10 @@
 		{
 			"id": "overworld_encounters",
 			"name": "Overworld Encounters",
-			"version": "0.4.0",
+			"version": "0.4.1",
 			"games": ["gold", "silver", "crystal"],
 			"description": "Wild Pokemon walk around on the map instead of appearing during random steps. Up to sixteen per map, taken from that map's own encounter table. Each one leaves after half a minute and another takes its place, so a route keeps rolling new Pokemon while you stand on it. Shinies never leave, and Pokemon with very high DVs glow gold.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.4.0/overworld_encounters-0.4.0.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.4.1/overworld_encounters-0.4.1.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/overworld_encounters/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/overworld_encounters/thumbnail.webp"
 		},
@@ -75,12 +75,22 @@
 		{
 			"id": "shiny_charm",
 			"name": "Shiny Charm",
-			"version": "0.1.0",
+			"version": "0.1.1",
 			"games": ["gold", "silver", "crystal"],
 			"description": "Complete the Pokedex, get your diploma from the GAME designer in Celadon, and he hands you a Shiny Charm. While it is in your bag, wild Pokemon are three times more likely to be shiny.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/shiny_charm-0.1.0/shiny_charm-0.1.0.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/shiny_charm-0.1.1/shiny_charm-0.1.1.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/shiny_charm/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/shiny_charm/thumbnail.webp"
+		},
+		{
+			"id": "catch_combo",
+			"name": "Catch Combo",
+			"version": "0.1.0",
+			"games": ["gold", "silver", "crystal"],
+			"description": "Catch the same species over and over and the odds of a shiny climb, the way a Catch Combo works in the Let's Go games. The combo counts a catch from anywhere, grass, water, a rod, a tree or a rock, and a box after each one says how long it is now.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/catch_combo-0.1.0/catch_combo-0.1.0.zip",
+			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/catch_combo/icon.png",
+			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/catch_combo/thumbnail.webp"
 		}
 	]
 }
