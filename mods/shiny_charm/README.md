@@ -27,6 +27,11 @@ certificate again on any later visit, and the charm comes with that.
 Three rolls is what the later games' charm does. At these odds the rolls barely
 overlap, so it works out to almost exactly three times the chance.
 
+The charm is worth its two extra rolls on top of whatever else a mod is worth,
+the way it stacks with a Catch Combo in the later games. The host adds them
+rather than taking the larger, so with [`catch_combo`](../catch_combo/) at 31 a
+wild is drawn with fourteen words. Neither mod needs the other.
+
 Shininess in Generation II is not a flag: it is the Pokemon's four DVs. The host
 rolls them and tests them exactly as `CheckShininess` does. This mod only says
 how many times to roll.

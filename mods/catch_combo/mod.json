@@ -1,0 +1,9 @@
+{
+	"id": "catch_combo",
+	"name": "Catch Combo",
+	"version": "0.1.0",
+	"api_version": 20,
+	"entry": "mod.gd",
+	"games": ["gold", "silver", "crystal"],
+	"description": "Catch the same species over and over and the odds of a shiny climb, the way a Catch Combo works in the Let's Go games. The combo counts a catch from anywhere, grass, water, a rod, a tree or a rock, and a box after each one says how long it is now."
+}

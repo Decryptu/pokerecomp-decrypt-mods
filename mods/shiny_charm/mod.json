@@ -1,7 +1,7 @@
 {
 	"id": "shiny_charm",
 	"name": "Shiny Charm",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"api_version": 16,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
