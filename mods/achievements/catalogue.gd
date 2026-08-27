@@ -10,12 +10,20 @@ extends RefCounted
 ##
 ## `rule` and `at` are a pair rather than a Callable so the table stays data: it
 ## can be printed, counted and driven from a probe without a host.
+##
+## A `name` is a notice's line and a page row's label, and a `detail` is the line
+## under it, so both are held to `Gen2MapNameSignPage.NOTICE_COLUMNS` and
+## `Gen2ModPageScreen.TEXT_COLUMNS`, which are the same fifteen cells. The probe
+## measures them against the host's own constants rather than against a number
+## written here twice.
 
-## Badge indices, in the order the cartridge's own engine flags run. The eight
-## Johto ones are also their index into the trainer card's badge art
-## (`card_badges`, four tiles a badge); the Kanto eight have no art, since the
-## card's Kanto page is unreachable on the cartridge and reuses the Johto
-## drawings, so those rows wear the gym's own type instead.
+## Badge indices, in the order the cartridge's own engine flags run, which is
+## also the order the host's `badges` mask is packed in. The eight Johto ones are
+## their index into the trainer card's badge art (`card_badges`, four tiles a
+## badge); the Kanto eight have no art, since the card's Kanto page is
+## unreachable on the cartridge and reuses the Johto drawings, so those rows wear
+## the gym's own type instead.
+const BADGE_ZEPHYR: int = 0
 const BADGE_RISING: int = 7
 const BADGE_COUNT: int = 16
 ## The two sets as masks, because "all of JOHTO" is which eight rather than how
@@ -24,8 +32,8 @@ const BADGE_COUNT: int = 16
 const MASK_JOHTO: int = 0x00FF
 const MASK_ALL: int = 0xFFFF
 
-## What one row asks. Each is answered by [method holds] against one field of
-## the host's progress snapshot.
+## What one row asks. Each is answered by [method holds] against one field of the
+## host's progress reading, spelled as the host spells it.
 const RULE_BADGE: StringName = &"badge"
 const RULE_BADGE_SET: StringName = &"badge_set"
 const RULE_CHAMPION: StringName = &"champion"
@@ -38,6 +46,14 @@ const RULE_SHINY: StringName = &"shiny"
 const RULE_MONEY: StringName = &"money"
 const RULE_COINS: StringName = &"coins"
 const RULE_HOURS: StringName = &"hours"
+
+## The sounds a notice borrows, out of the set `Gen2ModHost.NOTICE_SOUNDS` lends.
+## A badge rings like a badge; the two collections ring like a key item; the rest
+## take the default, which is the jingle a found item plays. The shiny sparkle is
+## not among them and is not wanted: it means a shiny Pokemon and nothing else.
+const SOUND_BADGE: StringName = &"get_badge"
+const SOUND_KEY_ITEM: StringName = &"key_item"
+const SOUND_ITEM: StringName = &"item"
 
 ## Every species number an icon names, so a row never carries a bare literal.
 const GEODUDE: int = 74
@@ -71,190 +87,191 @@ const FULL_PARTY: int = 6
 
 const ROWS: Array[Dictionary] = [
 	{
-		"id": &"zephyr_badge", "name": "ZEPHYRBADGE",
-		"detail": "Beat FALKNER at\nthe VIOLET GYM.",
-		"rule": RULE_BADGE, "at": 0, "icon": {"badge": 0},
+		"id": &"zephyr_badge", "name": "ZEPHYRBADGE", "detail": "BEAT FALKNER",
+		"rule": RULE_BADGE, "at": 0,
+		"icon": {"badge": 0}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"hive_badge", "name": "HIVEBADGE",
-		"detail": "Beat BUGSY at the\nAZALEA GYM.",
-		"rule": RULE_BADGE, "at": 1, "icon": {"badge": 1},
+		"id": &"hive_badge", "name": "HIVEBADGE", "detail": "BEAT BUGSY",
+		"rule": RULE_BADGE, "at": 1,
+		"icon": {"badge": 1}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"plain_badge", "name": "PLAINBADGE",
-		"detail": "Beat WHITNEY at\nthe GOLDENROD GYM.",
-		"rule": RULE_BADGE, "at": 2, "icon": {"badge": 2},
+		"id": &"plain_badge", "name": "PLAINBADGE", "detail": "BEAT WHITNEY",
+		"rule": RULE_BADGE, "at": 2,
+		"icon": {"badge": 2}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"fog_badge", "name": "FOGBADGE",
-		"detail": "Beat MORTY at the\nECRUTEAK GYM.",
-		"rule": RULE_BADGE, "at": 3, "icon": {"badge": 3},
+		"id": &"fog_badge", "name": "FOGBADGE", "detail": "BEAT MORTY",
+		"rule": RULE_BADGE, "at": 3,
+		"icon": {"badge": 3}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"mineral_badge", "name": "MINERALBADGE",
-		"detail": "Beat JASMINE at\nthe OLIVINE GYM.",
-		"rule": RULE_BADGE, "at": 4, "icon": {"badge": 4},
+		"id": &"mineral_badge", "name": "MINERALBADGE", "detail": "BEAT JASMINE",
+		"rule": RULE_BADGE, "at": 4,
+		"icon": {"badge": 4}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"storm_badge", "name": "STORMBADGE",
-		"detail": "Beat CHUCK at the\nCIANWOOD GYM.",
-		"rule": RULE_BADGE, "at": 5, "icon": {"badge": 5},
+		"id": &"storm_badge", "name": "STORMBADGE", "detail": "BEAT CHUCK",
+		"rule": RULE_BADGE, "at": 5,
+		"icon": {"badge": 5}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"glacier_badge", "name": "GLACIERBADGE",
-		"detail": "Beat PRYCE at the\nMAHOGANY GYM.",
-		"rule": RULE_BADGE, "at": 6, "icon": {"badge": 6},
+		"id": &"glacier_badge", "name": "GLACIERBADGE", "detail": "BEAT PRYCE",
+		"rule": RULE_BADGE, "at": 6,
+		"icon": {"badge": 6}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"rising_badge", "name": "RISINGBADGE",
-		"detail": "Beat CLAIR at the\nBLACKTHORN GYM.",
-		"rule": RULE_BADGE, "at": 7, "icon": {"badge": 7},
+		"id": &"rising_badge", "name": "RISINGBADGE", "detail": "BEAT CLAIR",
+		"rule": RULE_BADGE, "at": 7,
+		"icon": {"badge": 7}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"boulder_badge", "name": "BOULDERBADGE",
-		"detail": "Beat BROCK at the\nPEWTER GYM.",
-		"rule": RULE_BADGE, "at": 8, "icon": {"species": GEODUDE},
+		"id": &"boulder_badge", "name": "BOULDERBADGE", "detail": "BEAT BROCK",
+		"rule": RULE_BADGE, "at": 8,
+		"icon": {"species": GEODUDE}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"cascade_badge", "name": "CASCADEBADGE",
-		"detail": "Beat MISTY at the\nCERULEAN GYM.",
-		"rule": RULE_BADGE, "at": 9, "icon": {"species": STARYU},
+		"id": &"cascade_badge", "name": "CASCADEBADGE", "detail": "BEAT MISTY",
+		"rule": RULE_BADGE, "at": 9,
+		"icon": {"species": STARYU}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"thunder_badge", "name": "THUNDERBADGE",
-		"detail": "Beat LT.SURGE at\nthe VERMILION GYM.",
-		"rule": RULE_BADGE, "at": 10, "icon": {"species": PIKACHU},
+		"id": &"thunder_badge", "name": "THUNDERBADGE", "detail": "BEAT LT.SURGE",
+		"rule": RULE_BADGE, "at": 10,
+		"icon": {"species": PIKACHU}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"rainbow_badge", "name": "RAINBOWBADGE",
-		"detail": "Beat ERIKA at the\nCELADON GYM.",
-		"rule": RULE_BADGE, "at": 11, "icon": {"species": BELLSPROUT},
+		"id": &"rainbow_badge", "name": "RAINBOWBADGE", "detail": "BEAT ERIKA",
+		"rule": RULE_BADGE, "at": 11,
+		"icon": {"species": BELLSPROUT}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"soul_badge", "name": "SOULBADGE",
-		"detail": "Beat JANINE at\nthe FUCHSIA GYM.",
-		"rule": RULE_BADGE, "at": 12, "icon": {"species": KOFFING},
+		"id": &"soul_badge", "name": "SOULBADGE", "detail": "BEAT JANINE",
+		"rule": RULE_BADGE, "at": 12,
+		"icon": {"species": KOFFING}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"marsh_badge", "name": "MARSHBADGE",
-		"detail": "Beat SABRINA at\nthe SAFFRON GYM.",
-		"rule": RULE_BADGE, "at": 13, "icon": {"species": ABRA},
+		"id": &"marsh_badge", "name": "MARSHBADGE", "detail": "BEAT SABRINA",
+		"rule": RULE_BADGE, "at": 13,
+		"icon": {"species": ABRA}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"volcano_badge", "name": "VOLCANOBADGE",
-		"detail": "Beat BLAINE in the\nSEAFOAM ISLANDS.",
-		"rule": RULE_BADGE, "at": 14, "icon": {"species": MAGMAR},
+		"id": &"volcano_badge", "name": "VOLCANOBADGE", "detail": "BEAT BLAINE",
+		"rule": RULE_BADGE, "at": 14,
+		"icon": {"species": MAGMAR}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"earth_badge", "name": "EARTHBADGE",
-		"detail": "Beat BLUE at the\nVIRIDIAN GYM.",
-		"rule": RULE_BADGE, "at": 15, "icon": {"species": RHYDON},
+		"id": &"earth_badge", "name": "EARTHBADGE", "detail": "BEAT BLUE",
+		"rule": RULE_BADGE, "at": 15,
+		"icon": {"species": RHYDON}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"johto_cleared", "name": "JOHTO CLEARED",
-		"detail": "Win all eight\nJOHTO badges.",
-		"rule": RULE_BADGE_SET, "at": MASK_JOHTO, "icon": {"badge": BADGE_RISING},
+		"id": &"johto_cleared", "name": "JOHTO CLEARED", "detail": "EIGHT BADGES",
+		"rule": RULE_BADGE_SET, "at": MASK_JOHTO,
+		"icon": {"badge": BADGE_RISING}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"champion", "name": "CHAMPION",
-		"detail": "Beat the ELITE\nFOUR and LANCE.",
-		"rule": RULE_CHAMPION, "at": 0, "icon": {"species": DRAGONITE},
+		"id": &"champion", "name": "CHAMPION", "detail": "BEAT THE LEAGUE",
+		"rule": RULE_CHAMPION, "at": 0,
+		"icon": {"species": DRAGONITE}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"kanto_cleared", "name": "KANTO CLEARED",
-		"detail": "Win all eight\nKANTO badges.",
-		"rule": RULE_BADGE_SET, "at": MASK_ALL, "icon": {"species": PIDGEOT},
+		"id": &"kanto_cleared", "name": "KANTO CLEARED", "detail": "ALL 16 BADGES",
+		"rule": RULE_BADGE_SET, "at": MASK_ALL,
+		"icon": {"species": PIDGEOT}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"mt_silver", "name": "MT.SILVER",
-		"detail": "Beat RED at the\ntop of MT.SILVER.",
-		"rule": RULE_RED, "at": 0, "icon": {"species": CHARIZARD},
+		"id": &"mt_silver", "name": "MT.SILVER", "detail": "BEAT RED",
+		"rule": RULE_RED, "at": 0,
+		"icon": {"species": CHARIZARD}, "sound": SOUND_BADGE,
 	},
 	{
-		"id": &"first_catch", "name": "FIRST CATCH",
-		"detail": "Catch your first\nPOKéMON.",
-		"rule": RULE_CAUGHT, "at": 1, "icon": {"species": RATTATA},
+		"id": &"first_catch", "name": "FIRST CATCH", "detail": "ONE CAUGHT",
+		"rule": RULE_CAUGHT, "at": 1,
+		"icon": {"species": RATTATA}, "sound": SOUND_ITEM,
 	},
 	{
-		"id": &"hundred_caught", "name": "100 CAUGHT",
-		"detail": "Catch a hundred\ndifferent POKéMON.",
-		"rule": RULE_CAUGHT, "at": 100, "icon": {"species": DITTO},
+		"id": &"hundred_caught", "name": "100 CAUGHT", "detail": "100 SPECIES",
+		"rule": RULE_CAUGHT, "at": 100,
+		"icon": {"species": DITTO}, "sound": SOUND_ITEM,
 	},
 	{
-		"id": &"pokedex", "name": "POKéDEX",
-		"detail": "Catch all 251\nPOKéMON.",
-		"rule": RULE_CAUGHT, "at": DEX_COMPLETE, "icon": {"species": CELEBI},
+		"id": &"pokedex", "name": "POKéDEX", "detail": "ALL 251 CAUGHT",
+		"rule": RULE_CAUGHT, "at": DEX_COMPLETE,
+		"icon": {"species": CELEBI}, "sound": SOUND_KEY_ITEM,
 	},
 	{
-		"id": &"unown", "name": "UNOWN",
-		"detail": "Register all 26\nUNOWN letters.",
-		"rule": RULE_UNOWN, "at": 26, "icon": {"species": UNOWN},
+		"id": &"unown", "name": "UNOWN", "detail": "ALL 26 LETTERS",
+		"rule": RULE_UNOWN, "at": 26,
+		"icon": {"species": UNOWN}, "sound": SOUND_KEY_ITEM,
 	},
 	{
-		"id": &"full_party", "name": "FULL PARTY",
-		"detail": "Carry six POKéMON\nat once.",
-		"rule": RULE_PARTY, "at": FULL_PARTY, "icon": {"species": CHANSEY},
+		"id": &"full_party", "name": "FULL PARTY", "detail": "SIX AT ONCE",
+		"rule": RULE_PARTY, "at": FULL_PARTY,
+		"icon": {"species": CHANSEY}, "sound": SOUND_ITEM,
 	},
 	{
-		"id": &"level_100", "name": "LEVEL 100",
-		"detail": "Raise a POKéMON to\nlevel 100.",
-		"rule": RULE_LEVEL, "at": 100, "icon": {"species": TYRANITAR},
+		"id": &"level_100", "name": "LEVEL 100", "detail": "THE WHOLE WAY",
+		"rule": RULE_LEVEL, "at": 100,
+		"icon": {"species": TYRANITAR}, "sound": SOUND_ITEM,
 	},
 	{
-		"id": &"shiny", "name": "SHINY",
-		"detail": "Own a shiny\nPOKéMON.",
-		"rule": RULE_SHINY, "at": 1, "icon": {"species": GYARADOS},
+		"id": &"shiny", "name": "SHINY", "detail": "ONE OWNED",
+		"rule": RULE_SHINY, "at": 1,
+		"icon": {"species": GYARADOS}, "sound": SOUND_ITEM,
 	},
 	{
-		"id": &"rich", "name": "RICH",
-		"detail": "Carry a hundred\nthousand in cash.",
-		"rule": RULE_MONEY, "at": 100000, "icon": {"species": MEOWTH},
+		"id": &"rich", "name": "RICH", "detail": "100000 IN CASH",
+		"rule": RULE_MONEY, "at": 100000,
+		"icon": {"species": MEOWTH}, "sound": SOUND_ITEM,
 	},
 	{
-		"id": &"high_roller", "name": "HIGH ROLLER",
-		"detail": "Hold a thousand\nGame Corner coins.",
-		"rule": RULE_COINS, "at": 1000, "icon": {"species": PORYGON},
+		"id": &"high_roller", "name": "HIGH ROLLER", "detail": "1000 COINS",
+		"rule": RULE_COINS, "at": 1000,
+		"icon": {"species": PORYGON}, "sound": SOUND_ITEM,
 	},
 	{
-		"id": &"one_day", "name": "ONE DAY",
-		"detail": "Play for twenty-\nfour hours.",
-		"rule": RULE_HOURS, "at": 24, "icon": {"species": HOOTHOOT},
+		"id": &"one_day", "name": "ONE DAY", "detail": "24 HOURS PLAYED",
+		"rule": RULE_HOURS, "at": 24,
+		"icon": {"species": HOOTHOOT}, "sound": SOUND_ITEM,
 	},
 ]
 
 
 ## Whether [param row] is true of the run [param progress] describes.
 ##
-## An absent field reads as nothing achieved rather than as an error, so a row
-## asking a question an older host does not answer stays locked instead of
-## unlocking for everyone.
+## An absent field reads as nothing achieved rather than as an error, which is
+## the same rule the host reads its own reading by: a field it cannot answer is
+## left out rather than zeroed, so a row asking a question this build's host does
+## not answer stays locked instead of unlocking for everyone.
 static func holds(row: Dictionary, progress: Dictionary) -> bool:
 	var at: int = int(row.get("at", 0))
 	match StringName(row.get("rule", &"")):
 		RULE_BADGE:
-			return (int(progress.get("badges", 0)) & (1 << at)) != 0
+			return (int(progress.get(&"badges", 0)) & (1 << at)) != 0
 		RULE_BADGE_SET:
-			return (int(progress.get("badges", 0)) & at) == at
+			return (int(progress.get(&"badges", 0)) & at) == at
 		RULE_CHAMPION:
-			return bool(progress.get("hall_of_fame", false))
+			return bool(progress.get(&"hall_of_fame", false))
 		RULE_RED:
-			return bool(progress.get("beat_red", false))
+			return bool(progress.get(&"beat_red", false))
 		RULE_CAUGHT:
-			return int(progress.get("caught_count", 0)) >= at
+			return int(progress.get(&"caught_count", 0)) >= at
 		RULE_UNOWN:
-			return int(progress.get("unown_caught", 0)) >= at
+			return int(progress.get(&"unown_caught", 0)) >= at
 		RULE_PARTY:
-			return int(progress.get("party_count", 0)) >= at
+			return int(progress.get(&"party_count", 0)) >= at
 		RULE_LEVEL:
-			return int(progress.get("highest_level", 0)) >= at
+			return int(progress.get(&"highest_level", 0)) >= at
 		RULE_SHINY:
-			return int(progress.get("shiny_count", 0)) >= at
+			return int(progress.get(&"shiny_count", 0)) >= at
 		RULE_MONEY:
-			return int(progress.get("money", 0)) >= at
+			return int(progress.get(&"money", 0)) >= at
 		RULE_COINS:
-			return int(progress.get("coins", 0)) >= at
+			return int(progress.get(&"coins", 0)) >= at
 		RULE_HOURS:
-			return int(progress.get("play_hours", 0)) >= at
+			return int(progress.get(&"play_hours", 0)) >= at
 	return false
 
 

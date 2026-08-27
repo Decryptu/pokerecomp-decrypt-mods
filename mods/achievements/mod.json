@@ -2,8 +2,8 @@
 	"id": "achievements",
 	"name": "Achievements",
 	"version": "0.1.0",
-	"api_version": 20,
+	"api_version": 21,
 	"entry": "mod.gd",
 	"games": ["gold", "silver", "crystal"],
-	"description": "Thirty achievements, one for each of the sixteen badges and fourteen more for the things a Johto run is remembered by. A notice says when one is unlocked and a list says which are left. Installing it on a save already played reads what that save has and awards it without a word."
+	"description": "Thirty achievements, one for each of the sixteen badges and fourteen more for the things a Johto run is remembered by. A notice says when one is unlocked and a list says which are left. Installing it on a save already played reads what that save has and awards all of it under one line rather than thirty."
 }
