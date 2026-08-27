@@ -11,16 +11,21 @@ extends SceneTree
 ## `tools/shiny_charm_shot.gd` gives: 800x720 is the hardware's 160x144 at a
 ## whole times five and any other size shears the art.
 ##
-## The capture is real rather than drawn. The tool stands a wild battle up,
-## hands the screen a ball and the resolved throw the world host would have
-## handed it, and presses A through the shakes until the Gotcha line is up. The
-## line this mod owns is then the box's own next message, which is what
-## `request_battle_message` will make it.
+## Nothing in the picture is staged but the throw. The tool loads the installed
+## mods, stands a wild battle up, hands the screen a ball and the resolved throw
+## the world host would have handed it, and presses A through the shakes. The
+## capture then publishes `caught` on the battle channel, the mod counts it and
+## asks for its line, and the host prints it in the box the battle owns. So the
+## wording, the pacing and the place it lands are the mod's and the host's.
 ##
-## `presses` is how many A presses reach the Gotcha box: three shakes and the
-## catch, so four. It is an argument because the number is a fact about the
-## message run rather than about this mod, and one more press opens the naming
-## prompt over the picture.
+## The eleven catches in front of it are published before the battle is up,
+## where a requested line is dropped rather than queued, so the combo the box
+## reads is a combo of twelve and the box is only ever printed once.
+##
+## `presses` is how many A presses walk the capture's own run. Seven leaves the
+## mod's box up: six reach the Gotcha line and one more takes it away. It is an
+## argument because that count is a fact about the host's message run rather
+## than about this mod, and one press past it opens the naming prompt.
 ##
 ## Needs a display, since it renders.
 
@@ -31,10 +36,10 @@ const THUMBNAIL_SIZE := Vector2i(1280, 720)
 ## of, which is what a combo is.
 const DEFAULT_SPECIES: int = 19
 const DEFAULT_LEVEL: int = 4
-const DEFAULT_PRESSES: int = 4
-## The combo the box reads. Long enough to be past the first rung, so the
-## picture is of a combo that is worth something.
-const LINE: String = "Catch Combo 12!"
+const DEFAULT_PRESSES: int = 7
+## The catches in front of the one photographed. Long enough that the box reads
+## a combo past the first rung, so the picture is of one worth something.
+const CATCHES_BEFORE: int = 11
 ## Three shakes and a click, which is `GetPokeBallWobble`'s own best answer.
 const WOBBLES: int = 3
 const BALLS: int = 5
@@ -89,6 +94,12 @@ func _initialize() -> void:
 		push_error("No cache for %s. Import roms/%s.gbc first." % [args[0], args[0]])
 		quit(1)
 		return
+	var host: Gen2ModHost = Gen2ModHost.instance()
+	host.set_target_game(data.id)
+	host.discover()
+	host.load_discovered()
+	for _catch: int in CATCHES_BEFORE:
+		_publish_catch()
 
 	var packed: PackedScene = load("res://game/battle/battle_screen.tscn")
 	_screen = packed.instantiate() as Gen2BattleScreen
@@ -162,10 +173,20 @@ func _stage() -> bool:
 		_screen.finish()
 		_screen.advance()
 		left -= 1
-	# Where `request_battle_message` puts it.
-	_screen.show_message(LINE)
 	_screen.finish()
 	return true
+
+
+## The capture the battle publishes, which is what the mod counts. Spent before
+## the battle exists, so the eleven in front of the photographed one cost no box.
+func _publish_catch() -> void:
+	Gen2ModHost.publish(Gen2ModHost.CHANNEL_BATTLE, {
+		"type": Gen2Battle.CAUGHT,
+		"species": _species, "level": _level, "dvs": 0, "shiny": false,
+		"ball": Gen2WorldPartyHost.ITEM_POKE_BALL, "method": &"grass",
+		"map_group": -1, "map_number": -1, "battle_type": 0,
+		"destination": &"party", "tutorial": false, "contest": false,
+	})
 
 
 ## Everything `DoBattle` spends before its first menu, so a throw driven after

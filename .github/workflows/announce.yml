@@ -1,0 +1,34 @@
+# Every release here is made by hand, one mod at a time, so this hangs off the
+# release itself rather than off a tag push: whether it was created in the web
+# UI or with `gh release create`, publishing it is what announces it.
+#
+# The same webhook and the same one-line message the game's own repository
+# posts, so a mod release and a game release read alike in the channel.
+name: announce
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  discord:
+    name: discord
+    runs-on: ubuntu-latest
+    steps:
+      - name: Announce on Discord
+        env:
+          DISCORD_RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          # Through the environment rather than into the command: a release
+          # title or tag is text somebody typed, and it must not be able to
+          # reach the shell.
+          RELEASE_URL: ${{ github.event.release.html_url }}
+        run: |
+          set -euo pipefail
+          [ -n "${DISCORD_RELEASE_WEBHOOK:-}" ] \
+            || { echo "::error::DISCORD_RELEASE_WEBHOOK is not set"; exit 1; }
+          curl --fail-with-body --silent --show-error \
+            -H 'Content-Type: application/json' \
+            --data "$(jq -cn --arg content "$RELEASE_URL" '{content: $content}')" \
+            "$DISCORD_RELEASE_WEBHOOK"
