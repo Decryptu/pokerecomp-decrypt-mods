@@ -18,6 +18,7 @@ tools/horizon_shot.gd photographs the horizon through the game's own screen
 tools/far_drawings.gd checks the horizon's drawings and cards against a resolve
 tools/mod_icons.sh    repaints every icon from one cartridge; see icon_art.gd
 docs/icons/<id>.png   the same icon at 4x, for the README table only
+.github/workflows/    announce.yml posts a published release to Discord
 ```
 
 `mods/<id>/` is copied verbatim into `user://mods/<id>/`, so nothing outside it
@@ -45,6 +46,19 @@ frame, font and sprites. It is one way to make one, not a requirement.
 GitHub honours an `<img>` width but strips the `image-rendering` that would stop
 a browser smoothing the upscale, so the sharp copy is a file rather than a style.
 They live outside `mods/` so they stay out of the archives.
+
+## Releasing
+
+A release is made by hand, one mod at a time: `tools/package.sh <id>` builds the
+archive, the release is created for the tag `<id>-<version>` with that archive
+on it, and the `index.json` row naming it goes in last, since a row pointing at
+a tag that does not exist advertises a download that 404s.
+
+Publishing the release posts its URL to the project's Discord through
+`.github/workflows/announce.yml`, which reads the `DISCORD_RELEASE_WEBHOOK`
+repository secret. The game's own repository announces itself the same way, so
+the two read alike in the channel. A fork has no such secret, and the workflow
+says so and fails rather than posting nowhere quietly.
 
 A row in `index.json` repeats the manifest's `games`, so the launcher's mod page
 and the library site know which cartridges a mod is for before it is installed.

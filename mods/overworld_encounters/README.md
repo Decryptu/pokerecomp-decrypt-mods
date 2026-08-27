@@ -50,6 +50,13 @@ A shiny is visible before the battle: its overworld icon uses the shiny palette,
 and the cartridge's own shiny animation and sound play when it spawns and every
 ten seconds after.
 
+**A mod worth extra shiny rolls counts here.** A wild standing on the map is
+built by this mod rather than by a step, so it asks the host how many DV words
+one is worth and keeps the first shiny one, exactly as the host does. The Shiny
+Charm and a Catch Combo therefore reach a route's population as well as a
+fishing rod. A Pokemon already on the map keeps the word it was drawn with; the
+next one to take its place is drawn with what is true then.
+
 A Pokemon whose four DVs total 50 or more out of 60 glows gold, so you can spot
 one worth battling from across a route. About one in sixty-five has it.
 

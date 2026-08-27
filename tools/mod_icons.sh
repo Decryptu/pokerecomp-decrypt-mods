@@ -47,3 +47,6 @@ paint quality_of_life effect:happy
 # One bold sparkle out of the battle animations' own SHINE sheet, with the
 # smaller twinkles trailing off it.
 paint shiny_charm "anim:17:0@13,9" "anim:15:0@8,16"
+# The item ball off the ground, three of them climbing: one catch after another
+# and each one worth more than the last.
+paint catch_combo "sprite:84@2,11" "sprite:84@8,7" "sprite:84@14,3"

@@ -78,17 +78,19 @@ static func _make(
 	var slot: Dictionary = _slot(slots, method, random)
 	if slot.is_empty():
 		return {}
-	var dvs: int = _dvs(random)
 	var minimum: int = int(slot.get("min_level", 1))
 	var maximum_level: int = maxi(minimum, int(slot.get("max_level", minimum)))
+	var facing: int = random.below(4)
+	var species: int = int(slot.get("species", 0))
+	var level: int = minimum + random.below(maximum_level - minimum + 1)
 	return {
 		"id": StringName("%s:%d" % [id_prefix, number]),
 		"method": method,
 		"cell": Vector2i(candidate["cell"]),
-		"facing": random.below(4),
-		"species": int(slot.get("species", 0)),
-		"level": minimum + random.below(maximum_level - minimum + 1),
-		"dvs": dvs,
+		"facing": facing,
+		"species": species,
+		"level": level,
+		"dvs": _dvs(random, context, species, level, method),
 	}
 
 
@@ -155,6 +157,34 @@ static func _slot(slots: Array, method: StringName, random: RefCounted) -> Dicti
 	return (slots[0] as Dictionary).duplicate(true)
 
 
-static func _dvs(random: RefCounted) -> int:
+## An entry carries its own DVs, so the host takes them as they are and asks no
+## shiny-roll provider about them. Asking here is what keeps a charm, a combo or
+## anything else a mod is worth working on a Pokemon standing on the map as well
+## as on one a step rolled. The host's own rule: extra words past the first, and
+## the first shiny one stands.
+##
+## A population is still reproducible from the run seed for a given set of
+## registered providers. How many words a wild costs the generator is one of this
+## mod's inputs now, the way the table and the sweep are.
+static func _dvs(
+	random: RefCounted, context: Dictionary, species: int, level: int, method: StringName
+) -> int:
+	var map: Vector2i = Vector2i(context.get("map", Vector2i(-1, -1)))
+	var rolls: int = Gen2ModHost.shiny_roll_count({
+		"species": species,
+		"level": level,
+		"method": method,
+		"map_group": map.x,
+		"map_number": map.y,
+	})
+	var word: int = _roll_dvs(random)
+	for _extra: int in maxi(0, rolls - 1):
+		if is_shiny(word):
+			break
+		word = _roll_dvs(random)
+	return word
+
+
+static func _roll_dvs(random: RefCounted) -> int:
 	return (random.below(16) << 12) | (random.below(16) << 8) \
 		| (random.below(16) << 4) | random.below(16)
