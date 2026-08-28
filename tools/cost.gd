@@ -6,6 +6,23 @@ const MOD := "user://mods/voxel3d"
 const WORST: int = 8
 
 
+## Resolves one map a pass at a time: the total, and the longest single pass,
+## which is the longest frame a sliced resolve can cost.
+static func _resolve(
+	mesher: RefCounted, source: RefCounted, shape: RefCounted
+) -> Array:
+	var at: int = Time.get_ticks_usec()
+	mesher.begin_resolve(source, shape)
+	var worst: int = Time.get_ticks_usec() - at
+	while true:
+		var started: int = Time.get_ticks_usec()
+		var done: bool = mesher.resolve_step(1)
+		worst = maxi(worst, Time.get_ticks_usec() - started)
+		if done:
+			break
+	return [Time.get_ticks_usec() - at, worst]
+
+
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.is_empty():
@@ -49,10 +66,9 @@ func _initialize() -> void:
 		var source: RefCounted = source_script.new(null, map, tileset, data)
 		var mesher: RefCounted = mesher_script.new()
 
+		var measured: Array = _resolve(mesher, source, shape)
+		var resolved: int = measured[0]
 		var at: int = Time.get_ticks_usec()
-		mesher.resolve(source, shape)
-		var resolved: int = Time.get_ticks_usec() - at
-		at = Time.get_ticks_usec()
 		var meshes: Array = mesher.emit(atlas)
 		var emitted: int = Time.get_ticks_usec() - at
 
@@ -88,6 +104,7 @@ func _initialize() -> void:
 			"drawn": on_screen,
 			"models": stamps,
 			"resolve_ms": float(resolved) / 1000.0,
+			"pass_ms": float(measured[1]) / 1000.0,
 			"emit_ms": float(emitted) / 1000.0,
 		})
 		triangles += count
@@ -108,11 +125,14 @@ func _initialize() -> void:
 	print("dearest maps:")
 	for index: int in mini(WORST, lines.size()):
 		var line: Dictionary = lines[index]
-		print("  %-7s ts%-3d %3dx%-3d %8d tri %8d drawn %5d models  %6.1f ms resolve  %7.1f ms emit" % [
-			line["map"], line["tileset"], (line["cells"] as Array)[0],
-			(line["cells"] as Array)[1], line["triangles"], line["drawn"],
-			line["models"], line["resolve_ms"], line["emit_ms"],
-		])
+		print("  %-7s ts%-3d %3dx%-3d %8d tri %8d drawn %5d models"
+			% [
+				line["map"], line["tileset"], (line["cells"] as Array)[0],
+				(line["cells"] as Array)[1], line["triangles"], line["drawn"],
+				line["models"],
+			]
+			+ "  %6.1f ms resolve  %7.1f ms emit  %5.1f ms worst pass"
+			% [line["resolve_ms"], line["emit_ms"], line["pass_ms"]])
 	var tilesets: Array = by_tileset.keys()
 	tilesets.sort_custom(func(a: int, b: int) -> bool:
 		return by_tileset[a][0] > by_tileset[b][0])

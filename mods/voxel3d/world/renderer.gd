@@ -43,6 +43,7 @@ var _outside: bool = true
 const BUILD_BUDGET_USEC: int = 4000
 const FIRST_BUILD_BUDGET_USEC: int = 12000
 var _building: bool = false
+var _resolving: bool = false
 var _recolouring: bool = false
 var _standing: bool = false
 var _first_build: bool = true
@@ -237,6 +238,9 @@ func handle_world_input(event: InputEvent) -> bool:
 func _process(delta: float) -> void:
 	_glide(delta)
 	_rig.advance(delta)
+	if _resolving:
+		_advance_resolve()
+		return
 	_advance_build()
 	_advance_recolour()
 	_recentre_window()
@@ -320,14 +324,32 @@ func _rebuild() -> void:
 		_stage.set_texture(_atlas.texture)
 	_stage.far_field().configure(_world, _time_of_day, _outside, _atlas)
 	_stage.set_time_of_day(_time_of_day)
-	_mesher.resolve(source, _shape)
+	_mesher.begin_resolve(source, _shape)
 	_window_centre = Vector2i.MAX
+	_resolving = true
+	_advance_resolve()
+
+
+## Measuring a map is sliced the way emitting it is, except on the first build,
+## which runs whole rather than opening on an empty world.
+func _advance_resolve() -> void:
+	if not _resolving:
+		return
+	var done: bool = false
+	while not done:
+		done = _mesher.resolve_step(FIRST_BUILD_BUDGET_USEC)
+		if not _first_build:
+			break
+	if not done:
+		return
+	_resolving = false
 	_recentre_window()
 	refresh()
 
 
 func _recentre_window() -> void:
-	if _world == null or _building or _mesher.size_tiles() == Vector2i.ZERO:
+	if _world == null or _building or _resolving \
+			or _mesher.size_tiles() == Vector2i.ZERO:
 		return
 	if _draw_cells <= 0:
 		if _window_centre == Vector2i.MAX:
