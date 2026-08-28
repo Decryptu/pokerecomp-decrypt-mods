@@ -1,44 +1,21 @@
 #!/usr/bin/env bash
-# Parses every script in the mod, and says nothing when they all parse.
-#
-# THE MOD IS LIVE. `user://mods/<id>/` is a symlink to this checkout, so a file
-# that does not compile is not a private mistake: the game boots against it, and
-# another agent's smoke test on this machine fails on our half-written function
-# with an error that names our file and none of theirs. That has happened twice.
-#
-# So run this after any edit that adds a call, and prefer writing the function
-# before the line that calls it. It takes about a second per script and needs no
-# cartridge, because parsing is all it does.
-#
-# Parsing resolves against the game project, so it needs a pokerecomp checkout:
-# the first argument, else $POKERECOMP, else the read-only one in `.references`.
-# The Godot binary is $GODOT, else `godot` on the path, else where the macOS
-# installer puts it: a stock install leaves no `godot` on the path at all, so
-# the one-word command this file's own instructions promise failed there.
-#
-# The MODS are what it parses, because the mods are what is live and six seconds
-# is what makes it a command an agent runs after every edit. `tools` parses the
-# thirty odd probes and shot drivers instead, which is half a minute and is worth
-# it before touching one: `tools/linking_cord_probe.gd` shipped naming a constant
-# that does not exist and this said nothing, and two benchmark runs were spent on
-# a duplicate declaration for the same reason. `all` is both.
-#
-# A FAILURE NAMING A `game/` FILE IS NOT A MOD FAULT. Parsing resolves against
-# the game project's class index, which is a build cache and not committed, so a
-# `class_name` added to the game since the last editor scan does not resolve yet.
-# The error surfaces while parsing a mod and names the mod's file, which reads as
-# breakage here and is not. One scan of the game project clears it:
-#
-#   godot --headless --editor --path /path/to/pokerecomp --quit
-#
-# `warnings` IS A DIFFERENT QUESTION AND A SLOWER ONE. Parsing says a script is
-# sound; the GDScript ANALYSER says whether it is clean, and it runs inside the
-# editor and nowhere else. The game project's `addons/warning_scan` reads it
-# without a person driving menus, so this mode drives that over the mods and the
-# tools: about a minute, against six seconds. Run it before a release rather than
-# after every edit. Silence means clean, because the scan is given the paths.
+# Parses every mod script and says nothing when they all parse, then runs
+# tools/bloat.py over them. Run it after any edit: six seconds, no cartridge.
 #
 #   tools/check.sh [mods|tools|all|warnings] [pokerecomp path]
+#
+# `tools` reads the probes and shot drivers instead, half a minute; `all` is
+# both. `warnings` runs the game's own analyser through its editor, about a
+# minute, and is a pre-release check rather than a per-edit one.
+#
+# The host is the first argument, else $POKERECOMP, else `.references`. The
+# binary is $GODOT, else `godot`, else where the macOS installer puts it.
+#
+# A FAILURE NAMING A `game/` FILE IS NOT A MOD FAULT: parsing resolves against
+# the game's class index, which is a build cache, so a `class_name` added since
+# the last editor scan does not resolve yet. One scan clears it:
+#
+#   godot --headless --editor --path /path/to/pokerecomp --quit
 
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -66,8 +43,8 @@ if [ -z "$GODOT" ]; then
 fi
 
 if [ "$WHAT" = "warnings" ]; then
-	# The mods are reached as `user://`, which is where they are installed; the
-	# tools have no project path and are given as they sit.
+	# The mods are reached as `user://`, where they are installed; the tools have
+	# no project path and are given as they sit.
 	mods=()
 	for mod in "$HERE"/mods/*/; do
 		mods+=("user://mods/$(basename "$mod")")
@@ -78,9 +55,8 @@ fi
 
 scripts=()
 if [ "$WHAT" != "tools" ]; then
-	# `find` and not a glob: `mods/*/**/*.gd` reaches exactly one directory down
-	# without `globstar`, so a script nested any deeper would be skipped in
-	# silence by the one command whose whole promise is that it reads every one.
+	# `find` and not a glob: without `globstar` a glob reaches one directory down,
+	# so anything nested deeper would be skipped in silence.
 	while IFS= read -r found; do
 		scripts+=("$found")
 	done < <(find "$HERE/mods" -name '*.gd' | sort)
@@ -92,8 +68,6 @@ fi
 status=0
 for script in "${scripts[@]}"; do
 	[ -e "$script" ] || continue
-	# --check-only parses and resolves without running, and prints nothing at all
-	# when the script is sound. The engine's own no-scene-tree noise is dropped.
 	output="$("$GODOT" --headless --path "$HOST" --check-only -s "$script" 2>&1 \
 		| grep -v "^Godot Engine\|get_node\|^ *at:\|scene tree\|^$")"
 	if [ -n "$output" ]; then
@@ -102,4 +76,6 @@ for script in "${scripts[@]}"; do
 		status=1
 	fi
 done
+
+python3 "$HERE/tools/bloat.py" "${scripts[@]}" || status=1
 exit $status

@@ -1,8 +1,6 @@
 extends SceneTree
 
-## Exercises the randomizer through the real host save lifecycle. Two saves
-## carry different compact inputs, a legacy save carries none, and reactivating
-## one slot must rebuild its byte-identical view without leaking another's run.
+## Exercises the randomizer through the real host save lifecycle.
 
 const MOD_ID: StringName = &"randomizer"
 

@@ -1,29 +1,6 @@
 extends SceneTree
 
 ## WHETHER THE HORIZON NAMES AND CUTS THE SAME DRAWINGS THE MESH DOES.
-##
-## `shape/far_drawings.gd` reads which drawing stands on which cell off a bare
-## map, at a fraction of what a resolve costs, and it does that by carrying a
-## copy of the mesher's own box rule. `mesher.far_card_for` then cuts that
-## drawing out of the map's own sheet with no resolve behind it. Both are only
-## worth having while they are provably the same answer, and this is the proof.
-##
-## Every outdoor map is resolved and emitted for real, and two things are checked
-## against it:
-##
-## - THE BOXES. Every box the mesher stamped a model into against every box the
-##   walk found, name for name and position for position.
-## - THE CARDS. The card the factory cuts for each drawing against the cut-outs
-##   the resolve built for that drawing's bodies, pixel for pixel.
-##
-##   Godot --headless --path <pokerecomp> -s tools/far_drawings.gd -- \
-##       <cache> [group,number]
-##
-## Prints one line per map that differs and a total. Zero differing maps is the
-## whole result. Named a map, it prints that map's own drawings as well, which is
-## what to run when one does differ.
-##
-## Headless: it resolves and emits, and never renders.
 
 const MOD := "user://mods/voxel3d"
 const TILE: int = 8
@@ -72,16 +49,11 @@ func _initialize() -> void:
 			continue
 		var shape: RefCounted = shape_script.new(profile, map.tileset)
 		var mesher: RefCounted = mesher_script.new()
-		# A FACTORY PER MAP, which is what `far_foliage.gd` builds and why: the
-		# mask cache is keyed on tile ids and means nothing on another tileset.
 		var cutter: RefCounted = mesher_script.new()
 		mesher.resolve(source, shape)
 		mesher.emit(atlas)
 
 		var at: int = Time.get_ticks_usec()
-		# WALKED INTO THE BORDER RING, which is where the mesher stamps too: route
-		# 26 alone puts 798 conifers out there against the 240 on the map, and
-		# comparing only the map left three quarters of the answer untested.
 		var ring: int = (mesher.get("_margin") as Vector2i).x
 		var walked: Dictionary = walk_script.of_map(data, map, profile, ring)
 		walk_usec += Time.get_ticks_usec() - at
@@ -139,31 +111,19 @@ func _initialize() -> void:
 		% [maps, differ, drawings, spots, cut, houses]
 		+ " walk %.1f ms, cut %.1f ms"
 		% [float(walk_usec) / 1000.0, float(cut_usec) / 1000.0])
-	quit(1 if differ > 0 else 0)
+	quit(int(differ > 0))
 
 
-## A walked spot back to the tile its box starts at. The walk answers the box's
-## MIDDLE in world pixels, and a drawing's box is one size wherever it stands.
 func _start(spot: Vector2, across: Vector2i) -> Vector2i:
-	# FLOORED and not truncated: a box in the border ring starts at a negative
-	# tile, and integer division rounds those the wrong way.
 	return Vector2i(
 		floori((spot.x - float(across.x * TILE) * 0.5) / float(TILE)),
 		floori((spot.y - float(across.y * TILE) * 0.5) / float(TILE))
 	)
 
 
-## Whether the factory's card is one the resolve cut for the same drawing.
-##
-## AT LEAST ONE BODY and not a named one: the factory takes the drawing's largest
-## body and the resolve keys its cut-outs per body, so what is being asked is
-## whether the picture the horizon will wear is a picture the mesh cut. A drawing
-## holding one body, which is every tree and every bush, has one answer to give.
 func _card_agrees(
 	card: Array, drawing: String, bodies: Dictionary, cutouts: Dictionary
 ) -> bool:
-	# Never built by the mesher, so there is nothing to differ from: a drawing
-	# whose bodies are all under `MODEL_BODY_MIN` reaches this.
 	if not bodies.has(drawing):
 		return true
 	var wanted: Image = null
@@ -185,20 +145,6 @@ func _all_null(drawn: Array, cutouts: Dictionary) -> bool:
 	return true
 
 
-## Every box the mesh stamped a model into, as `drawing -> {tile position: true}`
-## in the MAP'S own tiles, which is what the walk answers in.
-##
-## `_model_spots` is keyed per BODY and per level of detail, so a drawing that
-## flooded into two bodies and swapped one of them for its far twin holds the
-## same box under four keys. The box is what is being compared, so they collapse.
-##
-## THE BORDER RING IS IN, since the walk covers it now: what is compared is every
-## box the mesher stamped anywhere in its grid.
-##
-## A DECLARED OBJECT IS LEFT OUT. `_object_model` names its meshes
-## `<object>:<tiles>`, and an object is found by an arrangement of tile ids
-## rather than by a class, which is not a question the horizon walk asks or ever
-## asked: the fountain and the ship have never stood out there.
 func _stamped(mesher: RefCounted, margin: Vector2i) -> Dictionary:
 	var out: Dictionary = {}
 	var spots: Dictionary = mesher.get("_model_spots")
@@ -232,8 +178,6 @@ func _vector(text: String) -> Vector2i:
 	return Vector2i(int(parts[0].strip_edges()), int(parts[1].strip_edges()))
 
 
-## The first few tile ids of a drawing, which is enough to tell two apart in a
-## report and short enough to read.
 func _short(drawing: String) -> String:
 	return drawing.substr(0, 28) + ("..." if drawing.length() > 28 else "")
 

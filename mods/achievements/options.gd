@@ -1,8 +1,6 @@
 extends RefCounted
 
-## Two settings, both about the notice. What is unlocked is never a setting:
-## turning the notice off still awards the achievement, so a player who wanted
-## quiet does not come back to an empty list.
+## Two settings, both about the notice.
 
 const MOD_ID: StringName = &"achievements"
 

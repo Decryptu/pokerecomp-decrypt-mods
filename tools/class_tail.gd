@@ -1,27 +1,10 @@
 extends SceneTree
 
-## Every tile in the game that RESOLVES to one shape class, PER DRAWING, with how
-## many maps place it and where the first one is.
-##
-## `census.gd` says how much of the game wears each class and this says what is
-## inside one, which is the question that actually chooses the next piece of
-## work: `stand` is the full pass's fallback for something standing, and looking
-## at its contents drawing by drawing is what found the boulders, the railing,
-## the notice board, the statues, the stools and the fence, each of them cheaper
-## to build right than to leave wrong.
-##
-## IT COUNTS THE CLASS AND NOT WHAT IS DRAWN, and that trips every reading of it:
-## an OBJECT or a STAIRCASE is found by its tile arrangement afterwards and
-## overrides the art, so a drawing already built correctly still resolves to its
-## class here. Half the tail was that. So the covered tiles are MARKED `built`
-## and counted separately, at the placement rather than by tile id, which is the
-## check a reading of this used to have to do by hand against `profile.gd` and
-## twice got wrong.
-##
-##   Godot --headless --path <pokerecomp> -s tools/class_tail.gd -- <cache> \
-##       <class> [tileset]
+## Every tile in the game that RESOLVES to one shape class, PER DRAWING, with
+## how many maps place it and where the first one is.
 
 const MOD := "user://mods/voxel3d"
+
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
@@ -95,11 +78,6 @@ func _initialize() -> void:
 	quit()
 
 
-## Which tiles of a map an OBJECT or a STAIRCASE already covers, found the way
-## `mesher.gd:_measure_objects` finds them: by matching each declared arrangement
-## everywhere in the grid, not by asking whether a tile id appears in one. A tile
-## id can be a chair in one block and a wall in the next, and only the placement
-## says which.
 func _covered(
 	shape: RefCounted, source: RefCounted, size: Vector2i
 ) -> PackedByteArray:
@@ -125,9 +103,6 @@ func _covered(
 	return covered
 
 
-## Whether the tile ids at [param tx],[param ty] are the arrangement
-## [param pattern] draws. A -1 is a tile the thing covers and has no opinion
-## about, which is `mesher.gd:_pattern_at`'s own rule.
 func _pattern_at(
 	pattern: Array, across: Vector2i, source: RefCounted, tx: int, ty: int
 ) -> bool:

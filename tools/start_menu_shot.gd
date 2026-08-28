@@ -2,33 +2,15 @@ extends SceneTree
 
 ## Photographs the start menu's own list with the installed mods loaded, on a
 ## save that has unlocked every row the cartridge gates.
-##
-## The list is where a mod's `MENU_START` entry lands, and it holds more rows
-## than the screen has room for: eight fit and a fully unlocked save with MODS
-## and one mod row is ten. The host makes the box a window over them, so what
-## has to be photographed is not one screen but two, the top of the list and the
-## bottom, which is why `presses` exists. One press of UP from the top row wraps
-## to EXIT, which is the shortest proof that the last row is reachable.
-##
-##   godot --headless --path <pokerecomp> -s tools/start_menu_shot.gd --mods -- \
-##       <game> <out.png> [presses] [scale] [settings]
-##
-## `presses` is a comma-separated button list driven into the list: `u` `d`.
-## `settings` is a comma-separated `<mod id>:<key>=<value>` list applied after
-## the mods load, since a row behind an off-by-default switch is a row nothing
-## photographs. The values are not written back: the store is left as it was.
 
 const NEW_BARK_GROUP: int = 24
 const NEW_BARK_MAP: int = 7
-## `Gen2WorldStartMenu`'s own two, which gate the #DEX and <POKEGEAR> rows.
 const ENGINE_POKEGEAR: int = 4
 const ENGINE_POKEDEX: int = 11
 
 const BUTTONS: Dictionary = {"u": Gen2Button.UP, "d": Gen2Button.DOWN}
 
 
-## The screen builds its panel in `_ready`, which does not run until the tree has
-## processed a frame, so the shot is taken from here rather than `_initialize`.
 func _process(_delta: float) -> bool:
 	_capture()
 	return true
@@ -81,15 +63,11 @@ func _capture() -> void:
 	var world: Gen2WorldAPI = Gen2WorldAPI.open(
 		data, NEW_BARK_GROUP, NEW_BARK_MAP, Vector2i.ZERO, state
 	)
-	## No slot on disk, so nothing this photographs is written anywhere.
 	var save: Gen2SaveData = Gen2SaveStore.create_development_save(data, 0)
 	if save == null:
 		print("the %s cache builds no development save" % args[0])
 		quit(1)
 		return
-	## The #MON row and a mod's PC row are both gated on a party, and the menu
-	## reads the world's summary rather than the save's, so the party is
-	## mirrored into it the way a running game does.
 	var species: Array[int] = [] as Array[int]
 	for member: Gen2SaveMon in save.party:
 		species.append(member.species)

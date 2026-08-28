@@ -2,52 +2,15 @@ extends SceneTree
 
 ## Photographs the line a Catch Combo adds, in the place the mod adds it: the
 ## battle box, after `Gotcha!` and before the nickname prompt.
-##
-##   godot --path <pokerecomp> --resolution 800x720 \
-##       -s tools/catch_combo_shot.gd -- \
-##       <game> <output.png> [species] [level] [presses] [thumbnail]
-##
-## THE RESOLUTION IS PART OF THE COMMAND, for the reason
-## `tools/shiny_charm_shot.gd` gives: 800x720 is the hardware's 160x144 at a
-## whole times five and any other size shears the art.
-##
-## Nothing in the picture is staged but the throw. The tool loads the installed
-## mods, stands a wild battle up, hands the screen a ball and the resolved throw
-## the world host would have handed it, and presses A through the shakes. The
-## capture then publishes `caught` on the battle channel, the mod counts it and
-## asks for its line, and the host prints it in the box the battle owns. So the
-## wording, the pacing and the place it lands are the mod's and the host's.
-##
-## The eleven catches in front of it are published before the battle is up,
-## where a requested line is dropped rather than queued, so the combo the box
-## reads is a combo of twelve and the box is only ever printed once.
-##
-## `presses` is how many A presses walk the capture's own run. Seven leaves the
-## mod's box up: six reach the Gotcha line and one more takes it away. It is an
-## argument because that count is a fact about the host's message run rather
-## than about this mod, and one press past it opens the naming prompt.
-##
-## Needs a display, since it renders.
 
-## The white field a mod's thumbnail is, the hardware picture centred on it
-## rather than stretched to fill.
 const THUMBNAIL_SIZE := Vector2i(1280, 720)
-## RATTATA on an early route: the Pokemon somebody actually ends up with a dozen
-## of, which is what a combo is.
 const DEFAULT_SPECIES: int = 19
 const DEFAULT_LEVEL: int = 4
 const DEFAULT_PRESSES: int = 7
-## The catches in front of the one photographed. Long enough that the box reads
-## a combo past the first rung, so the picture is of one worth something.
 const CATCHES_BEFORE: int = 11
-## Three shakes and a click, which is `GetPokeBallWobble`'s own best answer.
 const WOBBLES: int = 3
 const BALLS: int = 5
-## Any fixed number, for the reason `shiny_charm_shot.gd` fixes its own: the
-## picture must not move between two runs of one command.
 const SEED: int = 20260827
-## A ceiling on the frames one stage of the sequence is walked for, so a change
-## in the host's pacing costs a picture rather than a hang.
 const MAX_STEPS: int = 4096
 const SETTLE_FRAMES: int = 4
 const DRAW_FRAMES: int = 3
@@ -74,8 +37,6 @@ func _initialize() -> void:
 	if Gen2ToolPath.refuses(_out):
 		quit(2)
 		return
-	# An EMPTY argument keeps the default, so a later one is reachable without
-	# restating the ones in front of it.
 	if args.size() > 2 and not args[2].is_empty():
 		_species = int(args[2])
 	if args.size() > 3 and not args[3].is_empty():
@@ -107,10 +68,6 @@ func _initialize() -> void:
 	_screen.set_random_seed(SEED)
 	root.add_child(_screen)
 	current_scene = _screen
-	# Taken away every frame, not once: Godot turns processing back on for a node
-	# whose script has a `_process`, and the screen counts hardware frames off its
-	# own deltas, so a frame this driver did not drive is a frame that depends on
-	# how fast the machine ran.
 	_screen.set_process(false)
 
 
@@ -129,7 +86,6 @@ func _process(_delta: float) -> bool:
 	return _write(_out)
 
 
-## The wild battle, the throw, and the box left holding the line the mod adds.
 func _stage() -> bool:
 	if not _screen.start_world_battle({"values": {
 		"kind": &"wild",
@@ -149,8 +105,6 @@ func _stage() -> bool:
 	if not bool(_screen.throw_capture_ball().get("ok", false)):
 		push_error("The ball was not thrown")
 		return false
-	# The world host's own answer: the catch is resolved in front of the
-	# animation, which reads the wobbles back rather than rolling them.
 	_screen.complete_capture({
 		"ok": true,
 		"caught": true,
@@ -159,10 +113,6 @@ func _stage() -> bool:
 		"wobbles": WOBBLES,
 		"destination": {"destination": &"party"},
 	})
-	# The shakes and the click are the box's own messages, so they are walked the
-	# way the player walks them: whatever is animating is spent, and then one
-	# page is taken away. Stopping on the last leaves the Gotcha line up, which
-	# is the one frame the naming prompt has not opened over.
 	var left: int = _presses
 	for _step: int in MAX_STEPS:
 		if _screen.frames_running():
@@ -177,8 +127,6 @@ func _stage() -> bool:
 	return true
 
 
-## The capture the battle publishes, which is what the mod counts. Spent before
-## the battle exists, so the eleven in front of the photographed one cost no box.
 func _publish_catch() -> void:
 	Gen2ModHost.publish(Gen2ModHost.CHANNEL_BATTLE, {
 		"type": Gen2Battle.CAUGHT,
@@ -189,8 +137,6 @@ func _publish_catch() -> void:
 	})
 
 
-## Everything `DoBattle` spends before its first menu, so a throw driven after
-## this is a throw rather than the entrance still running.
 func _settle_entrance() -> void:
 	for _step: int in MAX_STEPS:
 		if not _screen.frames_running() and not _screen.entrance_running():
@@ -217,8 +163,6 @@ func _write(path: String) -> bool:
 	return true
 
 
-## The picture centred on the white field at the size it was taken. A grab
-## bigger than the field is refused rather than scaled: the fix is the window.
 func _write_thumbnail(image: Image, path: String) -> bool:
 	if image.get_width() > THUMBNAIL_SIZE.x or image.get_height() > THUMBNAIL_SIZE.y:
 		push_error("A %dx%d picture does not fit %s. Run at --resolution 800x720." % [
@@ -234,8 +178,6 @@ func _write_thumbnail(image: Image, path: String) -> bool:
 	)
 	canvas.blit_rect(image, Rect2i(Vector2i.ZERO, image.get_size()), at)
 	var out: String = path.trim_suffix(".png") + ".webp"
-	# Lossless: a WebP that guessed at these colours would be a picture of the
-	# cartridge's palette rather than the palette.
 	if canvas.save_webp(out, false) != OK:
 		push_error("Could not write %s" % out)
 		return false

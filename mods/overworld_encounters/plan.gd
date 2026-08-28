@@ -1,15 +1,10 @@
 extends RefCounted
 
 ## Pure population planning from a host-resolved visible-encounter context.
-## The host owns which cells and tables are eligible; this file only bounds and
-## samples them, so the probe can prove the same run seed means the same map.
 
 const Rng := preload("rng.gd")
 const GRASS_WEIGHTS: Array[int] = [30, 30, 20, 10, 5, 4, 1]
 const SURF_WEIGHTS: Array[int] = [60, 30, 10]
-## What a Pokemon has to total over its four stored DVs to be worth a glow, out
-## of sixty. A shiny cannot reach it: three of its DVs are pinned at ten and its
-## ATTACK caps at fifteen, so forty-five is the most a shiny totals.
 const EXCELLENT_TOTAL: int = 50
 
 
@@ -33,25 +28,10 @@ static func build(
 	return out
 
 
-## The largest number [method build] can have issued for [param maximum], so a
-## caller minting more of them afterwards knows where its own numbering starts.
-## An id is what a battle result is reported under and what the host dedupes a
-## pulse by, so one is never reused inside a map.
 static func first_free_number(maximum: int) -> int:
 	return clampi(maximum, 0, 32) + 1
 
 
-## ONE more wild, for a map that refills rather than being built once.
-##
-## The same rules the build uses, against the context in force NOW: the host
-## re-resolves `tables` when the hour, a swarm or the Bug Contest moves what a
-## roll would read, and `eligible` when a script switches wilds off, so a
-## replacement is drawn from what the map offers at the moment it appears rather
-## than from what it offered when the player walked on.
-##
-## [param taken] is the cells this caller's own population already holds, which
-## the context cannot know: `occupied` is the MAP's objects. Empty when there is
-## nowhere left to stand.
 static func mint(
 	context: Dictionary, random: RefCounted, taken: Array[Vector2i], number: int,
 	id_prefix: StringName = &"overworld_encounters"
@@ -66,8 +46,6 @@ static func mint(
 	return _make(free[random.below(free.size())], context, random, number, id_prefix)
 
 
-## One entry on one candidate cell. The order the generator is drawn from is part
-## of the answer, so this is written once and both callers spend it the same way.
 static func _make(
 	candidate: Dictionary, context: Dictionary, random: RefCounted, number: int,
 	id_prefix: StringName
@@ -94,18 +72,10 @@ static func _make(
 	}
 
 
-## `CheckShininess`, which is the HOST's answer and not a rule this mod may hold
-## a copy of: the same call `Gen2WorldEncounters` stamps each entry's `shiny`
-## with, so what this file exempts and what the player is shown a sparkle for
-## can never come apart. It read the four DVs itself until 0.3.1 and agreed by
-## luck rather than by construction.
 static func is_shiny(dvs: int) -> bool:
 	return Gen2Stats.is_shiny(dvs)
 
 
-## Whether this one wears the glow: high enough over the four stored DVs and not
-## a shiny, which has its own mark. HP's DV is assembled from the low bits of
-## these four and is not a fifth number to add.
 static func is_excellent(dvs: int) -> bool:
 	if is_shiny(dvs):
 		return false
@@ -115,9 +85,6 @@ static func is_excellent(dvs: int) -> bool:
 	return total >= EXCELLENT_TOTAL
 
 
-## Where a wild may be PUT, which is every eligible cell with nobody in it. The
-## host answers who is standing where in `occupied` and leaves the refusal here,
-## since a population is the provider's to place: see `docs/MODS.md`.
 static func _candidates(context: Dictionary) -> Array:
 	var out: Array = []
 	var eligible: Dictionary = context.get("eligible", {})
@@ -157,15 +124,6 @@ static func _slot(slots: Array, method: StringName, random: RefCounted) -> Dicti
 	return (slots[0] as Dictionary).duplicate(true)
 
 
-## An entry carries its own DVs, so the host takes them as they are and asks no
-## shiny-roll provider about them. Asking here is what keeps a charm, a combo or
-## anything else a mod is worth working on a Pokemon standing on the map as well
-## as on one a step rolled. The host's own rule: extra words past the first, and
-## the first shiny one stands.
-##
-## A population is still reproducible from the run seed for a given set of
-## registered providers. How many words a wild costs the generator is one of this
-## mod's inputs now, the way the table and the sweep are.
 static func _dvs(
 	random: RefCounted, context: Dictionary, species: int, level: int, method: StringName
 ) -> int:

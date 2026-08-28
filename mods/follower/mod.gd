@@ -1,11 +1,6 @@
 extends RefCounted
 
 ## Registers the settings, the recall control and the follower, and returns.
-##
-## The follower is a world actor: the host drives it a frame at a time and draws
-## what it asks for, the same way it drives its own map objects. Registration is
-## refused by name if the actor is a Node or is missing one of its three methods,
-## so a mistake is reported before a frame is drawn.
 
 const Options := preload("options.gd")
 const Actor := preload("actor.gd")

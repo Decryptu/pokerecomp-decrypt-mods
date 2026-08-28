@@ -2,28 +2,12 @@ extends Control
 
 ## The fight staged on the map it was started on, shot over the player's
 ## shoulder, with the Game Boy's own panels over the top.
-##
-## `Gen2BattleScreen` owns the battle, the events and the text box and decides
-## nothing about how any of it is drawn. It hands over display values and, once per
-## battle, a `Gen2BattleWorldContext` saying where the encounter happened, which is
-## all this needs: the same mesher the overworld uses rebuilds the map from its
-## records and the battlers stand on it as cards.
-##
-## Two layers, because a battle is two things at once. The map is geometry at
-## window resolution; the panels, bars and text box are hardware pixels at
-## whole-number scale over the top. Answering `uses_hardware_viewport` false is what
-## makes the first possible and the second this renderer's job.
-##
-## A battle started outside the world gets no context and is drawn on the flat
-## field the panels already imply.
 
 const Options: GDScript = preload("../options.gd")
 const Steering: GDScript = preload("../steering.gd")
 const Frost: GDScript = preload("panel.gd")
 const Anim: GDScript = preload("anim.gd")
 
-## Preloaded for the reason `world/renderer.gd` gives: nothing holds the shape
-## tree between two battles, so loading it per fight re-parsed it per fight.
 const Profile: GDScript = preload("../shape/profile.gd")
 const TileShapeScript: GDScript = preload("../shape/tile_shape.gd")
 const MapSourceScript: GDScript = preload("../shape/map_source.gd")
@@ -34,16 +18,7 @@ const DioramaScript: GDScript = preload("../world/diorama.gd")
 
 const CELL: float = 16.0
 
-## How opaque the screen draws the FIELD of its own text box over this view, and
-## the same judgement the overworld makes: the frame's lines and the glyphs are
-## ink and stay solid, so the prompt reads exactly as well and the fight is still
-## visible behind it. Every prompt in a battle is that one box.
-##
-## The panels above it are this renderer's own and are tinted separately; see
-## PANEL_TINT.
 const FIELD_OPACITY: float = 0.75
-## How tall the background map a scanline offset is measured into is, in
-## hardware pixels. `Gen2Raster.scroll_rows` takes the same number.
 const RASTER_WRAP: int = 256
 
 var _data: GameData = null
@@ -52,59 +27,29 @@ var _context: Gen2BattleWorldContext = null
 
 var _stage: RefCounted = null
 var _arena: RefCounted = null
-## How long each held camera control has been held, which is what turns a stick
-## from a step into a glide. See `steering.gd:Glide`.
 var _held := Steering.Glide.new()
 var _atlas: RefCounted = null
 var _mesher: RefCounted = null
 
-## The two HUD blocks, in hardware tiles, and how far past the drawing their
-## backing reaches. Derived from `Gen2BattleHud`'s own positions: the enemy's
-## name, level and bar sit between column 1 and its edge tile, the player's
-## between its bottom-left corner and the right edge, with the exp bar sunk into
-## the last row.
 const ENEMY_PANEL := Rect2i(1, 0, 11, 4)
 const PLAYER_PANEL := Rect2i(9, 7, 11, 5)
 const PANEL_PAD: int = 2
 
-## How solid the backing is over the world behind it.
-##
-## The cartridge draws its panels as black glyphs straight onto the white field:
-## the field IS the backing. Take it away and put a route under it and the name,
-## level and HP numbers are black on grass. So each block gets a light one, light
-## because an opaque slab is the white field again under another name.
-##
-## What is behind it is blurred rather than merely tinted, which stops a dithered
-## path competing with the writing without making the backing more solid.
-## `panel.gd` is that pass.
 const PANEL_TINT := Color(1.0, 1.0, 1.0, 0.52)
 
 var _hud: Gen2BattleHud = null
 var _panels_backing: Array[ColorRect] = []
 var _frost: RefCounted = null
 var _hud_layers: Array[TextureRect] = []
-## The move animation's OAM layer, over everything: the hardware draws its
-## objects above the background plane the panels and both pictures live in.
 var _anim: RefCounted = null
 var _anim_layer: TextureRect = null
-## Where each battler actually landed against the hardware slot the rig was
-## solved for, in HARDWARE pixels. Zero but for the drift, and it is what keeps
-## an effect on the animal it was aimed at. See `_measure_anim_drift`.
 var _anim_player_drift := Vector2.ZERO
 var _anim_enemy_drift := Vector2.ZERO
-## Both offsets the layer was last DRAWN at, rounded the way `anim.gd` rounds
-## them, as player xy then enemy xy. A redraw is only worth doing when one of the
-## four has moved a whole hardware pixel, since nothing finer reaches the
-## picture.
 var _anim_drawn_at := Vector4i(9999, 9999, 9999, 9999)
 var _battlers: Array[TextureRect] = []
 var _pic_textures: Dictionary = {}
 var _native := Vector2i(Gen2Screen.WIDTH, Gen2Screen.HEIGHT)
-## The hardware screen's own rectangle inside that surface, empty until a host
-## pushes one. See [method _hud_scale].
 var _screen_rect := Rect2i()
-## How far out from the fight the map is meshed, in walk cells. Zero is all of
-## it. The player's own DISTANCE setting, shared with the overworld.
 var _draw_cells: int = 0
 
 
@@ -113,10 +58,6 @@ func _init() -> void:
 	_arena = ArenaScript.new()
 	_stage = DioramaScript.new()
 	add_child(_stage.container)
-	# The backing goes in first, so both panels sit under every drawn layer. That
-	# order is also what lets the frost read the world: a screen texture holds
-	# what has been drawn so far, which here is the composited stage and nothing
-	# of the HUD.
 	_frost = Frost.new()
 	for panel: Rect2i in [ENEMY_PANEL, PLAYER_PANEL]:
 		var backing := ColorRect.new()
@@ -128,14 +69,10 @@ func _init() -> void:
 		_panels_backing.append(backing)
 	for index: int in HUD_LAYERS:
 		var layer := TextureRect.new()
-		# Nearest, or the hardware pixels stop being square on the last hop.
 		layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(layer)
 		_hud_layers.append(layer)
-	# Last in, so the objects draw over the panels and both pictures, which is the
-	# order the hardware draws them in. `hud_visible` is false for the length of a
-	# move anyway, so mostly there is nothing under it but the fight.
 	_anim_layer = TextureRect.new()
 	_anim_layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_anim_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -149,16 +86,10 @@ func uses_hardware_viewport() -> bool:
 	return false
 
 
-## See FIELD_OPACITY. `set_text_box_rect` is deliberately not answered here: the
-## rig pins each battler to its own hardware picture slot, which is what makes a
-## collision with the box impossible, so there is nothing left for this view to
-## compose around it.
 func interface_opacity() -> float:
 	return FIELD_OPACITY
 
 
-## The fallback is the whole map, which is what a probe or a tool building this
-## renderer outside the game wants.
 func _read_options() -> void:
 	_draw_cells = int(Options.value(Options.DISTANCE, 0))
 	_stage.set_render_scale(int(Options.value(Options.SCALE, Options.default_scale())))
@@ -177,22 +108,15 @@ func _on_option_changed(id: StringName, key: StringName, value: Variant) -> void
 		Options.WHEEL:
 			_arena.set_wheel_sign(int(value))
 		Options.RECENTRE:
-			# A button-kind setting carries no value: the press IS the message.
 			_arena.steer(Steering.RESET)
 
 
-## A control of this mod's own, arriving as the command it means rather than as
-## an event. The same handler shape as the overworld's, because the binding is
-## shared and only the rigs differ.
 func _on_action_changed(id: StringName, key: StringName, pressed: bool) -> void:
 	if id != Options.MOD_ID or not pressed:
 		return
 	_arena.steer(key)
 
 
-## A control HELD rather than pressed, which is the half of the binding an edge
-## cannot carry. The overworld's own wiring, and deliberately the same: what
-## differs between the two views is the rig, never the binding.
 func _glide(delta: float) -> void:
 	var held: Dictionary = _held.notches(delta, Options.strength)
 	for command: StringName in held:
@@ -206,9 +130,6 @@ func set_native_size(size_pixels: Vector2i) -> void:
 	_layout_hud()
 
 
-## Where the cartridge's own 160x144 screen sits inside this view's surface,
-## beside every [method set_native_size]. See
-## Gen2ModHost.RENDERER_SCREEN_RECT_METHOD and [method _hud_scale].
 func set_screen_rect(rect: Rect2i) -> void:
 	if rect == _screen_rect:
 		return
@@ -225,9 +146,6 @@ func set_battle_data(data: GameData) -> bool:
 	return _hud != null
 
 
-## Where the battle is being fought, handed over once, after set_battle_data and
-## before the first view. Optional on both sides: a battle with no world behind
-## it never calls this and the arena stays the flat field.
 func set_world_context(context: Gen2BattleWorldContext) -> void:
 	_context = context
 	_build_arena()
@@ -240,11 +158,7 @@ func set_view(view: Dictionary) -> void:
 
 func refresh() -> void:
 	_frame_camera()
-	# Before the battlers are placed, since it is what they are drawn through.
 	_stage.set_flash(_view.get("bg_palette_maps", []))
-	# `LostBattle`'s wash: the cartridge greys every background palette for the
-	# length of the intro, so it is the STAGE that wears it here rather than the
-	# two battlers, which are only two of the things inside it.
 	_stage.set_grayscale(bool(_view.get("grayscale", false)))
 	_place_battlers()
 	_measure_anim_drift()
@@ -252,31 +166,19 @@ func refresh() -> void:
 	_draw_anim()
 
 
-## Steering the shot. The battle screen claims its own keys first, so what
-## arrives here is what the fight has no use for.
 func handle_battle_input(event: InputEvent) -> bool:
 	return _arena.handle_input(event)
 
 
-## Framed every frame rather than only when the tween is running, so no ordering
-## between the context, the first view and the tree can leave the shot stale.
 func _process(delta: float) -> void:
 	_glide(delta)
 	_arena.advance(delta)
 	_frame_camera()
 	_place_battlers()
-	# The OAM picture is a fact about the view and does not change here; where its
-	# sprites SIT follows the drift, so it is redrawn only when that has moved a
-	# whole hardware pixel.
 	_measure_anim_drift()
 	_follow_anim_drift()
 
 
-## The map the battle started on, rebuilt from its records.
-##
-## The context names the map and its tileset by number and deliberately hands
-## over no handle on the world, so this resolves them through the GameData it was
-## already given and meshes them exactly as the overworld does.
 func _build_arena() -> void:
 	if _data == null or _context == null:
 		_stage.set_terrain([])
@@ -293,49 +195,25 @@ func _build_arena() -> void:
 		_arena.stage(null)
 		return
 
-	# The GameData with it, so the border ring past this map's edge can follow a
-	# connection into the neighbouring map the way the overworld's does.
 	var source: RefCounted = MapSourceScript.new(null, map, tileset, _data)
 	_stage.set_time_of_day(_context.time_of_day)
 	if _atlas.build(_data, map, tileset, _context.time_of_day):
 		_stage.set_texture(_atlas.texture)
-		# A fight indoors is shot against the room's own walls, not against sky.
 		if source.outside():
 			_stage.set_background(_atlas.background(), true, _atlas.sky_ramp())
 		else:
 			_stage.set_background(_atlas.void_color(), false)
-	# Resolved whole and emitted around the fight. A fight does not move, so the
-	# window is built once and never recentred; the sight lines the arena is
-	# chosen by read the resolved heights, which are the whole map's whatever is
-	# drawn of it.
 	_mesher = _resolved_for(map, tileset, source)
 	_stage.set_view_distance(float(_draw_cells) * CELL)
 	_stage.set_terrain(_mesher.emit(_atlas, _window(_context.player_cell)))
-	# The water and the stamped models too, or a fight on a route is staged in a
-	# clearing on a blue floor: neither is in the terrain mesh, a tree because it
-	# is instanced and a lake because it is drawn with its own material.
 	_stage.set_water(_mesher.take_water())
 	_bank()
 	_stage.set_tufts(_mesher.take_tufts())
 	_stage.set_models(_mesher.take_models())
-	# Staged AFTER the mesh, because choosing where the fight goes asks how tall
-	# the things around it turned out to be, and only the mesh knows that.
 	_arena.stage(_context, source, _mesher)
-	# The arena has just moved, so the shot has to. Waiting for the next view
-	# leaves the camera wherever it was last framed, which before any battle is
-	# the map's own origin: a corner of the map with the fight nowhere in it.
 	_frame_camera()
 	_place_battlers()
 
-
-## The map resolved, from a fight earlier in the same session. Resolving is the
-## third of a build that does not depend on where anything is standing, and it is
-## kept per installation of this script so it survives the renderer being rebuilt
-## between fights.
-##
-## Only the battle caches. The overworld resolves from the live world, which
-## `changeblock` rewrites under the player, and a cache with no word about that
-## would draw a boulder that has been pushed away.
 static var _resolved: Dictionary = {}
 const RESOLVED_KEPT: int = 2
 
@@ -354,12 +232,6 @@ func _resolved_for(
 	return mesher
 
 
-## The rectangle of map the fight is drawn out of, in TILES, or empty for the
-## whole of it at FULL distance.
-##
-## The battle's lens is a 23.6 degree cone across a 46 pixel frame, so what it
-## can see of a map is a narrow wedge and a window costs the shot far less than
-## it costs the overworld's wide one.
 func _window(cell: Vector2i) -> Rect2i:
 	if _draw_cells <= 0:
 		return Rect2i()
@@ -376,26 +248,6 @@ func _frame_camera() -> void:
 	_stage.aim_camera(_arena.eye(), _arena.target())
 
 
-## A move animation's scanline wobble, read as one displacement.
-##
-## `raster_scx` and `raster_scy` are the background's own scroll, one value per
-## scanline, asked for only by a battle animation. A flat screen answers them row
-## by row; a diorama has no rows, so what is taken is how far the picture has
-## moved, which the arena shakes the whole shot by.
-##
-## Both axes, because most of the screen shakes are sideways: `WobbleScreen`,
-## `Tackle` and `BodySlam` all write `raster_scx` and nothing else, and reading
-## only the vertical left them moving nothing at all.
-##
-## This is the WHOLE screen. A deformation of one battler is not in it: the
-## `battlers` block carries that in its own `offset_pixels`, already spent per
-## picture in [method _pin].
-##
-## Nothing is spent during the opening. There `raster_scx` is the intro's own
-## bands, which is the two pictures sliding in opposite directions, and the
-## `battlers` block is already carrying that slide per picture: shaking the camera
-## by it as well would move the shot AND slide each battler twice. `grayscale` is
-## true for exactly that stretch, which is what marks it.
 func _raster_shake() -> Vector2:
 	if _graying():
 		return Vector2.ZERO
@@ -405,9 +257,6 @@ func _raster_shake() -> Vector2:
 	)
 
 
-## An offset is a distance to look further into a background map 256 pixels each
-## way, so the top half of that range is a shift one way and the rest wraps as a
-## shift the other. The mean over the rows the window covers is the displacement.
 func _raster_mean(supplied: Variant) -> float:
 	var rows := PackedInt32Array(supplied)
 	if rows.is_empty():
@@ -418,26 +267,10 @@ func _raster_mean(supplied: Variant) -> float:
 	return -float(total) / float(rows.size())
 
 
-## How much taller the stage is than the hardware screen drawn over it.
-##
-## The stage fills the window; the panels fill a 160x144 rectangle at a whole
-## number of window pixels per hardware pixel, centred in it. Stretching the lens
-## by the difference is what makes one window pixel mean the same thing on both
-## layers, so a battler pinned to its patch of ground lands in the hardware slot
-## the rig was solved for at every window size instead of only at the ones where
-## the two happen to coincide.
 func _frame_stretch() -> float:
 	return float(_native.y) / float(Gen2Screen.HEIGHT * _hud_scale())
 
 
-## The two battlers, and the opposing trainer behind theirs.
-##
-## Each picture is pinned to its patch of ground and drawn in hardware pixels where
-## that patch projects to, at the size the cartridge drew it. That keeps a battler
-## crisp, and the rig was solved to land those patches in the hardware's own picture
-## slots, so nothing here wanders under a panel.
-##
-## What stands on each square is the host's answer: see [method _place_pair].
 func _place_battlers() -> void:
 	_stage.begin_shadow_casters()
 	var slot: int = _place_pair(_battlers_block())
@@ -446,10 +279,6 @@ func _place_battlers() -> void:
 	_stage.end_shadow_casters()
 
 
-## `view["battlers"]`, or the settled pair a hand-built view means by carrying
-## none. One block and one drawing path: staging the pair any other way is how
-## the substitute doll went unreachable for a release, since the block is in
-## every view a live fight ever pushes.
 func _battlers_block() -> Dictionary:
 	var supplied: Variant = _view.get("battlers", null)
 	if supplied is Dictionary:
@@ -464,18 +293,6 @@ func _settled_side(species: int) -> Dictionary:
 	return {"kind": KIND_MON, "species": species, "visible": true}
 
 
-## The fight does not open with two Pokemon on the field, and nothing that
-## happens to a battler after that opening is any different: a faint sinks the
-## picture, a Fly blanks it, a recall shrinks it into a ball and a Tackle lunges
-## it. `view["battlers"]` is all of that resolved for a renderer with no
-## background plane to read it off. See `docs/MODS.md` in pokerecomp.
-##
-## The displacement is spent in hardware pixels across the screen rather than as a
-## walk over the ground: the cartridge moves a picture, not a person.
-##
-## The opponent standing behind their Pokemon for the rest of the fight is this
-## view's own staging and waits for the send-out, since during the entrance the
-## class picture is on the square the Pokemon will take.
 func _place_pair(battlers: Dictionary) -> int:
 	var enemy: Dictionary = battlers.get("enemy", {})
 	var player: Dictionary = battlers.get("player", {})
@@ -490,9 +307,6 @@ func _place_pair(battlers: Dictionary) -> int:
 	return _pin_side(slot, player, true, _arena.player_ground())
 
 
-## One side of the block, pinned with everything it says about its picture.
-## `visible` is not `kind`: `none` is a square nobody stands on and invisible is a
-## picture taken off one somebody does, which is a Fly or a recall.
 func _pin_side(slot: int, side: Dictionary, back: bool, ground: Vector3) -> int:
 	if not bool(side.get("visible", true)):
 		return slot
@@ -502,18 +316,11 @@ func _pin_side(slot: int, side: Dictionary, back: bool, ground: Vector3) -> int:
 		Vector2(side.get("scale", Vector2.ONE))
 	)
 
-
-## What one side's square holds. `none` is the stretch between a trainer walking
-## off and the ball arriving, and it is a state only the opponent's side reaches
-## at a frame boundary: `SendOutMonText` ends in `done`, so the player's last
-## slide column and the stamp land in one frame.
 const KIND_NONE: StringName = &"none"
 const KIND_TRAINER: StringName = &"trainer"
 const KIND_MON: StringName = &"mon"
 
 
-## `species` here is the same field the substitute flag is keyed against, so the
-## doll is reachable from the one path that draws anything.
 func _side_pic(side: Dictionary, back: bool) -> Texture2D:
 	match StringName(side.get("kind", KIND_NONE)):
 		KIND_MON:
@@ -525,39 +332,18 @@ func _side_pic(side: Dictionary, back: bool) -> Texture2D:
 	return null
 
 
-## The player's own picture, which is a person and not a species: `chris`,
-## `kris` or the catching tutorial's `dude`.
-##
-## The colours are a field of their own, because the Dude has none: the
-## cartridge draws him in the player's, which is what `player_backpic_palette`
-## carries and why it is not simply the pic's own name.
 func _backpic(kind: String) -> Texture2D:
 	if _data == null or kind.is_empty():
 		return null
 	var colors: String = String(_view.get("player_backpic_palette", kind))
 	var dmg: int = _palette_map(PAL_BG_PLAYER)
 	return _texture(
-		"b%s:%s:%d:%d" % [kind, colors, dmg, 1 if _graying() else 0],
+		"b%s:%s:%d:%d" % [kind, colors, dmg, int(_graying())],
 		_data.player_backpic(kind),
 		_battler_palette(_data.player_palette(colors), dmg),
 	)
 
 
-## One picture standing on [param ground], its feet at that point and its middle
-## over it, at a whole-number scale so a Game Boy pixel stays square.
-##
-## The place is the stage's and not the panels': a pinned picture belongs to the
-## patch of ground under it. Both layers are centred on the same window and the rig
-## frames the same world height, so a battler landing on its ground point also lands
-## in the hardware slot the rig was solved for.
-##
-## [param offset] is how far the picture stands from that patch, in hardware pixels
-## across the screen, and [param picture_scale] is how much of itself the picture is: the
-## resize script's ball shrink of a recall and grow of a send-out. Both come
-## straight out of the view's `battlers` block.
-##
-## A shrink is anchored where a card is, feet on the ground and middle over it, so
-## a recall collapses onto the point the ball is thrown at.
 func _pin(
 	slot: int, texture: Texture2D, ground: Vector3,
 	offset: Vector2 = Vector2.ZERO, picture_scale: Vector2 = Vector2.ONE
@@ -574,19 +360,9 @@ func _pin(
 	rect.position = at - Vector2(drawn.x * 0.5, drawn.y) + offset * float(_hud_scale())
 	rect.visible = true
 	if _stands_on_its_square(offset, picture_scale):
-		# Scale one is the only state that casts, so this is the picture's own
-		# height either way.
 		_stage.add_shadow_caster(texture, ground, _caster_scale(ground, texture.get_height()))
 	return slot + 1
 
-
-## Whether the sun should see a card there at all.
-##
-## The window effects throw a picture a few pixels and it keeps its footing: a
-## Tackle lunges, a Wobble shakes, a Psychic stretches. The opening slide, a faint
-## sink and a `RemoveMon` push carry it tens of pixels off instead, and a shadow
-## left standing under a picture that has gone is a shadow under nothing. One tile
-## is the line between them, since a faint's first step is exactly one.
 const SHADOW_OFFSET_LIMIT: float = float(Gen2Tiles.TILE_WIDTH)
 
 
@@ -595,13 +371,6 @@ func _stands_on_its_square(offset: Vector2, picture_scale: Vector2) -> bool:
 		and picture_scale.is_equal_approx(Vector2.ONE)
 
 
-## How big a card standing on [param ground] has to be for the sun to see the same
-## silhouette the player does: the world height whose projection is the
-## [param height] hardware pixels the picture is drawn at.
-##
-## Measured through the camera rather than derived, since the answer moves with
-## every zoom, climb and swing, and solved twice because a pitched camera changes
-## depth up the card's own length. One correction is enough at these sizes.
 func _caster_scale(ground: Vector3, height: int) -> float:
 	var wanted: float = float(height * _hud_scale())
 	var per_pixel: float = 1.0
@@ -620,27 +389,11 @@ func _battler(slot: int) -> TextureRect:
 		var rect := TextureRect.new()
 		rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# Under the panels, over the map: the hardware draws its pictures into
-		# the same background layer the panels sit on top of.
 		add_child(rect)
 		move_child(rect, 1 + _battlers.size())
 		_battlers.append(rect)
 	return _battlers[slot]
 
-
-## The DMG palette byte a move animation last left on one side of the field.
-##
-## The cartridge draws both battler pictures on the background layer, out of
-## `bg_map`, so what permutes a pic is a background palette map and not an object
-## one: slot 0 is the player's and slot 1 the enemy's. `BattleAnim_SetBGPals`
-## writes one byte across all seven and flashes the whole screen, where
-## `BGEffects_LoadPlayerPals` writes only this slot. Over the cartridge's own
-## animations the one-sided case is 1463 frames of 20956, half as much again as the
-## whole-screen flash.
-##
-## Exact rather than restated, because a pic IS four palette entries and the
-## permutation is a lookup among them. Only the world is approximated: see
-## `world/frame.gd`.
 const PAL_BG_PLAYER: int = 0
 const PAL_BG_ENEMY: int = 1
 const PALETTE_IDENTITY: int = 0xE4
@@ -657,11 +410,6 @@ func _palette_map(slot: int) -> int:
 	return PALETTE_IDENTITY
 
 
-## What a battler's picture is actually drawn in: `_CGB_BattleGrayscale`'s own
-## four levels for the length of the intro, and the pristine palette permuted by
-## the animation's last `BattleAnimRequestPals` byte after it. The stage wears
-## the grey as a pass over the whole picture; the cards are a layer above that
-## pass and so carry it in their own colours instead.
 func _battler_palette(pristine: PackedColorArray, dmg: int) -> PackedColorArray:
 	if _graying():
 		return _data.battle_grayscale_palette()
@@ -672,8 +420,6 @@ func _graying() -> bool:
 	return bool(_view.get("grayscale", false)) and _data != null
 
 
-## `CopyPals`: colour i of the result is colour `(byte >> i * 2) & 3` of the
-## pristine palette, which is why a remap never compounds.
 static func _remap(palette: PackedColorArray, dmg: int) -> PackedColorArray:
 	if dmg == PALETTE_IDENTITY or palette.is_empty():
 		return palette
@@ -683,42 +429,27 @@ static func _remap(palette: PackedColorArray, dmg: int) -> PackedColorArray:
 	return out
 
 
-## One battler's picture, cropped to what it fills and cut out of its field, so
-## it stands on the map rather than in a white box.
-##
-## The permutation is part of the cache KEY, not applied over the texture: a
-## remap is a different set of four colours and cutting the field out of it is
-## the same work either way, and a move plays through a handful of distinct bytes
-## rather than a new one per frame.
 func _pic(species: int, back: bool) -> Texture2D:
 	if _data == null or species <= 0:
 		return null
 	var form: int = int(_view.get("player_unown_form" if back else "enemy_unown_form", 0))
 	var dmg: int = _palette_map(PAL_BG_PLAYER if back else PAL_BG_ENEMY)
-	# `_GetFrontpic`'s own branch: Unown is drawn out of its own atlas by letter
-	# and everything else out of the species table. That atlas counts from zero
-	# and a letter counts from one, which is the subtraction.
 	var unown: bool = species == RomLayout.UNOWN_SPECIES and form > 0
 	var shiny: bool = _shiny(back)
 	return _texture(
 		"%d:%d:%d:%d:%d:%d" % [
-			species, form, 1 if back else 0, dmg,
-			1 if _graying() else 0, 1 if shiny else 0,
+			species, form, int(back), dmg,
+			int(_graying()), int(shiny),
 		],
 		_data.unown_pic(form - 1, back) if unown else _data.species_pic(species, back),
 		_battler_palette(_data.palette(species, shiny), dmg),
 	)
 
 
-## `CGB_BattleColors` reads `CheckShininess` on both sides, so a shiny is drawn
-## in its own palette rather than the species table's.
 func _shiny(back: bool) -> bool:
 	return bool(_view.get("player_shiny" if back else "enemy_shiny", false))
 
 
-## One side's picture, which is the doll rather than the animal while a
-## substitute is up. `SPRITE_MONSTER`'s own overworld strip is what the cartridge
-## builds that doll out of, so the battle draws a walking sprite.
 func _battler_pic(back: bool) -> Texture2D:
 	var species: int = int(_view.get("player_species" if back else "enemy_species", 0))
 	if bool(_view.get("player_substitute" if back else "enemy_substitute", false)):
@@ -726,17 +457,13 @@ func _battler_pic(back: bool) -> Texture2D:
 	return _pic(species, back)
 
 
-## `GetSubstitutePic`: four tiles of the monster sprite in an otherwise blank
-## box. The doll is drawn in whichever battler palette its box sits in, since
-## the cartridge writes none of its own for it, so the species it stands in for
-## is part of the key.
 func _substitute_pic(species: int, back: bool) -> Texture2D:
 	if _data == null:
 		return null
 	var dmg: int = _palette_map(PAL_BG_PLAYER if back else PAL_BG_ENEMY)
 	var shiny: bool = _shiny(back)
 	var key: String = "sub:%d:%d:%d:%d:%d" % [
-		species, 1 if back else 0, dmg, 1 if _graying() else 0, 1 if shiny else 0
+		species, int(back), dmg, int(_graying()), int(shiny)
 	]
 	if _pic_textures.has(key):
 		return _pic_textures[key]
@@ -758,22 +485,16 @@ func _substitute_pic(species: int, back: bool) -> Texture2D:
 	_pic_textures[key] = texture
 	return texture
 
-
-## `SPRITE_MONSTER` in `constants/sprite_constants.asm`, the same number in both
-## pins, and the tile the doll's box is measured in.
 const SUBSTITUTE_SPRITE: int = 0x4C
 const SUBSTITUTE_TILE: int = 8
 
 
-## The opposing trainer's own picture, in the cartridge's art. A class number is
-## what the pic and the palette are both keyed on, and a wild battle carries
-## class 0, which is what makes this answer nothing there.
 func _trainer_pic(trainer_class: int) -> Texture2D:
 	if _data == null or trainer_class <= 0:
 		return null
 	var dmg: int = _palette_map(PAL_BG_ENEMY)
 	return _texture(
-		"t%d:%d:%d" % [trainer_class, dmg, 1 if _graying() else 0],
+		"t%d:%d:%d" % [trainer_class, dmg, int(_graying())],
 		_data.trainer_pic(trainer_class),
 		_battler_palette(_data.trainer_palette(trainer_class), dmg),
 	)
@@ -790,16 +511,6 @@ func _texture(key: String, pic: Dictionary, palette: PackedColorArray) -> Textur
 	return texture
 
 
-## The pic with its field removed, rather than its background colour.
-##
-## A battle pic is drawn on the white field, and the field is colour index 0. So is
-## every white inside the drawing: an eye highlight, a tooth, a Marill's belly. So
-## making index 0 transparent wherever it appears punches holes through the animal.
-##
-## What is outside is not a colour but a region: the index 0 connected to the edge
-## of the picture. Flooding in from the border through index 0 alone stops at the
-## drawing's own black outline, so highlights sealed inside it survive. A drawing
-## whose silhouette touches the border keeps the corner the flood cannot reach.
 func _cut_out(pic: Dictionary, palette: PackedColorArray) -> Image:
 	if pic.is_empty() or not pic.has("atlas"):
 		return null
@@ -832,11 +543,6 @@ func _cut_out(pic: Dictionary, palette: PackedColorArray) -> Image:
 	return _image(pixels, width, height, palette)
 
 
-## An index buffer coloured, its field cut away and the result trimmed to what
-## is actually drawn. A pic sits in the top-left of a cell sized for the largest
-## of its kind, and the doll sits in the middle of a box that is otherwise
-## empty, so a card standing on its cell would stand on blank rows and the
-## figure would float above the ground.
 func _image(
 	pixels: PackedByteArray, width: int, height: int, palette: PackedColorArray
 ) -> Image:
@@ -857,8 +563,6 @@ func _image(
 	return image.get_region(used)
 
 
-## The index 0 reachable from the border, four-connected: everything the drawing
-## does not enclose.
 func _field(pixels: PackedByteArray, width: int, height: int) -> PackedByteArray:
 	var field := PackedByteArray()
 	field.resize(width * height)
@@ -889,23 +593,6 @@ func _field(pixels: PackedByteArray, width: int, height: int) -> PackedByteArray
 			stack.append(at + width)
 	return field
 
-
-## The panels and the three bars, each in its own palette because the hardware
-## gives every background tile one: a green HP bar sits inside a panel of black
-## text without either being a separate rectangle.
-##
-## `hud_visible` is false for the length of a move animation, which is
-## `BattleAnimClearHud` taking all four off the map.
-##
-## The two panels arrive one at a time, which is why each has its own layer: an
-## entrance puts the opponent's panel up on the send-out and the player's only once
-## the ball has landed. `enemy_hud_visible` and `player_hud_visible` are the host's
-## answer per side, against `hud_visible`'s summary of both. A view carrying neither
-## is a settled fight and takes both.
-##
-## The last two are `BattleStart_TrainerHuds`, the party balls and the frame they
-## hang in, which are up only while a trainer fight is opening and are how a
-## player reads how much of each team is left before the first move.
 const HUD_ENEMY_PANEL: int = 0
 const HUD_PLAYER_PANEL: int = 1
 const HUD_ENEMY_BAR: int = 2
@@ -972,15 +659,6 @@ func _draw_hud() -> void:
 	_draw_trainer_hud(up, ink)
 
 
-## `DrawPlayerPartyIconHUDBorder`, `DrawEnemyHUDBorder` and `LoadTrainerHudOAM`:
-## six ball icons a side saying how much of each team is well, and the frame they
-## hang in. Both are empty once the fight has started, so this draws nothing for
-## all but the opening of a trainer battle.
-##
-## The frame is background tiles, in the panels' own ink. The balls are OBJECTS,
-## on `PAL_BATTLE_OB_YELLOW`, which is why they are a layer of their own: an
-## object is not part of the background plane and carries neither its palette nor
-## its scroll.
 func _draw_trainer_hud(up: bool, ink: PackedColorArray) -> void:
 	var border: Array = _view.get("trainer_hud_border", []) as Array
 	if up and not border.is_empty():
@@ -1014,13 +692,10 @@ func _draw_trainer_hud(up: bool, ink: PackedColorArray) -> void:
 		_data.battle_object_palette(Gen2BattleAnimBackground.PAL_OB_YELLOW)
 	)
 
-
-## `LoadBallIconGFX`' four tiles: well, fainted, statused and the empty slot.
 const BALL_ICON_SHEET: String = "ball_icons"
 const TILE: int = 8
 
 
-## One ball, at the pixel position the OAM entry names.
 func _blit_ball(
 	into: PackedByteArray, ball: Dictionary, sheet: PackedByteArray, width: int
 ) -> void:
@@ -1040,14 +715,6 @@ func _blit_ball(
 			into[to + column] = sheet[from + column]
 
 
-## The move animation, over everything. `anim.gd` turns the view's OAM into one
-## hardware-sized picture and this lays it on at the same whole-number scale the
-## panels are drawn at, so an animation pixel and a panel pixel are the same
-## size.
-##
-## The drift correction is inside the picture rather than on the layer, so the
-## layer itself always sits on the hardware screen's own origin. See `anim.gd`
-## for why one offset for the whole layer would be no offset at all.
 func _draw_anim() -> void:
 	if _anim_layer == null:
 		return
@@ -1071,13 +738,6 @@ func _layout_anim() -> void:
 	_anim_layer.position = _hud_origin()
 
 
-## How far each battler landed from its OWN mark, in HARDWARE pixels.
-##
-## Measured through the camera rather than assumed zero. It IS zero on a still
-## shot, to within the hundredth of a pixel the rig solves to, and that is the
-## whole reason an animation can be drawn at the hardware's own coordinates in
-## the first place: this only tracks what the drift adds afterwards. Measured
-## over a whole period of both drift terms, neither exceeds 1.2 px.
 func _measure_anim_drift() -> void:
 	if _arena == null or _stage == null or _stage.camera == null:
 		return
@@ -1089,10 +749,6 @@ func _measure_anim_drift() -> void:
 		/ factor - _arena.PLAYER_MARK
 
 
-## A redraw costs forty eight-pixel blits, so it is spent only when the drift has
-## actually moved the picture: rounded to hardware pixels, nothing finer reaches
-## it. Nothing at all happens on a frame with no animation up, which is every
-## frame outside a move.
 func _follow_anim_drift() -> void:
 	if _anim_layer == null or _anim_layer.texture == null:
 		return
@@ -1112,8 +768,6 @@ func _buffer() -> PackedByteArray:
 	return out
 
 
-## Index 0 is transparent on every layer: a panel is a shape over the map, not a
-## rectangle of white across it.
 func _show(index: int, indices: PackedByteArray, palette: PackedColorArray) -> void:
 	_hud_layers[index].texture = ImageTexture.create_from_image(
 		Gen2PicImage.from_indices(
@@ -1123,15 +777,10 @@ func _show(index: int, indices: PackedByteArray, palette: PackedColorArray) -> v
 	_layout_layer(_hud_layers[index])
 
 
-## The hardware screen at the largest whole-number scale that fits, centred. A
-## fractional scale would put a Game Boy pixel across a screen pixel boundary and
-## the panels would shimmer as the window resized.
 func _layout_hud() -> void:
 	for layer: TextureRect in _hud_layers:
 		_layout_layer(layer)
 	_layout_anim()
-	# The frost reaches the same number of HARDWARE pixels at every window size,
-	# so it does not sharpen as the window grows.
 	if _frost != null:
 		_frost.set_scale(_hud_scale())
 	for backing: ColorRect in _panels_backing:
@@ -1149,18 +798,6 @@ func _layout_layer(layer: TextureRect) -> void:
 	layer.position = _hud_origin()
 
 
-## Window pixels per hardware pixel, and where the hardware screen's corner sits on
-## this surface. Everything laid out in the cartridge's coordinates goes through
-## these two: the panels, both bars, the text, the battlers and the OAM layer.
-##
-## The host owns both. A fight staged on the map fills the window, so the surface is
-## no longer a whole multiple of 160x144 and centring the hardware screen in it is
-## not this renderer's arithmetic: the host centres it in a buffer built out of whole
-## map blocks and pushes the answer. Working it out here put the panels at seven
-## window pixels per hardware pixel where the host's text box was drawn at six.
-##
-## The fallback is what a renderer built outside the game gets: a probe and
-## `tools/battle_shot.gd` push no rectangle, and there the surface IS the screen.
 func _hud_scale() -> int:
 	if _screen_rect.size.y >= Gen2Screen.HEIGHT:
 		@warning_ignore("integer_division")
@@ -1179,8 +816,6 @@ func _hud_origin() -> Vector2:
 	return ((Vector2(_native) - drawn) * 0.5).floor()
 
 
-## An HP bar is green, yellow or red by how much of it is lit rather than by the
-## hit points behind it, which is the rule the games use.
 func _hp_palette(hp: int, max_hp: int) -> PackedColorArray:
 	var lit: int = Gen2BattleHud.bar_pixels(
 		hp, max_hp, Gen2BattleHud.HP_BAR_TILES * Gen2BattleHud.TILE
@@ -1188,10 +823,6 @@ func _hp_palette(hp: int, max_hp: int) -> PackedColorArray:
 	return _data.bar_palette(GameData.hp_bar_palette_name(lit))
 
 
-## The bank and the shore's colours, handed over together because they are one
-## look: `world/water.gd` is where they are read and `shape/mesher.gd:bank_field`
-## is where the field is baked, with the resolve rather than per frame. This costs
-## a texture handle and three colours.
 func _bank() -> void:
 	var shore: PackedColorArray = _atlas.shore_colors()
 	if shore.size() == 2:

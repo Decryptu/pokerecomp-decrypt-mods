@@ -1,44 +1,18 @@
 extends SceneTree
 
 ## Photographs the fourth stats page, through the real party screen.
-##
-## The host's own `tools/preview_party.gd` can reach a mod page, but it
-## registers the SHIPPED EXAMPLE's page to do it, so this mod's page lands fifth
-## behind one that is not ours and the indicator row counts a page a player of
-## this mod would never see. Here only this mod is loaded, so the page is the
-## fourth and the indicators say four.
-##
-## The Pokemon is staged rather than taken from the development save, whose
-## party is perfect fifteens and no training at all: a picture of a page whose
-## whole subject is the numbers a player cannot otherwise see should have
-## numbers in it.
-##
-##   Godot --path <pokerecomp> -s tools/hidden_stats_shot.gd -- \
-##       <game> <out.png> [species] [level] [scale]
-##
-## Rendering needs a display.
 
-## The party screen is a window-resolution panel, so the window is sized to a
-## whole multiple of the hardware screen and the panel fills it exactly. Nothing
-## is cropped afterwards and nothing is scaled by halves.
 const SCREEN := Vector2i(160, 144)
 const WINDOW_SCALE: int = 4
 
-## STATS out of the party member's own submenu, then three page turns: pink,
-## green, blue, and the fourth is this mod's.
 const ROUTE: Array[int] = [
 	Gen2Button.A, Gen2Button.A,
 	Gen2Button.RIGHT, Gen2Button.RIGHT, Gen2Button.RIGHT,
 ]
 
-## Frames before the shutter, which is `preview_party.gd`'s own count.
 const CAPTURE_ON: int = 6
 
-## Neither perfect nor flat, and shiny is avoided: a shiny DV set is four fixed
-## numbers and reads as a bug in a screenshot rather than as a rarity.
 const DVS: int = 0xB7D9
-## Part-trained, so the column shows what training looks like partway rather
-## than at nothing or at the cap.
 const STAT_EXP: Dictionary = {
 	"hp": 21760, "attack": 40960, "defense": 8704,
 	"special": 15104, "speed": 33280,
@@ -91,9 +65,6 @@ func _initialize() -> void:
 		return
 	save.party = [mon]
 
-	# The window itself, not just the viewport: this panel is drawn at window
-	# resolution, so anything else letterboxes it inside a frame of project grey
-	# that then has to be cropped back off.
 	DisplayServer.window_set_size(SCREEN * WINDOW_SCALE)
 	root.set_content_scale_size(SCREEN * WINDOW_SCALE)
 	root.size = SCREEN * WINDOW_SCALE
@@ -105,10 +76,6 @@ func _initialize() -> void:
 	current_scene = _screen
 
 
-## One Pokemon the cartridge would accept, with hidden halves worth printing.
-## Built through [Gen2BattleMon.create] so the stats, moves and HP are the
-## cartridge's rather than invented here, then given the DVs and the training
-## the page exists to show.
 func _stage(data: GameData, species: int, level: int) -> Gen2SaveMon:
 	var battle_mon: Gen2BattleMon = Gen2BattleMon.create(
 		data, species, level, data.moves_at_level(species, level)

@@ -1,17 +1,7 @@
 extends SceneTree
 
 ## Checks the Linking Cord against a real cartridge cache, on whichever of the
-## three is named. Everything here is the reachable half of the mod: the item
-## row, the shelf it sits on, the pocket it lands in and the submenu it opens.
-##
-## The last section RUNS the evolution, against a real save and a real world,
-## over the five axes the item has: the plain trade evolution, the one that
-## wants a held item, the same one without it, a species with no trade
-## evolution at all, and an EVERSTONE. Each also asserts whether the cord was
-## spent, since an item consumed by a refusal is the expensive way to be wrong.
-##
-##   godot --headless --path <pokerecomp> -s tools/linking_cord_probe.gd \
-##       -- <cartridge>
+## three is named.
 
 const MOD_ID: StringName = &"linking_cord"
 const LINKING_CORD: int = 256
@@ -23,8 +13,6 @@ const EVERSTONE: int = 70
 const KADABRA: int = 64
 const ALAKAZAM: int = 65
 
-## The five axes the cord has, each named by what it proves. The species are
-## the cartridge's own numbers and the held items come from its evolution rows.
 const CASES: Array[Dictionary] = [
 	{"what": "KADABRA, holding nothing", "species": 64, "becomes": 65},
 	{"what": "ONIX holding METAL COAT", "species": 95, "held": 0x8F, "becomes": 208},
@@ -33,10 +21,6 @@ const CASES: Array[Dictionary] = [
 	{"what": "KADABRA holding EVERSTONE", "species": 64, "held": EVERSTONE},
 ]
 
-## The two boxes, which no axis above covers and which were wrong once. Both
-## read the name the Pokemon came in under, so the un-nicknamed row is the one
-## that matters: the party list says ALAKAZAM by the time they print, and they
-## must still say KADABRA.
 const NAME_CASES: Array[Dictionary] = [
 	{
 		"what": "un-nicknamed KADABRA",
@@ -58,13 +42,7 @@ const NAME_CASES: Array[Dictionary] = [
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	var cartridge: String = args[0] if not args.is_empty() else "crystal"
-	## BEFORE the cartridge is opened. `reset()` replaces the shared content
-	## overlay, and a `GameData` opened ahead of it holds the one it is replacing,
-	## so the mod's own item would be missing from every row this probe reads.
 	Gen2ModHost.reset()
-	# Either form: a cache directory or a cartridge id. `GameData` answers which
-	# of the two an argument is, and fills `id` off the manifest either way, so
-	# the host is told the same cartridge whichever was typed.
 	var data: GameData = GameData.open_argument(cartridge)
 	if data == null:
 		print("no cache for %s" % cartridge)
@@ -84,8 +62,6 @@ func _initialize() -> void:
 	quit(0 if ok else 1)
 
 
-## The mod is loaded by the production path, not by hand, so a manifest the host
-## would refuse is a failure here rather than a surprise in the launcher.
 func _loaded(host: Gen2ModHost) -> bool:
 	for failure: Dictionary in host.failures():
 		print("mod refused: %s" % str(failure))
@@ -118,9 +94,6 @@ func _item(data: GameData) -> bool:
 	return ok
 
 
-## The shelf, through the host's own mart entries rather than through the
-## registration: the filter is what decides which counter carries the row, and
-## a filter that answered everywhere would sell the cord in every town.
 func _shelf(host: Gen2ModHost, data: GameData) -> bool:
 	var ok: bool = true
 	var sold_at: Array[int] = []
@@ -141,7 +114,6 @@ func _shelf(host: Gen2ModHost, data: GameData) -> bool:
 	return ok
 
 
-## The pack, with one owned, which is the list the player actually reads.
 func _pocket(data: GameData) -> bool:
 	var state := Gen2WorldState.new()
 	state.apply_changes({}, {}, {"items": {LINKING_CORD: 1}})
@@ -165,8 +137,6 @@ func _pocket(data: GameData) -> bool:
 	return true
 
 
-## The USE itself, end to end. Each case opens its own world and save so a
-## spent cord or an evolved party cannot leak into the next one.
 func _evolves(data: GameData) -> bool:
 	var ok: bool = true
 	for case: Dictionary in CASES:
@@ -189,8 +159,6 @@ func _evolves(data: GameData) -> bool:
 	return ok
 
 
-## One USE against its own world and save. `becomes` is 0 for a case that has to
-## be refused, and the cord is expected to survive exactly those.
 func _case(data: GameData, case: Dictionary) -> bool:
 	var species: int = int(case["species"])
 	var held: int = int(case.get("held", 0))
@@ -211,7 +179,6 @@ func _case(data: GameData, case: Dictionary) -> bool:
 	save.party[0] = mon
 	var before_hp: int = mon.hp
 
-	## `persist` false: a probe never writes a slot on this machine.
 	var result: Dictionary = Gen2WorldPartyHost.use_item(world, save, LINKING_CORD, 0, false)
 
 	var evolved: int = save.party[0].species
@@ -229,13 +196,9 @@ func _case(data: GameData, case: Dictionary) -> bool:
 	if kept != 0:
 		print("%s FAILED: the cord was not spent" % line)
 		return false
-	## `evolve.asm` adds the max-HP delta rather than refilling, so damage
-	## carries across; a species that grew cannot come out with less than it had.
 	if save.party[0].hp < before_hp:
 		print("%s FAILED: HP fell from %d to %d" % [line, before_hp, save.party[0].hp])
 		return false
-	## The held item is consumed by the evolution that asked for it, and only by
-	## that one. The host zeroes it; this checks that it did.
 	if held != 0 and save.party[0].item != 0:
 		print("%s FAILED: %s was not consumed" % [
 			line, String(data.item(held).get("name", "?")),
@@ -245,11 +208,6 @@ func _case(data: GameData, case: Dictionary) -> bool:
 	return true
 
 
-## What the pack prints, assembled the way `_use_summary` assembles it, and the
-## name the party list is left holding. The Pokedex is asserted with them
-## because a Pokemon the cord made has to be entered the way one made by a stone
-## is; `use_item` writes it onto live state and does not return it, so the read
-## is the dex itself.
 func _names(data: GameData, case: Dictionary) -> bool:
 	var world: Gen2WorldAPI = Gen2WorldAPI.open(
 		data, NEW_BARK_GROUP, NEW_BARK_MAP, Vector2i.ZERO,

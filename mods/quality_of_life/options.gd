@@ -1,7 +1,6 @@
 extends RefCounted
 
-## Every convenience this mod provides, named once. Each is separate and OFF by
-## default, so installing the mod changes nothing until the player chooses it.
+## Every convenience this mod provides, named once.
 
 const MOD_ID: StringName = &"quality_of_life"
 

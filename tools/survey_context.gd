@@ -1,59 +1,19 @@
 extends SceneTree
 
 ## Finds each tile somewhere in the real world and photographs it there.
-##
-## A tile on its own is eight pixels square and a reviewer cannot name it: the
-## first round proved that, three ways, on tiles that turned out to be a table
-## corner and a book. What makes a drawing readable is what it sits next to. So
-## for every tile still worth asking about, this finds a place the cartridge
-## actually uses it, renders the map around it exactly as the 2D view draws it,
-## and rings the tile twice, in magenta and white. See RING_OUTER.
-##
-## For a drawing spanning several tiles rather than one, `map_art.gd` rings a
-## rectangle the same way and crops the map around it.
-##
-## Two modes, because two different readers ask for two different things.
-##
-##   unpinned  the tiles that EXTRUDE: placed in a blocked cell and not already
-##             pinned, which is the only kind that can be wrong in a way worth a
-##             human's time. Ground is ground.
-##   all       every tile the tileset places anywhere, with how often each is
-##             found in a walkable cell and in a blocked one. That is the full
-##             pass, and it is for an agent reading the pictures itself: a floor
-##             tile is worth a second of a machine's time and not of a person's.
-##
-##   Godot --path <pokerecomp> -s tools/survey_context.gd -- \
-##       <cache> <ts|all> <out> [unpinned|all]
-##
-## Emits `ctx_ts<n>_<tile>.png` per tile and `ask_ts<n>.json` beside them, or
-## `pass_ts<n>.json` in the full mode. `tools/survey_tiles.py` builds the human
-## page from the first; `tools/survey_pass.py` builds an agent's packet from the
-## second.
 
 const MOD := "user://mods/voxel3d"
 const TILE: int = 8
 const BLOCK_TILES: int = 4
 const BLOCK_CELLS: int = 2
 
-## The window around the tile, in tiles. Fifteen is most of a Game Boy screen,
-## which is the frame the drawing was composed to be read in.
 const WINDOW: int = 15
-## RINGED TWICE, in two colours, because one ring is not enough on art of its own
-## colour. A red ring is nearly invisible over red art and three tilesets lost
-## tiles to exactly that: ts16's 4, 20 and 54 were reported as missing art and
-## are a red and cream checked mat, and ts23's 24 is a red rug. Magenta is the
-## outer ring because the cartridge's terrain palettes never reach it, and white
-## the inner one, so whichever of the two the art happens to be wearing, the
-## other still reads.
 const RING_OUTER := Color(1.0, 0.0, 1.0)
 const RING_INNER := Color(1.0, 1.0, 1.0)
-## Screen pixels per art pixel in the full pass's crops.
 const SCALE: int = 4
 
 var _data: GameData = null
 var _out: String = ""
-## Whether to ask about every tile the tileset places, or only the ones standing
-## up unpinned.
 var _every: bool = false
 
 
@@ -89,8 +49,6 @@ func _initialize() -> void:
 	quit()
 
 
-## The map that places this tileset most, which is where a drawing is most
-## likely to appear in the setting it was drawn for.
 func _busiest(number: int) -> Gen2WorldMap:
 	var best: Gen2WorldMap = null
 	var most: int = -1
@@ -106,8 +64,6 @@ func _ask(number: int, profile: GDScript) -> void:
 	if tileset == null:
 		return
 
-	# Where each tile is placed, and whether that placement is a blocked cell.
-	# A tile is worth asking about when it stands up somewhere.
 	var seen: Dictionary = {}
 	var maps: Array = []
 	for map: Gen2WorldMap in _data.world_maps():
@@ -144,14 +100,10 @@ func _ask(number: int, profile: GDScript) -> void:
 						entry["water"] = int(entry["water"]) + 1
 					Gen2WorldCollision.LAND_TILE:
 						entry["walkable"] = int(entry["walkable"]) + 1
-				# The most CENTRAL placement is the one photographed, but a tile
-				# that stands up anywhere is worth photographing where it does.
 				if _every and permission == Gen2WorldCollision.WALL_TILE \
 						and not entry.has("blocked_at"):
 					entry["blocked_at"] = Vector2i(tx, ty)
 					entry["blocked_map"] = map
-				# The most central placement, so the window is full of map
-				# rather than half off the edge.
 				var away: float = (
 					Vector2(tx, ty) - Vector2(tiles) * 0.5
 				).length() / maxf(float(tiles.x), 1.0)
@@ -196,8 +148,6 @@ func _ask(number: int, profile: GDScript) -> void:
 	print("tileset %d: %d tiles to ask about" % [number, records.size()])
 
 
-## The map as the 2D view draws it: the tileset's own pixels through the map's
-## own palettes, one texel per pixel.
 func _paint(map: Gen2WorldMap, tileset: Gen2WorldTileset) -> Image:
 	var indices: PackedByteArray = _data.world_tileset_indices(tileset.number)
 	var palettes: Array = Gen2WorldPalette.tile_palettes(
@@ -224,7 +174,6 @@ func _paint(map: Gen2WorldMap, tileset: Gen2WorldTileset) -> Image:
 	return image
 
 
-## The window around one placement, with the tile itself ringed.
 func _crop(map_image: Image, at: Vector2i, number: int, tile: int) -> String:
 	var half: int = WINDOW / 2
 	var tiles := Vector2i(map_image.get_width() / TILE, map_image.get_height() / TILE)
@@ -238,8 +187,6 @@ func _crop(map_image: Image, at: Vector2i, number: int, tile: int) -> String:
 	))
 	var out: Image = map_image.get_region(box)
 
-	# Drawn OUTSIDE the tile, so neither ring ever covers the thing it is pointing
-	# at. The inner one is against the tile and the outer one a pixel further out.
 	for step: int in 2:
 		var color: Color = RING_INNER if step == 0 else RING_OUTER
 		var inset: int = step + 1
@@ -256,9 +203,6 @@ func _crop(map_image: Image, at: Vector2i, number: int, tile: int) -> String:
 				if x >= 0 and y >= 0 and x < out.get_width() and y < out.get_height():
 					out.set_pixel(x, y, color)
 
-	# Blown up for the full pass, because a 120px crop is unreadable and every
-	# reader of one would otherwise scale it themselves. Nearest, or the ring and
-	# the art both turn to soup.
 	if _every:
 		out.resize(out.get_width() * SCALE, out.get_height() * SCALE, Image.INTERPOLATE_NEAREST)
 

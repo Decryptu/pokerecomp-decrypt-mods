@@ -2,43 +2,24 @@ extends RefCounted
 
 ## Where the overworld's eye sits, what lens is on it, and the ease between one
 ## setting and the next.
-##
-## The renderer only exists while it is the selected view, so there is no "off"
-## rung: the host owns that. What is left is the shot.
-##
-## The binding is not here. `steering.gd` owns what a key or a wheel notch means,
-## so the two views cannot disagree; this answers the commands an orbit about the
-## player has an answer for and refuses the rest.
-##
-## Purely presentational: nothing here reaches collision, movement, triggers or
-## scripts, and the keys it reads are the ones the world screen did not claim.
 
 const Steering: GDScript = preload("../steering.gd")
 
-## Degrees above the horizon. Near-flat is a street-level shot; near overhead is
-## the tile page with height on it.
 const PITCH_LIMITS := Vector2(12.0, 88.0)
 const PITCH_STEP: float = 6.0
 const PITCH_DEFAULT: float = 50.0
 
-## Distance from the player, in world pixels. A walk cell is 16, so the default
-## frames a little over a screen's worth of map.
 const DISTANCE_LIMITS := Vector2(48.0, 480.0)
 const DISTANCE_STEP: float = 24.0
 const DISTANCE_DEFAULT: float = 190.0
 
-## The lens at zoom 1.0, in degrees: what the stage was framed at.
 const FOV_DEFAULT: float = 42.0
 
-## How far above a text box the player is kept when one reaches the middle of the
-## frame, in hardware pixels. See [method pan_for_text_box].
 const BOX_CLEARANCE: int = 16
 
 var _pitch: float = PITCH_DEFAULT
 var _distance: float = DISTANCE_DEFAULT
 var _zoom: float = 1.0
-## How far up the frame the shot is pushed, as a fraction of the frame's height.
-## See `pan_for_text_box`.
 var _pan: float = 0.0
 
 var _pitch_from: float = PITCH_DEFAULT
@@ -51,22 +32,14 @@ var _zoom_goal: float = 1.0
 var _pan_goal: float = 0.0
 var _t: float = 1.0
 
-## Which way a wheel notch zooms, from the player's own setting.
 var _wheel_sign: int = 1
-## The pitch the view opens at, which RECENTRE goes back to rather than to the
-## constant: the player chose it in the start menu.
 var _opening_pitch: float = PITCH_DEFAULT
 
 
-## Every input event the world screen did not use. True consumes it. Movement and
-## interaction keys never arrive: the screen claims those first, and an overlay, a
-## running script or a battle claims everything.
 func handle_input(event: InputEvent) -> bool:
 	return steer(Steering.command(event, _wheel_sign))
 
 
-## One command, wherever it came from: a declared action the host resolved off a
-## key, a pad, a stick or a finger, or the wheel this rig read itself.
 func steer(command: StringName) -> bool:
 	match command:
 		Steering.ZOOM_IN:
@@ -84,18 +57,10 @@ func steer(command: StringName) -> bool:
 		Steering.RESET:
 			_aim(_opening_pitch, DISTANCE_DEFAULT, 1.0)
 		_:
-			# A swing means nothing about a player always in the middle of the
-			# frame, so it is left for whoever else wants it.
 			return false
 	return true
 
 
-## The same command held rather than pressed, worth [param notches] of its own
-## step this frame. See `steering.gd:Glide`.
-##
-## A press aims at a goal and eases to it; a hold moves the goal itself, so this
-## carries the value, the ease's starting point and the goal together. The pan is
-## untouched: a text box opening mid-hold has its own tween running through this.
 func steer_by(command: StringName, notches: float) -> bool:
 	match command:
 		Steering.ZOOM_IN:
@@ -146,14 +111,11 @@ func set_wheel_sign(sign_of_wheel: int) -> void:
 	_wheel_sign = 1 if sign_of_wheel >= 0 else -1
 
 
-## The player's own ANGLE setting. It eases like any other steer, so choosing it
-## in the start menu shows what it does instead of snapping when the menu closes.
 func set_default_pitch(degrees: float) -> void:
 	_opening_pitch = degrees
 	_aim(degrees, _distance_goal, _zoom_goal)
 
 
-## Real frame time, so a fast-forward never speeds the camera up.
 func advance(delta: float) -> bool:
 	if _t >= 1.0:
 		return false
@@ -166,34 +128,15 @@ func advance(delta: float) -> bool:
 	return true
 
 
-## Where the eye sits relative to what it is looking at.
 func offset() -> Vector3:
 	var above: float = deg_to_rad(_pitch)
 	return Vector3(0.0, sin(above), cos(above)) * _distance
 
 
-## Zooming the lens rather than the dolly keeps the pitch and the perspective the
-## player set while only the framing changes.
 func fov() -> float:
 	return rad_to_deg(2.0 * atan(tan(deg_to_rad(FOV_DEFAULT) * 0.5) * _zoom))
 
 
-## How much of the frame the text box takes, turned into where the shot has to
-## sit: the box covers everything below [param box_top], and the player must not
-## be behind it.
-##
-## Only what the box actually covers. The eye is aimed at the player's feet, so
-## they stand at the middle of the frame whatever the pitch, and the cartridge's
-## own box is the bottom third: it hides nothing, and panning for it anyway swung
-## the camera down and up again on every line of every conversation. A box that
-## does reach past the middle pushes the shot far enough to clear it, plus
-## [constant BOX_CLEARANCE].
-##
-## [param box_top] and [param frame_height] are the SURFACE's own pixels, not the
-## hardware's: a filled window is not a whole multiple of 160x144, so where a
-## hardware pixel lands is `set_screen_rect`'s answer. [param per_hardware_pixel]
-## is how many surface pixels one hardware pixel covers, which is what
-## `BOX_CLEARANCE` is measured in. An empty box is a zero pan back to centre.
 func pan_for_text_box(
 	box_top: float, frame_height: float, per_hardware_pixel: float = 1.0
 ) -> void:
@@ -206,15 +149,10 @@ func pan_for_text_box(
 	_aim(_pitch_goal, _distance_goal, _zoom_goal, wanted)
 
 
-## The translation [method pan_for_text_box] asked for, applied to the eye and
-## the target alike so it is a pan and not a tilt: a tilt would rake the ground
-## and swing the horizon, where the map wants the same picture moved up.
 func pan() -> Vector3:
 	if is_zero_approx(_pan):
 		return Vector3.ZERO
 	var above: float = deg_to_rad(_pitch)
-	# The frame's height in world pixels at the aim distance, and the camera's own
-	# up axis, which is where a pan runs.
 	var frame: float = 2.0 * _distance * tan(deg_to_rad(fov()) * 0.5)
 	return Vector3(0.0, -cos(above), sin(above)) * (_pan * frame)
 

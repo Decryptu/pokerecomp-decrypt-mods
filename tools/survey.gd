@@ -1,56 +1,21 @@
 extends SceneTree
 
-## Lays out every block a tileset actually places, twice: as the cartridge draws
-## it and as this mod builds it, on the same grid, so the two can be compared
-## block by block.
-##
-## The survey's unit is the BLOCK, not a map location. A block is 4x4 tiles on
-## 2x2 walk cells and it is the unit Generation II authors the world out of: a
-## tree, a sign, a fence corner, a stretch of path is each one block. Walking a
-## map to find them is the slow way round, misses everything the walk did not
-## pass, and shows the same drawing over and over; every block of a tileset laid
-## out at once is the whole vocabulary in a single picture, and 35 pictures is
-## the whole game.
-##
-## Emits, per tileset, into the output directory:
-##
-##   ts<n>_2d.png    the cartridge's own art, one block per grid slot
-##   ts<n>_3d.png    the same grid meshed and shot from a fixed orthographic eye
-##   ts<n>.json      the grid, and per block: its id, its four permissions, the
-##                   shapes resolved for its tiles and the heights measured
-##
-## `tools/survey_sheet.py` pairs them into the annotated sheet a reviewer marks
-## up. Nothing here writes to the mod: a pin is a human's answer, and this only
-## asks the question.
-##
-## Run with a display attached, since it renders:
-##
-##   Godot --path <pokerecomp> -s tools/survey.gd -- <cache> <tileset|all> <out>
+## Lays out every block a tileset actually places, twice: as the cartridge
+## draws it and as this mod builds it, on the same grid, so the two can be
 
 const MOD := "user://mods/voxel3d"
 const CELL: float = 16.0
 const TILE: int = 8
-## Tiles across a block, and cells across a block.
 const BLOCK_TILES: int = 4
 const BLOCK_CELLS: int = 2
 const BLOCK_PIXELS: int = BLOCK_TILES * TILE
 
-## Blocks across the sheet, and the gap between two of them, in blocks. The gap
-## keeps a structure from measuring its height through its neighbour, which is
-## the whole reason the blocks are not simply tiled edge to edge.
 const COLUMNS: int = 12
 const GAP: int = 1
 
-## Screen pixels per world pixel in the 3D shot. Three keeps a 32px block on 96
-## and the whole sheet inside one viewport.
 const SCALE: float = 3.0
-## The crop a reviewer sees around each block, in screen pixels, and where the
-## block's own ground centre sits inside it. The headroom above is what holds a
-## structure measured three cells tall.
 const CROP := Vector2i(112, 152)
 const CROP_GROUND := Vector2i(56, 118)
-## The tallest thing the frame has to hold, in world pixels: the mesher caps a
-## measured volume at three walk cells, and a pin could reach a little past it.
 const TALLEST: float = 64.0
 
 var _data: GameData = null
@@ -102,8 +67,6 @@ func _initialize() -> void:
 		_queue.append(int(args[1]))
 
 
-## tileset number -> block id -> how many times any map places it, and which map
-## places the most of them.
 func _placements() -> Dictionary:
 	var out: Dictionary = {}
 	for map: Gen2WorldMap in _data.world_maps():
@@ -116,8 +79,6 @@ func _placements() -> Dictionary:
 	return out
 
 
-## The block a gap is filled with: walkable on all four cells and drawn out of
-## the fewest distinct tiles, which is what plain ground looks like from here.
 func _filler(tileset: Gen2WorldTileset, blocks: Array) -> int:
 	var best: int = -1
 	var best_variety: int = 99
@@ -141,11 +102,6 @@ func _filler(tileset: Gen2WorldTileset, blocks: Array) -> int:
 	return best
 
 
-## A map made of nothing but the blocks being surveyed, spaced out on filler.
-##
-## Synthesised rather than found: no real map places every block of its tileset,
-## and the ones it does place sit against neighbours that change what a column
-## measures. The grid is the only place each drawing is asked the question alone.
 func _grid_map(source: Gen2WorldMap, tileset: Gen2WorldTileset, blocks: Array) -> Dictionary:
 	var filler: int = _filler(tileset, blocks)
 	var rows: int = int(ceil(float(blocks.size()) / float(COLUMNS)))
@@ -190,7 +146,6 @@ func _grid_map(source: Gen2WorldMap, tileset: Gen2WorldTileset, blocks: Array) -
 	return {"map": map, "places": places, "rows": rows, "filler": filler}
 
 
-## The cartridge's own drawing of every block, on the survey grid.
 func _paint_2d(map: Gen2WorldMap, tileset: Gen2WorldTileset, places: Dictionary) -> Image:
 	var indices: PackedByteArray = _data.world_tileset_indices(tileset.number)
 	var palettes: Array = Gen2WorldPalette.tile_palettes(
@@ -228,7 +183,6 @@ func _paint_2d(map: Gen2WorldMap, tileset: Gen2WorldTileset, places: Dictionary)
 	return image
 
 
-## What the mod resolves each of a block's tiles to, and how tall it built them.
 func _verdict(
 	map: Gen2WorldMap, tileset: Gen2WorldTileset, shape: RefCounted, at: Vector2i
 ) -> Dictionary:
@@ -293,8 +247,6 @@ func _build(number: int) -> bool:
 	var places: Dictionary = grid["places"]
 
 	_stage.set_time_of_day(Gen2WorldPalette.TIME_DAY)
-	# THE SEQUENCE, so a survey sheet shows the drawing the game cuts. See
-	# `atlas.gd:frame_count`.
 	var animation := Gen2WorldAnimation.new()
 	animation.configure_tileset(_data, tileset, Gen2WorldPalette.TIME_DAY)
 	if _atlas.build(_data, map, tileset, Gen2WorldPalette.TIME_DAY, animation):
@@ -304,28 +256,13 @@ func _build(number: int) -> bool:
 	_stage.set_terrain(_mesher.build(_map_source.new(null, map, tileset), shape, _atlas))
 	_stage.set_water(_mesher.take_water())
 	_stage.set_tufts(_mesher.take_tufts())
-	# And the models, or every block built as one shows an empty patch of grass
-	# and the sheet asks the reviewer to grade a hole.
 	_stage.set_models(_mesher.take_models())
 
 	_paint_2d(map, tileset, places).save_png("%s/ts%d_2d.png" % [_out, number])
 
-	# One orthographic eye over the whole grid, so every slot is at the same
-	# scale and a crop is a pure translation. A perspective camera would size
-	# each block by where it happened to land on the sheet.
-	#
-	# The frame is sized from what the tilt PROJECTS, not from the map: a pitched
-	# view lays the map's depth down by its sine and stands every structure up by
-	# its cosine, so framing the raw extent cuts the last row off the bottom.
 	var size: Vector2 = _mesher.size_pixels()
 	var pitch: float = deg_to_rad(52.0)
 	var framed: float = size.y * sin(pitch) + TALLEST * cos(pitch) + CELL
-	# Into the stage's own SubViewport, at whatever size the grid needs. The
-	# window is bounded by the display and a sheet is not: drawing through the
-	# window clipped the last rows off every tileset with more than a screenful
-	# of blocks, silently, because the image still came out looking like a sheet.
-	# The CONTAINER is what is sized, and only the container: it stretches, so it
-	# owns its SubViewport's size and setting that too is refused with a warning.
 	var view := Vector2i(int(size.x * SCALE), int(framed * SCALE))
 	_stage.container.size = Vector2(view)
 	_stage.camera.projection = Camera3D.PROJECTION_ORTHOGONAL
@@ -345,10 +282,6 @@ func _build(number: int) -> bool:
 		var verdict: Dictionary = _verdict(map, tileset, shape, at)
 		verdict["block"] = block
 		verdict["slot"] = slot
-		# Projected here rather than through the camera: the viewport has only
-		# just been resized and does not carry its new size until it has drawn,
-		# so `unproject_position` would answer for the frame before this one. An
-		# orthographic eye is an affine map anyway, and this is that map.
 		verdict["screen"] = [
 			size.x * 0.5 * SCALE + (ground.x - focus.x) * SCALE,
 			framed * 0.5 * SCALE - (

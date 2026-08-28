@@ -1,7 +1,6 @@
 extends RefCounted
 
-## The decisions the mod owns. Inventory mutation, badge checks, field actions,
-## Repel prompts and capture awards remain transactions in the host.
+## The decisions the mod owns.
 
 const Options := preload("options.gd")
 
@@ -11,10 +10,8 @@ class FieldMoveSource:
 
 	var _host: Gen2ModHost
 
-
 	func _init(host: Gen2ModHost) -> void:
 		_host = host
-
 
 	func allows_field_move(_move: int) -> bool:
 		return Options.enabled(_host, Options.FIELD_MOVES)
@@ -23,8 +20,6 @@ class FieldMoveSource:
 class RepelRenewal:
 	extends RefCounted
 
-	## Generation II item numbers, ordered from the shortest effect to the
-	## longest so automatic renewal preserves stronger Repels when it can.
 	const REPEL: int = 0x14
 	const SUPER_REPEL: int = 0x2A
 	const MAX_REPEL: int = 0x2B
@@ -32,10 +27,8 @@ class RepelRenewal:
 
 	var _host: Gen2ModHost
 
-
 	func _init(host: Gen2ModHost) -> void:
 		_host = host
-
 
 	func repel_to_use(inventory: Dictionary) -> int:
 		if not Options.enabled(_host, Options.AUTO_REPEL):
@@ -51,10 +44,8 @@ class CatchExperience:
 
 	var _host: Gen2ModHost
 
-
 	func _init(host: Gen2ModHost) -> void:
 		_host = host
-
 
 	func awards_catch_experience() -> bool:
 		return Options.enabled(_host, Options.CATCH_EXP)

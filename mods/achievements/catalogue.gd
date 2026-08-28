@@ -1,39 +1,13 @@
 extends RefCounted
 
 ## Every achievement, and the one question each asks of a run.
-##
-## A row is a fact about the state a save is in, never a moment that passed:
-## "eight badges", not "a badge was just awarded". That is the whole of what
-## makes the mod work on a save it was installed onto years late, since a state
-## a game reached is still readable and a moment is not. Nothing here reads,
-## draws or writes; `ledger.gd` decides what is new and `mod.gd` spends it.
-##
-## `rule` and `at` are a pair rather than a Callable so the table stays data: it
-## can be printed, counted and driven from a probe without a host.
-##
-## A `name` is a notice's line and a page row's label, and a `detail` is the line
-## under it, so both are held to `Gen2MapNameSignPage.NOTICE_COLUMNS` and
-## `Gen2ModPageScreen.TEXT_COLUMNS`, which are the same fifteen cells. The probe
-## measures them against the host's own constants rather than against a number
-## written here twice.
 
-## Badge indices, in the order the cartridge's own engine flags run, which is
-## also the order the host's `badges` mask is packed in. The eight Johto ones are
-## their index into the trainer card's badge art (`card_badges`, four tiles a
-## badge); the Kanto eight have no art, since the card's Kanto page is
-## unreachable on the cartridge and reuses the Johto drawings, so those rows wear
-## the gym's own type instead.
 const BADGE_ZEPHYR: int = 0
 const BADGE_RISING: int = 7
 const BADGE_COUNT: int = 16
-## The two sets as masks, because "all of JOHTO" is which eight rather than how
-## many: a run holding eight Kanto badges and no Johto one has not cleared
-## Johto, and only a mask says so.
 const MASK_JOHTO: int = 0x00FF
 const MASK_ALL: int = 0xFFFF
 
-## What one row asks. Each is answered by [method holds] against one field of the
-## host's progress reading, spelled as the host spells it.
 const RULE_BADGE: StringName = &"badge"
 const RULE_BADGE_SET: StringName = &"badge_set"
 const RULE_CHAMPION: StringName = &"champion"
@@ -47,15 +21,10 @@ const RULE_MONEY: StringName = &"money"
 const RULE_COINS: StringName = &"coins"
 const RULE_HOURS: StringName = &"hours"
 
-## The sounds a notice borrows, out of the set `Gen2ModHost.NOTICE_SOUNDS` lends.
-## A badge rings like a badge; the two collections ring like a key item; the rest
-## take the default, which is the jingle a found item plays. The shiny sparkle is
-## not among them and is not wanted: it means a shiny Pokemon and nothing else.
 const SOUND_BADGE: StringName = &"get_badge"
 const SOUND_KEY_ITEM: StringName = &"key_item"
 const SOUND_ITEM: StringName = &"item"
 
-## Every species number an icon names, so a row never carries a bare literal.
 const GEODUDE: int = 74
 const STARYU: int = 120
 const PIKACHU: int = 25
@@ -78,11 +47,8 @@ const MEOWTH: int = 52
 const PORYGON: int = 137
 const HOOTHOOT: int = 163
 
-## The Pokedex is 251 entries on all three cartridges, which is also CELEBI's
-## number and why that row wears it.
 const DEX_COMPLETE: int = 251
 
-## A party is six, `Gen2Party.MAX_SIZE`, named here so the row reads.
 const FULL_PARTY: int = 6
 
 const ROWS: Array[Dictionary] = [
@@ -239,12 +205,6 @@ const ROWS: Array[Dictionary] = [
 ]
 
 
-## Whether [param row] is true of the run [param progress] describes.
-##
-## An absent field reads as nothing achieved rather than as an error, which is
-## the same rule the host reads its own reading by: a field it cannot answer is
-## left out rather than zeroed, so a row asking a question this build's host does
-## not answer stays locked instead of unlocking for everyone.
 static func holds(row: Dictionary, progress: Dictionary) -> bool:
 	var at: int = int(row.get("at", 0))
 	match StringName(row.get("rule", &"")):
@@ -275,7 +235,6 @@ static func holds(row: Dictionary, progress: Dictionary) -> bool:
 	return false
 
 
-## Every row that is true of [param progress], in table order.
 static func held(progress: Dictionary) -> Array[StringName]:
 	var out: Array[StringName] = []
 	for row: Dictionary in ROWS:
@@ -284,7 +243,6 @@ static func held(progress: Dictionary) -> Array[StringName]:
 	return out
 
 
-## The row with that id, or an empty Dictionary.
 static func find(id: StringName) -> Dictionary:
 	for candidate: Dictionary in ROWS:
 		if StringName(candidate["id"]) == id:

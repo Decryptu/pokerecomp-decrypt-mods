@@ -1,25 +1,8 @@
 extends SceneTree
 
 ## What every map in the game COSTS to resolve and to emit, in one run.
-##
-## Every claim in this repository about triangles and milliseconds is a claim
-## about the whole game rather than about one route, because a feature that is
-## free on a town can be most of the bill on a forest. Written because the emit
-## grew sevenfold between two measurements and nothing recorded which change did
-## it: run this before and after anything that touches the mesher and the
-## difference is the answer.
-##
-##   Godot --headless --path <pokerecomp> -s tools/cost.gd -- <cache> \
-##       [tileset|all] [out.json]
-##
-## Prints the totals, the dearest maps, and the per-tileset split. With an output
-## path it writes every map's own line, which is what makes two runs comparable
-## map by map rather than in aggregate.
-##
-## Headless: it resolves and emits, and never renders.
 
 const MOD := "user://mods/voxel3d"
-## How many of the dearest maps to name.
 const WORST: int = 8
 
 
@@ -58,10 +41,6 @@ func _initialize() -> void:
 			continue
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		var atlas: RefCounted = atlas_script.new()
-		# THE SEQUENCE, so this measures the mesh the game actually builds:
-		# `atlas.gd:frame_count` spans every frame an animated tile is drawn as,
-		# and without one here the union is never walked and the cost of it never
-		# appears.
 		var animation := Gen2WorldAnimation.new()
 		animation.configure_tileset(data, tileset, 1)
 		if not atlas.build(data, map, tileset, 1, animation):
@@ -77,30 +56,11 @@ func _initialize() -> void:
 		var meshes: Array = mesher.emit(atlas)
 		var emitted: int = Time.get_ticks_usec() - at
 
-		# A model is built once per distinct drawing and STAMPED, so its triangles
-		# are counted once and the stamps are counted as what they cost, which is
-		# one instance each and not one mesh each.
-		#
-		# THE WATER AND THE GRASS ARE ON THEIR OWN LISTS and have to be asked for
-		# separately, or a sea route and a meadow both read as free: each is drawn
-		# with its own material, so each is its own mesh, and `emit` answers the
-		# terrain alone.
 		var faces: int = 0
 		for mesh: ArrayMesh in meshes + mesher.take_water() + mesher.take_tufts():
 			for surface: int in mesh.get_surface_count():
 				faces += (mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
 					as PackedVector3Array).size()
-		# AND WHAT THEY COST TO DRAW, which is the other number and is not the same
-		# one: geometry is stored once per drawing and rasterised once per stamp, so
-		# a forest is one mesh to hold and two hundred trees to draw. A model built
-		# at a finer voxel is nearly free in the first and multiplied in the second.
-		#
-		# AND ONE MESH IS HANDED OVER SEVERAL TIMES. `take_models` answers per
-		# distinct drawing PER GROUP, because a MultiMesh spanning a whole window
-		# has the window for a bounding box and can never be culled, so a forest
-		# arrives as one mesh in a dozen entries. Counting its faces per entry
-		# reported the whole game at 10.26M triangles the day the grouping landed,
-		# against 7.23M for exactly the same geometry.
 		var stamps: int = 0
 		var drawn: int = 0
 		var held: Dictionary = {}
@@ -165,9 +125,6 @@ func _initialize() -> void:
 		var file: FileAccess = FileAccess.open(args[2], FileAccess.WRITE)
 		if file != null:
 			file.store_string(JSON.stringify(lines, "  "))
-			# CLOSED, or `quit()` takes the buffer with it: every per-map file this
-			# tool wrote came out cut off at 72 KB, which is most of the way through
-			# the game and looks like a complete run until it is parsed.
 			file.close()
 			print("wrote ", args[2])
 	quit()

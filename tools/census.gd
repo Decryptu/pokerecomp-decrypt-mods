@@ -1,10 +1,10 @@
 extends SceneTree
 
-## How many TILES in the whole game resolve to each shape class, and on how many
-## maps. Which classes are worth fixing is a question about how much of the game
-## wears them, and nothing answered it before.
+## How many TILES in the whole game resolve to each shape class, and on how
+## many maps.
 
 const MOD := "user://mods/voxel3d"
+
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()

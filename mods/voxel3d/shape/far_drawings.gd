@@ -1,65 +1,17 @@
 extends RefCounted
 
 ## Which drawing stands where, on a map that was never resolved.
-##
-## `world/far_foliage.gd` needs the name of the drawing on each cell so
-## `shape/mesher.gd:far_card_for` can cut it out of the map's own sheet. A resolve
-## answers that and costs a quarter of a second a map, which is out of the question
-## for the tens of maps a horizon holds.
-##
-## The name of a drawing is its arrangement of tiles. `mesher._model_bodies_of`
-## keys every model mesh on `str(tiles)` over the drawing's box, so reading the
-## same box off a bare map and stringing it the same way is the whole lookup.
-## Nothing here builds geometry, measures a silhouette, floods a mask or asks
-## about height: it reads tile ids and collision, which is why it is milliseconds.
-##
-## The box rule is a second copy of the mesher's, which is the one thing here
-## worth arguing about: `mesher._box_start` and `mesher._measure_cutouts` are
-## spent against arrays only a full resolve fills. `tools/far_drawings.gd` holds
-## the copy honest, resolving each map for real and checking every box this walk
-## found against every box the mesher stamped a model into, over the 229 outdoor
-## maps of the three cartridges. Unify it when the span measurement is worth
-## moving.
-##
-## A map is walked once and its answer kept, since a map's trees do not move.
 
 const TileShapeScript: GDScript = preload("tile_shape.gd")
 const MapSourceScript: GDScript = preload("map_source.gd")
 
-## Pixels across one tile, and tiles across one walk cell.
 const TILE: int = 8
 const CELL_TILES: int = 2
-## Tiles across one block, which is what the world past the maps is tiled with.
-## See [method of_border].
 const BLOCK_TILES: int = 4
-## Walk cells across one block.
 const CELLS_PER_BLOCK: int = 2
-## The most drawings one map may stand, so a pathological tileset cannot fill
-## memory. Route 32, the thickest wood in the game, comes out near 1200.
 const SPOT_LIMIT: int = 4096
 
 
-## What stands on [param map], as `{ drawings, buildings }`.
-##
-## `drawings` is `str(tiles) -> { spots, class, tiles, across }`. The spots are in
-## that map's own world pixels and there is ONE PER DRAWING rather than one per
-## cell: a conifer is one card standing between the two cells it is drawn over,
-## exactly as the mesh stamps one model there. The rest is what
-## `shape/mesher.gd:far_card_for` needs to cut that drawing out of this map's own
-## sheet: the tiles themselves, how many of them the drawing runs across, and the
-## class whose facts say how it is masked and how it stands.
-##
-## `buildings` is what `world/far_houses.gd` stands, one entry a building. Both
-## come off ONE pass over the map, because reading its tiles is what the walk
-## actually costs.
-##
-## [param margin] widens the walk past the map's own edge, in tiles, which is
-## what the LOADED map wants: the mesh resolves the map inside a border ring and
-## stamps models out there too, so a view standing its own cards past the mesh
-## has to cover the same ring or leave a band with nothing on it. `map_source.gd`
-## answers past the edge already, with the connection strip and the neighbouring
-## maps folded in, so the ring reads exactly as the mesh reads it. Spots come back
-## in the MAP'S own pixels either way, negative inside the ring.
 static func of_map(
 	data: GameData, map: Gen2WorldMap, profile: GDScript, margin: int = 0
 ) -> Dictionary:
@@ -77,21 +29,12 @@ static func of_map(
 	if size.x <= 0 or size.y <= 0:
 		return out
 
-	# The whole map read once: a tile id and the class it resolves to, per tile.
-	# The class follows from the tile and the cell's permission and from nothing
-	# else, which is `mesher._tile_fact`'s own reason for keying its cache that
-	# way, so the profile is asked once per distinct pair rather than per tile.
 	var tiles := PackedInt32Array()
 	var klass := PackedInt32Array()
 	tiles.resize(size.x * size.y)
 	klass.resize(size.x * size.y)
 	var ids: Dictionary = {}
 	var known: Dictionary = {}
-	# Read a block at a time. Resolving a tile means resolving the block it sits
-	# in, and a block holds sixteen of them: asked per tile, a walk over a map and
-	# its border ring resolves the same block sixteen times over and costs 66 ms
-	# on route 26 against 24. The PERMISSION is still asked per cell, because
-	# inside the map it is the map's own collision and not the block's.
 	@warning_ignore("integer_division")
 	var blocks := Vector2i(
 		size.x / BLOCK_TILES, size.y / BLOCK_TILES
@@ -135,24 +78,6 @@ static func of_map(
 	return out
 
 
-## Every building on the map, as `{ rect, rows, tiles }`: the rectangle it covers
-## in TILES, what each of its rows draws, and the tile ids inside it, which is
-## what a box is painted from.
-##
-## A row is roof, WALL OR NEITHER, and it is answered per row rather than as two
-## counts: a flood joins two houses that touch, and a rectangle that holds them
-## both has rows of each in whatever order they stand. `world/far_houses.gd` is
-## where that is read, and it is the only place that has to care.
-##
-## A building is found by its CLASS and not by the arrangement `shape/houses.gd`
-## paints: the painted table is the near view's, it is an override on a hundred
-## drawings of the several hundred placed, and reading it needs the resolve's own
-## matching pass. Out here a rectangle is all that is standing, so the profile's
-## own `facade` and `roof` are enough to find one and to say which of its rows is
-## which. See `world/far_houses.gd` for what is built from it.
-##
-## Connected by the four sides, because a town draws its houses with a tile of
-## ground between them and a terrace as one run.
 static func _buildings(
 	shape: RefCounted, tiles: PackedInt32Array, klass: PackedInt32Array,
 	named_by_id: Array, size: Vector2i, origin: Vector2i
@@ -166,7 +91,7 @@ static func _buildings(
 			continue
 		if not known.has(klass[at]):
 			var built: StringName = shape.building_part(named_by_id[klass[at]])
-			known[klass[at]] = 2 if built == &"roof" else (1 if built == &"wall" else 0)
+			known[klass[at]] = 2 if built == &"roof" else int(built == &"wall")
 		part[at] = known[klass[at]]
 		any = any or part[at] > 0
 	var out: Array = []
@@ -207,7 +132,7 @@ static func _buildings(
 			rows.resize(box.size.y)
 			for row: int in box.size.y:
 				rows[row] = 2 if roofs.has(box.position.y + row) \
-					else (1 if walls.has(box.position.y + row) else 0)
+					else int(walls.has(box.position.y + row))
 				for column: int in box.size.x:
 					drawn.append(_tile_at(
 						tiles, size, box.position.x + column, box.position.y + row
@@ -219,17 +144,6 @@ static func _buildings(
 	return out
 
 
-## The drawings in a map's border block, which is the whole of the world past the
-## maps: `world/far_field.gd` fills everything the camera can reach with that one
-## block, so out there the same thirty-two pixels repeat for ever, and on forty of
-## the seventy-seven outdoor maps every tile of them is a tree.
-##
-## Answered in the BLOCK'S own pixels and otherwise exactly as [method of_map]
-## answers, so the same card is cut for it and the same stamp stands it.
-##
-## The box rule needs no more than the block: a drawing is two or four tiles
-## across and a block is four, and both align on the same lattice, so nothing
-## straddles two of them.
 static func of_border(
 	data: GameData, map: Gen2WorldMap, profile: GDScript
 ) -> Dictionary:
@@ -273,20 +187,12 @@ static func _named_by_id(ids: Dictionary) -> Array:
 	return out
 
 
-## Every drawing standing on a grid of tiles already resolved to classes, as
-## `str(tiles) -> { spots, class, tiles, across }`.
-##
-## One entry per BOX rather than per tile: every tile of a drawing resolves to
-## the same box, and the box is what wears a card.
 static func _walk(
 	shape: RefCounted, tiles: PackedInt32Array, klass: PackedInt32Array,
 	named_by_id: Array, size: Vector2i, origin: Vector2i
 ) -> Dictionary:
 	var out: Dictionary = {}
 	var seen: Dictionary = {}
-	# What each declared box came to, kept because every tile of a drawing asks
-	# the same question and the answer costs a flood of row tests and a string a
-	# cell. Asked per tile it was most of the walk: 62 ms on route 26 against 24.
 	var decided: Dictionary = {}
 	var placed: int = 0
 	for ty: int in size.y:
@@ -300,11 +206,6 @@ static func _walk(
 			var box: Rect2i = _box(
 				shape, named, tiles, klass, size, origin, tx, ty, klass[at], decided
 			)
-			# The box AND the class it was cut for. A box start belongs to one
-			# box of one class, but a cell-sized fallback and a taller drawing
-			# above it can start on the same tile, and keying on the position
-			# alone would drop whichever was reached second. Offset, because a
-			# box inside the border ring starts at a NEGATIVE tile.
 			var mark: int = ((box.position.y + 4096) * 8192
 				+ box.position.x + 4096) * 1024 + klass[at]
 			if seen.has(mark):
@@ -324,9 +225,6 @@ static func _walk(
 					"tiles": drawn,
 					"across": box.size,
 				}
-			# Read out, pushed and put back, because a packed array is a VALUE:
-			# pushing into the one the dictionary answers with fills a copy, and
-			# every map came back with its drawings named and no spots under them.
 			var entry: Dictionary = out[key]
 			var spots: PackedVector2Array = entry["spots"]
 			spots.push_back(Vector2(
@@ -342,15 +240,6 @@ static func _walk(
 	return out
 
 
-## The box one drawing is cut over, in tiles. `mesher._span_box` and
-## `mesher._measure_cutouts` together, read off the class rather than off a
-## resolve's arrays; see this file's own note on why it is a copy.
-##
-## A class declares the largest its drawing gets and the PLACEMENT says whether
-## this one is that big: the box is taken where every row of it carries the
-## class and no cell of it draws what another cell draws, and one cell otherwise.
-## That last test is what tells a tall conifer, a pointed cell over a footed one,
-## from a pair of short ones, which is the same cell twice.
 static func _box(
 	shape: RefCounted, named: StringName, tiles: PackedInt32Array,
 	klass: PackedInt32Array, size: Vector2i, origin: Vector2i,
@@ -358,19 +247,12 @@ static func _box(
 ) -> Rect2i:
 	var span: Vector2i = shape.span_cells(named)
 	var across := Vector2i(maxi(span.x, 1), maxi(span.y, 1)) * CELL_TILES
-	# Aligned on the map and not on the walk. `mesher._box_start` takes a map
-	# coordinate modulo the box, and a walk that starts inside the border ring is
-	# offset from the map by however deep the ring is: aligning on the walk's own
-	# origin boxes every drawing in the ring half a cell out.
 	var here := Vector2i(origin.x + tx, origin.y + ty)
 	var start := Vector2i(
 		here.x - posmod(here.x, across.x), here.y - posmod(here.y, across.y)
 	) - origin
 	if across == Vector2i(CELL_TILES, CELL_TILES) or shape.art(named) != &"cutout":
 		return Rect2i(start, across)
-	# Asked once per declared box. Whether the box is whole and how far it is cut
-	# back follow from the box and the class alone, so every tile of a drawing
-	# gets the same answer and only the first pays for it.
 	var mark: int = ((start.y + 4096) * 8192 + start.x + 4096) * 1024 + want
 	var answer: Array = decided.get(mark, [])
 	if answer.is_empty():
@@ -387,8 +269,6 @@ static func _box(
 	return Rect2i(start, Vector2i(across.x, int(answer[1])))
 
 
-## Whether one declared box is the whole drawing, and how many tile rows of it
-## are, as `[whole, rows]`. `mesher._measure_cutouts`' own two tests.
 static func _decide(
 	shape: RefCounted, named: StringName, span: Vector2i, across: Vector2i,
 	tiles: PackedInt32Array, klass: PackedInt32Array, size: Vector2i,
@@ -406,16 +286,12 @@ static func _decide(
 			whole = false
 			break
 	if whole and not lying:
-		# The CLASS'S OWN span and not the rows left, which is `_measure_cutouts`'
-		# order: a drawing cut back to three tiles is still asked about the two
-		# cells it was declared over.
 		whole = not _repeats(tiles, size, start, Vector2i(
 			maxi(span.x, 1), maxi(span.y, 1)
 		))
 	return [whole, rows]
 
 
-## Whether every tile of one row of the box carries the class.
 static func _row_carries(
 	klass: PackedInt32Array, size: Vector2i, start: Vector2i, row: int,
 	wide: int, want: int
@@ -430,10 +306,6 @@ static func _row_carries(
 	return true
 
 
-## Whether any cell of the box draws exactly what another cell of it draws, in
-## walk cells. `mesher._repeats`, and it is what tells one tall drawing from a
-## row of short ones: a conifer is a pointed cell over a footed cell and the two
-## differ, where a pair of short trees is the same cell twice.
 static func _repeats(
 	tiles: PackedInt32Array, size: Vector2i, start: Vector2i, span: Vector2i
 ) -> bool:
@@ -455,8 +327,6 @@ static func _repeats(
 	return false
 
 
-## The tile id at a map tile position, or 0 past the map, which is what
-## `mesher._tile_at` answers past its own grid.
 static func _tile_at(
 	tiles: PackedInt32Array, size: Vector2i, tx: int, ty: int
 ) -> int:

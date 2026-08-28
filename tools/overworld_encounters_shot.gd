@@ -1,23 +1,7 @@
 extends SceneTree
 
 ## Photographs the host's forced shiny visible encounter through either world
-## renderer. This exercises the production palette and pulse paths on a real
-## cartridge without waiting for a natural shiny roll.
-##
-## A ninth argument is comma-separated options: `clean` photographs the
-## cartridge screen alone rather than the development harness around it, `x4`
-## enlarges it by whole pixels, `natural` leaves the population to the mod
-## instead of forcing the shiny preview, which is the only way to see the map as
-## a player meets it, and `glow` forces the host's glowing preview instead of
-## the shiny one, which is how the excellent-DV mark is looked at without
-## waiting for a wild in the top one and a half percent of DV rolls.
-##
-##   Godot --path <pokerecomp> --mods -s tools/overworld_encounters_shot.gd -- \
-##       crystal 24 3 <out.png> [gen2|voxel3d] [cell x] [cell y] [pulse frames] \
-##
-## A negative cell keeps the map's own start, which is how a later argument is
-## reached without moving the player.
-##       [clean,x4,natural]
+## renderer.
 
 const WINDOW_SIZE := Vector2i(1152, 648)
 const SETTLE_FRAMES: int = 60
@@ -53,8 +37,6 @@ func _initialize() -> void:
 		host.load_discovered()
 	var renderer: StringName = StringName(args[4]) if args.size() > 4 else &"gen2"
 	if renderer != &"gen2":
-		## R24 folded the two per-surface selectors into one view id, so this is
-		## `select_view` and not the `select_world_renderer` that is gone.
 		var selected: Dictionary = host.select_view(renderer)
 		if not bool(selected.get("ok", false)):
 			print("could not select renderer %s: %s" % [renderer, selected])
@@ -66,10 +48,6 @@ func _initialize() -> void:
 	_screen = (load("res://game/world/world_screen.tscn") as PackedScene).instantiate()
 	_screen.map_group = int(args[1])
 	_screen.map_number = int(args[2])
-	## A negative cell leaves the map's own start alone, which is how the later
-	## arguments are reached without teleporting the player: `0 0` is a real cell
-	## and on most maps it is inside the border, so passing it as a placeholder
-	## put the player in a wall and the preview had nowhere to stand.
 	if args.size() > 6 and int(args[5]) >= 0 and int(args[6]) >= 0:
 		_screen.start_cell = Vector2i(int(args[5]), int(args[6]))
 	_screen.encounter_seed = 1
@@ -91,8 +69,6 @@ func _process(_delta: float) -> bool:
 	if _screen == null:
 		return false
 	_frames += 1
-	# EVERY FRAME, because the screen puts its own caption and hint back as the
-	# walk moves the player: hiding them once at setup left both in the picture.
 	if _clean:
 		_chrome().hide_chrome(_screen)
 	if _frames == 2:
@@ -103,8 +79,6 @@ func _process(_delta: float) -> bool:
 			else:
 				_screen.preview_visible_encounter()
 		var args: PackedStringArray = OS.get_cmdline_user_args()
-		# A PICTURE WITH NO POKEMON IN IT IS OTHERWISE SILENT, and twice the map
-		# rather than the population was what was wrong.
 		var population: Variant = _screen.get("_encounters")
 		print("population: %d entries" % [
 			population.entries().size() if population != null else -1,
@@ -117,10 +91,6 @@ func _process(_delta: float) -> bool:
 				print("pulse frame %d: %d sprites" % [
 					pulse_frame + 1, encounters.pulse_sprites().size(),
 				])
-		# A map is left to turn over by spending frames here, and a route that
-		# emptied instead of refilling would photograph as an ordinary picture of
-		# grass. So the count is printed again after the walk, on the same rule
-		# the one above it exists for.
 		if pulse_frames > 0:
 			var after: Variant = _screen.get("_encounters")
 			print("population after %d frames: %d entries" % [
@@ -130,8 +100,6 @@ func _process(_delta: float) -> bool:
 		return false
 	var image: Image = _chrome().capture(_screen, _scale) if _clean else null
 	if image == null:
-		# The window, which is where a view drawing at window resolution is, and
-		# where the whole harness is when this is not a clean capture.
 		image = root.get_texture().get_image()
 		if _clean and _scale > 1:
 			image.resize(
@@ -148,7 +116,5 @@ func _process(_delta: float) -> bool:
 	return true
 
 
-## The sibling helper, loaded by this script's own directory rather than by an
-## absolute path, since no path from one machine belongs in a tracked file.
 func _chrome() -> GDScript:
 	return load("%s/clean_frame.gd" % (get_script() as Script).resource_path.get_base_dir())

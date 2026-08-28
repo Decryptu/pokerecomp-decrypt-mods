@@ -1,21 +1,6 @@
 extends SceneTree
 
 ## WHICH BLOCKS OF A TILESET HOLD A TILE, and how often the game places each.
-##
-##   Godot --headless --path <pokerecomp> -s tools/blocks.gd -- <cache> \
-##       <tileset> <tile id> [tile id...]
-##
-## The first step of the procedure that has now found ten wrong shapes: take a
-## class's tiles out of `shape/profile_pass.gd`, ask which BLOCKS hold them, and
-## paint those blocks with `tools/block_art.gd`. A block is 4x4 tiles and is the
-## unit Generation II authors the world out of, so the whole drawing falls out of
-## one where a tile list never says what is being looked at.
-##
-## LOOK AT THE BLOCK, NOT AT THE TILE LIST. Four sessions believed a tile list
-## that said tilesets 2, 4 and 29 drew a canopy several tiles wide; six blocks
-## side by side answered it in a minute, and two of them were the conifer.
-##
-## Headless: it reads the cartridge's own block and map records and nothing else.
 
 const BLOCK_TILES: int = 4
 
@@ -41,7 +26,6 @@ func _initialize() -> void:
 		quit(1)
 		return
 
-	# Which blocks draw any of those tiles, and where in the block each one is.
 	var holds: Dictionary = {}
 	for block: int in tileset.block_count:
 		var found: Array[String] = []
@@ -55,7 +39,6 @@ func _initialize() -> void:
 		if not found.is_empty():
 			holds[block] = found
 
-	# And how much of the game each of those blocks actually is.
 	var placed: Dictionary = {}
 	var maps_of: Dictionary = {}
 	var where: Dictionary = {}
@@ -84,8 +67,6 @@ func _initialize() -> void:
 			(maps_of.get(block, {}) as Dictionary).size(),
 			where.get(block, "nowhere")
 		])
-		# THE WHOLE BLOCK'S IDS, because an object is declared by the ARRANGEMENT
-		# and a list of the tiles that matched never says what sits beside them.
 		for row: int in BLOCK_TILES:
 			var line: Array[String] = []
 			for column: int in BLOCK_TILES:

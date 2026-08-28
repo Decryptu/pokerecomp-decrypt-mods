@@ -2,14 +2,6 @@ extends RefCounted
 
 const MAXIMUM: StringName = &"maximum"
 ## How many wild Pokemon one map may hold at once.
-##
-## The top two rungs are for a screen that fills the window. The ladder stopped
-## at eight when the screen was ten walk cells by nine; drawn to the edge of the
-## window the same eight read as an empty route. The default does not move, since
-## a population is a rebalance and choosing one is the player's.
-##
-## `plan.gd:build` clamps at 32, which is the host's own ceiling and where this
-## ladder must stop.
 const MAXIMUM_VALUES: Array = [2, 4, 6, 8, 12, 16]
 const MAXIMUM_DEFAULT: int = 6
 

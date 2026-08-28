@@ -1,30 +1,11 @@
 extends RefCounted
 
 ## Resolves every graphics tile of a map to an extrusion shape.
-##
-## Resolution order, and the order matters:
-##
-##   per tile   1. a pin in `profile.gd`, except a BUILDING pin in a walkable
-##                 cell, which is the pavement wearing the wall's own tile
-##                                                                 (authored)
-##   per CELL   2. the cell's collision permission is water    -> "water"
-##              3. the cell's collision permission is walkable -> "ground"
-##   per tile   4. anything left                                -> "wall"
-##
-## The cell steps are the load-bearing part, and Generation II hands them over
-## directly: collision is a permission byte per 2x2 walk cell. A tile in a
-## walkable cell is ground whatever it is drawn as, which keeps flowers, grass
-## tufts and the gaps in a fence row from extruding into pillars. Only a pin
-## overrides that. Step 4 covers a blocked cell: everything in it rises.
-##
-## Purely presentational. A shape decides how a tile draws and nothing else.
 
 const Stems: GDScript = preload("stems.gd")
 
 var _profile: GDScript = null
 var _tileset_number: int = 0
-## tile id -> class, for the tiles already asked for. A map asks for the same
-## ninety-six tiles a few thousand times over.
 var _pinned: Dictionary = {}
 
 
@@ -33,15 +14,9 @@ func _init(profile: GDScript, tileset_number: int) -> void:
 	_tileset_number = tileset_number
 
 
-## [param permission] is Gen2WorldAPI.collision_permission_at() for the walk
-## cell this tile sits in, and [param tile] the graphics tile id.
 func at(tile: int, permission: int) -> StringName:
 	var pinned: StringName = _pin(tile)
 	if pinned != &"":
-		# A building is never walked on, and one plain tile draws both a house
-		# wall and the pavement in front of it: tileset 3's tile 35 is most of a
-		# town's paving and also the blank part of a wall. The cell tells them
-		# apart, so this pin alone does not override collision.
 		if permission == Gen2WorldCollision.LAND_TILE and building_part(pinned) != &"":
 			return &"ground"
 		return pinned
@@ -53,34 +28,22 @@ func at(tile: int, permission: int) -> StringName:
 	return &"wall"
 
 
-## Whether the profile named this tile. A pin carries its own height, so the
-## mesher's column measurement leaves it alone.
 func is_pinned(tile: int) -> bool:
 	return _pin(tile) != &""
 
 
-## Whether the tile draws the face of a terrain cliff. A property of the tile and
-## not its class: a cliff face stands up like any other wall, and what differs is
-## the plateau behind it.
 func is_cliff(tile: int) -> bool:
 	return _profile.is_cliff(_tileset_number, tile)
 
 
-## The two tiles this tileset draws a fence face-on with, top row first, or an
-## empty array where it draws none. The model is read off them and turned to
-## serve the run that goes the other way.
 func fence_face() -> Array:
 	return _profile.fence_face(_tileset_number)
 
 
-## Whether it is the front of one: the face drawn toward the screen, with the
-## raised floor immediately above it. Only a front says which side is up.
 func is_cliff_front(tile: int) -> bool:
 	return _profile.is_cliff_front(_tileset_number, tile)
 
 
-## Whether it is the plateau's far EDGE, seen from above with the seam inside its
-## own drawing.
 func is_cliff_lip(tile: int) -> bool:
 	return _profile.is_cliff_lip(_tileset_number, tile)
 
@@ -101,65 +64,46 @@ func is_round(shape_class: StringName) -> bool:
 	return bool(_profile.ROUND.get(shape_class, false))
 
 
-## Whether the class stands a slab of its own drawing up over the floor it also
-## draws. See `profile.gd:TUFTS`.
 func is_tufted(shape_class: StringName) -> bool:
 	return bool(_profile.TUFTS.get(shape_class, false))
 
 
-## Whether the class bends in the wind. See `profile.gd:SWAYS`.
 func is_swaying(shape_class: StringName) -> bool:
 	return bool(_profile.SWAYS.get(shape_class, false))
 
 
-## Whether the class is built as an authored model rather than carved from its
-## drawing. See `profile.gd:MODEL`.
 func is_model(shape_class: StringName) -> bool:
 	return bool(_profile.MODEL.get(shape_class, false))
 
 
-## How many of a tile's darkest shades bound this class's drawing, or 0 where the
-## mask is cut from the colours of the ground around it instead.
 func outline_shades(shape_class: StringName) -> int:
 	return int(_profile.OUTLINE.get(shape_class, 0))
 
 
-## Whether a modelled class sits on the ground rather than standing on a trunk.
-## See `profile.gd:SHRUB`.
 func is_shrub(shape_class: StringName) -> bool:
 	return bool(_profile.SHRUB.get(shape_class, false))
 
 
-## Whether a modelled class stands in a POT. See `profile.gd:POTTED`.
 func is_potted(shape_class: StringName) -> bool:
 	return bool(_profile.POTTED.get(shape_class, false))
 
 
-## Whether a modelled class is stone rather than a plant. See `profile.gd:ROCK`.
 func is_rock(shape_class: StringName) -> bool:
 	return bool(_profile.ROCK.get(shape_class, false))
 
 
-## Whether a modelled class is a straight COLUMN rather than a turned
-## silhouette. See `profile.gd:COLUMN`.
 func is_column(shape_class: StringName) -> bool:
 	return bool(_profile.COLUMN.get(shape_class, false))
 
 
-## How tall a modelled class stands against how tall it is drawn, or zero for the
-## class's own default. See `profile.gd:STRETCH`.
 func model_stretch(shape_class: StringName) -> float:
 	return float(_profile.STRETCH.get(shape_class, 0.0))
 
 
-## How big the drawing is, in walk cells. A hull is keyed to the size of the
-## drawing and never to a tile id.
 func span_cells(shape_class: StringName) -> Vector2i:
 	return _profile.SPANS.get(shape_class, Vector2i.ONE)
 
 
-## Whether the drawing's extra cells are depth rather than height: a long flower
-## bed is no taller than a short one.
 func is_lying(shape_class: StringName) -> bool:
 	return bool(_profile.LYING.get(shape_class, false))
 
@@ -168,17 +112,12 @@ func is_filled(shape_class: StringName) -> bool:
 	return bool(_profile.FILLED.get(shape_class, false))
 
 
-## The rows a class's stem is DRAWN on, top first, or an empty array where it
-## stands on its own foot, which is all but the flower. The row count is also how
-## far the drawing above it is lifted. See `profile.gd:STEMS` and `shape/stems.gd`.
 func stem_rows(shape_class: StringName) -> Array:
 	if not bool(_profile.STEMS.get(shape_class, false)):
 		return []
 	return Stems.of_class(shape_class)
 
 
-## Which surface of a building a class depicts, empty for everything that is not
-## one, and how far a sloped roof tile has fallen, in bands.
 func building_part(shape_class: StringName) -> StringName:
 	return StringName(_profile.BUILDING.get(shape_class, &""))
 
@@ -187,62 +126,40 @@ func roof_drop(shape_class: StringName) -> int:
 	return int(_profile.ROOF_DROP.get(shape_class, 0))
 
 
-## How many pixels off a facade tile's left and right edges are the ground beside
-## the house rather than the house. Per TILE, not per class: it is a fact about
-## one drawing. See `profile.gd:FACADE_MARGIN`.
 func facade_margin(tile: int) -> Vector2i:
 	var table: Dictionary = _profile.FACADE_MARGIN.get(_tileset_number, {})
 	return table.get(tile, Vector2i.ZERO)
 
 
-## Whether a facade tile draws the front SLOPE of a roof rather than a wall. Per
-## TILE for the same reason a margin is: it is a fact about one drawing, and
-## `facade` covers both. See `profile.gd:FACADE_SLOPE`.
 func is_facade_slope(tile: int) -> bool:
 	var tiles: Variant = _profile.FACADE_SLOPE.get(_tileset_number, null)
 	return tiles is Array and (tiles as Array).has(tile)
 
 
-## The OBJECTS this tileset draws, which are declared per tileset and never per
-## class: an object is identified by the arrangement of tile ids it is drawn out
-## of, because no one of those tiles is the object. See `profile.gd:OBJECTS`.
 func objects() -> Array:
 	return _profile.OBJECTS.get(_tileset_number, [])
 
 
-## The arrangement entry that means a tile inside the object's rectangle is not
-## part of the object: not matched, not covered, and left as it was. See
-## `profile.gd:OUTSIDE`.
 func object_outside() -> int:
 	return _profile.OUTSIDE
 
 
-## The STAIRCASES this tileset draws, found by the same arrangement of tile ids
-## an object is. See `profile.gd:STAIRS`.
 func stairs() -> Array:
 	return _profile.STAIRS.get(_tileset_number, [])
 
 
-## The blank wall a room is shelled in, or an empty array where this tileset
-## draws no interior worth shelling. See `profile.gd:ROOM_WALL`.
 func room_wall() -> Array:
 	return _profile.ROOM_WALL.get(_tileset_number, [])
 
 
-## The tiles a CAVE MOUND is seeded from and made of, as `door` and `body`, or an
-## empty dictionary where this tileset draws none. See `profile.gd:MOUNDS`.
 func mound_tiles() -> Dictionary:
 	return _profile.MOUNDS.get(_tileset_number, {})
 
 
-## This tileset's floors for a standing drawing with no ground beside it, as
-## class -> tile id, a hand pin winning over the count. See `profile.gd:GROUND`
-## and `GROUND_PINS`.
 func ground_table() -> Dictionary:
 	var table: Dictionary = (_profile.GROUND.get(_tileset_number, {}) as Dictionary).duplicate()
 	table.merge(_profile.GROUND_PINS.get(_tileset_number, {}) as Dictionary, true)
 	return table
-
 
 
 func _pin(tile: int) -> StringName:

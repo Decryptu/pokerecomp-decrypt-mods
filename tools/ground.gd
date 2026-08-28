@@ -2,29 +2,7 @@ extends SceneTree
 
 ## Prints `shape/profile.gd`'s GROUND table: the floor a standing drawing is
 ## painted with where there is none beside it.
-##
-## `mesher.gd:_ground_art` asks the two tiles around a cutout what it stands on
-## and is right whenever anything flat is there. Inside a wood, a hedge or a
-## border ring nothing is, and four in five of the game's modelled tiles are in
-## one, so the answer has to come from the tileset rather than from the
-## neighbourhood.
-##
-## WHAT A DRAWING STANDS NEXT TO, over every map at once. Counted per MAP it is
-## the wrong answer and New Bark Town is the proof: its forest ring hugs the town
-## square, so the pavement wins 145 to 85 and the wood comes out paved. Counted
-## over the whole of tileset 1, where the routes dwarf the towns, the grass wins
-## 4599 to 2307. The rule is the same one either way and only the population is
-## different, which is why this is a table and not a pass.
-##
-## PER CLASS AND NOT PER TILESET, which one tileset carrying both a wood and a
-## quay settles: tileset 3's trees stand on grass and its concrete bollards stand
-## on pavement, and a single answer for the tileset puts one of the two on the
-## other's floor. A bollard on grass was the reported fault.
-##
 ## GENERATED, NEVER TRANSCRIBED. Eighteen tilesets of one number each read off a
-## listing is where a session puts a 6 where it meant a 5 and never finds it.
-##
-##   Godot --headless --path <pokerecomp> -s tools/ground.gd -- <cache>
 
 const MOD := "user://mods/voxel3d"
 const ART_FLAT: int = 0
@@ -54,8 +32,6 @@ func _initialize() -> void:
 			null, map, tileset, data
 		)
 		atlas.build(data, map, tileset, 1)
-		# RESOLVE ONLY. The counts are a fact about what each tile became, and
-		# emitting the mesh as well costs twelve seconds a run and answers nothing.
 		mesher.resolve(source, shape)
 		var size: Vector2i = mesher.get("_size")
 		if size.x == 0:
@@ -64,10 +40,6 @@ func _initialize() -> void:
 		var tiles: PackedInt32Array = mesher.get("_tiles")
 		var heights: PackedInt32Array = mesher.get("_heights")
 		var modelled: PackedByteArray = mesher.get("_modelled")
-		# INTERNED. `_klass` holds an id per tile and `_class_ids` maps the name to
-		# it, so the counts are kept by id and named at the end. Reading it as an
-		# `Array` converts the whole packed array per map and takes the run from
-		# seventeen seconds to longer than anyone waits.
 		var klass: PackedInt32Array = mesher.get("_klass")
 		var counts: Dictionary = beside.get(map.tileset, {})
 		for ty: int in size.y:
@@ -75,9 +47,6 @@ func _initialize() -> void:
 				var at: int = ty * size.x + tx
 				if modelled[at] != 1:
 					continue
-				# Looked up ONCE per tile. Asking for it per neighbour with a `{}`
-				# default builds a throwaway Dictionary a million times over and takes
-				# the run from thirty seconds to longer than anyone waits.
 				var key: int = klass[at]
 				var per: Variant = counts.get(key)
 				if per == null:

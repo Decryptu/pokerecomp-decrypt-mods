@@ -7,14 +7,12 @@ mod, because everything it draws comes from the player's cartridge.
 
 ## Turning it on
 
-Three ways, all the same switch: the VIEW row at the top of the start menu's
-MODS entry, the same switch on the mod's page in the launcher, and `V` where the
-game's development keys are enabled. Choosing this mod draws both the overworld
-and the battle, since both renderers are registered under one id.
+One switch, reachable three ways: the VIEW row in the start menu's MODS entry,
+the mod's page in the launcher, and `V` where development keys are enabled. Both
+renderers are registered under one id, so choosing it draws overworld and battle.
 
-Switching views takes about a fifth of a second to resolve a map and build a
-mesh, so the host hides it behind the cartridge's own battle-transition wipe: it
-blacks the screen, builds the renderer on the black frame, and opens again.
+Switching takes about a fifth of a second to resolve a map and build a mesh, so
+the host hides it behind the cartridge's own battle-transition wipe.
 
 ## Controls
 
@@ -30,20 +28,19 @@ are rebindable in the launcher's controls card and can go on the on-screen pad.
 | Recentre | `0` | right stick press | Back to the framing the view opened at |
 
 Zoom and recentre are the keys the game already zooms the 2D view with, so one
-key means one thing in either view. RECENTRE is also a row in the MODS menu, for
-a player who has never opened the controls card.
+key means one thing in either view. RECENTRE is also a MODS menu row.
 
-Tap for one step, hold to glide: held past a fifth of a second a control moves at
-the rate you are pushing it, so a stick half over glides at half speed.
+Tap for one step, hold to glide: past a fifth of a second a control moves at the
+rate you push it, so a stick half over glides at half speed.
 
-Both views zoom the lens and never the distance, because the rig works out its
-field of view from where the eye sits. The dolly is the overworld's alone, since
-the battle camera is solved against the hardware's picture slots. The battle
-camera stops where the composition does: left at the shot the rig was solved for,
-right side-on, down at the rig's low stance, up 45 degrees above it.
+Both views zoom the lens and never the distance, since the rig works its field of
+view out from where the eye sits. The dolly is the overworld's alone, the battle
+camera being solved against the hardware's picture slots; it stops where the
+composition does, left at the solved shot, right side-on, down at the rig's low
+stance and up 45 degrees above it.
 
-Movement and interaction keys never reach the mod. The world screen takes what it
-needs and offers the rest, so the game is still played on the grid it always was.
+Movement and interaction keys never reach the mod, so the game is still played on
+the grid it always was.
 
 ## Settings
 
@@ -61,15 +58,15 @@ save: a draw distance must not change when a slot is loaded.
 
 **RES** is where the frame time is on a device that cannot afford its window. The
 2D page is 160x144 whatever the window is; this view draws at the window's own
-pixel count, which on a phone is a hundred times the area. A divisor is quadratic
-in all of it, so a half is a quarter of the work. It costs no art quality, since
-the picture is Game Boy texels and a divisor draws them larger rather than
-blurrier. Default: FULL on desktop, a half on phone or tablet.
+pixel count, a hundred times the area on a phone. The divisor is quadratic, so a
+half is a quarter of the work, and it costs no art quality: the picture is Game
+Boy texels and a divisor draws them larger rather than blurrier. Default FULL on
+desktop, a half on phone or tablet.
 
 **DISTANCE** is the other half. The biggest map meshes whole in 39 ms and in
-13 ms at sixteen cells for the same picture, because at the default pitch the eye
-only frames about sixteen cells of ground. A LOW camera reaches ninety cells out,
-and FULL is for that.
+13 ms at sixteen cells for the same picture, since at the default pitch the eye
+frames about sixteen cells of ground. A LOW camera reaches ninety cells out, and
+FULL is for that.
 
 ## How a map is built
 
@@ -79,17 +76,17 @@ and at most camera angles half of it is behind the eye. Stamped models are
 grouped on the same grid, which is where a filled window pays most: on the
 largest shot in the game, 5.39M triangles in 116 draws becomes 1.26M in 166.
 
-A build is spread over frames rather than taken in one, since a town is 200 ms of
-geometry and that was a visible stop on every warp. Whatever is on screen keeps
-being drawn while the next map builds. A battle keeps the map it resolved, so a
-second fight on the same route pays for the geometry alone.
+A build is spread over frames, since a town is 200 ms of geometry and that was a
+visible stop on every warp; whatever is on screen keeps being drawn meanwhile. A
+battle keeps the map it resolved, so a second fight on a route pays for geometry
+alone.
 
-Walking out of the middle of the window rebuilds it around you. The map is
-resolved once and only the geometry is emitted again, and the margin is a third
-of the draw distance so this is not most steps. Chunks are cut to the map rather
-than to the window, which makes a chunk's rectangle a fact about the map instead
-of about where the player was standing, so a rebuild reuses four fifths of them:
-3 to 30 ms instead of 80 to 150.
+Walking out of the middle of the window rebuilds it around you: the map is
+resolved once and only the geometry emitted again, with a margin of a third of
+the draw distance so this is not most steps. Chunks are cut to the map rather
+than the window, making a chunk's rectangle a fact about the map instead of about
+where the player stood, so a rebuild reuses four fifths of them: 3 to 30 ms
+instead of 80 to 150.
 
 A cached chunk may not depend on its neighbours, and a house, an object, a
 staircase or a fence can each cross a chunk edge. Each structure has one owner,
@@ -106,11 +103,10 @@ cartridge's bottom-third box never does. The battle never pans, since each
 battler is pinned to its own hardware picture slot.
 
 The pack, party, PC, dex, trainer card, evolutions, hatches, the day-care, the
-slot machine, card flip and the encounter transition are all laid out in 160x144
-and own the whole picture while they are up. Over a framed screen the game paints
-bars around them; here a letterbox would crop a picture that had filled the
-window, so the surround is closed in this mod's own final pass instead: black, to
-the edge of the window.
+slot machine, card flip and the encounter transition are laid out in 160x144 and
+own the whole picture while up. A letterbox would crop a picture that had filled
+the window, so the surround is closed in this mod's own final pass: black, to the
+window edge.
 
 A battle fills the window with the map it started on. Only the arena grows: the
 panels, bars and text stay hardware pixels in the same centred rectangle.
@@ -132,13 +128,12 @@ it.
 
 **What happens to a battler.** Two trainers slide in from opposite sides, the
 opponent sends out first, the player's picture walks off, and a ball puts a
-Pokemon where each was standing. After that a faint sinks a picture, a Fly or a
-Dig takes it off the field for a turn, a recall shrinks it into its ball, and a
-Tackle lunges it. The host resolves all of it the same way, as what each square
-holds, whether its picture is on it, how far it stands from its resting place and
-how much of itself it is, so every one of them is drawn here. It is spent in
-hardware pixels across the screen rather than as a walk over the ground, because
-the cartridge moves a picture, not a person.
+Pokemon where each was standing. A faint sinks a picture, a Fly or a Dig takes it
+off the field, a recall shrinks it into its ball, a Tackle lunges it. The host
+resolves all of it the same way, as what each square holds, whether its picture
+is on it, how far it stands from its rest and how much of itself it is. It is
+spent in hardware pixels across the screen rather than as a walk over the ground,
+because the cartridge moves a picture, not a person.
 
 The whole picture is grey while the intro runs, which is the cartridge writing its
 own grey over every background palette. Here it is both a pass over the diorama
@@ -203,10 +198,9 @@ to and the camera is shaken by it.
 
 ## Turning flat art into solids
 
-A Game Boy overworld drawing is a fake-3D projection: it packs several facings
-into one flat image. Roofs are drawn seen from above, walls seen face-on. So
-voxelizing is not one operation. It is classifying each tile by which surface it
-depicts, then applying the matching geometry.
+A Game Boy overworld drawing packs several facings into one flat image: roofs
+seen from above, walls seen face-on. So voxelizing is not one operation but two:
+classify each tile by the surface it depicts, then apply the matching geometry.
 
 `shape/mesher.gd` builds three models:
 
@@ -233,15 +227,14 @@ byte per 2x2 walk cell. A tile in a walkable cell is ground whatever it is drawn
 as, which keeps flowers, grass tufts and the gaps between fence posts from
 extruding into pillars. Only a pin overrides that.
 
-**How tall a thing is** is measured, in walk cells. Every run of volume cells up a
+**How tall a thing is** is measured in walk cells. A run of volume cells up a
 column takes the run's period: the shortest stretch at its southern end that the
 cells behind it repeat. A house of three different cells has no repeat and stands
-three cells tall; a fence line running north is one cell repeated twenty times
-and stands one cell tall however far it runs. Reading the raw length instead
-turns a town into a maze of 48px walls. A facade is measured the same way in tile
-rows. Then connected cells are flooded into one structure and the height most of
-its cells measured caps all of it, so a hedge T-junction does not stand three
-cells tall in a knee-high maze.
+three cells; a fence line running north is one cell repeated twenty times and
+stands one however far it runs. Reading raw length turns a town into a maze of
+48px walls. A facade is measured the same way in tile rows. Connected cells then
+flood into one structure and the height most of its cells measured caps all of
+it, so a hedge T-junction does not stand three cells tall in a knee-high maze.
 
 **Cutting a drawing out of its background.** Colour cannot say where a drawing
 ends: a bollard is white on a pale path and a bush is green on grass. The border
@@ -249,11 +242,11 @@ can. The ground runs to the edge of the cell and the drawing does not, so the
 indices making up most of the cell's border ring are the ground, and what the
 flood cannot reach through them is the drawing.
 
-That fails completely on tree canopies, which are drawn in the same two greens
-the grass under them is dithered from. So those classes flood through every pixel
-that is not the drawing's darkest shade, which is its outline. How many shades
-bound one is per drawing: a tree draws its ring in one, and a drawing that meets
-the ground in a paler shade needs two.
+That fails on tree canopies, drawn in the same two greens the grass under them is
+dithered from, so those classes flood through every pixel that is not the
+drawing's darkest shade, which is its outline. How many shades bound one is per
+drawing: a tree rings itself in one, a drawing meeting the ground in a paler
+shade needs two.
 
 **A drawing bigger than one cell** is masked over the whole drawing, or the flood
 runs along the seam between its cells. What the extra rows mean is the drawing's
@@ -304,9 +297,10 @@ Two readings refuse that: a roof deck standing on the run means the face-on band
 is that deck's fascia, and a column drawing roof more than once is a stack of
 storeys, like Ecruteak's seven-gallery dance hall.
 
-`shape/houses.gd` holds a hundred drawings painted per pixel and matched by
+`shape/houses.gd` holds 103 drawings painted per pixel and matched by
 arrangement, produced with `tools/house_export.gd`, `house_page.py` and
-`house_pins.gd`. 226 placements on 63 maps, standing up 327 buildings.
+`house_pins.gd`. 92 of them reach the game: 246 placements on 64 maps, standing
+up 348 buildings. `tools/house_claim.gd` counts it.
 
 ## Ledges, doors and two levels of ground
 
@@ -321,13 +315,12 @@ and lands while its shadow and the camera stay on the ground. 1380 cells on 72
 maps are hopped over, and before this they were 16px walls you could not see
 over.
 
-**A door** is walkable, so every pass that reads collision called it ground and
-the doorway came out as a hole through the building with the door's drawing lying
-flat in front of it. So the cartridge is asked instead: a cell whose collision is
-a door, its second door code, or a cave takes the height of the wall around it,
-and the face machinery paints its drawing on. Warp carpets are deliberately not
-among those codes, since a carpet is a floor you walk onto and every map edge has
-one.
+**A door** is walkable, so a pass reading collision called it ground and the
+doorway came out as a hole through the building. The cartridge is asked instead:
+a cell whose collision is a door, its second door code or a cave takes the height
+of the wall around it and the face machinery paints its drawing on. Warp carpets
+are deliberately excluded, since a carpet is a floor you walk onto and every map
+edge has one.
 
 **A rock wall is two heights**, the wall and the stone floor standing on top of
 it, and no measurement of a column reaches that, because the column through the
@@ -357,13 +350,13 @@ what a face reaches down to, which can only add face and never take one away.
 
 A chair is drawn as four corners across four tiles, and one tile is the desk's
 bottom-left leg, the chair's top-left corner and the floor between them at once,
-so every possible answer for that tile is wrong.
+so every possible per-tile answer is wrong.
 
-So an object is identified by the arrangement of tile ids it is drawn out of,
-which finds it wherever the map places it and whatever block boundary it
-straddles. Every tile the arrangement covers goes back to being floor, and one
-thing of the object's size is stood up. Two objects may cover the same tile and
-both are drawn, which is what a desk and the chair tucked under it do.
+An object is therefore identified by the arrangement of tile ids it is drawn out
+of, which finds it wherever the map places it and whatever block boundary it
+straddles. Every tile the arrangement covers goes back to floor and one thing of
+the object's size is stood up. Two objects may cover one tile and both are drawn,
+which is a desk and the chair tucked under it.
 
 A 2.5D drawing is a top and a front stacked: the first rows lie across the
 object's depth, the rest hang down its height. Where a drawing has a top band
@@ -493,11 +486,12 @@ asking the tileset which drawing stands where, which costs about 11 ms a map
 against the quarter of a second a real resolve takes. Each drawing wears a card
 cut from its own map's sheet by `shape/mesher.gd:far_card_for`, named by its whole
 arrangement of tiles through `shape/far_drawings.gd`, so a neighbour's conifers
-are its own and not this map's. `tools/far_drawings.gd` checks that against a real
-resolve over the 229 outdoor maps of the three cartridges: 0 differ, every card
-pixel for pixel the mesh's own. One simplification is deliberate: a drawing gets
-one card rather than its own bodies, so a cell of four sea rocks is one rock out
-there. `world/far_houses.gd` stands a far building as a roof over a footprint with
+are its own and not this map's. `tools/far_drawings.gd` checks that against a
+real resolve: every card is the mesh's own pixel for pixel, and 14 of Crystal's
+77 outdoor maps disagree about how many spots a drawing stands on, the walk
+finding a few fewer or more than the mesh does. One simplification is
+deliberate: a drawing gets one card rather than its own bodies, so a cell of four
+sea rocks is one rock out there. `world/far_houses.gd` stands a far building as a roof over a footprint with
 a wall under the front, painted off that map's sheet: a box and not a house, since
 out here a map has to be stood up in milliseconds.
 

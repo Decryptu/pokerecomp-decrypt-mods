@@ -10,8 +10,10 @@ mods/<id>/            one installable mod; the archive root
   thumbnail.webp      optional 1280x720 thumbnail, shown on the mod library site
 index.json            the published feed; one row per mod
 tools/package.sh      mods/<id>/ -> dist/<id>-<version>.zip
-tools/check.sh        parses every script; `tools` and `all` widen what it reads,
-                      and `warnings` runs the analyser instead of the parser
+tools/check.sh        parses every script and gates its size; `tools` and `all`
+                      widen what it reads, `warnings` runs the analyser
+tools/bloat.py        the size gate: complexity and length per function, and
+                      comment ratio per file
 tools/walk_bench.gd   what a frame costs while the player walks, in the game
 tools/stage_bench.gd  the same for the diorama alone, with each part priceable
 tools/horizon_shot.gd photographs the horizon through the game's own screen
@@ -134,15 +136,25 @@ in the game repository first. It is the contract, and it is enforced.
   interpreted GDScript. No GDExtension, no compiled anything.
 - `api_version` is the oldest host a mod works against, not a number to keep
   current. The host accepts `Gen2ModManifest.MIN_API_VERSION` to `API_VERSION`,
-  1 to 18 today, and refuses a mod asking for more than it provides. Raise it
+  1 to 21 today, and refuses a mod asking for more than it provides. Raise it
   when the mod starts using something newer, not with every release.
 
 ## Writing rules
 
+- **Do not comment.** A name, a guard clause or a small function says it better
+  and cannot go stale. The exceptions are a file header of a line or two, a fact
+  from outside the file (a cartridge value, a host contract, a source reference)
+  and an invariant the code does not show. One or two lines each, and never a
+  paragraph defending a workaround: if a line needs one, fix the line.
+- **Guard clauses, named helpers, lookup tables and early returns**, not nested
+  conditions or one-liners that hide a branch. `tools/check.sh` holds every
+  function to complexity 10 and 60 lines and every file to 8% comments; what was
+  already over is in `tools/bloat_debt.txt`, which may only shrink.
+- State each fact once, in the place that owns it, and link instead of repeating.
+  Delete superseded text rather than appending to it.
 - No em-dashes. Check with
   `grep -rn $'\\u2014' . --exclude-dir=.git --exclude-dir=.references`.
-- State each fact once, in the place that owns it, and link instead of repeating.
-  Comment non-obvious constraints and source references; do not restate the line
-  below.
+- No path from your own machine in a tracked file: a tool takes the location as
+  an argument or an environment variable and documents a placeholder.
 - Before committing: review the staged list, run `git diff --cached --check`, and
   confirm nothing cartridge-derived or local-only is staged.

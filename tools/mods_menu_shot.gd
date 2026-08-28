@@ -2,20 +2,6 @@ extends SceneTree
 
 ## Photographs the start menu's MODS entry, which is where a player meets a
 ## mod's settings.
-##
-## The rows are the host's, built out of what each mod registered, so this
-## belongs to no one mod and every mod that registers a setting can be
-## photographed with it. The menu is reached by walking the start menu to its
-## MODS row and pressing A, rather than by setting a mode: a picture of a screen
-## no player can reach proves nothing. That is `tools/linking_cord_shot.gd`'s
-## rule and this follows it.
-##
-##   godot --headless --path <pokerecomp> -s tools/mods_menu_shot.gd -- \
-##       <game> <out.png> [presses] [scale]
-##
-## `presses` is a comma-separated button list driven into the MODS screen after
-## it opens: `u` `d` `l` `r` `a` `b`. An empty list photographs the mod list
-## itself; `a` opens the highlighted mod's own settings.
 
 const NEW_BARK_GROUP: int = 24
 const NEW_BARK_MAP: int = 7
@@ -27,8 +13,6 @@ const BUTTONS: Dictionary = {
 }
 
 
-## The screen builds its panel in `_ready`, which does not run until the tree has
-## processed a frame, so the shot is taken from here rather than `_initialize`.
 func _process(_delta: float) -> bool:
 	_capture()
 	return true
@@ -65,7 +49,6 @@ func _capture() -> void:
 	)
 	var screen := Gen2StartMenuScreen.new()
 	root.add_child(screen)
-	## No slot on disk, so nothing this photographs is written anywhere.
 	var save: Gen2SaveData = Gen2SaveStore.create_development_save(data, 0)
 	if save != null:
 		save.world = world.snapshot()

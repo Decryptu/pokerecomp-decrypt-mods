@@ -1,11 +1,7 @@
 extends SceneTree
 
 ## Exercises every decision the Quality of Life mod owns through the production
-## host registration. The engine tests own the transactions behind these
-## answers; this probe proves the seven switches reach the right contracts.
-##
-##   godot --headless --path <pokerecomp> -s tools/quality_of_life_probe.gd \
-##       --mods -- <cartridge>
+## host registration.
 
 const MOD_ID: StringName = &"quality_of_life"
 const KEYS: Array[StringName] = [
@@ -21,10 +17,7 @@ var _ok: bool = true
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	var cartridge: String = args[0] if not args.is_empty() else "crystal"
-	## Before the open: see `tools/linking_cord_probe.gd`.
 	Gen2ModHost.reset()
-	# Either form: see `GameData.open_argument`. This probe needs no cartridge
-	# content of its own, only the id the host is pointed at.
 	var data: GameData = GameData.open_argument(cartridge)
 	if data == null:
 		print("no cache for %s" % cartridge)
@@ -133,13 +126,6 @@ func _stages() -> void:
 	_switch(&"stat_stages", false)
 
 
-## Seven active stages a side is more rows than the player's block has room for,
-## and the host REFUSES a placement outside its 20x18 grid rather than clipping
-## it. Reading what comes back cannot see that: a refused placement is not in the
-## answer, so the returned array looks perfectly well formed while rows are
-## missing from the screen. `failures()` is what catches it, which is the whole
-## point of the host reporting a refusal by name; the grid test below is the belt
-## for the opposite mistake, one the host let through.
 func _full_stages() -> void:
 	var every: Dictionary = {}
 	for key: StringName in [
@@ -157,9 +143,6 @@ func _full_stages() -> void:
 		var wide: int = String(placement.get("text", "")).length()
 		inside = inside and at.y >= 0 and at.y < 18 and at.x >= 0 and at.x + wide <= 20
 	_expect(inside, "seven stages a side stay on the screen's own grid")
-	## The host now reports a placement it refused, so the grid check above has a
-	## second half that does not depend on this probe knowing the grid's size: a
-	## refusal reaches `failures()` by name, and this mod must produce none.
 	_expect(
 		_host.failures().is_empty(),
 		"the host refused none of this mod's annotations"
@@ -216,7 +199,7 @@ func _pc_row(party_count: int) -> bool:
 
 
 func _switch(key: StringName, enabled: bool) -> void:
-	var result: Dictionary = _host.set_option(MOD_ID, key, 1 if enabled else 0)
+	var result: Dictionary = _host.set_option(MOD_ID, key, int(enabled))
 	_expect(bool(result.get("ok", false)), "%s can be switched" % key)
 
 

@@ -1,35 +1,11 @@
 extends SceneTree
 
 ## Photographs the host's own evolution sequence, one named phase at a time.
-##
-## `tools/linking_cord_shot.gd` reaches the item through the real pack and stops
-## at the party list, because that is where the pack's own screens end. What the
-## cord is FOR is drawn by `Gen2EvolutionScreen`, and this is the only picture of
-## it: the plan is handed in the shape `Gen2Evolution.after_battle` returns, the
-## screen is pumped one hardware frame at a time, and the shutter falls on the
-## frame a named phase is reached, plus an offset.
-##
-##   Godot --headless --path <pokerecomp> -s tools/evolution_shot.gd -- \
-##       <game> <out.png> <old species> <new species> <phase> [offset] [scale]
-##
-## PHASE is one of `Gen2EvolutionScreen.Phase`, lowercased: `evolving`, `hold`,
-## `flash`, `replace`, `balls`, `animate`, `congratulations`. OFFSET is hardware
-## frames spent inside it before the picture, which is how the flash loop's own
-## halves, one white and one dark, are told apart.
 
-## The whole sequence is well under this; a phase that is never reached is a
-## fault to report rather than a run to hang.
 const FRAME_LIMIT: int = 1200
 
-## The screen is drawn at the cartridge's own resolution and scaled by whole
-## pixels afterwards, so a thumbnail keeps its hard edges.
 const SCREEN := Vector2i(160, 144)
 
-## THE SEQUENCE CANNOT BE SPENT FROM `_initialize`. A node added there is not in
-## the tree yet, so `Gen2EvolutionScreen._ready` has not run, the plan has not
-## been begun and every frame handed to a screen still in `Phase.DONE` is
-## discarded. The staging waits for the tree's first processed frame, and the
-## shutter waits one more for the viewport to composite what was set.
 const STAGE_ON: int = 2
 const CAPTURE_ON: int = 4
 
@@ -80,8 +56,6 @@ func _initialize() -> void:
 	root.add_child(_frame)
 
 	_screen = Gen2EvolutionScreen.new()
-	# The shape `Gen2Evolution.after_battle` builds, minus the party row it was
-	# read off: nothing here writes a save, so the index is never spent.
 	_screen.set_context(data, [{
 		"index": 0,
 		"old_species": old_species,
@@ -89,7 +63,6 @@ func _initialize() -> void:
 		"level": 30,
 		"evolving_name": String(old_record.get("name", "")),
 		"statused": false,
-		# An item's evolution is forced, and B does nothing to it.
 		"forced": true,
 	}])
 	_frame.add_child(_screen)
@@ -112,8 +85,6 @@ func _process(_delta: float) -> bool:
 	return true
 
 
-## Spends hardware frames until the wanted phase has been in for [member
-## _offset] of them. False means it never arrived and the run is over.
 func _run() -> bool:
 	var reached: int = -1
 	for frames: int in FRAME_LIMIT:

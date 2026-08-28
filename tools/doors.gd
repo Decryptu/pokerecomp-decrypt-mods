@@ -2,15 +2,9 @@ extends SceneTree
 
 ## WHERE THE DOORS ARE, and the cartridge already says: every one is a WARP
 ## event on the map record, and `Gen2WorldMap.events["warps"]` carries them.
-##
-## A door is drawn on the wall face-on and is WALKABLE, so `tile_shape.at` calls
-## its cell ground and the column stands at nothing: the doorway comes out as a
-## slot cut through the whole house instead of as a door painted on it. This
-## counts how much of the game that is.
-##
-##   Godot --headless --path <pokerecomp> -s tools/doors.gd -- <cache>
 
 const MOD := "user://mods/voxel3d"
+
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
@@ -42,9 +36,6 @@ func _initialize() -> void:
 			var cell := Vector2i(int(event.get("x", -1)), int(event.get("y", -1)))
 			if cell.x < 0 or cell.y < 0 or cell.x >= cells.x or cell.y >= cells.y:
 				continue
-			# A door in a wall: the cell itself is walkable, and the cell BESIDE it
-			# is not. That is what makes the hole, and a warp on open ground, a
-			# staircase or a cave mouth is not it.
 			if source.permission_at(cell) != Gen2WorldCollision.LAND_TILE:
 				continue
 			var walled: bool = false
