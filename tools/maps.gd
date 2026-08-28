@@ -15,10 +15,15 @@ extends SceneTree
 ##
 ## The columns are group,number, tileset, environment, size in TILES, whether
 ## the host calls it outside, the CENTRE tile, which is what `tools/shot.gd` and
-## `tools/map_grid.py` both take, and how far BACK to stand to hold the whole of
+## `tools/map_grid.py` both take, how far BACK to stand to hold the whole of
 ## it, which `tools/pack.sh` reads so that a pack of a city and a pack of a
-## village are framed the same way. A constant cannot do that job: 320 holds a
-## village whole and shows one corner of Saffron.
+## village are framed the same way, and the map's own NAME. A constant cannot do
+## the distance: 320 holds a village whole and shows one corner of Saffron.
+##
+## The name is the cartridge's landmark, off `map.location`, and it is last so
+## that a reader adding a column does not move the ones a script counts. It is
+## what a person calls the place, and a pack labelled `22,2` alone is a pack
+## nobody can talk about.
 ##
 ## EVERY PATH QUITS, and that is not tidiness. A SceneTree script that errors
 ## before `quit()` never returns: the run hangs until something kills it, and
@@ -69,14 +74,14 @@ func _initialize() -> void:
 				if only_tileset >= 0 and map.tileset != only_tileset:
 					continue
 		rows.append([map.group, map.number, map.tileset, map.environment,
-			wide, high, outside])
+			wide, high, outside, data.landmark_name(map.location)])
 
 	# Biggest first, because a survey pack is read in that order: the maps worth
 	# a picture are the ones with the most in them.
 	rows.sort_custom(func(a: Array, b: Array) -> bool:
 		return a[4] * a[5] > b[4] * b[5]
 	)
-	print("map\tts\tenv\ttiles\tplace\tcentre\tback")
+	print("map\tts\tenv\ttiles\tplace\tcentre\tback\tname")
 	for row: Array in rows:
 		@warning_ignore("integer_division")
 		var centre := Vector2i(row[4] / 2, row[5] / 2)
@@ -85,9 +90,9 @@ func _initialize() -> void:
 		# its edges still in it.
 		@warning_ignore("integer_division")
 		var back: int = maxi(row[4], row[5]) * 8 * 7 / 8
-		print("%d,%d\t%d\t%d\t%dx%d\t%s\t%d,%d\t%d" % [
+		print("%d,%d\t%d\t%d\t%dx%d\t%s\t%d,%d\t%d\t%s" % [
 			row[0], row[1], row[2], row[3], row[4], row[5],
-			"outside" if row[6] else "inside", centre.x, centre.y, back,
+			"outside" if row[6] else "inside", centre.x, centre.y, back, row[7],
 		])
 	print(rows.size(), " maps")
 	quit()

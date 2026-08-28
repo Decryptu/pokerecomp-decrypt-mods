@@ -36,6 +36,10 @@ extends SceneTree
 ## | `framed` | The hardware's own 160x144 instead of SCREEN FILL. What a small
 ##   interior wants, since filling the surface with a map narrower than it only
 ##   buys more of the void past its edge |
+## | `view=voxel3d` | Raise the banner over another registered view rather than
+##   over the flat one. A notice is the world screen's own layer and a view is
+##   the world under it, and whether the second covers the first is a question
+##   only a picture answers |
 ##
 ## Rendering needs a display.
 
@@ -81,6 +85,8 @@ var _frames: int = 0
 var _waited: int = 0
 var _staged: bool = false
 var _framed: bool = false
+## The registered view to raise the banner over, empty for the screen's own.
+var _view: StringName = &""
 var _cell := DEFAULT_CELL
 var _data: GameData = null
 
@@ -110,6 +116,9 @@ func _initialize() -> void:
 			"framed":
 				_framed = true
 			_:
+				if String(args[index]).begins_with("view="):
+					_view = StringName(String(args[index]).substr(5))
+					continue
 				print("no flag called ", args[index])
 				quit(2)
 				return
@@ -136,6 +145,10 @@ func _initialize() -> void:
 		print("the mod is not installed")
 		quit(1)
 		return
+	if not _view.is_empty():
+		print("view       ", String(_view), " ", str(host.select_view(_view)))
+	if not host.failures().is_empty():
+		print("failures   ", str(host.failures()))
 
 	## In memory for this process: nothing here writes the options file, and the
 	## screen takes the option again whenever it applies its own share of it, so

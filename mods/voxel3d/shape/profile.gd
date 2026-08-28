@@ -1186,11 +1186,35 @@ const OBJECTS: Dictionary = {
 		# the wall flood cuts them apart at each eave and each comes back as its own
 		# building on the ground, with the eaves standing between them as spires.
 		#
-		# So it is the Bell Tower's reading at its own size: the whole drawn
-		# rectangle, the box its bottom eight rows, and `depth` 64 for the same 8x8
-		# footprint.
+		# It is not a box either, which the box read cost a round to learn: the
+		# rows above each storey are the NEXT roof's slope, so a box painted the
+		# roof's slats down a vertical wall, capped it flat and laid the door on
+		# the pavement. So its layers are stated, and `mesher.gd:_object_tower`
+		# stands them up. The reviewer gave the shape: a six tile core, three
+		# storeys of two tiles each, a roof oversailing by one tile all round
+		# between them, and a top roof falling two tiles for one and flat inside
+		# that.
 		{
 			&"name": &"sprout_tower",
+			&"tower": true,
+			# The drawing's own tiles. Rows 0 to 3 are the top roof, 4 the third
+			# storey, 5 its roof, 6 the second storey, 7 its roof, and 8 and 9 the
+			# first storey with the door in it.
+			&"door": [2, 3],
+			# Where its axis stands down the page, in the arrangement's own tiles.
+			# The wall is drawn on rows 8 and 9 and the raised floor it stands on
+			# is rows 10 and 11, so the front of the six tile core is the row 9
+			# and 10 boundary and its middle is three tiles behind that.
+			&"axis": 7,
+			&"layers": [
+				{&"tiles": 2, &"half": 3, &"art": [1, 8, 6, 2]},
+				{&"tiles": 1, &"half": 4, &"top_half": 3, &"art": [1, 7, 6, 1]},
+				{&"tiles": 2, &"half": 3, &"art": [1, 6, 6, 1]},
+				{&"tiles": 1, &"half": 4, &"top_half": 3, &"art": [1, 5, 6, 1]},
+				{&"tiles": 2, &"half": 3, &"art": [1, 4, 6, 1]},
+				{&"tiles": 1, &"half": 4, &"top_half": 2, &"art": [1, 3, 6, 1],
+					&"top": [0, 0, 8, 4]},
+			],
 			&"tiles": [
 				[49, 83, 83, 83, 83, 83, 83, 52],
 				[65, 83, 83, 83, 83, 83, 83, 68],

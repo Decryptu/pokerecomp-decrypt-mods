@@ -140,6 +140,14 @@ const FENCE_THICK: float = 3.0
 var _size := Vector2i.ZERO
 var _map_size := Vector2i.ZERO
 var _margin := Vector2i.ZERO
+## The ring on the map's FAR sides, south and east, which is not always the one
+## on its near sides: a ring grows only on a side whose own outer edge would cut
+## a drawing in half. See [method _ring_side].
+var _margin_far := Vector2i.ZERO
+## The grid tile one past the map's own far corner, which is where the map ends
+## and the ring begins again. `_margin + _map_size`, kept because it is asked for
+## in every pass that has to tell the map from the ring around it.
+var _map_end := Vector2i.ZERO
 ## How far the bank field counts outward before every tile past it is open water,
 ## in tiles, and what its texture's 0 to 1 stands for. Six is well past the widest
 ## line either term in `world/water.gd` draws from it.
@@ -350,6 +358,10 @@ var _shelf := PackedByteArray()
 ## Written only for a rim, and read only by `_emit`.
 var _ramp := PackedByteArray()
 var _corners := PackedInt32Array()
+## Per tile: whether a door pass lifted it to the height of the wall it stands
+## in. It is flat art at a wall's height and it is not floor, which is the one
+## thing `_skirt_column` cannot tell from the two grids it reads.
+var _doorway := PackedByteArray()
 ## The southernmost map row of the structure each tile belongs to. The fold reads
 ## north from there rather than from the tile itself, so every column of one
 ## structure shows the same drawing standing up and a face exposed at its back
@@ -950,7 +962,7 @@ func emitted_bounds_tiles() -> Rect2i:
 func stamped_bounds_tiles() -> Rect2i:
 	if _size == Vector2i.ZERO:
 		return Rect2i()
-	return Rect2i(-_margin, _map_size + _margin * 2)
+	return Rect2i(-_margin, _size)
 
 
 ## All the ground this mesher could ever emit, in MAP tiles: the map, the border
@@ -963,8 +975,8 @@ func stamped_bounds_tiles() -> Rect2i:
 func drawn_bounds_tiles() -> Rect2i:
 	if _size == Vector2i.ZERO:
 		return Rect2i()
-	var out: Vector2i = _margin + Vector2i(_skirt_reach(), _skirt_reach())
-	return Rect2i(-out, _map_size + out * 2)
+	var reach := Vector2i(_skirt_reach(), _skirt_reach())
+	return Rect2i(-(_margin + reach), _size + reach * 2)
 
 
 ## The world x and z of a GRID tile's own corner. The grid is the map inside its
@@ -1125,9 +1137,17 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_ground_table = shape.ground_table()
 	var ring: int = _ring_depth(source, shape) if _outside \
 		else (ROOM_RING if not _room_wall.is_empty() else 0)
-	_margin = Vector2i(ring, ring)
 	_map_size = source.size_cells() * RomLayout.MAP_BLOCK_CELL_WIDTH
-	_size = _map_size + _margin * 2
+	_margin = Vector2i(
+		_ring_side(source, shape, ring, Vector2i(-1, 0)),
+		_ring_side(source, shape, ring, Vector2i(0, -1))
+	)
+	_margin_far = Vector2i(
+		_ring_side(source, shape, ring, Vector2i(1, 0)),
+		_ring_side(source, shape, ring, Vector2i(0, 1))
+	)
+	_size = _map_size + _margin + _margin_far
+	_map_end = _margin + _map_size
 	var count: int = _size.x * _size.y
 	_tiles.resize(count)
 	_art.resize(count)
@@ -1171,6 +1191,10 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_ledge.fill(LEDGE_NONE)
 	_shelf.resize(count)
 	_shelf.fill(0)
+	# Written only where a door pass lifts a tile, so it is cleared here rather
+	# than filled in by a pass that may not run on this tileset at all.
+	_doorway.resize(count)
+	_doorway.fill(0)
 	_room.resize(count)
 	_room.fill(0)
 
@@ -1180,7 +1204,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			var at: int = ty * _size.x + tx
 			var shell: bool = not _room_wall.is_empty() and (
 				tx < _margin.x or ty < _margin.y
-				or tx >= _size.x - _margin.x or ty >= _size.y - _margin.y
+				or tx >= _map_end.x or ty >= _map_end.y
 			)
 			_room[at] = ROOM_SHELL if shell else 0
 			var tile: int = _room_wall_tile(tx, ty) if shell \
@@ -1317,10 +1341,10 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_fence_tiles = shape.fence_face()
 	_fence_mask = PackedByteArray()
 	_measure_fences()
-	# After every one of them, since each can still move a height and a ramp is
 	# Before the ramps, or the rim slopes down into the mouth it stands beside and
 	# a cave entrance comes out at the point of a funnel.
 	_measure_mouths()
+	# After every one of them, since each can still move a height and a ramp is
 	# cut from the heights as they finally stand.
 	_measure_ramps()
 	# After the ramps, which is what sizes and fills the corners they write into.
@@ -1629,6 +1653,7 @@ func _measure_house_boxes(source: RefCounted) -> void:
 	_house_over.clear()
 	_house_open.clear()
 	_house_ground.clear()
+	_released_ground.clear()
 	if _houses.is_empty():
 		return
 	var warps: Array = []
@@ -1659,6 +1684,15 @@ func _measure_house_boxes(source: RefCounted) -> void:
 		for row: int in across.y:
 			for column: int in across.x:
 				floors.append(_cell_floor((start.x + column) >> 1, (start.y + row) >> 1))
+		# AN AUTHORED OBJECT OUTRANKS A PAINTING OF THE SAME THING. Sprout Tower
+		# is painted in `houses.gd` and declared in `profile.gd:OBJECTS`, and both
+		# were built: the object stood the tower and the painting stood its own
+		# reading of the same drawing through it, which came out as a floor
+		# hanging off the first storey. The test is that the object covers the
+		# WHOLE painting, so a bench standing inside a house takes nothing from
+		# the house it stands in.
+		if _house_inside_object(start, across):
+			continue
 		var chosen: Array = _house_chosen(entry)
 		var footprint: PackedByteArray = _house_footprint(chosen, across)
 		var stood: PackedByteArray = _house_body_mask(chosen, across)
@@ -1700,11 +1734,30 @@ func _measure_house_boxes(source: RefCounted) -> void:
 					_house_open[at] = Vector2i(start.x, start.x + across.x)
 
 
+## Whether the object pass has already claimed every tile of one painting.
+##
+## Both passes match by arrangement and either may reach a drawing the other one
+## does. Where an object covers the whole of a painting the object is the later
+## and the more specific reading, and the painting is not built at all.
+func _house_inside_object(start: Vector2i, across: Vector2i) -> bool:
+	if _object_covered.is_empty():
+		return false
+	for row: int in across.y:
+		for column: int in across.x:
+			var at: int = (start.y + row) * _size.x + start.x + column
+			if at < 0 or at >= _object_covered.size() or _object_covered[at] == 0:
+				return false
+	return true
+
+
 ## Per tile the depth cap released: the columns of the drawing that covered it,
 ## which is the span the floor beside it is searched outside of.
 var _house_open: Dictionary = {}
 ## And the answer, once asked. Emptied with the map.
 var _house_ground: Dictionary = {}
+## The same answer for a covered tile the house pass never released, asked at
+## emit and kept so one tile walks its row once. See `_ground_art`.
+var _released_ground: Dictionary = {}
 
 
 ## The floor BESIDE one released tile, along its own row and outside the drawing.
@@ -2371,7 +2424,7 @@ func _measure_ramps() -> void:
 func _in_map(tx: int, ty: int) -> bool:
 	return (
 		tx >= _margin.x and ty >= _margin.y
-		and tx < _size.x - _margin.x and ty < _size.y - _margin.y
+		and tx < _map_end.x and ty < _map_end.y
 	)
 
 
@@ -2699,6 +2752,7 @@ func _measure_doors(shape: RefCounted) -> void:
 		if high <= 0:
 			continue
 		_heights[at] = high
+		_doorway[at] = 1
 		for corner: int in 4:
 			_corners[at * 4 + corner] = high
 
@@ -2763,6 +2817,7 @@ func _measure_collision_doors(source: RefCounted) -> void:
 		if high <= 0:
 			continue
 		_heights[at] = high
+		_doorway[at] = 1
 		for corner: int in 4:
 			_corners[at * 4 + corner] = high
 
@@ -2924,10 +2979,23 @@ func _corner_across(step: Vector2i, reach: Vector2i) -> int:
 ## column draws no front at all, and what says how tall a rim stands is the rock it
 ## belongs to. Each column votes with the length of its own front run, so a face
 ## two tiles nearly everywhere is not lifted by the one column a cave mouth is cut
-## into. A structure with no front keeps what the column pass measured.
+## into.
+##
+## A structure with no front keeps what the column pass measured, but never
+## taller than the tallest face the map DOES draw. Nothing in a frontless
+## structure says how tall it is, so the column pass answers with the length of
+## its own run, and Route 22's rim between the pond and the field is sixteen
+## tiles long: it came out three cells of black curtain beside rock standing at
+## one. The cap is the whole map's tallest front rather than the commonest,
+## because a route carries cliffs of more than one height and capping at the
+## commonest brought unrelated rock down on nineteen maps; and it is a cap rather
+## than a reading, because a rim that measured ONE cell measured that off a
+## drawing that repeats and is evidence.
 func _measure_cliffs() -> void:
 	var seen := PackedByteArray()
 	seen.resize(_size.x * _size.y)
+	var structures: Array[PackedInt32Array] = []
+	var banded := PackedInt32Array()
 	for start: int in seen.size():
 		if seen[start] == 1 or _cliff[start] == 0:
 			continue
@@ -2951,8 +3019,25 @@ func _measure_cliffs() -> void:
 					continue
 				seen[index] = 1
 				stack.append(index)
-		var bands: int = _face_bands(members)
+		structures.append(members)
+		banded.append(_face_bands(members))
+	# The tallest face this map actually draws, which is the ceiling on the ones
+	# that draw none.
+	var tallest: int = 0
+	for bands: int in banded:
+		tallest = maxi(tallest, bands)
+	for index: int in structures.size():
+		var members: PackedInt32Array = structures[index]
+		var bands: int = banded[index]
 		if bands <= 0:
+			if tallest <= 0:
+				continue
+			for at: int in members:
+				if _heights[at] <= tallest * BAND:
+					continue
+				_heights[at] = tallest * BAND
+				_bases[at] = _cliff_base(at)
+				_shelf[at] = 1
 			continue
 		for at: int in members:
 			_heights[at] = bands * BAND
@@ -3278,8 +3363,17 @@ func _cliff_evidence(
 						seeds[index] = mini(int(seeds.get(index, height)), height)
 					elif height > 0:
 						patches[index] = mini(int(patches.get(index, height)), height)
+				# The ground a cliff stands on lies under its FRONT, and a column
+				# whose run does not END in a front band is a corner: the front is
+				# at the top of it and the run carries on down the rim beside the
+				# plateau, so what lies under the bottom of it is more plateau. Six
+				# such columns called Cianwood's rock the ground its own wall
+				# stands on, which blocked the region and left the whole rock at
+				# the town's level.
 				var below: int = ty + run
-				if below < _size.y and _is_plateau_floor(below * _size.x + tx):
+				if _front[(below - 1) * _size.x + tx] == 1 \
+						and below < _size.y \
+						and _is_plateau_floor(below * _size.x + tx):
 					fronts[below * _size.x + tx] = true
 			ty += run
 	return any
@@ -5506,6 +5600,9 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 	if bool(object.get(&"seat", false)):
 		_object_seat(object, start, across, front, tiles, mask, span, window, atlas)
 		return
+	if bool(object.get(&"tower", false)):
+		_object_tower(object, start, across, tiles, window, atlas)
+		return
 	var top_rows: int = clampi(int(object.get(&"top", 0)), 0, window.size.y)
 	var face_rows: int = window.size.y - top_rows
 	# A drawing's last rows are not always drawn. The face band is authored as
@@ -5663,6 +5760,220 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 					window.position.y, window.position.y + window.size.y
 				),
 				SHADE_TOP_FLAT
+			)
+
+
+## A pagoda, built as the STACK OF LAYERS it is rather than as one box.
+##
+## Every other reading of a tower here has been a box with the drawing hung down
+## its front, and the drawing is a facade: its rows are storey, roof, storey,
+## roof, storey, roof going UP, so a box paints a roof's slats onto a vertical
+## wall, caps the whole thing with a flat lid and lays the door on the pavement.
+##
+## Nothing in a flat drawing says how tall a storey stands, how far a roof
+## oversails it or how steeply it falls, so the layers are AUTHORED beside the
+## arrangement in `profile.gd:OBJECTS`. Per layer, bottom first:
+##
+##   tiles     how tall it stands, in map tiles
+##   half      half its width where it stands, in tiles from the tower's axis, so
+##             3 is a six tile core and 4 is a roof oversailing it by one tile all
+##             round
+##   top_half  a roof's half width where it meets what stands on it. A wall leaves
+##             it out and is a box
+##   art       the rectangle of the drawing its four faces wear, in the
+##             arrangement's own tiles: x, y, width, height
+##   top       a roof's own top surface, the same rectangle. Only the topmost roof
+##             owns one, since every roof below is covered by the storey it carries
+##
+## The axis is the object's own box: the widest course is exactly `depth` deep and
+## `window` wide, so the tower stands where the box stood and covers what it
+## covered.
+## The measured FRONT is not among the arguments, and that is the one thing about
+## this that is not obvious: `_object_front` holds a box back to the last cell the
+## thing blocks, which for a tower is the top of its own facade rather than the
+## wall's foot, and read from there the tower stood eight rows north of its own
+## door. The arrangement says where the wall is; nothing measured does.
+func _object_tower(
+	object: Dictionary, start: Vector2i, across: Vector2i,
+	tiles: Array, window: Rect2i, atlas: RefCounted
+) -> void:
+	var base: float = _object_base(object, start, across)
+	var cx: float = _world_x(start.x) + float(window.position.x) \
+		+ float(window.size.x) * 0.5
+	# The axis DOWN THE PAGE is authored and is not the box's own middle. See the
+	# note above the signature.
+	var cz: float = _world_z(start.y) + float(object[&"axis"]) * TILE
+	var door := Vector2i(-1, -1)
+	if object.has(&"door"):
+		var span: Array = object[&"door"]
+		door = Vector2i(int(span[0]), int(span[1]))
+	var low: float = base
+	for layer: Dictionary in object[&"layers"] as Array:
+		var high: float = low + float(layer[&"tiles"]) * TILE
+		var half: float = float(layer[&"half"]) * TILE
+		var top_half: float = float(layer.get(&"top_half", layer[&"half"])) * TILE
+		var art: Array = layer[&"art"]
+		var box := Rect2i(int(art[0]), int(art[1]), int(art[2]), int(art[3]))
+		for side: int in 4:
+			_tower_face(
+				tiles, across, box, door, side, cx, cz, low, high, half, top_half,
+				atlas
+			)
+		if layer.has(&"top"):
+			var over: Array = layer[&"top"]
+			_tower_top(
+				tiles, across,
+				Rect2i(int(over[0]), int(over[1]), int(over[2]), int(over[3])),
+				cx, cz, high, top_half, atlas
+			)
+		low = high
+
+
+## The shade each of a tower's four faces wears, south first and clockwise.
+const TOWER_SHADES: Array = [SHADE_SOUTH, SHADE_SIDE, SHADE_NORTH, SHADE_SIDE]
+
+
+## One face of one layer of a tower, cut per tile across and down.
+##
+## The face is `2 * half` wide where it stands and `2 * top_half` wide where it
+## ends, which is a wall where the two are equal and a roof's slope where they are
+## not. Every position across it is pulled in by the same ratio, so the four faces
+## of a roof meet along its hips with no corner authored anywhere.
+##
+## The art is repeated across a face wider than itself and STRETCHED down one
+## taller than itself. Stretched rather than repeated, because a storey drawn one
+## tile high stands two tiles here and repeating it draws its windows twice.
+func _tower_face(
+	tiles: Array, across: Vector2i, art: Rect2i, door: Vector2i, side: int,
+	cx: float, cz: float, low: float, high: float, half: float, top_half: float,
+	atlas: RefCounted
+) -> void:
+	if half <= 0.0 or art.size.x <= 0 or art.size.y <= 0:
+		return
+	@warning_ignore("integer_division")
+	var wide: int = int(half * 2.0) / TILE_PX
+	if wide <= 0:
+		return
+	var rows: int = art.size.y
+	var normal: Vector3 = [
+		Vector3(0.0, 0.0, 1.0), Vector3(1.0, 0.0, 0.0),
+		Vector3(0.0, 0.0, -1.0), Vector3(-1.0, 0.0, 0.0),
+	][side]
+	for band: int in rows:
+		# The drawing's rows run DOWN the page and a face is measured UP from the
+		# ground, so the first row of the art is the top band of the face. Taken
+		# the other way round a two row storey is built upside down, which put the
+		# head of the door at its threshold.
+		var t0: float = float(rows - band - 1) / float(rows)
+		var t1: float = float(rows - band) / float(rows)
+		var y0: float = lerpf(low, high, t0)
+		var y1: float = lerpf(low, high, t1)
+		# How far in each end of the band stands, as a fraction of the widest
+		# course, which is what keeps a tile column straight up a slope.
+		var s0: float = lerpf(1.0, top_half / half, t0)
+		var s1: float = lerpf(1.0, top_half / half, t1)
+		var tile_row: int = art.position.y + band
+		for column: int in wide:
+			var art_column: int = _tower_art_column(art, door, side, column, wide)
+			var at: int = tile_row * across.x + art_column
+			if at < 0 or at >= tiles.size():
+				continue
+			var uv: Rect2 = atlas.uv_box(
+				int(tiles[at]), Rect2i(0, 0, TILE_PX, TILE_PX)
+			)
+			var u0: float = -half + float(column) * TILE
+			var u1: float = u0 + TILE
+			_quad(
+				_tower_corner(side, cx, cz, u0 * s0, y0, half * s0),
+				_tower_corner(side, cx, cz, u1 * s0, y0, half * s0),
+				_tower_corner(side, cx, cz, u1 * s1, y1, half * s1),
+				_tower_corner(side, cx, cz, u0 * s1, y1, half * s1),
+				normal, uv, TOWER_SHADES[side]
+			)
+
+
+## One corner of a tower's face: how far ALONG it the point stands, and how far
+## OUT the course it belongs to reaches. Both are already pulled in by the layer's
+## own narrowing, so this is the one place that knows which way each face runs and
+## nothing else about a tower carries a sign.
+##
+## The faces run clockwise seen from above, south first, each read left to right as
+## it is seen from OUTSIDE, which is the order `_quad` takes its corners in.
+func _tower_corner(
+	side: int, cx: float, cz: float, along: float, y: float, out: float
+) -> Vector3:
+	match side:
+		0:
+			return Vector3(cx + along, y, cz + out)
+		1:
+			return Vector3(cx + out, y, cz - along)
+		2:
+			return Vector3(cx - along, y, cz - out)
+		_:
+			return Vector3(cx - out, y, cz + along)
+
+
+## Which column of the drawing one position across a tower's face wears.
+##
+## A face wider than its art repeats it, sampled about the middle of each tile so
+## that the two ends wear the same column and the corners of a roof match. The
+## three faces that are not the front take the nearest column that is NOT the
+## door, since a tower has one way in.
+func _tower_art_column(
+	art: Rect2i, door: Vector2i, side: int, column: int, wide: int
+) -> int:
+	@warning_ignore("integer_division")
+	var at: int = (column * 2 + 1) * art.size.x / (wide * 2)
+	at = art.position.x + clampi(at, 0, art.size.x - 1)
+	if side == 0 or door.x < 0 or at < door.x or at > door.y:
+		return at
+	var left: int = door.x - 1
+	var right: int = door.y + 1
+	if left < art.position.x:
+		return mini(right, art.position.x + art.size.x - 1)
+	if right > art.position.x + art.size.x - 1:
+		return left
+	return left if at - door.x <= door.y - at else right
+
+
+## A tower roof's own top surface, laid flat and cut per tile.
+##
+## Only the topmost roof has one. Every roof under it is covered by the storey it
+## carries, which is exactly its own top width.
+func _tower_top(
+	tiles: Array, across: Vector2i, art: Rect2i,
+	cx: float, cz: float, y: float, half: float, atlas: RefCounted
+) -> void:
+	if half <= 0.0 or art.size.x <= 0 or art.size.y <= 0:
+		return
+	@warning_ignore("integer_division")
+	var wide: int = int(half * 2.0) / TILE_PX
+	if wide <= 0:
+		return
+	for row: int in wide:
+		@warning_ignore("integer_division")
+		var art_row: int = art.position.y + clampi(
+			(row * 2 + 1) * art.size.y / (wide * 2), 0, art.size.y - 1
+		)
+		var z0: float = -half + float(row) * TILE
+		var z1: float = z0 + TILE
+		for column: int in wide:
+			@warning_ignore("integer_division")
+			var art_column: int = art.position.x + clampi(
+				(column * 2 + 1) * art.size.x / (wide * 2), 0, art.size.x - 1
+			)
+			var at: int = art_row * across.x + art_column
+			if at < 0 or at >= tiles.size():
+				continue
+			var uv: Rect2 = atlas.uv_box(
+				int(tiles[at]), Rect2i(0, 0, TILE_PX, TILE_PX)
+			)
+			var x0: float = -half + float(column) * TILE
+			var x1: float = x0 + TILE
+			_quad(
+				Vector3(cx + x0, y, cz + z1), Vector3(cx + x1, y, cz + z1),
+				Vector3(cx + x1, y, cz + z0), Vector3(cx + x0, y, cz + z0),
+				Vector3.UP, uv, SHADE_TOP_FLAT
 			)
 
 
@@ -5830,10 +6141,10 @@ func _room_faces(tx: int, ty: int, normal: Vector3) -> bool:
 	if normal.x > 0.0:
 		return tx < _margin.x
 	if normal.x < 0.0:
-		return tx >= _size.x - _margin.x
+		return tx >= _map_end.x
 	if normal.z > 0.0:
 		return ty < _margin.y
-	return ty >= _size.y - _margin.y
+	return ty >= _map_end.y
 
 
 ## The stool, built in voxels out of its own drawing.
@@ -8639,7 +8950,55 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 	var named: int = _ground_tile_at(at)
 	if named >= 0:
 		return Vector2i(named, 0)
+	# A COVERED BUILDING TILE HAS NO GROUND OF ITS OWN and no class `GROUND`
+	# names, so all that was left was its own drawing: a facade lying flat on the
+	# floor like a fallen billboard. Measured over the game that is 9787 tiles,
+	# every one of them a wall or a roof under a house or an object big enough
+	# that both rings above are the same building.
+	#
+	# The floor BESIDE it along its own row is the answer `_settle_house_ground`
+	# gives a house's released rows, and it is the same question asked one pass
+	# later for the tiles that pass never reached.
+	if _covered_at(at):
+		var beside: Vector2i = _released_ground.get(at, Vector2i(-1, 0))
+		if beside.x < 0:
+			beside = _floor_along_row(tx, ty)
+			if beside.x >= 0:
+				_released_ground[at] = beside
+		if beside.x >= 0:
+			return beside
 	return Vector2i(maxi(_tiles[at], 0), 0)
+
+
+## Whether either pass that stands a drawing up has covered this tile.
+func _covered_at(at: int) -> bool:
+	if not _house_covered.is_empty() and _house_covered[at] == 1:
+		return true
+	return not _object_covered.is_empty() and _object_covered[at] == 1
+
+
+## The floor beside one tile, found along its own ROW.
+##
+## Nearer first and both ways at once, so a building against a bank takes the
+## bank and one standing in a canal takes the canal. The row rather than the
+## rings, because what defeats the rings is a building wider than they reach.
+func _floor_along_row(tx: int, ty: int) -> Vector2i:
+	for step: int in range(1, _size.x):
+		var reached: bool = false
+		for way: int in [-1, 1]:
+			var at_x: int = tx + way * step
+			if at_x < 0 or at_x >= _size.x:
+				continue
+			reached = true
+			var index: int = ty * _size.x + at_x
+			if _art[index] == ART_FLAT and _tiles[index] >= 0 \
+					and _heights[index] >= 0:
+				return _floor_art.get(
+					index, Vector2i(maxi(_tiles[index], 0), _heights[index])
+				)
+		if not reached:
+			break
+	return Vector2i(-1, 0)
 
 
 func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
@@ -8754,7 +9113,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	# cream band lying across the bottom of the frame with nothing under it. The
 	# top of a wall is only worth drawing on the walls that are still there.
 	if not _room.is_empty() and _room[at] == ROOM_SHELL \
-			and ty >= _size.y - _margin.y:
+			and ty >= _map_end.y:
 		_sink = SINK_TERRAIN
 	elif tilted:
 		_face_roof(tx, ty, atlas.uv(cap), SHADE_TOP_FLAT)
@@ -9214,6 +9573,83 @@ func _ring_depth(source: RefCounted, shape: RefCounted) -> int:
 	return RING_TILES_MODELLED
 
 
+## How much deeper than [method _ring_depth] one side of the ring may go, in
+## tiles, before the side keeps the depth it had.
+##
+## Past the map next door lies the map after it, so no ring is wide enough to
+## finish every drawing and the growth has to stop somewhere. Eight tiles is two
+## blocks and it is what the gates and the edge houses need: the sides that ask
+## for more are asking for a whole town, and paying for a deeper ring that still
+## cuts something buys nothing.
+const RING_GROWTH: int = 8
+
+
+## One side's ring depth: the base, grown a walk cell at a time while that side's
+## own outermost row still carries a wall or a roof.
+##
+## A ring ends in the middle of whatever the map next door draws there, and a
+## building the edge cuts is stood up by the fold as though it were whole. The
+## run's top is a wall rather than a roof, so the lid wears the wall's own art
+## and there is no roof at all. Saffron is the case the reviewer named: its ring
+## reaches sixteen tiles, which is map 25,1 ROUTE 5's row 20, and Route 5's gate
+## house runs from row 18, so the walls and the door land inside the ring and the
+## roof does not.
+##
+## PER SIDE, and not per map, because the grid is the expensive thing: clearing
+## that one gate by growing Saffron's ring all round costs a fifth of the game's
+## resolve, and growing its north side alone costs a twenty-fifth of Saffron's.
+## A side that already ends in open ground never moves, so no map that reads
+## right today is made worse by this.
+func _ring_side(
+	source: RefCounted, shape: RefCounted, base: int, out: Vector2i
+) -> int:
+	if not _outside or base <= 0:
+		return base
+	var depth: int = base
+	while _ring_cuts(source, shape, base, depth, out):
+		depth += CELL_TILES
+		if depth > base + RING_GROWTH:
+			return base
+	return depth
+
+
+## Whether one side's outermost row, at that depth, carries any of a building.
+##
+## Read across the width the OTHER sides keep, so growing one side never depends
+## on what another one did and the four answers can be taken in any order.
+func _ring_cuts(
+	source: RefCounted, shape: RefCounted, base: int, depth: int, out: Vector2i
+) -> bool:
+	if out.y != 0:
+		var ty: int = -depth if out.y < 0 else _map_size.y + depth - 1
+		for tx: int in range(-base, _map_size.x + base):
+			if _ring_building(source, shape, tx, ty):
+				return true
+		return false
+	var tx: int = -depth if out.x < 0 else _map_size.x + depth - 1
+	for ty: int in range(-base, _map_size.y + base):
+		if _ring_building(source, shape, tx, ty):
+			return true
+	return false
+
+
+## Whether one map tile, which may lie well outside the map, is a wall or a roof.
+##
+## The class the tile resolves to, and not the `_part` grid, because the grid is
+## what this answer decides the size of. It is the reading the pass that fills
+## `_part` makes of the same tile, so the two agree wherever both can be asked.
+func _ring_building(
+	source: RefCounted, shape: RefCounted, tx: int, ty: int
+) -> bool:
+	var tile: int = source.tile_at(tx, ty)
+	if tile < 0:
+		return false
+	var part: StringName = shape.building_part(
+		shape.at(tile, source.permission_at(Vector2i(tx >> 1, ty >> 1)))
+	)
+	return part == &"wall" or part == &"roof"
+
+
 ## The wall behind furniture that stands against it.
 ##
 ## An object hands every tile it covers back to the floor, which is right for a
@@ -9229,7 +9665,7 @@ func _measure_room_behind() -> void:
 	var tall: int = ROOM_CELLS * CELL_TILES * BAND
 	var base: int = _margin.y + CELL_TILES - 1
 	for ty: int in range(_margin.y, _margin.y + CELL_TILES):
-		for tx: int in range(_margin.x, _size.x - _margin.x):
+		for tx: int in range(_margin.x, _map_end.x):
 			var at: int = ty * _size.x + tx
 			if _object_covered[at] == 0 or _heights[at] >= tall:
 				continue
@@ -9281,10 +9717,10 @@ func _measure_room() -> void:
 			if _room[at] != ROOM_SHELL:
 				continue
 			_heights[at] = tall
-			_bases[at] = floor_row if ty >= _size.y - _margin.y else ty
-	for tx: int in range(_margin.x, _size.x - _margin.x):
+			_bases[at] = floor_row if ty >= _map_end.y else ty
+	for tx: int in range(_margin.x, _map_end.x):
 		var run: int = 0
-		while _margin.y + run < _size.y - _margin.y \
+		while _margin.y + run < _map_end.y \
 				and _volume[(_margin.y + run) * _size.x + tx] == 1:
 			run += 1
 		if run == 0:
@@ -9338,8 +9774,8 @@ func _measure_room_fill() -> void:
 			@warning_ignore("integer_division")
 			var ty: int = at / _size.x
 			if tx <= _margin.x or ty <= _margin.y \
-					or tx >= _size.x - _margin.x - 1 \
-					or ty >= _size.y - _margin.y - 1:
+					or tx >= _map_end.x - 1 \
+					or ty >= _map_end.y - 1:
 				at_edge = true
 			for step: Vector2i in [
 				Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
@@ -9573,6 +10009,8 @@ func _skirt_column(edge: Vector2i, inward: Vector2i) -> Vector2i:
 		if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
 			break
 		var index: int = at.y * _size.x + at.x
+		if _doorway[index] == 1:
+			continue
 		if _art[index] == ART_FLAT and _tiles[index] >= 0:
 			return Vector2i(_tiles[index], _heights[index])
 	return Vector2i(-1, 0)

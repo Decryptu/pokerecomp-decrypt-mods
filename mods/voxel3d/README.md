@@ -333,10 +333,20 @@ one.
 it, and no measurement of a column reaches that, because the column through the
 floor up there is drawn as plain ground. The cliff says so instead: its face is
 named in the profile, and the run of face in each column says the flat ground
-north of it is on top and the flat ground south of it is the ground plane. Both
-are carried across by flooding, because a plateau is a region and not a strip,
-and a region that ends up with both answers is left alone: a plateau always opens
-somewhere, so a leak is a contradiction rather than a wrong height.
+north of it is on top and the flat ground under its front band is the ground
+plane. Under the FRONT rather than under the run, because a column at a corner
+carries the front at the top and then runs on down the rim beside the plateau,
+so what lies under the bottom of it is more plateau: read the other way, six
+such columns told Cianwood that its rock was the ground its own wall stands on.
+Both answers are carried across by flooding, because a plateau is a region and
+not a strip, and a region that ends up with both is left alone: a plateau always
+opens somewhere, so a leak is a contradiction rather than a wrong height.
+
+How tall a face stands is read per connected structure, off the runs of front its
+columns draw. A structure that draws no front anywhere is a rim seen from the
+side and has nothing in it to measure, so it keeps what the column pass made of
+it, capped at the tallest face the map does draw: without the cap a rim sixteen
+tiles long came out sixteen tiles tall.
 
 What stands beside a tile is read at the edge the two share. A box is one height
 and a rim is four, one per corner, so a face closed against a rim's single
@@ -416,6 +426,14 @@ is a stamped model, since a tree emits no geometry at all and a route can really
 end in a wood. A carved drawing stays at one block, since a hedge bush is about
 170 triangles a tile.
 
+Then a SIDE grows, a walk cell at a time and at most two blocks, while its own
+outer edge would cut a drawing in half. A ring that ends in the middle of a house
+stands the half it can see up as though it were whole, roofless and wearing its
+own wall on the lid; Saffron ends four tiles short of the roof of Route 5's gate.
+Per side, because the grid is what costs: clearing that one gate by deepening
+every side is a fifth of the game's resolve and deepening the north alone is a
+twenty-fifth of Saffron's. Sixteen maps grow one.
+
 **The ring is the map next door** wherever there is one, since the host places
 the whole neighbouring map on the connection graph: 1977 blocks on 68 of
 Crystal's 77 outdoor maps. It is the difference between a tree line at a seam
@@ -425,7 +443,10 @@ numbered in its own tileset.
 
 Beyond the ring the floor runs on for thirty-two tiles, so a route ends at a
 horizon instead of a cliff of nothing. That floor is the nearest flat tile
-inward, which is why a shoreline carries the water out and not the beach.
+inward, which is why a shoreline carries the water out and not the beach. A
+doorway is passed over on the way in: it is flat art standing at the height of
+the wall around it, and taken for floor it ran a wall of the building's own
+drawing sixteen tiles out into open country on eight maps.
 
 **Indoors the ring is a room.** A Game Boy camera never stands outside a room, so
 the cartridge draws only the wall the player looks at, which from any bearing but

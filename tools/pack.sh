@@ -22,9 +22,11 @@
 # `maps.gd`, because one distance cannot frame a city and a village alike: 320
 # holds a village and shows one corner of Saffron. Give a number to override it.
 #
-# Files are named `<group>_<number>.png`, which is what the reviewer answers
-# with. A LOG is written beside them naming every map in the pack, because a
-# pack sent without one is a dozen pictures nobody can point at.
+# Files are named `<group>_<number>.png`, and each frame carries its own map
+# and the cartridge's own name for it BURNED IN, through `tools/label.py`: a
+# reviewer sent a picture does not see what it is called, so a pack whose only
+# labels are filenames is a pack nobody can point at. A LOG is written beside
+# them naming every map as well, for the agent's own side of the round.
 #
 # The cartridge cache is $CACHE, else the Crystal one. The pokerecomp checkout
 # is $POKERECOMP, else the read-only one in `.references`. The Godot binary is
@@ -101,7 +103,8 @@ case "$SELECT" in
 	all|towns|outside|inside|ts*)
 		rows=$("$GODOT" --headless --path "$HOST" -s "$HERE/tools/maps.gd" \
 			-- "$CACHE" "$SELECT" 2>/dev/null \
-			| awk -F'\t' 'NF >= 7 && $1 ~ /^[0-9]+,[0-9]+$/ { print $1 "\t" $6 "\t" $7 }')
+			| awk -F'\t' 'NF >= 8 && $1 ~ /^[0-9]+,[0-9]+$/ \
+				{ print $1 "\t" $6 "\t" $7 "\t" $8 }')
 		;;
 	*)
 		# An explicit list carries no centre and no distance, so ask the one
@@ -117,7 +120,8 @@ case "$SELECT" in
 				*) continue ;;
 			esac
 			row=$(printf '%s\n' "$table" \
-				| awk -F'\t' -v m="$pair" '$1 == m { print $1 "\t" $6 "\t" $7 }')
+				| awk -F'\t' -v m="$pair" \
+					'$1 == m { print $1 "\t" $6 "\t" $7 "\t" $8 }')
 			if [ -z "$row" ]; then
 				echo "no map $pair" >&2
 				continue
@@ -133,7 +137,7 @@ if [ -z "$rows" ]; then
 	exit 1
 fi
 
-printf '%s\n' "$rows" | while IFS="$(printf '\t')" read -r map centre fit; do
+printf '%s\n' "$rows" | while IFS="$(printf '\t')" read -r map centre fit name; do
 	[ -n "$map" ] || continue
 	group="${map%%,*}"
 	number="${map##*,}"
@@ -143,17 +147,23 @@ printf '%s\n' "$rows" | while IFS="$(printf '\t')" read -r map centre fit; do
 	stand="$BACK"
 	[ "$stand" = "auto" ] && stand="$fit"
 	file="$OUT/${group}_${number}.png"
+	# The old picture goes first, or a render that fails leaves the last one
+	# standing: the check below then passes, the log calls it fresh, and the
+	# label is burned on top of the label it already wears.
+	rm -f "$file"
 	"$GODOT" --path "$HOST" -s "$HERE/tools/shot.gd" -- "$CACHE" \
 		"$group" "$number" "$x" "$y" "$file" \
 		"$PITCH" "$stand" "$TIME_OF_DAY" "" 6 "$BEARING" \
 		< /dev/null > /dev/null 2>&1
 	if [ -f "$file" ]; then
-		name="${group}_${number}.png"
-		if grep -q "^$name	" "$LOG" 2> /dev/null; then
-			grep -v "^$name	" "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
+		python3 "$HERE/tools/label.py" "$file" "$file" "MAP $map" "$name" \
+			> /dev/null
+		leaf="${group}_${number}.png"
+		if grep -q "^$leaf	" "$LOG" 2> /dev/null; then
+			grep -v "^$leaf	" "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 		fi
-		printf '%s\tmap %s\taimed at %s from %s\n' \
-			"$name" "$map" "$centre" "$stand" >> "$LOG"
+		printf '%s\tmap %s\t%s\taimed at %s from %s\n' \
+			"$leaf" "$map" "$name" "$centre" "$stand" >> "$LOG"
 		echo "${group}_${number}.png"
 	else
 		echo "${group}_${number}.png FAILED" >&2
