@@ -6,21 +6,35 @@ const MOD := "user://mods/voxel3d"
 const WORST: int = 8
 
 
-## Resolves one map a pass at a time: the total, and the longest single pass,
-## which is the longest frame a sliced resolve can cost.
+## Resolves one map a pass at a time: the total, the longest single pass, and
+## the name of that pass. A budget of one microsecond is spent by the first
+## pass, so a step runs exactly one and the name is read before it runs.
 static func _resolve(
 	mesher: RefCounted, source: RefCounted, shape: RefCounted
 ) -> Array:
 	var at: int = Time.get_ticks_usec()
 	mesher.begin_resolve(source, shape)
 	var worst: int = Time.get_ticks_usec() - at
+	var named: String = "begin_resolve"
 	while true:
+		var next: String = _pass_name(mesher)
 		var started: int = Time.get_ticks_usec()
 		var done: bool = mesher.resolve_step(1)
-		worst = maxi(worst, Time.get_ticks_usec() - started)
+		var spent: int = Time.get_ticks_usec() - started
+		if spent > worst:
+			worst = spent
+			named = next
 		if done:
 			break
-	return [Time.get_ticks_usec() - at, worst]
+	return [Time.get_ticks_usec() - at, worst, named]
+
+
+static func _pass_name(mesher: RefCounted) -> String:
+	var passes: Array[Callable] = mesher._resolve_passes
+	var at: int = mesher._resolve_at
+	if at >= passes.size():
+		return "none"
+	return String((passes[at] as Callable).get_method())
 
 
 func _initialize() -> void:
@@ -47,6 +61,10 @@ func _initialize() -> void:
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
 	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
 
+	# One mesher for the run, as the renderer holds one for the session: a
+	# drawing's plan outlives the map it was first met on, so a fresh mesher a
+	# map charges every map for a cache the game fills once.
+	var mesher: RefCounted = mesher_script.new()
 	var lines: Array = []
 	var triangles: int = 0
 	var rasterised: int = 0
@@ -64,7 +82,6 @@ func _initialize() -> void:
 			continue
 		var shape: RefCounted = shape_script.new(profile, map.tileset)
 		var source: RefCounted = source_script.new(null, map, tileset, data)
-		var mesher: RefCounted = mesher_script.new()
 
 		var measured: Array = _resolve(mesher, source, shape)
 		var resolved: int = measured[0]
@@ -105,6 +122,7 @@ func _initialize() -> void:
 			"models": stamps,
 			"resolve_ms": float(resolved) / 1000.0,
 			"pass_ms": float(measured[1]) / 1000.0,
+			"pass": measured[2],
 			"emit_ms": float(emitted) / 1000.0,
 		})
 		triangles += count
@@ -131,8 +149,8 @@ func _initialize() -> void:
 				(line["cells"] as Array)[1], line["triangles"], line["drawn"],
 				line["models"],
 			]
-			+ "  %6.1f ms resolve  %7.1f ms emit  %5.1f ms worst pass"
-			% [line["resolve_ms"], line["emit_ms"], line["pass_ms"]])
+			+ "  %6.1f ms resolve  %7.1f ms emit  %5.1f ms in %s"
+			% [line["resolve_ms"], line["emit_ms"], line["pass_ms"], line["pass"]])
 	var tilesets: Array = by_tileset.keys()
 	tilesets.sort_custom(func(a: int, b: int) -> bool:
 		return by_tileset[a][0] > by_tileset[b][0])

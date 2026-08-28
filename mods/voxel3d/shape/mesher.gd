@@ -5056,17 +5056,12 @@ func _house_plan(house: Dictionary) -> Array:
 	var count: int = 0
 	for at: int in owner.size():
 		count = maxi(count, owner[at] + 1)
-	var area := PackedInt32Array()
-	area.resize(count)
-	for at: int in owner.size():
-		if owner[at] >= 0:
-			area[owner[at]] += 1
+	var groups := PackedInt32Array()
+	var boxes: Array = _house_boxes(owner, terrace, cols, count, groups)
 
 	var plans: Array = []
 	for body: int in count:
-		if area[body] < HOUSE_BODY_MIN:
-			continue
-		var plan: Dictionary = _house_body(paint, rows, cols, owner, terrace, body)
+		var plan: Dictionary = _house_body(paint, rows, cols, owner, boxes, groups, body)
 		if not plan.is_empty():
 			plans.append(plan)
 	_house_plans[id] = plans
@@ -5089,34 +5084,62 @@ func _house_mask(paint: Array, word: String) -> PackedByteArray:
 	return mask
 
 
-@warning_ignore("integer_division")
+## Four-connected components, a run of a row at a time rather than a pixel at a
+## time: the stack carries one seed per run, not one per pixel.
 func _house_flood(mask: PackedByteArray, cols: int) -> PackedInt32Array:
 	var owner := PackedInt32Array()
 	owner.resize(mask.size())
 	owner.fill(-1)
-	var steps := PackedInt32Array([-cols, cols, -1, 1])
 	var bodies: int = 0
 	var stack := PackedInt32Array()
 	for start: int in mask.size():
 		if owner[start] >= 0 or mask[start] == 0:
 			continue
-		owner[start] = bodies
 		stack.push_back(start)
 		while not stack.is_empty():
 			var at: int = stack[stack.size() - 1]
 			stack.remove_at(stack.size() - 1)
-			for step: int in steps:
-				var next: int = at + step
-				if next < 0 or next >= mask.size() or owner[next] >= 0 \
-						or mask[next] == 0:
-					continue
-				var sideways: bool = absi(step) == 1
-				if sideways and next / cols != at / cols:
-					continue
-				owner[next] = bodies
-				stack.push_back(next)
+			if owner[at] >= 0:
+				continue
+			var run: Vector2i = _house_span(mask, owner, cols, at, bodies)
+			_house_seeds(mask, owner, run.x - cols, run.y - cols, stack)
+			_house_seeds(mask, owner, run.x + cols, run.y + cols, stack)
 		bodies += 1
 	return owner
+
+
+## The unclaimed run through `at` in its own row, claimed for `body`.
+@warning_ignore("integer_division")
+func _house_span(
+	mask: PackedByteArray, owner: PackedInt32Array, cols: int, at: int, body: int
+) -> Vector2i:
+	var row: int = (at / cols) * cols
+	var from: int = at
+	while from > row and mask[from - 1] != 0 and owner[from - 1] < 0:
+		from -= 1
+	var to: int = at
+	while to + 1 < row + cols and mask[to + 1] != 0 and owner[to + 1] < 0:
+		to += 1
+	for pixel: int in range(from, to + 1):
+		owner[pixel] = body
+	return Vector2i(from, to)
+
+
+## One seed per unclaimed run over the span, for the flood to take next.
+func _house_seeds(
+	mask: PackedByteArray, owner: PackedInt32Array,
+	from: int, to: int, stack: PackedInt32Array
+) -> void:
+	if from < 0 or to >= mask.size():
+		return
+	var at: int = from
+	while at <= to:
+		if mask[at] == 0 or owner[at] >= 0:
+			at += 1
+			continue
+		stack.push_back(at)
+		while at <= to and mask[at] != 0:
+			at += 1
 
 
 const HOUSE_ROOF_STEP: int = 1
@@ -5178,9 +5201,12 @@ func _house_carry(
 
 
 func _house_body(
-	paint: Array, rows: int, cols: int,
-	owner: PackedInt32Array, terrace: PackedInt32Array, body: int
+	paint: Array, rows: int, cols: int, owner: PackedInt32Array,
+	boxes: Array, groups: PackedInt32Array, body: int
 ) -> Dictionary:
+	var box: Rect2i = boxes[body]
+	if box.size.x == 0:
+		return {}
 	var tops := PackedInt32Array()
 	var eave_from := PackedInt32Array()
 	var eave_to := PackedInt32Array()
@@ -5191,12 +5217,11 @@ func _house_body(
 		array.fill(-1)
 	var walls := PackedInt32Array()
 	walls.resize(rows)
-	var box: Vector4i = _house_extent(cols, rows, owner, terrace, body, walls, tops)
-	if box.y < 0:
+	if _house_fill(owner, cols, box, body, walls, tops) < HOUSE_BODY_MIN:
 		return {}
-	var left: int = box.x
-	var right: int = box.y
-	var foot: int = _house_foot(walls, box.z)
+	var left: int = box.position.x
+	var right: int = box.end.x - 1
+	var foot: int = _house_foot(walls, box.end.y - 1)
 	var gap: int = int(foot + 1 < rows and walls[foot + 1] * 2 < walls[foot])
 	var reach: Vector2i = _house_roof_rows(
 		paint, rows, left, right, tops, eave_from, eave_to, cap_from, cap_to
@@ -5204,7 +5229,7 @@ func _house_body(
 	var top_row: int = reach.x
 	var peak: int = reach.y
 	_house_carry(cap_from, cap_to, left, right)
-	var rival: PackedInt32Array = _house_rivals(rows, cols, owner, terrace, body, box.w)
+	var rival: PackedInt32Array = _house_rivals(cols, boxes, groups, body)
 	var cover: Vector2i = _house_reach(
 		paint, rows, cols, rival, tops, left, right, Vector2i(top_row, peak - 1)
 	)
@@ -5224,28 +5249,48 @@ func _house_body(
 	}
 
 
-## The body's own box as left, right, bottom and terrace group, filling in the
-## wall count per row and the first wall row per column on the way.
-func _house_extent(
-	cols: int, rows: int, owner: PackedInt32Array, terrace: PackedInt32Array,
-	body: int, walls: PackedInt32Array, tops: PackedInt32Array
-) -> Vector4i:
-	var left: int = cols
-	var right: int = -1
-	var bottom: int = -1
-	var group: int = -1
-	for y: int in rows:
-		for x: int in cols:
+## Every wall body's own rectangle, and the terrace group each stands on, in one
+## pass over the painting. A body is four-connected, so it holds every column
+## between its left and its right, which is all a rival reads of it.
+@warning_ignore("integer_division")
+func _house_boxes(
+	owner: PackedInt32Array, terrace: PackedInt32Array, cols: int, count: int,
+	groups: PackedInt32Array
+) -> Array:
+	var boxes: Array = []
+	boxes.resize(count)
+	boxes.fill(Rect2i())
+	groups.resize(count)
+	groups.fill(-1)
+	for at: int in owner.size():
+		var body: int = owner[at]
+		if body < 0:
+			continue
+		var spot := Vector2i(at % cols, at / cols)
+		var box: Rect2i = boxes[body]
+		if box.size.x == 0:
+			box = Rect2i(spot, Vector2i.ONE)
+		boxes[body] = box.expand(spot).expand(spot + Vector2i.ONE)
+		groups[body] = terrace[at]
+	return boxes
+
+
+## The wall count per row and the first wall row per column, read over the
+## body's own rectangle rather than the whole painting. Answers its area.
+func _house_fill(
+	owner: PackedInt32Array, cols: int, box: Rect2i, body: int,
+	walls: PackedInt32Array, tops: PackedInt32Array
+) -> int:
+	var area: int = 0
+	for y: int in range(box.position.y, box.end.y):
+		for x: int in range(box.position.x, box.end.x):
 			if owner[y * cols + x] != body:
 				continue
+			area += 1
 			walls[y] += 1
 			if tops[x] < 0:
 				tops[x] = y
-			left = mini(left, x)
-			right = maxi(right, x)
-			bottom = maxi(bottom, y)
-			group = terrace[y * cols + x]
-	return Vector4i(left, right, bottom, group)
+	return area
 
 
 ## The bottom row of the wall proper: a row holding less than half the row above
@@ -5257,8 +5302,6 @@ func _house_foot(walls: PackedInt32Array, bottom: int) -> int:
 	return foot
 
 
-## Above each wall column: a run of front-facing roof, then a run of roof seen
-## from above. Answers the highest drawn row and the highest wall row.
 ## Above each wall column: a run of front-facing roof, then a run of roof seen
 ## from above. Answers the highest drawn row and the highest wall row.
 func _house_roof_rows(
@@ -5302,17 +5345,17 @@ func _house_paint_run(
 ## How many columns each column is from another body on the same terrace, so a
 ## roof knows how far it may oversail before it reaches its neighbour.
 func _house_rivals(
-	rows: int, cols: int, owner: PackedInt32Array, terrace: PackedInt32Array,
-	body: int, group: int
+	cols: int, boxes: Array, groups: PackedInt32Array, body: int
 ) -> PackedInt32Array:
 	var rival := PackedInt32Array()
 	rival.resize(cols)
 	rival.fill(cols * 2)
-	for x: int in cols:
-		for y: int in rows:
-			var at: int = y * cols + x
-			if terrace[at] == group and owner[at] >= 0 and owner[at] != body:
-				rival[x] = 0
+	for other: int in boxes.size():
+		if other == body or groups[other] != groups[body]:
+			continue
+		var box: Rect2i = boxes[other]
+		for x: int in range(box.position.x, box.end.x):
+			rival[x] = 0
 	for x: int in range(1, cols):
 		rival[x] = mini(rival[x], rival[x - 1] + 1)
 	for x: int in range(cols - 2, -1, -1):
