@@ -651,30 +651,41 @@ func _tone(
 	across: float
 ) -> Color:
 	if fill == POT:
-		if side.y >= 0:
-			return _band
-		return _band.darkened(0.25)
-	var palette: PackedColorArray = measured.bark if fill == BARK else measured.tones
-	if fill == LEAF and not measured.rock and not measured.shades.is_empty():
-		palette = measured.shades
+		return _band if side.y >= 0 else _band.darkened(0.25)
+	var palette: PackedColorArray = _palette_for(measured, fill)
 	if palette.is_empty():
 		return Color(0.3, 0.5, 0.25)
 	if measured.rock:
-		if measured.column and side.y > 0:
-			return measured.cap
-		if measured.column and side.y == 0 and not _wrap.is_empty():
-			var at: int = int(round(float(_wrap.size()) * 0.5 + across * _voxel))
-			return _wrap[clampi(at, 0, _wrap.size() - 1)]
-		if side.y >= 0:
-			return _band
-		return palette[clampi(_ladder(palette, _band) + 1, 0, palette.size() - 1)]
+		return _rock_tone(measured, palette, side, across)
 	if fill == LEAF and not measured.pot.is_empty():
-		return _lit(
-			palette, side, sky, near, false,
-			-LEAF_FLANK if side.x < 0 or side.z < 0 else LEAF_FLANK
-		)
-	var dark_mass: bool = measured.shrub and not measured.rock
-	return _lit(palette, side, sky, near, dark_mass)
+		var flank: float = -LEAF_FLANK if side.x < 0 or side.z < 0 else LEAF_FLANK
+		return _lit(palette, side, sky, near, false, flank)
+	return _lit(palette, side, sky, near, measured.shrub and not measured.rock)
+
+
+## Bark for the trunk, and for leaves the shaded copy where there is one: a rock
+## has no shading of its own to take.
+func _palette_for(measured: Measure, fill: int) -> PackedColorArray:
+	if fill == BARK:
+		return measured.bark
+	if fill == LEAF and not measured.rock and not measured.shades.is_empty():
+		return measured.shades
+	return measured.tones
+
+
+## A rock is flat colour rather than lit: its own band on top and around, and one
+## rung darker underneath. A column wears its cap and its wrap instead.
+func _rock_tone(
+	measured: Measure, palette: PackedColorArray, side: Vector3i, across: float
+) -> Color:
+	if measured.column and side.y > 0:
+		return measured.cap
+	if measured.column and side.y == 0 and not _wrap.is_empty():
+		var at: int = int(round(float(_wrap.size()) * 0.5 + across * _voxel))
+		return _wrap[clampi(at, 0, _wrap.size() - 1)]
+	if side.y >= 0:
+		return _band
+	return palette[clampi(_ladder(palette, _band) + 1, 0, palette.size() - 1)]
 
 
 func _lit(

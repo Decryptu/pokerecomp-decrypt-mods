@@ -6328,25 +6328,44 @@ func _tile_at(tx: int, ty: int) -> int:
 	return maxi(_tiles[ty * _size.x + tx], 0)
 
 
+## The floor a drawing stands on: what a house or an apron released here, else
+## the nearest flat ground beside it, else the tile's own art.
 func _ground_art(tx: int, ty: int) -> Vector2i:
-	var released: Vector2i = _house_ground.get(ty * _size.x + tx, Vector2i(-1, 0))
+	var at: int = ty * _size.x + tx
+	var released: Vector2i = _house_ground.get(at, Vector2i(-1, 0))
 	if released.x >= 0:
 		return released
-	released = _floor_art.get(ty * _size.x + tx, Vector2i(-1, 0))
+	released = _floor_art.get(at, Vector2i(-1, 0))
 	if released.x >= 0:
 		return released
+	var beside: Vector2i = _floor_beside_ring(tx, ty)
+	if beside.x >= 0:
+		return beside
+	var named: int = _ground_tile_at(at)
+	if named >= 0:
+		return Vector2i(named, 0)
+	if _covered_at(at):
+		var along: Vector2i = _released_ground.get(at, Vector2i(-1, 0))
+		if along.x < 0:
+			along = _floor_along_row(tx, ty)
+			if along.x >= 0:
+				_released_ground[at] = along
+		if along.x >= 0:
+			return along
+	return Vector2i(maxi(_tiles[at], 0), 0)
+
+
+## Flat ground one tile out, then two. A stair or a ramp in a direction stops
+## that direction being looked down any further: its floor is not this floor.
+func _floor_beside_ring(tx: int, ty: int) -> Vector2i:
 	var blocked: Dictionary = {}
 	for ring: int in [1, 2]:
-		for way: Vector2i in [
-			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
-		]:
+		for way: Vector2i in STEPS:
 			if ring > 1 and blocked.has(way):
 				continue
-			var beside := Vector2i(tx + way.x * ring, ty + way.y * ring)
-			if beside.x < 0 or beside.y < 0 \
-					or beside.x >= _size.x or beside.y >= _size.y:
+			var index: int = _index(tx + way.x * ring, ty + way.y * ring)
+			if index < 0:
 				continue
-			var index: int = beside.y * _size.x + beside.x
 			if _stair_at[index] >= 0 or _ramp[index] == 1:
 				blocked[way] = true
 				continue
@@ -6354,19 +6373,7 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 				return _floor_art.get(
 					index, Vector2i(maxi(_tiles[index], 0), _heights[index])
 				)
-	var at: int = ty * _size.x + tx
-	var named: int = _ground_tile_at(at)
-	if named >= 0:
-		return Vector2i(named, 0)
-	if _covered_at(at):
-		var beside: Vector2i = _released_ground.get(at, Vector2i(-1, 0))
-		if beside.x < 0:
-			beside = _floor_along_row(tx, ty)
-			if beside.x >= 0:
-				_released_ground[at] = beside
-		if beside.x >= 0:
-			return beside
-	return Vector2i(maxi(_tiles[at], 0), 0)
+	return Vector2i(-1, 0)
 
 
 func _covered_at(at: int) -> bool:
