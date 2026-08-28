@@ -68,10 +68,8 @@ mods/voxel3d/shape/mesher.gd:_settle_ponds
 mods/voxel3d/shape/mesher.gd:_settle_void
 mods/voxel3d/shape/mesher.gd:_skirt_column
 mods/voxel3d/shape/mesher.gd:_stair_corner_riser
-mods/voxel3d/shape/mesher.gd:_stair_head
 mods/voxel3d/shape/mesher.gd:_stem_post
 mods/voxel3d/shape/mesher.gd:_surface_beside
-mods/voxel3d/shape/mesher.gd:_tile_fact
 mods/voxel3d/shape/mesher.gd:_tuft_box
 mods/voxel3d/shape/mesher.gd:_tufts
 mods/voxel3d/shape/mesher.gd:begin_emit
@@ -109,7 +107,6 @@ tools/doors.gd:_initialize
 tools/far_drawings.gd:_initialize
 tools/foliage.gd:_census
 tools/foliage.gd:_stand_3d
-tools/follower_probe.gd:_initialize
 tools/follower_probe.gd:_picking_up
 tools/follower_probe.gd:_rules
 tools/follower_shot.gd:_initialize

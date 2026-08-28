@@ -663,14 +663,6 @@ func _tile_fact(shape: RefCounted, tile: int, permission: int) -> Array:
 	var span: Vector2i = shape.span_cells(shape_class)
 	fact[FACT_SPAN_X] = maxi(span.x, 1)
 	fact[FACT_SPAN_Y] = maxi(span.y, 1)
-	_fact_flags(fact, shape, shape_class)
-	_fact_stem(fact, shape, shape_class)
-	_fact_building(fact, shape, shape_class, tile)
-	_fact_cliff(fact, shape, shape_class, tile)
-	return fact
-
-
-func _fact_flags(fact: Array, shape: RefCounted, shape_class: StringName) -> void:
 	fact[FACT_ROUND] = int(shape.is_round(shape_class))
 	fact[FACT_FILLED] = int(shape.is_filled(shape_class))
 	fact[FACT_MODELLED] = int(shape.is_model(shape_class))
@@ -683,6 +675,10 @@ func _fact_flags(fact: Array, shape: RefCounted, shape_class: StringName) -> voi
 	fact[FACT_LYING] = int(shape.is_lying(shape_class))
 	fact[FACT_ON_FURNITURE] = int(shape_class == &"on_furniture")
 	fact[FACT_VOID] = int(shape_class == &"void")
+	_fact_stem(fact, shape, shape_class)
+	_fact_building(fact, shape, shape_class, tile)
+	_fact_cliff(fact, shape, shape_class, tile)
+	return fact
 
 
 ## A stem is kept once and named by index, since one drawing's stem serves every
