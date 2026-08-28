@@ -486,11 +486,12 @@ asking the tileset which drawing stands where, which costs about 11 ms a map
 against the quarter of a second a real resolve takes. Each drawing wears a card
 cut from its own map's sheet by `shape/mesher.gd:far_card_for`, named by its whole
 arrangement of tiles through `shape/far_drawings.gd`, so a neighbour's conifers
-are its own and not this map's. `tools/far_drawings.gd` checks that against a real
-resolve over the 229 outdoor maps of the three cartridges: 0 differ, every card
-pixel for pixel the mesh's own. One simplification is deliberate: a drawing gets
-one card rather than its own bodies, so a cell of four sea rocks is one rock out
-there. `world/far_houses.gd` stands a far building as a roof over a footprint with
+are its own and not this map's. `tools/far_drawings.gd` checks that against a
+real resolve: every card is the mesh's own pixel for pixel, and 14 of Crystal's
+77 outdoor maps disagree about how many spots a drawing stands on, the walk
+finding a few fewer or more than the mesh does. One simplification is
+deliberate: a drawing gets one card rather than its own bodies, so a cell of four
+sea rocks is one rock out there. `world/far_houses.gd` stands a far building as a roof over a footprint with
 a wall under the front, painted off that map's sheet: a box and not a house, since
 out here a map has to be stood up in milliseconds.
 

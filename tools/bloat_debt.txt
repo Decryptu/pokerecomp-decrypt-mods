@@ -21,12 +21,10 @@ mods/voxel3d/shape/mesher.gd:_cutout
 mods/voxel3d/shape/mesher.gd:_cutout_box
 mods/voxel3d/shape/mesher.gd:_cutout_edge
 mods/voxel3d/shape/mesher.gd:_emit_house_body
-mods/voxel3d/shape/mesher.gd:_emit_object_body
 mods/voxel3d/shape/mesher.gd:_emit_stairs
 mods/voxel3d/shape/mesher.gd:_face_bands
 mods/voxel3d/shape/mesher.gd:_fence_arm
 mods/voxel3d/shape/mesher.gd:_flood
-mods/voxel3d/shape/mesher.gd:_ground_art
 mods/voxel3d/shape/mesher.gd:_house_cap
 mods/voxel3d/shape/mesher.gd:_house_flood
 mods/voxel3d/shape/mesher.gd:_join_ledge_corners
@@ -47,7 +45,6 @@ mods/voxel3d/shape/mesher.gd:_measure_surfaces
 mods/voxel3d/shape/mesher.gd:_model_bodies_of
 mods/voxel3d/shape/mesher.gd:_object_bin
 mods/voxel3d/shape/mesher.gd:_object_model
-mods/voxel3d/shape/mesher.gd:_object_stool
 mods/voxel3d/shape/mesher.gd:_object_terminal
 mods/voxel3d/shape/mesher.gd:_object_wrap
 mods/voxel3d/shape/mesher.gd:_plan_line
@@ -65,7 +62,6 @@ mods/voxel3d/shape/mesher.gd:emit_step
 mods/voxel3d/shape/mesher.gd:far_card_for
 mods/voxel3d/shape/model.gd:_bands
 mods/voxel3d/shape/model.gd:_faces
-mods/voxel3d/shape/model.gd:_tone
 mods/voxel3d/shape/model.gd:_tones
 mods/voxel3d/shape/model.gd:_wraps
 mods/voxel3d/shape/model.gd:impostor
