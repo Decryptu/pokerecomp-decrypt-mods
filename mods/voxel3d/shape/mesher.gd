@@ -594,6 +594,11 @@ func _world_z(ty: int) -> float:
 const STEPS: Array[Vector2i] = [
 	Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
 ]
+## `_pond_shore` answers differently by the order it meets the ground, so its own
+## order is pinned here rather than shared. See that function.
+const POND_STEPS: Array[Vector2i] = [
+	Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
+]
 
 
 ## A grid index, or -1 off the grid. Every lookup goes through here so no pass
@@ -1863,39 +1868,37 @@ func _measure_collision_doors(source: RefCounted) -> void:
 		return
 	var count: int = _size.x * _size.y
 	for at: int in count:
-		if _tiles[at] < 0 or _heights[at] > 0 or _ramp[at] == 1:
+		if not _flat_and_free(at):
 			continue
-		if not _house_covered.is_empty() and _house_covered[at] == 1:
+		if _tallest_beside(at) <= 0 or not _is_collision_door(source, at):
 			continue
-		@warning_ignore("integer_division")
-		var from := Vector2i(at % _size.x, at / _size.x)
-		var high: int = 0
-		for step: Vector2i in [
-			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
-		]:
-			var to: Vector2i = from + step
-			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-				continue
-			high = maxi(high, _heights[to.y * _size.x + to.x])
-		if high <= 0 or not _is_collision_door(source, at):
-			continue
-		high = 0
-		for step: Vector2i in [
-			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
-		]:
-			var to: Vector2i = from + step
-			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-				continue
-			var index: int = to.y * _size.x + to.x
-			if _is_collision_door(source, index):
-				continue
-			high = maxi(high, _heights[index])
+		# The doorway takes the height of the wall it is cut into, so the wall
+		# either side of it and not another doorway carrying the same hole.
+		var high: int = _tallest_beside(at, source)
 		if high <= 0:
 			continue
 		_heights[at] = high
 		_doorway[at] = 1
 		for corner: int in 4:
 			_corners[at * 4 + corner] = high
+
+
+## Ground a door could be cut into: flat, unclaimed by a house, and not a ramp.
+func _flat_and_free(at: int) -> bool:
+	if _tiles[at] < 0 or _heights[at] > 0 or _ramp[at] == 1:
+		return false
+	return _house_covered.is_empty() or _house_covered[at] == 0
+
+
+## The tallest neighbour, skipping any that is itself a collision door when a
+## source is given.
+func _tallest_beside(at: int, source: RefCounted = null) -> int:
+	var high: int = 0
+	for index: int in _neighbours(at):
+		if source != null and _is_collision_door(source, index):
+			continue
+		high = maxi(high, _heights[index])
+	return high
 
 
 func _is_collision_door(source: RefCounted, at: int) -> bool:
@@ -1941,25 +1944,26 @@ func _measure_shores() -> void:
 			continue
 		if _modelled[at] == 1:
 			continue
-		var tx: int = at % _size.x
-		@warning_ignore("integer_division")
-		var ty: int = at / _size.x
-		var sloped: bool = false
-		for corner: int in 4:
-			var step := Vector2i(-1 if corner % 2 == 0 else 1, -1 if corner < 2 else 1)
-			var high: int = _heights[at]
-			for reach: Vector2i in [Vector2i(step.x, 0), Vector2i(0, step.y), step]:
-				var to := Vector2i(tx + reach.x, ty + reach.y)
-				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-					continue
-				var index: int = to.y * _size.x + to.x
-				if _tiles[index] < 0 or _heights[index] <= _heights[at]:
-					continue
-				high = maxi(high, _corners[index * 4 + _corner_across(step, reach)])
-			_corners[at * 4 + corner] = high
-			sloped = sloped or high > _heights[at]
-		if sloped:
+		if _slope_shore(at):
 			_ramp[at] = 1
+
+
+## A shore corner rises to meet the bank across it, so the water laps up rather
+## than meeting the land in a step. Answers whether any corner moved.
+func _slope_shore(at: int) -> bool:
+	var tile: Vector2i = _tile_of(at)
+	var sloped: bool = false
+	for corner: int in 4:
+		var step := Vector2i(-1 if corner % 2 == 0 else 1, -1 if corner < 2 else 1)
+		var high: int = _heights[at]
+		for reach: Vector2i in [Vector2i(step.x, 0), Vector2i(0, step.y), step]:
+			var index: int = _index_of(tile + reach)
+			if index < 0 or _tiles[index] < 0 or _heights[index] <= _heights[at]:
+				continue
+			high = maxi(high, _corners[index * 4 + _corner_across(step, reach)])
+		_corners[at * 4 + corner] = high
+		sloped = sloped or high > _heights[at]
+	return sloped
 
 
 func _corner_across(step: Vector2i, reach: Vector2i) -> int:
@@ -2056,59 +2060,43 @@ func _measure_plateaus() -> void:
 	var patches: Dictionary = {}
 	if not _cliff_evidence(seeds, fronts, patches):
 		return
-
-	var region := PackedInt32Array()
-	region.resize(_size.x * _size.y)
-	region.fill(-1)
-	var lift: Dictionary = {}
-	var patch: Dictionary = {}
-	var blocked: Dictionary = {}
-	var next: int = 0
-	var stack: Array[int] = []
-	for start: int in region.size():
-		if region[start] != -1 or not _is_plateau_floor(start):
+	var seen := PackedByteArray()
+	seen.resize(_size.x * _size.y)
+	var floor_of: Callable = _is_plateau_floor
+	for start: int in seen.size():
+		if seen[start] == 1 or not _is_plateau_floor(start):
 			continue
-		region[start] = next
-		stack.append(start)
-		var members := PackedInt32Array()
-		while not stack.is_empty():
-			var at: int = stack.pop_back()
-			members.append(at)
-			if seeds.has(at):
-				var height: int = int(seeds[at])
-				lift[next] = mini(int(lift.get(next, height)), height)
-			if patches.has(at):
-				var height: int = int(patches[at])
-				patch[next] = mini(int(patch.get(next, height)), height)
-			if fronts.has(at):
-				blocked[next] = true
-			var tx: int = at % _size.x
-			@warning_ignore("integer_division")
-			var ty: int = at / _size.x
-			for step: Vector2i in [
-				Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
-			]:
-				var to := Vector2i(tx + step.x, ty + step.y)
-				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-					continue
-				var index: int = to.y * _size.x + to.x
-				if region[index] != -1 or not _is_plateau_floor(index):
-					continue
-				region[index] = next
-				stack.append(index)
-		var raise: int = -1
-		if not blocked.has(next) and lift.has(next):
-			raise = int(lift[next])
-		elif not blocked.has(next) and patch.has(next) \
-				and members.size() <= PATCH_TILES:
-			raise = int(patch[next])
-		if raise >= 0:
-			for at: int in members:
-				_heights[at] = raise
-				_shelf[at] = 1
-		next += 1
+		var members: PackedInt32Array = _spread(start, seen, floor_of)
+		var raise: int = _plateau_height(members, seeds, fronts, patches)
+		if raise < 0:
+			continue
+		for at: int in members:
+			_heights[at] = raise
+			_shelf[at] = 1
 	_settle_lips()
 
+
+## A plateau rises to its lowest seed. A front anywhere in it blocks the lift
+## outright; a patch seed, which comes off a face under a walk cell, speaks only
+## for a region small enough to be a rock rather than a town.
+func _plateau_height(
+	members: PackedInt32Array, seeds: Dictionary, fronts: Dictionary,
+	patches: Dictionary
+) -> int:
+	var lift: int = -1
+	var patch: int = -1
+	for at: int in members:
+		if fronts.has(at):
+			return -1
+		if seeds.has(at):
+			var height: int = int(seeds[at])
+			lift = height if lift < 0 else mini(lift, height)
+		if patches.has(at):
+			var height: int = int(patches[at])
+			patch = height if patch < 0 else mini(patch, height)
+	if lift >= 0:
+		return lift
+	return patch if members.size() <= PATCH_TILES else -1
 
 func _settle_lips() -> void:
 	for ty: int in _size.y:
@@ -2125,42 +2113,52 @@ func _settle_lips() -> void:
 func _settle_ponds() -> void:
 	var seen := PackedByteArray()
 	seen.resize(_size.x * _size.y)
-	var stack: Array[int] = []
 	for start: int in seen.size():
 		if seen[start] == 1 or not _is_water(start):
 			continue
-		seen[start] = 1
-		stack.append(start)
 		var members := PackedInt32Array()
-		var shore: int = 0
-		while not stack.is_empty():
-			var at: int = stack.pop_back()
-			members.append(at)
-			var tx: int = at % _size.x
-			@warning_ignore("integer_division")
-			var ty: int = at / _size.x
-			for step: Vector2i in [
-				Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
-			]:
-				var to := Vector2i(tx + step.x, ty + step.y)
-				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-					shore = -1
-					continue
-				var index: int = to.y * _size.x + to.x
-				if _is_water(index):
-					if seen[index] == 0:
-						seen[index] = 1
-						stack.append(index)
-					continue
-				var height: int = maxi(_heights[index], 0)
-				if shore == 0:
-					shore = height
-				elif shore != height:
-					shore = -1
-		if shore > 0:
-			for at: int in members:
-				_heights[at] += shore
+		var shore: int = _pond_shore(start, seen, members)
+		if shore <= 0:
+			continue
+		for at: int in members:
+			_heights[at] += shore
 
+
+## Floods one body of water into `members` and answers the height of the ground
+## around it, or -1 where that ground is not all at one height.
+##
+## A zero reads as "nothing seen yet" rather than as ground at zero, so a ring of
+## 0 and 16 answers 16 or -1 depending on which the flood reaches last. Whirl
+## Islands, map 3,72 tiles 36,60 to 39,71, is the one pool in the game where that
+## decides anything: it stands a band proud of the floor beside it, and reading a
+## zero as a height leaves it recessed and opens the map edge behind it. Which is
+## right is a picture the reviewer has not been shown, so the order stands.
+func _pond_shore(
+	start: int, seen: PackedByteArray, members: PackedInt32Array
+) -> int:
+	var shore: int = 0
+	var stack: Array[int] = [start]
+	seen[start] = 1
+	while not stack.is_empty():
+		var at: int = stack.pop_back()
+		members.append(at)
+		var from: Vector2i = _tile_of(at)
+		for step: Vector2i in POND_STEPS:
+			var index: int = _index(from.x + step.x, from.y + step.y)
+			if index < 0:
+				shore = -1
+				continue
+			if _is_water(index):
+				if seen[index] == 0:
+					seen[index] = 1
+					stack.append(index)
+				continue
+			var height: int = maxi(_heights[index], 0)
+			if shore == 0:
+				shore = height
+			elif shore != height:
+				shore = -1
+	return shore
 
 func _settle_beds() -> void:
 	if not _class_ids.has(&"kerb"):
@@ -2169,44 +2167,37 @@ func _settle_beds() -> void:
 	_bed_kerb = kerb_id
 	var seen := PackedByteArray()
 	seen.resize(_size.x * _size.y)
-	var stack: Array[int] = []
+	var floor_of: Callable = _is_bed_floor
 	for start: int in seen.size():
 		if seen[start] == 1 or not _is_bed_floor(start):
 			continue
-		seen[start] = 1
-		stack.append(start)
-		var members := PackedInt32Array()
-		var kerb: int = 0
-		while not stack.is_empty():
-			var at: int = stack.pop_back()
-			members.append(at)
-			var tx: int = at % _size.x
-			@warning_ignore("integer_division")
-			var ty: int = at / _size.x
-			for step: Vector2i in [
-				Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
-			]:
-				var to := Vector2i(tx + step.x, ty + step.y)
-				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-					kerb = -1
-					continue
-				var index: int = to.y * _size.x + to.x
-				if _is_bed_floor(index):
-					if seen[index] == 0:
-						seen[index] = 1
-						stack.append(index)
-					continue
-				if _klass[index] != kerb_id or _heights[index] <= 0:
-					kerb = -1
-					continue
-				if kerb == 0:
-					kerb = _heights[index]
-				elif kerb != _heights[index]:
-					kerb = -1
-		if kerb > 0:
-			for at: int in members:
-				_heights[at] = kerb
+		var members: PackedInt32Array = _spread(start, seen, floor_of)
+		var kerb: int = _kerb_around(members, kerb_id)
+		if kerb <= 0:
+			continue
+		for at: int in members:
+			_heights[at] = kerb
 
+
+## The one kerb height ringing a bed, or -1 where the ring is broken: anything
+## that is not a kerb of the same height leaves the bed on the floor.
+func _kerb_around(members: PackedInt32Array, kerb_id: int) -> int:
+	var kerb: int = 0
+	for at: int in members:
+		var from: Vector2i = _tile_of(at)
+		for step: Vector2i in STEPS:
+			var index: int = _index(from.x + step.x, from.y + step.y)
+			if index < 0:
+				return -1
+			if _is_bed_floor(index):
+				continue
+			if _klass[index] != kerb_id or _heights[index] <= 0:
+				return -1
+			if kerb == 0:
+				kerb = _heights[index]
+			elif kerb != _heights[index]:
+				return -1
+	return kerb
 
 func _is_bed_floor(at: int) -> bool:
 	return _tiles[at] >= 0 and _heights[at] == 0 and _klass[at] != _bed_kerb
@@ -2303,40 +2294,28 @@ func _regions(cells: Vector2i) -> PackedInt32Array:
 func _settle_void() -> void:
 	var seen := PackedByteArray()
 	seen.resize(_size.x * _size.y)
-	var region := PackedInt32Array()
-	for start: int in _size.x * _size.y:
+	var empty: Callable = func(at: int) -> bool: return _void[at] == 1
+	for start: int in seen.size():
 		if _void[start] == 0 or seen[start] == 1:
 			continue
-		region.clear()
-		region.append(start)
-		seen[start] = 1
-		var floor_height: int = 0
-		var head: int = 0
-		while head < region.size():
-			var at: int = region[head]
-			head += 1
-			var tx: int = at % _size.x
-			var ty: int = at / _size.x
-			for step: Vector2i in [
-				Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
-			]:
-				var to := Vector2i(tx + step.x, ty + step.y)
-				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-					continue
-				var index: int = to.y * _size.x + to.x
-				if _void[index] == 1:
-					if seen[index] == 0:
-						seen[index] = 1
-						region.append(index)
-					continue
-				if _volume[index] == 1 or _heights[index] == -1:
-					continue
-				floor_height = mini(floor_height, _heights[index])
+		var members: PackedInt32Array = _spread(start, seen, empty)
+		var floor_height: int = _void_floor(members)
 		if floor_height == 0:
 			continue
-		for at: int in region:
+		for at: int in members:
 			_heights[at] = floor_height
 
+
+## The void drops to the lowest measured floor around it, so a hole reads as a
+## hole rather than as ground at zero.
+func _void_floor(members: PackedInt32Array) -> int:
+	var floor_height: int = 0
+	for at: int in members:
+		for index: int in _neighbours(at):
+			if _void[index] == 1 or _volume[index] == 1 or _heights[index] == -1:
+				continue
+			floor_height = mini(floor_height, _heights[index])
+	return floor_height
 
 func _settle_unmeasured() -> void:
 	for ty: int in _size.y:
@@ -2388,47 +2367,60 @@ func _settle_aprons() -> void:
 			wanted[int(_class_ids[shape_class])] = true
 	if wanted.is_empty():
 		return
-	var release: Array[int] = []
-	for ty: int in _size.y:
-		for tx: int in _size.x:
-			var at: int = ty * _size.x + tx
-			if not wanted.has(int(_klass[at])) \
-					or (_art[at] != ART_TOP and _art[at] != ART_UPRIGHT):
-				continue
-			if _object_covered[at] == 1 or _house[at] != HOUSE_NONE:
-				continue
-			if _heights[at] <= 0:
-				continue
-			var north: int = at - _size.x
-			if ty <= 0 or not wanted.has(int(_klass[north])) \
-					or _heights[north] != _heights[at]:
-				continue
-			if _tiles[north] == _tiles[at] or _tiles[at] < 0:
-				continue
-			if ty + 1 < _size.y and wanted.has(int(_klass[at + _size.x])) \
-					and _heights[at + _size.x] == _heights[at]:
-				continue
-			release.append(at)
-	for at: int in release:
-		var tx: int = at % _size.x
-		@warning_ignore("integer_division")
-		var ty: int = at / _size.x
-		var floor_tile: Vector2i = _floor_beside(tx, ty)
-		if floor_tile.x < 0:
-			continue
-		_floor_art[at] = floor_tile
-		var apron: int = _tiles[at]
-		_heights[at] = floor_tile.y
-		_art[at] = ART_FLAT
-		_volume[at] = 0
-		_on_furniture[at] = 0
-		var up: int = ty - 1
-		while up >= 0:
-			var above: int = up * _size.x + tx
-			if not wanted.has(int(_klass[above])) or _heights[above] <= 0:
-				break
-			_apron_face[above] = apron
-			up -= 1
+	for at: int in _size.x * _size.y:
+		if _is_apron(at, wanted):
+			_release_apron(at, wanted)
+
+
+## The bottom row of a standing run: the row above it is the same class at the
+## same height on a different tile, and the row below it is not.
+func _is_apron(at: int, wanted: Dictionary) -> bool:
+	if not _stands_apron(at, wanted):
+		return false
+	var north: int = at - _size.x
+	if at < _size.x or not wanted.has(int(_klass[north])):
+		return false
+	if _heights[north] != _heights[at] or _tiles[north] == _tiles[at]:
+		return false
+	var south: int = at + _size.x
+	if south >= _size.x * _size.y:
+		return true
+	return not (
+		wanted.has(int(_klass[south])) and _heights[south] == _heights[at]
+	)
+
+
+## A standing tile of a wanted class that nothing else has already claimed.
+func _stands_apron(at: int, wanted: Dictionary) -> bool:
+	if not wanted.has(int(_klass[at])):
+		return false
+	if _art[at] != ART_TOP and _art[at] != ART_UPRIGHT:
+		return false
+	if _object_covered[at] == 1 or _house[at] != HOUSE_NONE:
+		return false
+	return _heights[at] > 0 and _tiles[at] >= 0
+
+
+## Lay the bottom row flat on the floor beside it and hand its own art up the
+## run, so the standing part wears the apron and the floor is floor.
+func _release_apron(at: int, wanted: Dictionary) -> void:
+	var tile: Vector2i = _tile_of(at)
+	var floor_tile: Vector2i = _floor_beside(tile.x, tile.y)
+	if floor_tile.x < 0:
+		return
+	_floor_art[at] = floor_tile
+	var apron: int = _tiles[at]
+	_heights[at] = floor_tile.y
+	_art[at] = ART_FLAT
+	_volume[at] = 0
+	_on_furniture[at] = 0
+	var up: int = tile.y - 1
+	while up >= 0:
+		var above: int = up * _size.x + tile.x
+		if not wanted.has(int(_klass[above])) or _heights[above] <= 0:
+			break
+		_apron_face[above] = apron
+		up -= 1
 
 var _apron_face: Dictionary = {}
 
