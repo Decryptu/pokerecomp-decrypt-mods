@@ -90,19 +90,21 @@ func _announce(title: String, line: String, icon: Dictionary, sound: StringName)
 	})
 
 
+## Every row names itself and what it asks, so the page is a list of what to go
+## and do. The icon is the mark: the host draws one only where there is one, so
+## an unearned row wears a blank icon column.
 func _rows() -> Array:
 	var counts: Vector2i = _ledger.progress_counts()
 	var out: Array = [{
 		"label": COUNT_LABEL,
 		"detail": "%d OF %d" % [counts.x, counts.y],
-		"locked": false,
 	}]
 	for row: Dictionary in Catalogue.ROWS:
-		var held: bool = _ledger.has(StringName(row["id"]))
-		out.append({
+		var line: Dictionary = {
 			"label": String(row["name"]),
 			"detail": String(row["detail"]),
-			"icon": row["icon"],
-			"locked": not held,
-		})
+		}
+		if _ledger.has(StringName(row["id"])):
+			line["icon"] = row["icon"]
+		out.append(line)
 	return out
