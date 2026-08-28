@@ -1,23 +1,6 @@
 extends SceneTree
 
 ## Paints ONE block of a tileset, repeated, the way the cartridge draws it.
-##
-## A block is 4x4 tiles and it is the unit Generation II authors the world out
-## of. Two questions want a picture of a single one rather than of a map: what a
-## map's BORDER BLOCK is, which is what the cartridge repeats past every edge of
-## that map and is a fact about the block alone; and what any one block in a
-## tileset actually draws, when a fifteen-tile window around a placement shows
-## too much of its neighbours.
-##
-## Repeated rather than shown once, because a border block is never seen alone:
-## it tiles, and whether a drawing tiles into a wall, a canopy or a field is the
-## whole of what is being asked.
-##
-##   Godot --path <pokerecomp> -s tools/block_art.gd -- <cache> <tileset> \
-##       <block> <out.png> [repeat] [scale]
-##
-## `<tileset>` may instead be `map <group> <number>`, which paints that map's own
-## border block and is what the border question asks for.
 
 const TILE: int = 8
 const BLOCK_TILES: int = 4
@@ -67,9 +50,6 @@ func _initialize() -> void:
 	var repeat: int = int(args[rest + 1]) if args.size() > rest + 1 else 4
 	var scale: int = int(args[rest + 2]) if args.size() > rest + 2 else 4
 
-	# A block's colours come from the MAP's palettes where there is a map, because
-	# the same tileset is drawn in different rows on different maps. With no map,
-	# the first map that places the tileset stands in for one.
 	if map == null:
 		for candidate: Gen2WorldMap in data.world_maps():
 			if candidate.tileset == tileset_number:

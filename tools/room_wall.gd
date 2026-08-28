@@ -1,35 +1,12 @@
 extends SceneTree
 
-## THE BLANK COURSE OF ONE TILESET, counted and then DRAWN so it can be looked at.
-##
-## `profile.gd:ROOM_WALL` is the wall this mod rings an interior with, and every
-## entry in it was chosen the same way: count, over every indoor map on the
-## tileset, the 2x2 tile quad standing at the top of a column whose lower half
-## resolves upright, and take the commonest. The count picks the CANDIDATE and
-## only the picture can choose between ties, which is not a maxim: three of the
-## twenty-nine were wrong on the first build and each was caught by looking. A
-## hedge ringed a station platform in greenery, a barred cellar door ringed an
-## icy cavern, and tileset 21 took a window CORNER, which put the top left of a
-## window round every room on it.
-##
-## The probe that did the counting was never checked in, so a wrong pin cost a
-## rewrite before it cost a fix. This is that probe, with the picture beside it:
-##
-##   Godot --path <pokerecomp> -s tools/room_wall.gd -- <cache> <tileset> [out.png]
-##
-## Prints the ranking as text, and with an out path writes a sheet of the top
-## candidates, each tiled THREE BY THREE with its arrangement written under it,
-## because a course is a thing that repeats and one copy of it says nothing about
-## whether it does. A blank wall is the plate with the least in it.
-##
-## Needs no display: it paints an Image and saves it.
+## THE BLANK COURSE OF ONE TILESET, counted and then DRAWN so it can be looked
+## at.
 
 const MOD := "user://mods/voxel3d"
 const TILE: int = 8
 const BLOCK_TILES: int = 4
-## How many candidates the sheet draws, best first.
 const SHOWN: int = 8
-## The repeat that says whether a course is blank, in tiles each way.
 const REPEAT: int = 3
 const GUTTER: int = 12
 const LABEL: int = 10
@@ -62,12 +39,6 @@ func _initialize() -> void:
 		load("%s/shape/profile.gd" % MOD), number
 	)
 	var counts: Dictionary = {}
-	# Per candidate, the map it was counted on MOST, which is the palette it is
-	# drawn in. A tileset is not one palette: tileset 8 is the department store
-	# and the offices over it, and the same wall is blue on one floor and green on
-	# another, so a sheet painted in one map's table for the whole tileset says
-	# nothing true about colour at all. The first cut of this did that and drew a
-	# blue wall green.
 	var homes: Dictionary = {}
 	var maps: int = 0
 	for map: Gen2WorldMap in data.world_maps():
@@ -91,18 +62,10 @@ func _initialize() -> void:
 	quit()
 
 
-## A map the host files as outdoors has no room to ring.
 func _is_outside(map: Gen2WorldMap) -> bool:
 	return map.environment == 1 or map.environment == 2
 
 
-## THE QUAD AT THE TOP OF AN UPRIGHT COLUMN, per map.
-##
-## A wall is drawn as a run of tiles up a column and the blank course is the pair
-## of rows above the run's own top, so what is counted is the 2x2 quad standing
-## there: two ids across because a wall may alternate, two rows down because a
-## course is two rows deep. Counted at BOTH alignments of the column, since a
-## two-tile drawing read off the wrong one is the same wall out of phase.
 func _count_map(
 	map: Gen2WorldMap, tileset: Gen2WorldTileset, shape: RefCounted,
 	counts: Dictionary, homes: Dictionary
@@ -112,8 +75,6 @@ func _count_map(
 	var down: int = map.height_blocks * BLOCK_TILES
 	for ty: int in down - 1:
 		for tx: int in across - 1:
-			# The tile under the pair has to be part of a standing wall, or every
-			# blank stretch of floor in the room counts as a course.
 			var under: StringName = _class_at(map, tileset, shape, tx, ty + 2)
 			if under != &"wall":
 				continue
@@ -122,12 +83,6 @@ func _count_map(
 			for row: int in 2:
 				for column: int in 2:
 					quad.append(_tile_at(map, tileset, tx + column, ty + row))
-					# AND NOT THE FILLER, which is the trap this probe was written
-					# after walking into. `void` is the black block the cartridge pads
-					# an interior out to its rectangle with, it lies above every wall
-					# the map has, and it is a plate with nothing whatever in it: on
-					# tileset 21 it wins the count outright and looks more like a blank
-					# course than the blank course does.
 					if _class_at(map, tileset, shape, tx + column, ty + row) == &"void":
 						blank = true
 			if blank or quad.has(-1):
@@ -164,7 +119,6 @@ func _class_at(
 	)
 
 
-## Each candidate tiled three by three, in a row, best first.
 func _sheet(
 	data: GameData, tileset: Gen2WorldTileset, ranked: Array,
 	homes: Dictionary, out: String
@@ -190,8 +144,6 @@ func _sheet(
 					image, indices, palettes, int(quad[(row & 1) * 2 + (column & 1)]),
 					left + column * TILE, GUTTER + row * TILE, tileset.tile_count
 				)
-		# The rank alone, as a run of pixels, so the sheet needs no font: slot 0 is
-		# one mark, slot 3 is four. The text ranking is what carries the ids.
 		for mark: int in slot + 1:
 			for y: int in 4:
 				for x: int in 4:

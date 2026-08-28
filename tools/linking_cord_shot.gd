@@ -1,20 +1,7 @@
 extends SceneTree
 
-## Photographs the cord where a player meets it: the Items pocket that lists it,
-## the description box under it, its own submenu, and the party list USE opens.
-## Follows the host's own `tools/preview_pack.gd`, with the mods loaded and one
-## cord in the bag.
-##
-##   godot --headless --path <pokerecomp> -s tools/linking_cord_shot.gd -- \
-##       <game> <output.png> [route] [extra presses] [party]
-##
-## `party` stages the party the shot needs, as `species` or `species:held`
-## numbers separated by `/`. A cord used on the development save's CYNDAQUIL is
-## a refusal, so the screens past the target list need a Pokemon that trades.
-##
-## The pack is reached by walking the start menu to its PACK row and pressing A,
-## rather than by setting a mode: a picture of a screen no player can reach
-## proves nothing.
+## Photographs the cord where a player meets it: the Items pocket that lists
+## it, the description box under it, its own submenu, and the party list USE
 
 const MOD_ID: StringName = &"linking_cord"
 const LINKING_CORD: int = 256
@@ -27,27 +14,17 @@ const BUTTONS: Dictionary = {
 	"a": Gen2Button.A, "b": Gen2Button.B,
 }
 
-## The cord is the last row of the Items pocket, since the pocket lists by item
-## number and 256 is past every cartridge one. Four healing items in front of it
-## are what make that visible rather than assertable.
 const ITEMS: Dictionary = {17: 3, 18: 2, 19: 1, 20: 5, LINKING_CORD: 1}
 
-## Down to the cord, then A for its submenu, then A again for USE and the party
-## list. `d` is repeated by the pocket's own row count rather than counted here.
 const ROUTES: Dictionary = {
 	"list": "d,d,d,d",
 	"menu": "d,d,d,d,a",
 	"party": "d,d,d,d,a,a",
-	## Down to the cord, USE, the first party member, then A through the two
-	## boxes `EvolvingText` and `CongratulationsYourPokemonText` print.
 	"evolving": "d,d,d,d,a,a,a",
 	"evolved": "d,d,d,d,a,a,a,a",
 }
 
 
-## Replaces the party with what the shot needs. Built through
-## [Gen2BattleMon.create] rather than by editing species numbers, so every mon
-## here has the stats, moves and HP the cartridge would have given it.
 func _stage_party(data: GameData, save: Gen2SaveData, spec: String) -> void:
 	var members: Array = []
 	for token: String in spec.split("/", false):
@@ -66,8 +43,6 @@ func _stage_party(data: GameData, save: Gen2SaveData, spec: String) -> void:
 		save.party = members
 
 
-## The screen builds its panel in `_ready`, which does not run until the tree has
-## processed a frame, so the shot is taken from here rather than `_initialize`.
 func _process(_delta: float) -> bool:
 	_capture()
 	return true
@@ -111,7 +86,6 @@ func _capture() -> void:
 	)
 	var screen := Gen2StartMenuScreen.new()
 	root.add_child(screen)
-	## No slot on disk, so nothing this photographs is written anywhere.
 	var save: Gen2SaveData = Gen2SaveStore.create_development_save(data, 0)
 	if save != null and args.size() > 4 and not args[4].is_empty():
 		_stage_party(data, save, args[4])

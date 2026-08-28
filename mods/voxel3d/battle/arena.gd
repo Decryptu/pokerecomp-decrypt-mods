@@ -1,138 +1,46 @@
 extends RefCounted
 
 ## Where a fight is staged on the map, and the camera that shoots it.
-##
-## The two battlers are PINNED to their patch of ground: each picture is drawn
-## wherever its cell projects to, not at a fixed place on the screen. So the
-## camera is not decoration. It is the thing that decides where the fight
-## appears, and it has to put those two patches exactly where the hardware puts
-## its two pictures:
-##
-##     the player's, bottom centre of its 6x6 slot     (40, 96)
-##     the foe's,    bottom centre of its 7x7 slot     (124, 56)
-##
-## Four screen coordinates, so four equations. The rig below is their solution:
-## SIDE, BACK and HEIGHT place the eye relative to the arena's midpoint, LOOK aims
-## it, FRAME_HEIGHT sets the lens. They came out of a solver and land both marks to
-## within a hundredth of a pixel. Changing the gap between the battlers
-## invalidates every one of them.
-##
-## Landing those marks is also what keeps the fight readable: the panels and the
-## text box are drawn where the hardware draws them, and a composition putting each
-## battler in its own slot cannot collide with either.
-##
-## East decides which battler is on which side. The axis runs north to south with
-## the foe at the north end, and an eye east of it sees the near end swing left.
-## That is the hardware's layout arrived at by standing in the right place rather
-## than by mirroring anything, which is why the axis is the map's own north.
-##
-## Purely a composition: nothing here reaches collision, movement, triggers or
-## scripts.
 
 const Steering: GDScript = preload("../steering.gd")
 
 const CELL: float = 16.0
 
-## The gap between the two battlers, and the shape of ground that fits them.
-##
-## Three cells apart down one column, with a one-cell apron all round so the
-## camera looks across floor rather than into a wall:
-##
-##     x x x
-##     x O x     the foe
-##     x x x
-##     x x x
-##     x P x     the player's
-##     x x x
-##
-## Where nowhere has room, the apron is given up and the bare column will do,
-## since a corridor has room for the fight but not the apron. Failing that the
-## fight is staged on the player's own cell.
 const GAP: float = 48.0
 const GAP_CELLS: int = 3
 const APRON_CELLS: int = 1
-## How far from the player the search looks for that shape.
 const SEARCH_CELLS: int = 6
 
-## The two anchors, in hardware pixels: bottom centre of each battler's picture
-## slot, and the marks every constant below was solved to land on. A renderer
-## measuring drift compares a projected ground point against these.
 const PLAYER_MARK := Vector2(40.0, 96.0)
 const ENEMY_MARK := Vector2(124.0, 56.0)
 
-## The rig, in world pixels, solved against the four anchors above with the two
-## battlers three cells apart: a 23.6 degree lens from about five cells back and
-## two above the floor, which is what a 48 pixel picture standing on a 16 pixel
-## cell forces on a 160 pixel screen.
 const SIDE: float = 54.43
 const BACK: float = 87.38
 const HEIGHT: float = 32.78
 const LOOK_X: float = -3.54
 const LOOK_Y: float = -0.47
-## How much world the frame holds at the aim distance. With that distance it is
-## the lens, and it is what the zoom multiplies.
 const FRAME_HEIGHT: float = 45.95
 
-## Where the opposing trainer stands: behind their own Pokemon and off its
-## shoulder, so the pair reads as one side of the fight and neither hides the
-## other.
 const TRAINER_BEHIND: float = 14.0
 const TRAINER_ASIDE: float = -22.0
 
-## How the shot is checked against the map. Walkable is not the same question as
-## visible: the eye is low and far back, so a hedge, a ledge lip or a building
-## corner hides a battler completely while its cells are perfectly walkable. Every
-## candidate is tested down both sight lines.
 const CLEARANCE_SAMPLES: int = 12
 const CLEARANCE: float = 4.0
-## How high up each battler has to be visible, which is about the middle of a
-## picture: a shot that can see its feet and nothing else is not a shot.
 const CLEARANCE_HEIGHT: float = 24.0
 
-## What the player may do to the shot. Zero swing is the composition the rig was
-## solved for and the stop, since past it the battlers swap sides and the panels
-## stop belonging to them. One swing ends square to the axis; one climb ends 45
-## degrees above the rig's stance.
 const CLIMB_RANGE: float = 45.0
 const SWING_STEP: float = 0.08
 const CLIMB_STEP: float = 0.08
 
-## The shot drifts, which is what gives a flat picture its parallax: the
-## reference's own pair (`lib/BattleCam.lua`), a small orbit with a smaller dolly
-## under it on a period sharing no factor with it, so the motion never loops.
-##
-## It is not free here, because the rig is solved. Moving the eye moves both
-## battlers on screen, so this is half the reference's orbit and how far it carries
-## them is measured: over a whole period the enemy's ground point moves 1.96 x 0.44
-## hardware pixels and the player's 2.90 x 0.67, against 48 px pictures.
-##
-## About the focus rather than the arena's midpoint, with the dolly along the same
-## arm, so the pair stays nailed to the middle of the frame and only the parallax
-## behind them moves. The climb follows the same rule.
 const DRIFT_DEGREES: float = 1.0
 const DRIFT_PERIOD: float = 19.0
-## In world pixels, on a period of its own.
 const DRIFT_DOLLY: float = 1.6
 const DRIFT_DOLLY_PERIOD: float = 13.0
 
-## A move that wobbles the screen shakes the camera.
-##
-## The hardware scrolls the background a different distance on every scanline,
-## which a diorama cannot do: there are no scanlines here, and warping the world
-## per row would move the cartridge's own texel off the pixel it was drawn on.
-## What the wobble means is that the picture jumps, so the picture jumps.
-##
-## The whole list is read as one displacement, its mean, so a window over six rows
-## and one over the whole screen shake by what they actually move. In hardware
-## pixels, scaled into the world by the ratio the lens frames the screen with.
-##
-## One ratio for both axes, because the rig keeps a Game Boy pixel square: a
-## hardware pixel spans the same world distance across as it does down.
 const SHAKE_SCALE: float = FRAME_HEIGHT / 144.0
 
 var _source: RefCounted = null
 var _heights: RefCounted = null
-## The arena's midpoint, halfway between the two battlers.
 var _mid := Vector3.ZERO
 
 var _swing: float = 0.0
@@ -145,20 +53,11 @@ var _swing_goal: float = 0.0
 var _climb_goal: float = 0.0
 var _zoom_goal: float = 1.0
 var _t: float = 1.0
-## The drift's clock, in seconds. It never finishes, so it advances whether or
-## not a steer is easing.
 var _drift: float = 0.0
-## The move animation's own displacement, in world pixels, set per frame.
 var _shake := Vector2.ZERO
-## Which way a wheel notch zooms, from the player's own setting.
 var _wheel_sign: int = 1
 
 
-## Finds the ground this fight is shot on. [param source] is a `map_source.gd`
-## and may be null, which stages on the player's own cell.
-## [param heights] is the built `mesher.gd`, which is what answers how tall the
-## thing standing in a cell turned out to be. Staging happens after the mesh for
-## exactly that reason.
 func stage(
 	context: Gen2BattleWorldContext,
 	source: RefCounted = null,
@@ -172,25 +71,15 @@ func stage(
 	var at: Vector2i = context.player_cell
 	if source != null:
 		at = _find_ground(source, context.player_cell)
-	# The cell the shape matched at is where the player's own battler stands, so
-	# the midpoint is half the gap north of it.
 	_mid = _centre(at) + Vector3(0.0, 0.0, -GAP * 0.5)
 
 
-## The nearest cell the arena's shape fits on, the player's battler standing there
-## and the foe three cells north.
-##
-## The player's own cell is tried first and wins ties, so an ordinary fight is
-## staged where they stopped. The search widens by rings, preferring the full shape
-## with its apron and keeping the best bare column in case nothing has room.
 func _find_ground(source: RefCounted, from: Vector2i) -> Vector2i:
 	var fallback: Vector2i = from
 	var found_column: bool = false
 	for radius: int in range(0, SEARCH_CELLS + 1):
 		for offset_y: int in range(-radius, radius + 1):
 			for offset_x: int in range(-radius, radius + 1):
-				# Only the ring itself: the inside was searched at a smaller
-				# radius and answered, or it would not have got here.
 				if radius > 0 and absi(offset_x) != radius and absi(offset_y) != radius:
 					continue
 				var cell: Vector2i = from + Vector2i(offset_x, offset_y)
@@ -202,11 +91,6 @@ func _find_ground(source: RefCounted, from: Vector2i) -> Vector2i:
 	return fallback
 
 
-## Whether the shot this arena would be given can see both battlers.
-##
-## Answered against the canonical rig rather than wherever the player left the
-## camera: whether a fight can be staged somewhere is a fact about the ground, and
-## a steered angle would pick a different arena depending on an old swing.
 func _in_shot(cell: Vector2i) -> bool:
 	if _heights == null:
 		return true
@@ -236,9 +120,6 @@ func _occlusion_height(at: Vector3) -> int:
 	return int(_heights.height_at_position(at))
 
 
-## Whether the arena's column stands on walkable ground at [param cell], with
-## [param apron] cells of walkable ground to each side of it. Collision is read
-## here and never written.
 func _fits(source: RefCounted, cell: Vector2i, apron: int) -> bool:
 	for step: int in range(-apron, GAP_CELLS + 1 + apron):
 		for across: int in range(-apron, apron + 1):
@@ -252,7 +133,6 @@ func _centre(cell: Vector2i) -> Vector3:
 	return Vector3(cell.x * CELL + CELL * 0.5, 0.0, cell.y * CELL + CELL * 0.5)
 
 
-## The foe stands at the north end of the axis and the player's own at the south.
 func enemy_ground() -> Vector3:
 	return _mid + Vector3(0.0, 0.0, -GAP * 0.5)
 
@@ -265,27 +145,14 @@ func enemy_trainer_ground() -> Vector3:
 	return enemy_ground() + Vector3(TRAINER_ASIDE, 0.0, -TRAINER_BEHIND)
 
 
-## What the lens is aimed at, which is also what the eye swings and climbs about.
 func target() -> Vector3:
 	return _mid + Vector3(LOOK_X, LOOK_Y + _shake.y * SHAKE_SCALE, 0.0) + _truck()
 
 
-## How far a move animation is displacing the shot, in hardware pixels, across
-## and down. A frame opening no scanline window asks for zero.
-##
-## Applied to the aim, with the seat riding it in `eye()`, so the whole picture
-## moves together. Displacing the aim alone would swing the eye and slide the
-## battlers out of their hardware slots.
 func set_shake(hardware_pixels: Vector2) -> void:
 	_shake = hardware_pixels
 
 
-## The sideways half, as a world displacement rather than a height.
-##
-## A shake across the screen is the shot trucking along the lens' own right,
-## which moves with the swing, so it is taken off the yaw rather than off a world
-## axis. Godot's camera looks down its own -Z with +X to the right, which is what
-## crossing the forward with up gives.
 func _truck() -> Vector3:
 	if is_zero_approx(_shake.x):
 		return Vector3.ZERO
@@ -298,13 +165,10 @@ func _truck() -> Vector3:
 	return forward.normalized().cross(Vector3.UP) * (_shake.x * SHAKE_SCALE)
 
 
-## Where the arm is pointed this instant: the steer's swing plus the drift's.
 func _yaw() -> float:
 	return -_swing * deg_to_rad(_swing_range()) + _drift_yaw()
 
 
-## How far the drift has swung the eye and pushed it back, this instant. See the
-## constants: two periods that share no factor, so the pair never loops.
 func _drift_yaw() -> float:
 	return deg_to_rad(DRIFT_DEGREES) * sin(TAU * _drift / DRIFT_PERIOD)
 
@@ -313,8 +177,6 @@ func _drift_dolly() -> float:
 	return DRIFT_DOLLY * sin(TAU * _drift / DRIFT_DOLLY_PERIOD)
 
 
-## The eye. Zero swing, zero climb and one zoom is the shot the rig was solved
-## for; the steer moves out from it and the drift breathes around where it lands.
 func eye() -> Vector3:
 	var yaw: float = _yaw()
 	var seat: Vector3 = _mid + Vector3(
@@ -322,12 +184,8 @@ func eye() -> Vector3:
 		HEIGHT,
 		SIDE * sin(yaw) + BACK * cos(yaw)
 	)
-	# Shaken before anything else reads the arm, so the whole rig moves together
-	# and the dolly and the climb are taken against the same displaced aim.
 	seat.y += _shake.y * SHAKE_SCALE
 	seat += _truck()
-	# The dolly rides the arm from the focus, so it lengthens the shot rather
-	# than sliding it, and the climb below preserves whatever it came to.
 	var aim: Vector3 = target()
 	var reach_now: float = (seat - aim).length()
 	if reach_now > 0.001:
@@ -335,16 +193,12 @@ func eye() -> Vector3:
 	if _climb <= 0.0:
 		return seat
 
-	# Climbed about the focus at a constant radius, so the aim stays nailed to
-	# the pair and only the seat moves. Size is the lens's job.
 	var focus: Vector3 = target()
 	var arm: Vector3 = seat - focus
 	var flat: float = Vector2(arm.x, arm.z).length()
 	var radius: float = arm.length()
 	if flat < 0.001 or radius < 0.001:
 		return seat
-	# Short of straight down, always: the placed camera's up vector is world up,
-	# which has no basis against a view looking along it.
 	var angle: float = minf(
 		atan2(arm.y, flat) + _climb * deg_to_rad(CLIMB_RANGE), deg_to_rad(85.0)
 	)
@@ -354,15 +208,6 @@ func eye() -> Vector3:
 	)
 
 
-## The vertical field of view that frames FRAME_HEIGHT of world at the aim
-## distance, which is the lens the anchors were solved with. The zoom is the lens
-## rather than the distance, since moving the eye alone would change the
-## perspective without changing the framing.
-##
-## [param frame_stretch] is how much taller the drawn surface is than the hardware
-## screen the anchors are measured in. The stage fills the window while the panels
-## are drawn at a whole-number scale in the middle of it, so the lens has to frame
-## FRAME_HEIGHT across that middle rectangle rather than across the window.
 func fov(frame_stretch: float = 1.0) -> float:
 	var distance: float = (eye() - target()).length()
 	if distance < 0.001:
@@ -370,21 +215,14 @@ func fov(frame_stretch: float = 1.0) -> float:
 	return rad_to_deg(2.0 * atan((FRAME_HEIGHT * _zoom * frame_stretch * 0.5) / distance))
 
 
-## How far round the eye may swing before the picture stops being a battle: to
-## square-on with the axis, where both battlers stand at one distance.
 func _swing_range() -> float:
 	return 90.0 - rad_to_deg(atan2(SIDE, BACK))
 
 
-## The events the battle screen does not claim; a Gen2Button never arrives here.
-## The binding is `steering.gd`'s, shared with the overworld. A dolly is refused:
-## this seat is solved against the hardware's picture slots.
 func handle_input(event: InputEvent) -> bool:
 	return steer(Steering.command(event, _wheel_sign))
 
 
-## One command, wherever it came from: a declared action the host resolved off a
-## key, a pad, a stick or a finger, or the wheel this rig read itself.
 func steer(command: StringName) -> bool:
 	match command:
 		Steering.ZOOM_IN:
@@ -400,20 +238,12 @@ func steer(command: StringName) -> bool:
 		Steering.SWING_LEFT:
 			_aim(_swing_goal - SWING_STEP, _climb_goal, _zoom_goal)
 		Steering.RESET:
-			# The solved seat, which is what this rig opens at and the one shot
-			# its anchors were solved for.
 			_aim(0.0, 0.0, 1.0)
 		_:
 			return false
 	return true
 
 
-## The same command held rather than pressed, worth [param notches] of its own
-## step this frame. See `steering.gd:Glide`.
-##
-## A press aims at a goal and eases to it; a hold moves the goal itself, so the
-## value, the ease's start and the goal shift together. The drift is untouched: it
-## rides the arm from the focus and is not a steer.
 func steer_by(command: StringName, notches: float) -> bool:
 	match command:
 		Steering.ZOOM_IN:
@@ -454,8 +284,6 @@ func set_wheel_sign(sign_of_wheel: int) -> void:
 	_wheel_sign = 1 if sign_of_wheel >= 0 else -1
 
 
-## Real frame time, so a fast-forwarded battle never spins the camera. The answer
-## is whether a STEER is easing; the drift is not a steer and never finishes.
 func advance(delta: float) -> bool:
 	_drift += delta
 	if _t >= 1.0:

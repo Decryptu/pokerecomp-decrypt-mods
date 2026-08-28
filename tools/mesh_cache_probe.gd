@@ -1,38 +1,10 @@
 extends SceneTree
 
 ## A mesh window REACHED BY WALKING must be the window built cold.
-##
-## `shape/mesher.gd` keeps the chunks it has built and hands them back when the
-## window moves onto them again, which is what makes a recentre cost a strip
-## rather than a window. The whole risk of that is a chunk whose contents depend
-## on which of its neighbours the window happened to hold: a house, an object, a
-## flight of stairs or a fence can cross a chunk edge, and one built by the
-## neighbour is one this chunk's mesh does not carry. Thirteen maps of three
-## hundred and eighty came out short the first time this was run.
-##
-## So: walk three windows through one mesher, build the last one again in a
-## mesher that has never seen the map, and compare what each drew. Triangles,
-## meshes, model groups and stamps all have to agree, on every map.
-##
-## And once more through a mesher CARRIED FROM THE MAP BEFORE, which is the warp:
-## `resolve` drops the cache with the model meshes it names, and a chunk that
-## outlived either would be a stamp of a drawing from the map that was left.
-##
-## Headless, and about a minute a cartridge:
-##
-##   Godot --headless --path <pokerecomp> -s tools/mesh_cache_probe.gd -- \
-##       <cartridge> [draw cells] [tileset]
-##
-## Exits non-zero on any disagreement, naming the map and both readings.
 
 const MOD := "user://mods/voxel3d"
 const CELL: int = 16
-## The detail ring the windows are built under, in walk cells, which is
-## `world/renderer.gd:solid_cells`. Past it a stamp wears the flat impostor, so a
-## chunk the ring crosses is one the mesher must refuse to hand back.
 const RING_CELLS: float = 35.0
-## Maps smaller than this in either axis are skipped: a window bigger than the
-## map is one chunk set whatever the centre, so there is nothing to reach.
 const SMALLEST_CELLS: int = 8
 
 
@@ -58,8 +30,6 @@ func _initialize() -> void:
 
 	var checked: int = 0
 	var bad: int = 0
-	# One mesher walked from map to map, which is what a player warping does to
-	# it. Never reset between maps: that is the point.
 	var carried: RefCounted = mesher_script.new()
 	for map: Gen2WorldMap in data.world_maps():
 		if only >= 0 and map.tileset != only:
@@ -71,12 +41,8 @@ func _initialize() -> void:
 		if not atlas.build(data, map, tileset, Gen2WorldPalette.TIME_DAY):
 			continue
 		var shape: RefCounted = shape_script.new(profile, map.tileset)
-		# The cartridge is passed, so everything past the map's edge is its
-		# connections rather than its border block: see `tools/shot.gd`.
 		var source: RefCounted = source_script.new(null, map, tileset, data)
 
-		# The recentre margin `world/renderer.gd` allows, plus the cell that
-		# crosses it, which is the shortest walk that moves the window.
 		var margin: int = maxi(4, draw_cells / 3) + 1
 		var first := Vector2i(map.collision_width / 2, map.collision_height / 2)
 		var second: Vector2i = first + Vector2i(0, margin)
@@ -108,10 +74,6 @@ func _initialize() -> void:
 	quit(1 if bad > 0 else 0)
 
 
-## One window's totals. Counts rather than vertices: a chunk handed back is the
-## same ArrayMesh object, so what is being asked is whether the WINDOW drew the
-## same things, and a structure built twice or not at all moves every one of
-## these numbers.
 func _emit(
 	mesher: RefCounted, atlas: RefCounted, centre: Vector2i, draw_cells: int
 ) -> Dictionary:

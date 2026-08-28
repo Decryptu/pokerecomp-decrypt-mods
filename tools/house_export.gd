@@ -1,50 +1,16 @@
 extends SceneTree
 
 ## What the house page paints ON and what it starts FROM.
-##
-## A HOUSE IS A DRAWING AND THERE ARE 112 OF THEM, placed 243 times, which is
-## what makes painting them a finite job. `tools/buildings.gd` counts them; this
-## exports them, one file per drawing, with the picture beside the grid.
-##
-## THE IDENTITY IS THE RECTANGLE OF TILE IDS INCLUDING ITS HOLES, never a tile
-## id: one id is the awning course of one house and the eave of another, so a pin
-## cannot reach one drawing without reaching the other. Two placements of one
-## drawing carry the same rectangle, so one painting serves every placement.
-##
-## Emits per drawing, into the out directory:
-##
-##   house_<n>.json        the grid of tile ids, how often it is placed, and the
-##                         PRE-FILLED paint
-##   house_<n>.png         the drawing's own art, as the cartridge draws it
-##   house_<n>_where.png   the same drawing RINGED where the cartridge places it,
-##                         with the street around it
-##
-## PRE-FILL THE GUESS, so the job is correcting a proposal rather than painting
 ## from blank. The generated pass already names `facade` and `roof` on ten
-## tilesets, `FACADE_SLOPE` names the face-on pitches, and the DOORS are named by
-## the cartridge itself: a door is a WARP, and 72 of the 112 drawings hold one
-## inside their rectangle.
-##
-##   Godot --path <pokerecomp> -s tools/house_export.gd -- <cache> <out dir> \
-##       [tileset]
 
 const MOD := "user://mods/voxel3d"
 const TILE: int = 8
 const BLOCK_TILES: int = RomLayout.MAP_BLOCK_CELL_WIDTH * 2
 
-## How much street to keep around the ring, in TILES on every side. Wide on
-## purpose: the reviewer's standing instruction is to UNZOOM, because a block is
-## the authoring unit and not the reading unit.
 const WINDOW: int = 20
-## Ringed twice, magenta outside and white inside, which is `map_art.gd`'s own
-## pair: the terrain palettes never reach magenta, and whichever of the two the
-## art happens to be wearing the other still reads.
 const RING_OUTER := Color(1.0, 0.0, 1.0)
 const RING_INNER := Color(1.0, 1.0, 1.0)
 
-## The painted vocabulary. Only what the mesher can BUILD is in it: a person
-## handed a word with no geometry behind it is being asked a question nobody can
-## answer with a mesh.
 const PAINT_NONE := "."
 const PAINT_WALL := "W"
 const PAINT_PITCH := "P"
@@ -76,9 +42,6 @@ func _initialize() -> void:
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
 	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
 
-	# key -> the whole record, built up as the game is walked. The key is the
-	# rectangle of tile ids and nothing else, so two placements of one drawing
-	# meet here whatever map they stand on.
 	var drawings: Dictionary = {}
 	for map: Gen2WorldMap in data.world_maps():
 		if only >= 0 and map.tileset != only:
@@ -134,11 +97,6 @@ func _initialize() -> void:
 	quit()
 
 
-## Every building drawing on one map, folded into the catalogue.
-##
-## A building is connected `facade` and `roof`, flooded four ways, and the
-## drawing is the flood's whole bounding rectangle INCLUDING its holes: a door is
-## a hole and it is part of the house.
 func _walk(
 	map: Gen2WorldMap, tileset: Gen2WorldTileset,
 	profile: GDScript, shape_script: GDScript, source_script: GDScript,
@@ -148,8 +106,6 @@ func _walk(
 	var source: RefCounted = source_script.new(null, map, tileset)
 	var w: int = map.width_blocks * BLOCK_TILES
 	var h: int = map.height_blocks * BLOCK_TILES
-	# THE DOORS ARE NAMED BY THE CARTRIDGE. A door is a warp, and a warp is a
-	# whole walk CELL, so all four of its tiles are the doorway's own drawing.
 	var warps: Dictionary = {}
 	for event: Dictionary in map.events.get("warps", []) as Array:
 		warps["%d,%d" % [int(event.get("x", -1)), int(event.get("y", -1))]] = true
@@ -176,9 +132,6 @@ func _walk(
 			)
 			if klass == &"facade":
 				part[at] = 1
-				# A face-on pitch is already named per tile, and it is the one
-				# reading a person could not get from the grid alone: these tiles
-				# are the roof drawn from the FRONT, not a wall.
 				guess[at] = PAINT_PITCH if shape.is_facade_slope(tile) else PAINT_WALL
 			elif String(klass).begins_with("roof"):
 				part[at] = 1
@@ -222,10 +175,6 @@ func _walk(
 			var record: Dictionary = drawings[key]
 			record["placements"] = int(record["placements"]) + 1
 			(record["maps"] as Dictionary)["%d,%d" % [map.group, map.number]] = true
-			# A DOOR IS A FACT ABOUT THE DRAWING and a warp is a fact about one
-			# placement, so the doors of every placement are folded into the one
-			# painting. A house standing where nothing warps out of it is scenery
-			# drawn from the same tiles, and its door is still a door.
 			var kept: Array = record["paint"]
 			for row: int in box.size.y:
 				for column: int in box.size.x:
@@ -233,8 +182,6 @@ func _walk(
 						kept[row][column] = PAINT_DOOR
 
 
-## The connected group of building tiles reached from one seed, and its whole
-## bounding rectangle.
 func _flood(
 	part: PackedByteArray, seen: PackedByteArray, w: int, h: int, from: Vector2i
 ) -> Rect2i:
@@ -258,14 +205,6 @@ func _flood(
 	return box
 
 
-## Which way a fallen roof tile falls, guessed from where it sits in the drawing.
-##
-## `ROOF_DROP` says a tile has fallen and never which way, because the class is
-## keyed by tile and both ends of a gable are drawn out of the same one. Inside a
-## DRAWING there is an answer: a fallen tile in the left half of the roof is the
-## west end of the gable and a fallen tile in the right half is the east end.
-## That is a guess and it is what the painting is for, but it is a guess with the
-## whole rectangle behind it rather than none at all.
 func _fill_falls(paint: Array) -> void:
 	var width: int = (paint[0] as Array).size()
 	for row: Array in paint:
@@ -277,8 +216,6 @@ func _fill_falls(paint: Array) -> void:
 
 func _ringed(image: Image, ring: Rect2i) -> Image:
 	var box := Rect2i(ring.position * TILE, ring.size * TILE)
-	# The ring is drawn OUTSIDE the tiles it names, so it covers none of the
-	# drawing being asked about.
 	for pass_index: int in 2:
 		var inset: int = 1 + pass_index
 		var color: Color = RING_INNER if pass_index == 0 else RING_OUTER
@@ -308,7 +245,6 @@ func _dot(image: Image, x: int, y: int, color: Color) -> void:
 	image.set_pixel(x, y, color)
 
 
-## One map's own 2D art, the way the cartridge draws it.
 func _paint(data: GameData, map: Gen2WorldMap, tileset: Gen2WorldTileset) -> Image:
 	var indices: PackedByteArray = data.world_tileset_indices(tileset.number)
 	var palettes: Array = Gen2WorldPalette.tile_palettes(

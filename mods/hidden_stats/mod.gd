@@ -1,8 +1,6 @@
 extends RefCounted
 
-## Registers one stats-screen page and returns. Nothing here draws: the page
-## answers with strings and where they go, and the host writes them with the
-## screen's own font and dividers.
+## Registers one stats-screen page and returns.
 
 const Page := preload("page.gd")
 

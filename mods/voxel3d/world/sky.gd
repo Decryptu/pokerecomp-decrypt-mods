@@ -1,49 +1,13 @@
 extends RefCounted
 
 ## The sky, generated rather than filled.
-##
-## The 2D view has no sky: past the edge of the map it fills with the palette's
-## background colour and that is the end of it. A perspective view has a real
-## horizon in the frame at any shallow pitch, and one flat colour up there reads
-## as a backdrop rather than as air.
-##
-## The 8-bit skybox recipe, from `.references/DRAMATIC_SHAPE/lib/Sky.lua`: a
-## short ramp painted as flat horizontal bands, deepest overhead, with a
-## checkerboard of the next band down dithered into the bottom of each. That
-## dither is how a machine with four colours to a palette got a fifth and a sixth
-## out of them, and it is what makes bands read as a gradient.
-##
-## The colours are the cartridge's. Generation II has no sky palette, so the
-## ramp's two ends come out of the hour's own background rows; `atlas.gd:sky_ramp`
-## picks them and says why. Handed none, which is what a room and the model
-## turntable do, this falls back to the background colour taken down twice.
-##
-## Banded by ELEVATION, not by frame row, so a pitch keypress slides the frame up
-## a gradient that stays put. Gluing the zenith to the top edge drags the whole
-## sky around with the camera.
+## The sky, generated rather than filled.
 
-## How far down a band the checkerboard starts, as a fraction of that band. A band
-## dithered all the way through averages into one flat colour and the step is
-## gone; 0.6 leaves the top of each band clean and softens only its bottom edge.
 const DITHER_START: float = 0.6
-## The checkerboard cell, in screen pixels. Two keeps the sky's grain in the same
-## register as the world's own texels at the framing this view opens at.
 const DITHER_CELL: float = 2.0
-## Bands in the ramp. Four while both ends were one colour twice; six since they
-## became the hour's own pair, because four bands between two hues shows every
-## step and lands one on the muddy middle.
 const BANDS: float = 6.0
-## How much elevation the ramp spans before it is all zenith, in radians.
-##
-## Measured off the rig rather than picked: the eye sits 12 to 88 degrees above
-## the player and looks down by its own pitch, so with a 42 degree lens the
-## shallowest shot frames 33 degrees below the horizon to 9 above it and every
-## steeper one frames none. A ramp spanning more than that puts most of its bands
-## where nobody can look, which is what the first attempt did.
 const ELEVATION_SPAN: float = 0.28
 
-## How far the two ends are taken down when there is only the background colour
-## to make a ramp of. Their mean is about the flat fill's own darkening.
 const HORIZON_DARKEN: float = 0.12
 const ZENITH_DARKEN: float = 0.52
 
@@ -87,8 +51,6 @@ void sky() {
 """
 
 var sky: Sky = null
-## The two ends as last computed, so anything that has to agree with the sky
-## reads them rather than repeating the darkening. `water.gd` asks.
 var horizon: Color = Color.BLACK
 var zenith: Color = Color.BLACK
 var _material: ShaderMaterial = null
@@ -106,19 +68,10 @@ func _init() -> void:
 	_material.set_shader_parameter("frame", Vector2(640.0, 480.0))
 	sky = Sky.new()
 	sky.sky_material = _material
-	# Painted, not lit from: the ambient term is a metered colour, so a radiance
-	# cubemap of a flat gradient would only cost a pass.
 	sky.process_mode = Sky.PROCESS_MODE_REALTIME
 	sky.radiance_size = Sky.RADIANCE_SIZE_32
 
 
-## The two ends of the ramp: the hour's own pair where the caller has one, and
-## the map's background colour taken down twice where it has not.
-##
-## Indoors there is no sky: the ramp collapses to one colour and the bands and
-## dither go with it, since both ends being one colour is a flat fill and needs
-## no second path through the shader. The caller passes `atlas.gd:void_color`,
-## and the pair is ignored because a room takes no hour.
 func set_background(
 	color: Color, outside: bool = true, ramp: PackedColorArray = PackedColorArray()
 ) -> void:
@@ -135,8 +88,6 @@ func set_background(
 	_material.set_shader_parameter("zenith_color", zenith)
 
 
-## The frame the checkerboard is measured against. A dither cell is screen
-## pixels, so the grain would scale with the view if this were not told.
 func set_frame(size: Vector2) -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
 		return

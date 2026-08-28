@@ -2,29 +2,12 @@ extends SceneTree
 
 ## Walks a route past the follower against a real cartridge cache and PRINTS
 ## where it stood, without a game running.
-##
-## Two things are being shown. The first is that the follower is a pure function
-## of what the player did: one route walked twice has to produce the same poses
-## byte for byte, and a different route has to produce different ones. The
-## second is that the species walking behind the player is the cartridge's own:
-## the icon row each one is drawn from is read out of the cache and printed
-## beside its name, which is the only art this mod ever names.
-##
-##   Godot --headless --path <pokerecomp> -s tools/follower_probe.gd -- \
-##       <cartridge>
 
-## Map PASSES one plain overworld step is drawn over, which is the host's own
-## STEP_PASSES_WALK. `HandleMap` ends each iteration in `NextOverworldFrame`,
-## whose MaxOverworldDelay is 2, so the map layer runs once per two hardware
-## frames and every duration the overworld reads is counted in those passes. The
-## count changes nothing here: the follower reads the player's fraction rather
-## than counting anything, and the probe walks whatever it is handed.
 const STEP_FRAMES: int = 8
 
 const HOME: Vector2i = Vector2i(24, 3)
 const AWAY: Vector2i = Vector2i(24, 4)
 
-## Two routes: a straight run with two corners in it, and one that doubles back.
 const ROUTE: Array = ["right", "right", "down", "down", "left", "warp", "down"]
 const OTHER_ROUTE: Array = ["down", "left", "left", "up", "right", "right"]
 
@@ -37,9 +20,6 @@ const FACINGS: Dictionary = {
 	"left": Gen2WorldSprite.FACING_LEFT, "right": Gen2WorldSprite.FACING_RIGHT,
 }
 
-## A party the probe drives the reader with: a starter, an egg in the second
-## slot and a species from the middle of the table. Species numbers, so the
-## cartridge answers what they are called and what they are drawn as.
 const PARTY: Array[int] = [155, 172, 25, 249]
 
 
@@ -55,8 +35,6 @@ func _initialize() -> void:
 		quit(1)
 		return
 
-	# The mod sits beside this tool in the same checkout, which is what lets a
-	# probe run without the mod being installed or linked anywhere.
 	var mod: String = (get_script() as Script).resource_path.get_base_dir() \
 		.get_base_dir().path_join("mods/follower")
 	var trail_script: GDScript = load("%s/trail.gd" % mod)
@@ -91,8 +69,6 @@ func _initialize() -> void:
 	quit(1 if failures > 0 else 0)
 
 
-## What the world screen mirrors out of a save: the second slot is an egg and
-## the lead is on its feet.
 func _summary() -> Dictionary:
 	var species: Array[int] = PARTY.duplicate()
 	return {
@@ -104,8 +80,6 @@ func _summary() -> Dictionary:
 	}
 
 
-## Which species is out for each slot, and the icon row it is drawn from. Slot 2
-## holds an egg and has to stay in its ball.
 func _report_party(party: GDScript, data: GameData, summary: Dictionary) -> int:
 	var failures: int = 0
 	for slot: int in range(1, (summary["species"] as Array).size() + 1):
@@ -149,8 +123,6 @@ func _report_party(party: GDScript, data: GameData, summary: Dictionary) -> int:
 	return failures
 
 
-## The route as one line per frame, which is both what is printed and what is
-## digested: a pose that moved a pixel moves a character here.
 func _walk(trail_script: GDScript, route: Array, verbose: bool) -> String:
 	var trail: RefCounted = trail_script.new()
 	var lines: PackedStringArray = PackedStringArray()
@@ -168,9 +140,6 @@ func _walk(trail_script: GDScript, route: Array, verbose: bool) -> String:
 	return "\n".join(lines)
 
 
-## The route as the frames the world would hand the follower: a step commits its
-## cell on its first frame and draws the fraction down to zero, which is what
-## `player_step_offset_cells()` answers.
 func _observations(route: Array) -> Array:
 	var out: Array = []
 	var map: Vector2i = HOME
@@ -196,8 +165,6 @@ func _observation(map: Vector2i, cell: Vector2i, facing: int, offset: Vector2) -
 	return {"map": map, "cell": cell, "facing": facing, "offset": offset, "allowed": true}
 
 
-## What the follower promises, asked of every frame of both routes rather than
-## of a sample.
 func _rules(trail_script: GDScript) -> int:
 	var failures: int = 0
 	for route: Array in [ROUTE, OTHER_ROUTE]:
@@ -207,8 +174,6 @@ func _rules(trail_script: GDScript) -> int:
 		var apart: bool = true
 		var cardinal: bool = true
 		var previous_cell: Vector2i = Vector2i.ZERO
-		## The cell the player stood on before the step being drawn, which is
-		## where the follower is walking to, and the cell they are on now.
 		var player_before: Vector2i = Vector2i.ZERO
 		var previous_player: Vector2i = Vector2i.ZERO
 		var previous_map: Vector2i = Vector2i(-1, -1)
@@ -227,10 +192,6 @@ func _rules(trail_script: GDScript) -> int:
 			if bool(pose["out"]):
 				if cell == player:
 					apart = false
-				# The whole rule, checked rather than described: the follower
-				# stands on the cell the player last stood on. Not the cell of
-				# the previous FRAME: a step commits its cell on its first frame
-				# and is drawn for the rest of them.
 				if same_map and cell != player_before:
 					behind = false
 				var distance: float = (
@@ -265,8 +226,6 @@ func _report(what: String, passed: bool) -> bool:
 	return passed
 
 
-## Being petted turns the follower to look back and changes nothing else. The
-## player is facing it, so it faces the way they came from.
 func _petting(trail_script: GDScript) -> int:
 	var failures: int = 0
 	for pair: Array in [
@@ -285,8 +244,6 @@ func _petting(trail_script: GDScript) -> int:
 			trail.facing() == int(pair[2])
 		):
 			failures += 1
-		## The same frame again: a turn is a pose and moves neither the cell it
-		## committed to nor the step it is drawing.
 		var after: Dictionary = trail.observe(_observation(
 			HOME, (before["cell"] as Vector2i) + Vector2i.RIGHT,
 			Gen2WorldSprite.FACING_RIGHT, Vector2.ZERO
@@ -299,14 +256,10 @@ func _petting(trail_script: GDScript) -> int:
 	return failures
 
 
-## What the follower reaches, asked of a made-up map rather than of a route: the
-## cell it stands on first, then one step into what it could not have walked
-## into, and never a record already taken.
 func _finding(finder: GDScript) -> int:
 	var here: Vector2i = Vector2i(10, 10)
 	var wall: Vector2i = here + Vector2i.LEFT
 	var open_floor: Vector2i = here + Vector2i.RIGHT
-	## Everything is walkable but the one cell standing in for a rock.
 	var walkable: Callable = func(cell: Vector2i, _direction: Vector2i) -> bool:
 		return cell != wall
 	var under: Dictionary = _record(here, 1)
@@ -328,8 +281,6 @@ func _finding(finder: GDScript) -> int:
 		var item: int = 0 if answer.is_empty() else int(answer["item"])
 		if not _report("%s (item %d)" % [check[0], item], item == int(check[2])):
 			failures += 1
-	## A cell two steps out is not reached whatever is on it, which is the whole
-	## difference between a follower and a map-wide sweep.
 	var far: Dictionary = finder.reach(
 		[_record(here + Vector2i.LEFT * 2, 5)], here, walkable
 	)
@@ -337,18 +288,10 @@ func _finding(finder: GDScript) -> int:
 	return failures
 
 
-## One row of `Gen2WorldAPI.hidden_items()`, which is all `finder.gd` reads.
 func _record(cell: Vector2i, item: int) -> Dictionary:
 	return {"cell": cell, "item": item, "flag": item, "taken": false}
 
 
-## The pickup, end to end against the cartridge's own maps: a real world is
-## opened on the first map carrying a hidden item, the follower is walked onto
-## its cell, and what the mod asked for is read back off the host.
-##
-## The mod's half is the ask, and it is the only half it has. The take is asked
-## of the world here for the reason the picture is taken in `follower_shot.gd`:
-## the two halves are only right together.
 func _picking_up(actor_script: GDScript, options: GDScript, data: GameData) -> int:
 	var site: Dictionary = _a_hidden_item(data)
 	if site.is_empty():
@@ -363,8 +306,6 @@ func _picking_up(actor_script: GDScript, options: GDScript, data: GameData) -> i
 
 	var host: Gen2ModHost = Gen2ModHost.instance()
 	options.register(host, options.MOD_ID)
-	## The world screen mirrors a save into this; a probe hands it the same shape,
-	## since all the follower reads of a party is a species on its feet.
 	world.set_party_summary(1, false, PARTY.slice(0, 1), [], ["CYNDA"], [false], {}, [false])
 	var actor: RefCounted = actor_script.new()
 	actor.configure(host, options.MOD_ID)
@@ -382,11 +323,6 @@ func _picking_up(actor_script: GDScript, options: GDScript, data: GameData) -> i
 		"on, it asks for the cell it stands on (%s)" % str(asked), asked == [cell]
 	) else 1
 
-	## One arrival is one attempt, which is the whole of what the mod rules on
-	## now that the host collapses a cell already queued and one already taken.
-	## Standing still must not ask again, or a full pack would put its box up on
-	## every frame; walking away and back must, or an item refused once would be
-	## unreachable for the rest of the map.
 	for _frame: int in 120:
 		actor.advance_frame()
 	failures += 0 if _report(
@@ -397,13 +333,8 @@ func _picking_up(actor_script: GDScript, options: GDScript, data: GameData) -> i
 		"walking on again, it asks again (%s)" % str(returned), returned == [cell]
 	) else 1
 
-	## Asking is all the mod does. The bag, the flag and the site's own script
-	## are the host's, and this is where that is shown to be true.
 	var before: int = world.inventory.item_quantity(int(site["item"]))
 	var results: Array = world.take_hidden_item(cell)
-	## `verbosegiveitem` prints and waits on a press, which a screen spends and a
-	## probe has to spend by hand, or the script stops before its own `end` and
-	## the flag it sets is never reached.
 	for _press: int in 64:
 		if not world.script_busy():
 			break
@@ -425,9 +356,6 @@ func _picking_up(actor_script: GDScript, options: GDScript, data: GameData) -> i
 	return failures
 
 
-## Walks the follower onto [param cell] and answers what the mod asked the host
-## for. The player stands on the cell and steps off it, which is exactly how a
-## follower comes to be standing there.
 func _walk_onto(
 	actor: RefCounted, world: Gen2WorldAPI, cell: Vector2i, host: Gen2ModHost
 ) -> Array:
@@ -446,8 +374,6 @@ func _walk_onto(
 	return host.take_hidden_item_requests()
 
 
-## The first map carrying a hidden item nobody has taken, and the world it was
-## found on, so nothing here names a cell a cartridge might move.
 func _a_hidden_item(data: GameData) -> Dictionary:
 	for group: int in range(1, 27):
 		for number: int in range(1, 40):

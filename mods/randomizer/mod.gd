@@ -1,12 +1,6 @@
 extends RefCounted
 
-## Registers the settings and a save lifecycle. Nothing here is a scene node and
-## nothing here reads world or battle state: `plan.gd` decides every value and
-## this file only carries one saved run's plan to the host's patch calls.
-##
-## Installation settings describe the NEXT new run. `save_created` snapshots
-## them into that save; activation rebuilds from the snapshot, so moving a
-## setting cannot silently rewrite a run already in progress.
+## Registers the settings and a save lifecycle.
 
 const Options := preload("options.gd")
 const Plan := preload("plan.gd")
@@ -14,7 +8,6 @@ const ALGORITHM_VERSION: int = 2
 const SAVE_ALGORITHM: String = "algorithm"
 const SAVE_SETTINGS: String = "settings"
 
-## The kinds patched by number, in the order they are applied.
 const NUMBERED_KINDS: Array[StringName] = [
 	Gen2ContentOverlay.KIND_SPECIES,
 	Gen2ContentOverlay.KIND_MOVE,
@@ -24,8 +17,6 @@ const NUMBERED_KINDS: Array[StringName] = [
 var _host: Gen2ModHost = null
 var _id: StringName = &""
 var _manifest: Gen2ModManifest = null
-## The cartridge as it shipped, gathered once. A rebuild starts from this, so a
-## seed always means the same thing however many times a setting was moved.
 var _world: Dictionary = {}
 var _data: GameData = null
 
@@ -46,8 +37,6 @@ func save_created(save: Gen2SaveData) -> void:
 
 
 func save_activated(save: Gen2SaveData) -> void:
-	# A development run has no file to own its inputs, so it deliberately uses
-	# the current installation settings for that disposable session.
 	if save == null:
 		_apply(Options.settings(_host))
 		return
@@ -59,8 +48,6 @@ func save_activated(save: Gen2SaveData) -> void:
 
 
 func save_deactivated() -> void:
-	# The host clears this mod's overlay after the callback. The gathered world
-	# remains cartridge-only and can be reused by the next activation.
 	pass
 
 
@@ -92,9 +79,6 @@ func _apply(settings: Dictionary) -> void:
 		_apply_entries(kind, patches[kind], _patch_table)
 
 
-## One kind's entries, applied in the order the plan listed them. Save
-## activation has already cleared this mod's previous overlay in one host-owned
-## pass, so every entry starts from the cartridge.
 func _apply_entries(kind: StringName, entries: Array, patch: Callable) -> void:
 	for entry: Dictionary in entries:
 		patch.call(kind, entry, entry["fields"])

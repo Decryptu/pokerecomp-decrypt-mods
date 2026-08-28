@@ -1,39 +1,16 @@
 extends RefCounted
 
 ## Leaves drifting across the daylight and fireflies at night: the one thing in
-## this view the cartridge does not draw, so it is kept cheap and separable. One
-## MultiMesh, one shader, no simulation, nothing stored between frames, and
-## removing it is this file plus four lines in `diorama.gd`.
-##
-## They ride the camera rather than the map, since a mote is atmosphere and not a
-## thing standing in a place. `diorama.gd:aim_camera` moves the node.
-##
-## The colours are invented and say so. A mote is over grass as often as over a
-## roof, so the atlas has no answer for what is under it. Both are the colour of
-## a thing catching light: a leaf in the drawing's own dark green is invisible
-## over a green world at every hour, and a firefly is only ever seen lit.
-##
-## The two are not equally loud. At night a dozen are in frame at once; by day two
-## or three catch the sun and the rest are lost against the world.
+## this view the cartridge does not draw, so it is kept cheap and separable.
 
-## How many are in the box at once. Small: a cloud of these reads as snow.
 const COUNT: int = 40
-## The box they drift in, in world pixels, centred on the camera's aim. Wider
-## than tall, since the shot is a low oblique.
 const SPREAD: Vector3 = Vector3(320.0, 96.0, 320.0)
-## How far off the ground the box's floor sits. A firefly at ankle height is a
-## firefly behind the grass.
 const RISE: float = 10.0
-## One world pixel, so a mote is the same grain as the world it drifts over.
 const SIZE: float = 1.0
 
-## How long one drift cycle takes, in seconds, and how far a mote travels in one.
-## Three periods that share no factor, so a mote never retraces its own path.
 const DRIFT_PERIOD: Vector3 = Vector3(11.0, 7.0, 13.0)
 const DRIFT: Vector3 = Vector3(28.0, 14.0, 28.0)
 
-## Fireflies at night and leaves by day, and nothing in a cave. Indexed by the
-## host's own time of day.
 const NIGHT: int = 2
 const CAVE: int = 3
 
@@ -103,7 +80,6 @@ func _init() -> void:
 	mesh.use_custom_data = true
 	mesh.mesh = _quad()
 	mesh.instance_count = COUNT
-	# A fixed seed, so two visits look the same and a tool shoots the same frame.
 	var noise := RandomNumberGenerator.new()
 	noise.seed = 0x3f10e5
 	for index: int in COUNT:
@@ -139,13 +115,11 @@ func set_time_of_day(time_of_day: int) -> void:
 	_apply()
 
 
-## A cave has no weather and a room has no sky for a leaf to fall out of.
 func set_outside(outside: bool) -> void:
 	_outside = outside
 	_apply()
 
 
-## Whether anything is drifting, which `diorama.gd` hangs visibility on.
 func drifting() -> bool:
 	return _outside and _time_of_day != CAVE
 

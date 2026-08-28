@@ -1,20 +1,13 @@
 extends RefCounted
 
-## Small monochrome marks on the cartridge's own 20x18 battle interface. The
-## host supplies exact effectiveness and live state, so this file owns layout
-## and iconography only.
+## Small monochrome marks on the cartridge's own 20x18 battle interface.
 
 const Options := preload("options.gd")
 
-## Official later-game meanings: circle with a centre dot for an advantage,
-## triangle for a resisted move and X for no effect. Eight 1bpp rows, bit 7 on
-## the left, are the API's native one-tile form.
 const MARK_SUPER: Array[int] = [0x3C, 0x42, 0x81, 0x99, 0x99, 0x81, 0x42, 0x3C]
 const MARK_RESISTED: Array[int] = [0x00, 0x10, 0x38, 0x38, 0x7C, 0x7C, 0xFE, 0x00]
 const MARK_IMMUNE: Array[int] = [0x00, 0x42, 0x24, 0x18, 0x18, 0x24, 0x42, 0x00]
 
-## The cartridges have no weather HUD tiles. These use the same one-bit weight
-## as their battle symbols: a ray-ring sun, a cloud with drops and blowing sand.
 const WEATHER_SUN: Array[int] = [0x24, 0x18, 0x7E, 0xDB, 0xDB, 0x7E, 0x18, 0x24]
 const WEATHER_RAIN: Array[int] = [0x00, 0x38, 0x7C, 0xFE, 0x7C, 0x00, 0x52, 0x24]
 const WEATHER_SAND: Array[int] = [0x00, 0x7C, 0x02, 0x3C, 0x40, 0x3E, 0x00, 0x6A]
@@ -33,18 +26,8 @@ const STAGE_LABELS: Dictionary = {
 	&"accuracy": "ACC",
 	&"evasion": "EVA",
 }
-## With the command menu open, these are the cartridge's two unused regions:
-## above the enemy picture and inside the blank lower-left panel. The summaries
-## yield those cells to the move list, whose type box occupies the lower panel.
 const ENEMY_STAGES_AT: Vector2i = Vector2i(13, 0)
 const PLAYER_STAGES_AT: Vector2i = Vector2i(1, 13)
-## The last row of the cartridge's own 20x18 grid. Seven stages can be active at
-## once and the player's block starts five rows from the bottom, so the column
-## can ask for a row the screen does not have. The host refuses a placement
-## outside the grid rather than clipping it, so a column that ran off the bottom
-## would lose rows without either side saying anything: this stops at the edge
-## instead, and what is dropped is the end of [constant STAGE_ORDER], accuracy
-## and evasion, which are the two the cartridge itself never prints a figure for.
 const LAST_ROW: int = 17
 
 var _host: Gen2ModHost
@@ -112,8 +95,6 @@ func _stage_side(stages: Dictionary, start: Vector2i, field: bool) -> Array:
 		var stage: int = int(stages.get(key, stages.get(String(key), 0)))
 		if stage == 0:
 			continue
-		## The cartridge font has no plus sign. A bare positive number and a
-		## printed minus preserve one compact, unambiguous row per active stage.
 		var placement: Dictionary = {
 			"text": "%s%d" % [String(STAGE_LABELS[key]), stage],
 			"at": at,

@@ -7,8 +7,6 @@ const MOD_ID: StringName = &"catch_combo"
 const BOX: StringName = &"box"
 
 const BOX_OFF: int = 0
-## Only where the combo reaches a rung that is worth more DV words, which is the
-## one moment the odds actually changed.
 const BOX_RUNGS: int = 1
 const BOX_EVERY: int = 2
 

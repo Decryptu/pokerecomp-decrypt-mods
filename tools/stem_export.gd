@@ -1,26 +1,9 @@
 extends SceneTree
 
-## The flower as it stands in 3D seen FLAT FROM THE FRONT, exported for the page
-## a person draws its stem on.
-##
-## The front elevation of a carved cutout is its own mask: every drawn pixel
-## stands at the row it is drawn at, so what the eye meets face-on is the mask
-## wearing the tile's own texels. That is what this writes, beside the greenest
-## texel of the grass the flower grows out of, which is what the stem is painted
-## in.
-##
-## The mask, the span box and the colours all come from the mesher and the atlas
-## rather than being worked out again here: a page drawn against a different mask
-## from the one the geometry is cut on is a page that lies.
-##
-##   Godot --headless --path <pokerecomp> -s tools/stem_export.gd -- <cache> \
-##       <out.json> [group] [number]
-##
-## Then `tools/stem_page.py <out.json> <out.html>`.
+## The flower as it stands in 3D seen FLAT FROM THE FRONT, exported for the
+## page a person draws its stem on.
 
 const MOD := "user://mods/voxel3d"
-## The class the page is for, and the tile it is pinned at on every tileset that
-## draws it.
 const CLASS_NAME := &"flower"
 
 
@@ -89,8 +72,6 @@ func _initialize() -> void:
 	var origin: Vector2i = (found - box.position) * 8
 	var tile: int = mesher._tiles[at]
 
-	# The drawing's own 8x8, as it stands: a colour where the mask keeps the
-	# pixel and null where the carve puts nothing.
 	var rows: Array = []
 	for py: int in 8:
 		var row: Array = []

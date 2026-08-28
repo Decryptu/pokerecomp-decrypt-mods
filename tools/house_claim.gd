@@ -1,22 +1,6 @@
 extends SceneTree
 
 ## WHICH PAINTED BUILDING STANDS ON WHICH TILES, and what refused the rest.
-##
-##   Godot --headless --path <pokerecomp> -s tools/house_claim.gd -- <cache> \
-##       [group number [tile x] [tile y]]
-##
-## With no map it counts the whole game. With a map it lists every building that
-## claimed anything there, and with a tile it says what stands on that tile and
-## prints every plan of every drawing whose rectangle holds it, claimed or
-## refused.
-##
-## A DRAWING IS REFUSED PER BUILDING, biggest rectangle first, so a house that
-## comes out of the passes below instead of out of its painting is a house some
-## other painting claimed its tiles. That is how Goldenrod's Pokemon Centre was
-## found: its own drawing 96 was refused because 99, which holds its roof without
-## its wall, had reached across it. `mesher.gd:_house_claimed` and `_house_reach`.
-##
-## Headless: it resolves and never emits.
 
 const MOD := "user://mods/voxel3d"
 

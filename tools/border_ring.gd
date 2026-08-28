@@ -1,26 +1,7 @@
 extends SceneTree
 
 ## What the border ring is made of, over the whole game.
-##
-## Everything past a map's edge is drawn from one block lookup, and there are two
-## answers to it: `drawn_block_at`, which is `wOverworldMapBlocks` and stops at
-## the three-block margin the cartridge pads a connection to, and
-## `expanded_block_at`, which places the WHOLE neighbouring map past that margin.
-## The mesher reads the second one (`shape/map_source.gd`), so this counts what
-## that is worth: how many ring blocks come off a real neighbour rather than off
-## this map's own border block, and on how many maps.
-##
-## It is the same instrument `tools/holes.gd` is for cracks. A ring read is one
-## dictionary lookup, so the whole game is a couple of seconds and no rendering.
-##
-##   Godot --headless --path <pokerecomp> -s tools/border_ring.gd -- <cache> \
-##       [ring tiles] [worst count]
-##
-## RING TILES is how deep to sweep, in TILES, and defaults to the deepest ring
-## `mesher.gd` resolves (`RING_TILES_MODELLED`). The skirt past it extrudes the
-## ring's own edge column and reads nothing, so it is not swept.
 
-## `mesher.gd:RING_TILES_MODELLED`, in blocks: 16 tiles is 4 blocks.
 const RING_BLOCKS: int = 4
 const WORST: int = 10
 
@@ -97,9 +78,6 @@ func _initialize() -> void:
 	quit(0)
 
 
-## The placed neighbour covering a block outside the map and outside the
-## hardware buffer, which is exactly what `expanded_block_at` reads there and
-## what `drawn_block_at` cannot. Null where nothing covers it.
 static func _neighbour_at(
 	placements: Dictionary, block_x: int, block_y: int
 ) -> Gen2WorldMap:

@@ -1,30 +1,12 @@
 extends RefCounted
 
-## The buildings on the maps past the mesh, so a town out there is not a flat page
-## with roofs painted on it.
-##
-## A box and not a house. `shape/houses.gd` is a hundred hand-painted drawings
-## read per pixel and matched by arrangement, and `shape/mesher.gd` spends a
-## resolve on them; neither is available where a map has to be stood up in
-## milliseconds. What is available is the profile's `facade` and `roof`, which is
-## enough to say where a building is, how deep its roof is drawn and how tall its
-## wall is. So it is built as what the cartridge draws: a roof over a footprint
-## with a wall under the front.
-##
-## The art is the map's own, tile for tile, off the same sheet the ground beside
-## it is drawn from. Nothing is invented and nothing is tinted.
-##
-## One mesh a map rather than one a building, since a town is drawn or culled
-## together.
+## The buildings on the maps past the mesh, so a town out there is not a flat
+## page with roofs painted on it.
 
 const TILE: float = 8.0
-## How many maps' worth of geometry is held at once. `far_field.gd:SHEET_LIMIT`'s
-## rule and its number.
 const MAP_LIMIT: int = 32
 
 var root: Node3D = null
-## Per map, keyed `group,number`: `[mesh, material, clear]`, the mesh null for a
-## map whose buildings all state a flat drawing or all fall inside the clearance.
 var _built: Dictionary = {}
 var _pool: Array[MeshInstance3D] = []
 var _used: int = 0
@@ -35,12 +17,10 @@ func _init() -> void:
 	root.name = "FarHouses"
 
 
-## Whether the maps out there stand their buildings at all.
 func set_enabled(on: bool) -> void:
 	root.visible = on
 
 
-## Drops every mesh, for an hour that repaints the sheets they are painted from.
 func forget() -> void:
 	_built.clear()
 
@@ -49,11 +29,6 @@ func begin() -> void:
 	_used = 0
 
 
-## One far map's buildings, standing at [param origin] in world pixels.
-##
-## [param clear] is ground somebody else is already standing on, and a building
-## whose footprint touches it is left out. `far_foliage.gd:place` takes the same
-## rectangle and for the same reasons.
 func place(
 	map: Gen2WorldMap, origin: Vector2, sheet: RefCounted, buildings: Array,
 	clear: Rect2 = Rect2()
@@ -79,8 +54,6 @@ func end() -> void:
 func _instance() -> MeshInstance3D:
 	if _used >= _pool.size():
 		var made := MeshInstance3D.new()
-		# Flat art a long way off neither casts a shadow nor is worth one: the
-		# sun's reach is held to the mesh window. See `far_field.gd:_instance`.
 		made.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(made)
 		_pool.append(made)
@@ -89,10 +62,6 @@ func _instance() -> MeshInstance3D:
 	return node
 
 
-## One map's buildings as one mesh, built once and kept.
-##
-## Keyed on the clearance as well, because the loaded map's own buildings past
-## the window are in here and the window moves under them.
 func _mesh_of(
 	map: Gen2WorldMap, sheet: RefCounted, buildings: Array, clear: Rect2,
 	origin: Vector2
@@ -129,15 +98,6 @@ func _mesh_of(
 	return [mesh, material]
 
 
-## One building, as the cartridge draws it: the top rows are the roof seen from
-## above and are therefore its DEPTH, and the rows under them are the wall seen
-## face on and are therefore its HEIGHT.
-##
-## The run and not the count. A flood joins two buildings that touch, so a
-## rectangle can hold roof rows, wall rows, roof rows again; what is built is the
-## leading run of roof and the run of wall under it, and anything past that is
-## left lying. A rectangle with no roof over a wall states no box at all and is
-## left where it lies, which is what the page already draws.
 func _box(surface: SurfaceTool, sheet: RefCounted, building: Dictionary) -> bool:
 	var rect: Rect2i = building["rect"]
 	var rows: PackedByteArray = building["rows"]
@@ -158,7 +118,6 @@ func _box(surface: SurfaceTool, sheet: RefCounted, building: Dictionary) -> bool
 	var south: float = north + float(roof) * TILE
 	var high: float = float(wall) * TILE
 
-	# THE LID wears the roof rows, north row first, which is how they are drawn.
 	for row: int in roof:
 		for column: int in rect.size.x:
 			var tile: int = int(tiles[row * rect.size.x + column])
@@ -168,8 +127,6 @@ func _box(surface: SurfaceTool, sheet: RefCounted, building: Dictionary) -> bool
 				Vector3(x, high, z), Vector3(x + TILE, high, z),
 				Vector3(x + TILE, high, z + TILE), Vector3(x, high, z + TILE),
 			])
-	# THE FRONT wears the wall rows, top row first, on the south face, which is
-	# the one the overworld's camera is always looking at.
 	for row: int in wall:
 		for column: int in rect.size.x:
 			var tile: int = int(tiles[(roof + row) * rect.size.x + column])
@@ -179,15 +136,10 @@ func _box(surface: SurfaceTool, sheet: RefCounted, building: Dictionary) -> bool
 				Vector3(x, top, south), Vector3(x + TILE, top, south),
 				Vector3(x + TILE, top - TILE, south), Vector3(x, top - TILE, south),
 			])
-			# And the back, which is the same wall seen from the other side. It is
-			# in frame whenever the eye is north of a building, which out there is
-			# most of the time.
 			_quad(surface, sheet, tile, Vector3.FORWARD, [
 				Vector3(x + TILE, top, north), Vector3(x, top, north),
 				Vector3(x, top - TILE, north), Vector3(x + TILE, top - TILE, north),
 			])
-	# THE FLANKS take the wall's own end column, since the cartridge draws no side
-	# of a house at all: one tile per row of roof and per row of wall.
 	for row: int in wall:
 		var top: float = high - float(row) * TILE
 		for side: int in 2:
@@ -209,8 +161,6 @@ func _box(surface: SurfaceTool, sheet: RefCounted, building: Dictionary) -> bool
 	return true
 
 
-## One tile's worth of face, wound so the named normal faces out. The corners are
-## given top-left first and run round the face.
 func _quad(
 	surface: SurfaceTool, sheet: RefCounted, tile: int, normal: Vector3,
 	corners: Array

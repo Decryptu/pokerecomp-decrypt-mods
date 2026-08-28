@@ -1,86 +1,19 @@
 extends RefCounted
 
 ## The pass over the finished frame: the hour's tint, the grey, the flash, the
-## depth of field and the letterbox. Everything in it reaches every pixel of the
-## picture, which is why none of it can be expressed in the world.
-##
-## The hour is applied twice, in the light and here, and the reference says why
-## (`lib/DayTint.lua`). A light's colour reaches only what it falls on, so a face
-## turned away from the sun, a shadow and anything lit by ambient alone stay the
-## colour they were at noon. A pass over the frame is what makes an hour read as
-## weather over the whole picture rather than as a lamp in it.
-##
-## It runs on the SubViewportContainer's own material, once over the composited
-## stage and before anything the screen draws on top: the panels, the bars and the
-## text box are paper held in front of the world.
-##
-## The fourth palette row is not night. The host's rows are MORNING, DAY, NIGHT
-## and DARK, and DARK is the blacked-out cave palette whose texels are already
-## near black. Indoors is neutral, which is the same answer `sky.gd` gives the
-## background and `diorama.gd` the sun.
+## depth of field and the letterbox.
 
-## The colour the whole picture is multiplied by, per time of day.
-##
-## Read off the reference's table (`DayNight.TINTS`) and pulled toward white: it
-## tints a flat composite the hour has not otherwise touched, where this one is
-## already lit by a sun that moves with the hour. The hour is applied once in the
-## light and once here, so here it is the smaller half.
 const DAY_TINT: Array[Color] = [
-	# Morning, off the reference's dawn. Warm and very slight: the sunrise is
-	# mostly in the sun's own low bearing and long shadows already.
 	Color(1.0, 0.96, 0.91),
-	# Day is a multiply by white and is skipped rather than drawn.
 	Color(1.0, 1.0, 1.0),
-	# Night, off the reference's blue, halved toward white. A diorama at night is
-	# already dark by its light; what this adds is that it is blue.
 	Color(0.86, 0.90, 0.98),
-	# The cartridge's dark cave row, which is already black in the palette.
 	Color(1.0, 1.0, 1.0),
 ]
 
-## The move animation's whole-screen flash.
-##
-## A Game Boy animation flashes by rewriting the background palette maps,
-## `BattleAnim_SetBGPals` writing one DMG byte across all seven at once. That byte
-## is a permutation, colour i drawn as colour `(byte >> i * 2) & 3`, so what the
-## hardware has is not an overlay but a tone curve over four levels: `%00011011`
-## goes photographically negative, `%01000000` sends three levels to white,
-## `%11111100` sends three to black.
-##
-## Measured over all 259 move animations at 120 frames each: 3139 frames of 20956
-## carry a whole-screen effect, in ten distinct bytes, and no animation reaches a
-## uniform byte outside that set. It is a sixth of every move played.
-##
-## So the curve is what is restated. The four levels are the four luminances a
-## Game Boy palette has, and a diorama has continuous tone, so the curve is read
-## as a piecewise line through those four control points: exact at each level and
-## continuous between. It moves luminance alone, added rather than scaled, so a
-## picture's colour survives everything but the ends.
-##
-## This is the world's half only, and it is whole-screen only when all seven
-## background palettes carry the same byte. A byte on one of the seven is
-## `BGEffects_LoadPlayerPals` reaching one side of the field, and the thing there
-## a diorama does have is the battler, which `battle/renderer.gd` permutes exactly.
-## What is left with no answer is a fade of the background behind one battler.
 const FLASH_PALETTES: int = 7
 const PALETTE_IDENTITY: int = 0xE4
-## The luminance of each of the four palette levels, brightest first, which is
-## also the identity curve.
 const FLASH_LEVELS := Vector4(1.0, 2.0 / 3.0, 1.0 / 3.0, 0.0)
 
-## The letterbox.
-##
-## A screen laid out in the hardware's 160x144 takes the whole picture: the pack,
-## the party, the PC, the dex, an evolution, `DoBattleTransition`. For a view drawn
-## in hardware pixels the host paints the bars itself inside the viewport. This one
-## is not in that viewport, because a letterbox around a rectangle it never used
-## would crop a view that had already filled the surface, so the host says so and
-## this view closes the surround. See
-## `Gen2ModHost.RENDERER_INTERFACE_MASK_METHOD`.
-##
-## Black and not a dim, and the transition is why: `DoBattleTransition` can only
-## write twenty by eighteen cells, so a dimmed world around a rectangle going
-## black is the picture breaking in half rather than the screen closing.
 const CODE: String = """
 shader_type canvas_item;
 
@@ -206,8 +139,6 @@ var _outside: bool = true
 var _flash: Vector4 = FLASH_LEVELS
 var _flashing: bool = false
 var _graying: bool = false
-## The hardware screen's rectangle in this surface's own 0 to 1, and whether the
-## surround is closed around it. See CODE.
 var _screen_uv := Vector4(0.0, 0.0, 1.0, 1.0)
 var _masking: bool = false
 var _dof_mode: int = 0
@@ -232,8 +163,6 @@ func set_time_of_day(time_of_day: int) -> void:
 	_apply()
 
 
-## [param bounds] is the hardware screen as `x, y, x end, y end` in this
-## surface's own 0 to 1.
 func set_interface_mask(bounds: Vector4, masked: bool) -> void:
 	if masked == _masking and bounds.is_equal_approx(_screen_uv):
 		return
@@ -242,15 +171,6 @@ func set_interface_mask(bounds: Vector4, masked: bool) -> void:
 	_apply()
 
 
-## Which depth of field this view wears, and how much.
-##
-## `1` is coarser pixels with distance and `2` an ordinary soft blur. The radius
-## is in the viewport's own pixels at the far end of the ramp, which runs from
-## [param near] to [param far] in world pixels.
-##
-## A look and not a saving: drawing the whole frame at a quarter resolution,
-## sixteen times fewer fragments, changed the frame time by nothing at all. It is
-## here because a far field of flat trees reads better slightly out of focus.
 func set_depth_of_field(
 	mode: int, radius: float, near: float = 900.0, far: float = 2600.0
 ) -> void:
@@ -261,13 +181,10 @@ func set_depth_of_field(
 	_apply()
 
 
-## Whether anything is being spent that needs to know where the eye is.
 func wants_eye() -> bool:
 	return _dof_mode != 0 and _dof_radius > 0.0
 
 
-## Where the eye stands, so the shader can tell how far out each row of the
-## picture lands. See CODE.
 func set_eye(height: float, pitch: float, fov: float) -> void:
 	_eye_height = maxf(height, 1.0)
 	_eye_pitch = pitch
@@ -275,8 +192,6 @@ func set_eye(height: float, pitch: float, fov: float) -> void:
 	_apply()
 
 
-## Whether the whole picture is drawn in grey, which is the battle intro and
-## nothing else. See CODE.
 func set_grayscale(graying: bool) -> void:
 	if graying == _graying:
 		return
@@ -289,8 +204,6 @@ func set_outside(outside: bool) -> void:
 	_apply()
 
 
-## The whole-screen flash a move animation is asking for, off the view's own
-## `bg_palette_maps`. Anything that is not one leaves the picture alone.
 func set_flash(maps: Variant) -> void:
 	var bytes: PackedByteArray = _bytes(maps)
 	var flashing: bool = bytes.size() >= FLASH_PALETTES and bytes[0] != PALETTE_IDENTITY

@@ -1,37 +1,11 @@
 extends SceneTree
 
-## WHERE THE TERRAIN IS OPEN, found in the mesh itself rather than in a picture.
-##
-## A hole is the one fault a count never shows and a render only shows against a
-## sky nobody would ship: two surfaces meet at different heights and nothing
-## stands between them, so the map is see-through along a line. The pictures
-## found three of them and each cost a round; this answers the whole game in one
-## run.
-##
-## THE TEST IS THE MESH'S OWN EDGES. An edge shared by two triangles is closed by
-## construction. An edge belonging to ONE triangle is a rim, which is legitimate
-## everywhere a surface ends; but two rims lying over the SAME line of ground at
-## DIFFERENT heights are two lips facing each other with air between them, and
-## that is a crack whatever built it. Reported in MAP tile coordinates, the ones
-## `map_grid.py` rules and `shot.gd` aims at.
-##
-##   Godot --headless --path <pokerecomp> -s tools/holes.gd -- <cache> \
-##       [group,number|tileset <n>|all] [least pixels]
-##
-## [param least pixels] drops cracks shorter than it, default 1.
-##
-## A run over `all` names the first maps and counts the rest, which is readable
-## and is NOT a distribution: taking the drop sizes off that printout counts the
-## twelve worst of two dozen maps and calls it the game. The last line is the
-## whole population, by drop and by tileset, so a round can pick the class that
-## carries the most rather than the one that printed first.
+## WHERE THE TERRAIN IS OPEN, found in the mesh itself rather than in a
+## picture.
 
 const MOD := "user://mods/voxel3d"
 const TILE: float = 8.0
-## Positions are exact multiples of a pixel in this mesher, so rounding to a
-## hundredth only guards the ramp corners' own averaging.
 const GRID: float = 100.0
-## How many maps to name in full before the run prints counts alone.
 const NAMED: int = 24
 
 
@@ -48,8 +22,6 @@ func _initialize() -> void:
 		return
 	var select: String = args[1] if args.size() > 1 else "all"
 	var least: int = int(args[2]) if args.size() > 2 else 1
-	# drop in pixels -> how many, and tileset -> how many, over every map
-	# scanned rather than over the ones named.
 	var by_drop: Dictionary = {}
 	var by_tileset: Dictionary = {}
 
@@ -68,8 +40,6 @@ func _initialize() -> void:
 			continue
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		var atlas: RefCounted = atlas_script.new()
-		# THE SEQUENCE, so the rims counted here are the rims the game draws.
-		# See `atlas.gd:frame_count`.
 		var animation := Gen2WorldAnimation.new()
 		animation.configure_tileset(data, tileset, 1)
 		if not atlas.build(data, map, tileset, 1, animation):
@@ -119,8 +89,6 @@ func _initialize() -> void:
 	quit(0)
 
 
-## One population, commonest first, with the share each class carries: which
-## class to take next is the only question this printout answers.
 func _ranked(title: String, counts: Dictionary, total: int, form: String) -> void:
 	if total <= 0:
 		return
@@ -143,10 +111,6 @@ func _wanted(map: Gen2WorldMap, select: String) -> bool:
 	return pair.size() == 2 and map.group == int(pair[0]) and map.number == int(pair[1])
 
 
-## THE OTHER WAY A MAP IS SEE-THROUGH: not a step with no wall but a tile with
-## no surface, which is a hole the size of a tile and reads as a line of sky at a
-## grazing angle. Answered over the box the mesh itself fills, so the skirt is
-## included and the world outside it is not.
 func _bare(meshes: Array) -> Array:
 	var covered: Dictionary = {}
 	var low := Vector2i(1 << 30, 1 << 30)
@@ -158,9 +122,6 @@ func _bare(meshes: Array) -> Array:
 				var a: Vector3 = points[at]
 				var b: Vector3 = points[at + 1]
 				var c: Vector3 = points[at + 2]
-				# ANY tilt counts as a floor here, where a rim counts as one only
-				# past 0.5: a rock rim cut in one tile stands at 63 degrees and is
-				# still the thing covering that tile.
 				if absf((b - a).cross(c - a).normalized().y) <= 0.05:
 					continue
 				var middle: Vector3 = (a + b + c) / 3.0
@@ -176,25 +137,18 @@ func _bare(meshes: Array) -> Array:
 	return bare
 
 
-## Every pair of rims lying over one line of ground at two heights, as one entry
-## each, keyed by the ground line so a crack is reported once however many
-## triangles bound it.
 func _cracks(meshes: Array, least: int) -> Array:
 	var counts: Dictionary = {}
 	for mesh: ArrayMesh in meshes:
 		for surface: int in mesh.get_surface_count():
 			var points: PackedVector3Array = mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
 			for at: int in range(0, points.size() - 2, 3):
-				# A VERTICAL FACE'S OWN TOP AND FOOT are two horizontal rims over
-				# one line of ground at two heights, which is the shape of a crack
-				# and is a closed wall. Only a rim belonging to a SURFACE counts.
 				var flat: bool = absf((points[at + 1] - points[at]).cross(
 					points[at + 2] - points[at]
 				).normalized().y) > 0.5
 				_count(counts, points[at], points[at + 1], flat)
 				_count(counts, points[at + 1], points[at + 2], flat)
 				_count(counts, points[at + 2], points[at], flat)
-	# The rims alone, gathered by the line of ground each lies over.
 	var lines: Dictionary = {}
 	for key: String in counts:
 		var edge: Array = counts[key]
@@ -202,14 +156,8 @@ func _cracks(meshes: Array, least: int) -> Array:
 			continue
 		var a: Vector3 = edge[0]
 		var b: Vector3 = edge[1]
-		# A rim crossing both axes at once is a quad's own diagonal or a cutout's
-		# cut, neither of which bounds a step in the ground.
 		if absf(a.x - b.x) > 0.01 and absf(a.z - b.z) > 0.01:
 			continue
-		# READ ALONG THE LINE AND NOT ALONG THE EDGE, so a rim and the rim facing
-		# it are compared end for end. A SLOPING rim counts: the rock rim the
-		# border block is drawn as is a slope, and the face missing under it is
-		# the longest crack in the game.
 		if a.x > b.x or (absf(a.x - b.x) < 0.01 and a.z > b.z):
 			var swap: Vector3 = a
 			a = b

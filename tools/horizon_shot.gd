@@ -1,57 +1,9 @@
 extends SceneTree
 
 ## Photographs the HORIZON, through the game's own screen.
-##
-## `tools/shot.gd` builds a diorama by hand and `tools/stage_bench.gd` walks one,
-## and neither has a horizon in it: `world/far_field.gd` folds the maps around
-## this one off a live [Gen2WorldAPI], and there is none without a world screen.
-## So every claim about what stands past the mesh has been argued off the game
-## played by hand, and one of them was wrong for a release.
-##
-## This stands the player still on a real map, dollies the camera out to where
-## the far ground fills the frame, holds until the mesh window has finished
-## building, and saves the picture.
-##
-## Needs a display, and mods only load when they are asked for:
-##
-##   Godot --path <pokerecomp> --mods -s tools/horizon_shot.gd -- \
-##       <game> <group> <number> [key=value ...]
-##
-##   cell=19,33      where the player stands, in walk cells; the map's centre
-##                   otherwise, moved to open ground the way `walk_bench` does
-##   window=1600x900 the window the picture is drawn at
-##   pitch=18        the camera's own pitch, in degrees above the horizon. Low is
-##                   the whole point: at the opening 50 the far ground is a strip
-##                   at the top of the frame
-##   distance=480    how far the eye stands back, in world pixels.
-##                   `camera_rig.gd:DISTANCE_LIMITS` caps it, and the cap is
-##                   where a horizon is read
-##   zoom=1.0        the lens, as `camera_rig.gd:fov` takes it
-##   view=voxel3d    the registered view
-##   set=distance:16 the view's own settings, put back when the run ends
-##   static=far_trees:0  the view's own tuning statics
-##   hold=240        frames held before the shutter. The mesh is built in slices
-##                   and the far maps' sheets one a frame, so a shot taken early
-##                   is a picture of a world still arriving
-##   wind=1          0 stills the sway, which is the only way two shots of this
-##                   view can be compared: the foliage bends on the shader's own
-##                   TIME, so two runs of one configuration differ on forty
-##                   thousand pixels and a real change can hide under that
-##   label=BEFORE    burnt into the top-left corner of the picture. A reviewer
-##                   gets no filenames, so a plate that does not name itself is
-##                   a plate that cannot be argued about
-##   out=            where the picture is saved, user://horizon.png by default.
-##                   It may not land inside the game project, which is what a
-##                   bare name resolves against here
-##
-## The camera is aimed due south, which is where the overworld's own is: a shot
-## off to one side shows more of the skyline and less of what a player sees.
 
 const WINDOW_SIZE := Vector2i(1600, 900)
-## Frames spent before the player is even looked for, so the map's own entry
-## script has run.
 const SETTLE_FRAMES: int = 60
-## The mod script the tuning statics live on. See `walk_bench.gd`.
 const RENDERER := "user://mods/voxel3d/world/renderer.gd"
 const Steering: GDScript = preload("../mods/voxel3d/steering.gd")
 
@@ -64,7 +16,6 @@ var _frames: int = 0
 var _pitch: float = 18.0
 var _distance: float = 480.0
 var _zoom: float = 1.0
-## Whether the sway is stilled for the shot. See the `wind` option.
 var _still: bool = false
 var _restore: Dictionary = {}
 var _restore_id: StringName = &""
@@ -164,13 +115,8 @@ func _process(_delta: float) -> bool:
 			return true
 		_aim()
 		return false
-	# LATE, and not with the aim: the horizon cuts a card and pools a material for
-	# it as each map comes into view, so a pool stilled on the first frame is a
-	# pool with almost nothing in it yet.
 	if _still and _frames == _hold:
 		_still_the_wind()
-	# The window is built in slices and the far maps are painted one sheet a
-	# frame, so the hold is what the picture is waiting for and not a courtesy.
 	if _frames < 3 + _hold:
 		return false
 	_report_foliage()
@@ -179,11 +125,6 @@ func _process(_delta: float) -> bool:
 	return true
 
 
-## WHAT THE HORIZON IS ACTUALLY STANDING, because a picture of a distant wood and
-## a picture of a bare page differ by very little on a thumbnail and by
-## everything in the frame. `far_foliage.gd` and `far_houses.gd` pool their
-## instances and hide the ones they did not use this frame, so the visible ones
-## are this frame's answer.
 func _report_foliage() -> void:
 	var node: Node = _find_named(root, "FarFoliage")
 	if node == null:
@@ -224,9 +165,6 @@ func _find_named(node: Node, wanted: String) -> Node:
 	return null
 
 
-## Stands the eye where the arguments asked, through the rig's own commands: a
-## held steer moves the value and its goal together, so nothing is left easing
-## when the shutter opens.
 func _aim() -> void:
 	var rig: RefCounted = _renderer.get("_rig")
 	if rig == null:
@@ -240,11 +178,6 @@ func _aim() -> void:
 	])
 
 
-## A sway period of an hour is a still frame for as long as a shot lasts, and it
-## leaves the geometry and the shader exactly as they are: nothing is switched
-## off, the clock is slowed. `tools/stage_bench.gd` does the same, and the SPRITE
-## pool is the addition: the horizon's cards each wear their own material out of
-## it, so stilling only the two named ones leaves the whole distance swaying.
 func _still_the_wind() -> void:
 	var stage: RefCounted = _renderer.get("_stage")
 	if stage == null:
@@ -272,11 +205,6 @@ func _capture() -> void:
 		return
 	print("shot       %s" % _out)
 
-
-## THE PLATE NAMES ITSELF. A reviewer is handed pictures and no filenames, so a
-## before and an after that are only told apart by the order they arrive in are
-## two pictures of nothing. Drawn as blocks a pixel row at a time, because a font
-## needs a whole scene tree and this is eight glyphs on a corner.
 const GLYPHS: Dictionary = {
 	"A": ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
 	"B": ["11110", "10001", "11110", "10001", "10001", "10001", "11110"],
@@ -402,8 +330,6 @@ func _apply_options(host: Gen2ModHost, id: StringName, spec: String) -> void:
 	_restore_id = id
 
 
-## The settings go back whatever happened, for `walk_bench.gd`'s reason: a tool
-## that only tidies up when it succeeds leaves the player's file wrong.
 func _finalize() -> void:
 	if _restore.is_empty():
 		return
@@ -425,8 +351,6 @@ func _find_renderer(node: Node) -> Node:
 	return null
 
 
-## `walk_bench.gd`'s save, with the encounters always off: a battle owning the
-## world is a picture of a battle.
 func _save(data: GameData, group: int, number: int, cell: Vector2i) -> Gen2SaveData:
 	var mon := Gen2SaveMon.new()
 	mon.species = 155
@@ -444,10 +368,6 @@ func _save(data: GameData, group: int, number: int, cell: Vector2i) -> Gen2SaveD
 	save.world = snapshot
 	return save
 
-
-## The nearest cell to [param wanted] standing in a room worth photographing.
-## `walk_bench.gd`'s rule and for its reason: a map's centre is a building on
-## most towns and a wall on several routes.
 const ROOM_CELLS: int = 24
 const SEARCH_CELLS: int = 40
 

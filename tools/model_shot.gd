@@ -2,15 +2,6 @@ extends SceneTree
 
 ## Photographs the AUTHORED models, several drawings side by side on a plain
 ## floor, with each drawing's own 2D art above it.
-##
-## A model is turned from a drawing rather than carved out of it, so none of the
-## survey tools show it: this measures each drawing off the cartridge, builds the
-## model and stands the row of them up to be judged.
-##
-##   Godot --path <pokerecomp> -s tools/model_shot.gd -- <cache> <out.png> \
-##       <tileset>,<w tiles>,<h tiles>,<tile ids dot separated> ...
-##
-## Needs a display, since it renders.
 
 const MOD := "user://mods/voxel3d"
 const VIEW := Vector2i(1200, 460)
@@ -40,7 +31,6 @@ func _initialize() -> void:
 	var holder := Control.new()
 	holder.add_child(_stage.container)
 	root.add_child(holder)
-	# Only the container is sized: it stretches, so it owns its SubViewport.
 	_stage.container.size = Vector2(VIEW)
 	_stage.set_time_of_day(1)
 
@@ -76,10 +66,6 @@ func _initialize() -> void:
 			continue
 		if index == 2:
 			background = atlas.background()
-		# A trailing `shrub` on the spec builds it as a thing sitting on the
-		# ground rather than as a tree standing on a trunk, and `rock` builds it as
-		# stone: the same seat on the ground, none of the plant, and its mask filled
-		# by column the way `profile.gd:FILLED` fills a boulder's broken ring.
 		var kind: String = spec[4] if spec.size() > 4 else ""
 		var mask: PackedByteArray = mesher._structure_mask(
 			tiles, across, atlas, kind == "rock", 1

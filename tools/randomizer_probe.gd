@@ -2,14 +2,6 @@ extends SceneTree
 
 ## Builds the randomizer's plan against a real cartridge cache and PRINTS what
 ## it changed, without a game running.
-##
-## A randomizer that cannot be shown to be deterministic is not finished, so the
-## first two lines are the whole point: one seed built twice has to digest to
-## the same number, and two seeds have to digest to different ones. The rest is
-## what the sane defaults promise, checked rather than asserted in a comment.
-##
-##   Godot --headless --path <pokerecomp> -s tools/randomizer_probe.gd -- \
-##       <cartridge> [seed] [other seed]
 
 const DEFAULT_SEED: int = 1234
 const OTHER_SEED: int = 5678
@@ -27,8 +19,6 @@ func _initialize() -> void:
 		quit(1)
 		return
 
-	# The mod sits beside this tool in the same checkout, which is what lets a
-	# probe run without the mod being installed or linked anywhere.
 	var mod: String = (get_script() as Script).resource_path.get_base_dir() \
 		.get_base_dir().path_join("mods/randomizer")
 	var plan: GDScript = load("%s/plan.gd" % mod)
@@ -41,8 +31,6 @@ func _initialize() -> void:
 
 	var seed_value: int = int(args[1]) if args.size() > 1 else DEFAULT_SEED
 	var other_seed: int = int(args[2]) if args.size() > 2 else OTHER_SEED
-	# Every setting on: what is being checked is the plan, and a toggle that is
-	# off is a part of it nobody can see.
 	var settings: Dictionary = options.settings(null)
 	settings["seed"] = seed_value
 
@@ -89,8 +77,6 @@ func _counts(patches: Dictionary) -> void:
 		print("patched    %-10s %d rows" % [kind, (patches[kind] as Array).size()])
 
 
-## The plan's list for one kind, by number, for a check that wants to ask about
-## one row rather than walk them all.
 func _by_number(entries: Array) -> Dictionary:
 	var out: Dictionary = {}
 	for entry: Dictionary in entries:
@@ -98,8 +84,6 @@ func _by_number(entries: Array) -> Dictionary:
 	return out
 
 
-## A few rows written out, because a count says a plan ran and a row says what
-## it did.
 func _samples(world: Dictionary, patches: Dictionary, data: GameData) -> void:
 	var species: Dictionary = world[Gen2ContentOverlay.KIND_SPECIES]
 	var patched: Dictionary = _by_number(patches[Gen2ContentOverlay.KIND_SPECIES])
@@ -120,8 +104,6 @@ func _samples(world: Dictionary, patches: Dictionary, data: GameData) -> void:
 			])
 
 
-## One route's grass, written out both ways. A count says the tables were
-## walked; a route says what the player will meet on it.
 func _wild_sample(world: Dictionary, patches: Dictionary, data: GameData) -> void:
 	var tables: Dictionary = world[Gen2ContentOverlay.KIND_ENCOUNTER]
 	for entry: Dictionary in (patches[Gen2ContentOverlay.KIND_ENCOUNTER] as Array):
@@ -147,8 +129,6 @@ func _names(data: GameData, slots: Array) -> String:
 	return ", ".join(out)
 
 
-## The cartridge's own rows come back out of JSON as floats, which is a fact
-## about the cache and not about the type.
 func _ints(values: Array) -> Array[int]:
 	var out: Array[int] = []
 	for value: Variant in values:
@@ -163,7 +143,6 @@ func _stat_line(stats: Dictionary) -> String:
 	return "/".join(out)
 
 
-## What the sane defaults promise, asked of every row rather than of a sample.
 func _rules(world: Dictionary, patches: Dictionary, validator: Callable) -> int:
 	var species: Dictionary = world[Gen2ContentOverlay.KIND_SPECIES]
 	var moves: Dictionary = world[Gen2ContentOverlay.KIND_MOVE]
@@ -371,10 +350,6 @@ func _species_changed(before: Variant, after: Variant) -> bool:
 	return true
 
 
-## What the wild tables promise: every slot is still there, in the same place,
-## at the level the cartridge put it. Only the species moves, and the same walk
-## covers a grass table's three times of day, a water table's flat list and a
-## rod's thresholds.
 func _wild_keeps_levels(world: Dictionary, patches: Dictionary) -> bool:
 	for entry: Dictionary in (patches[Gen2ContentOverlay.KIND_ENCOUNTER] as Array):
 		var was: Dictionary = (world[Gen2ContentOverlay.KIND_ENCOUNTER] as Dictionary)[
@@ -408,7 +383,6 @@ func _indexed_wild_keeps_shape(world: Dictionary, patches: Dictionary) -> bool:
 	return true
 
 
-## The same nesting, the same entries and every key but the species equal.
 func _same_shape(was: Variant, now: Variant) -> bool:
 	if was is Array:
 		if not now is Array or (was as Array).size() != (now as Array).size():
@@ -429,11 +403,6 @@ func _same_shape(was: Variant, now: Variant) -> bool:
 	return int(was) == int(now) if was is float or was is int else was == now
 
 
-## What a shared permutation BUYS, asked of the cartridge's own evolution
-## edges: every gap between a species and what it evolves into is still there,
-## on some stat or other, and none of them changed sign. Read as the sorted list
-## of the six differences, because which slot a gap ended up in is exactly what
-## the shuffle moved.
 func _lines_climb(species: Dictionary, patched: Dictionary) -> bool:
 	var numbers: Array[int] = []
 	for number: int in patched:
@@ -456,8 +425,6 @@ func _lines_climb(species: Dictionary, patched: Dictionary) -> bool:
 	return true
 
 
-## The six differences between two species' stats, sorted, which is the part of
-## them a permutation cannot change.
 func _gaps(low: Dictionary, high: Dictionary) -> Array[int]:
 	var out: Array[int] = []
 	for key: String in ["hp", "attack", "defense", "speed", "sp_attack", "sp_defense"]:
@@ -478,8 +445,6 @@ func _report(what: String, passed: bool) -> bool:
 	return passed
 
 
-## The plan written out in one order, so a digest is a fact about the plan and
-## not about the order a Dictionary handed its keys over in.
 func _canonical(value: Variant) -> String:
 	if value is Dictionary:
 		var keys: Array = (value as Dictionary).keys()

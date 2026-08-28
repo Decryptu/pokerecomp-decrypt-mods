@@ -1,34 +1,6 @@
 extends SceneTree
 
 ## Paints ONE mod icon out of cartridge art, layer by layer.
-##
-## A mod's icon has to look like it came off the cartridge, so it is built from
-## the cartridge's own pixels: a text box border around art the game already
-## draws somewhere. Nothing here is a picture of a mod; it is the game's frame,
-## the game's font and the game's sprites, arranged.
-##
-##   Godot --headless --path <pokerecomp> -s tools/icon_art.gd -- <cache> \
-##       <out.png> <layer> [layer ...] [--tiles N] [--scale N]
-##
-## Layers paint in the order given, each centred unless it carries an `@x,y`
-## offset in pixels from the icon's top left:
-##
-##   frame:<style>            a whole text box border, style counted from zero
-##   text:<string>            the main font, one tile a character
-##   effect:<name>[:pal]      an emote sheet: heart, question, shock, ...
-##   species:<number>         a party menu icon, first frame
-##   sprite:<number>[:pal]    an overworld sprite's first frame, 16x16
-##   tiles:<sheet>:<a,b,c>[:cols]   tiles out of a 1bpp strip by index
-##   anim:<gfx>:<a,b,c>[:cols]      tiles out of one `AnimObjGFX` row, by index
-##   world:<group>:<number>:<a,b,c>[:cols]  map tiles, in that map's own colours
-##   art:<name>               `tools/icon_art/<name>.txt`, drawn by hand
-##
-## A hand drawing is four shades and a hole: `.` is transparent and `0` to `3`
-## are the text palette's own colours, lightest first. It is there for what the
-## cartridge has no picture of, and nothing else.
-##
-## Sprite layers keep colour 0 transparent, the way the hardware draws an
-## object; the frame, the font and hand art treat it as the box's white.
 
 const TILE: int = 8
 
@@ -95,8 +67,6 @@ func _initialize() -> void:
 	quit()
 
 
-## Splits `<layer>@x,y` into the layer and an offset, or a null offset when the
-## layer is centred.
 func _split_offset(layer: String) -> Array:
 	var at: int = layer.rfind("@")
 	if at < 0:
@@ -179,8 +149,6 @@ func _paint_layer(layer: String, side: int) -> bool:
 			var wanted: PackedStringArray = spec[2].split(",")
 			var cols: int = int(spec[3]) if spec.size() > 3 else wanted.size()
 			return _paint_picked(
-				# The sheet's TILES, not its width: `_paint_picked` multiplies by
-				# TILE to reach the row stride, and `width` is already pixels.
 				_data.tile_indices(spec[1]), int(sheet["tiles"]), wanted, cols,
 				_bg, false, offset, side
 			)
@@ -209,7 +177,6 @@ func _paint_layer(layer: String, side: int) -> bool:
 	return false
 
 
-## Where a drawing of this size lands: its own offset, or the middle.
 func _place(offset: Variant, side: int, width: int, height: int) -> Vector2i:
 	if offset != null:
 		return offset
@@ -217,14 +184,10 @@ func _place(offset: Variant, side: int, width: int, height: int) -> Vector2i:
 	return Vector2i(int((side - width) / 2), int((side - height) / 2))
 
 
-## A 2x2 sprite out of a four-tile strip, in the hardware's own column order:
-## an object is two 8x16 halves, so the left column is tiles 0 and 1.
 func _paint_strip(
 	indices: PackedByteArray, tiles: int, palette: PackedColorArray,
 	offset: Variant, side: int, order: String = "row"
 ) -> bool:
-	# A strip is as many tiles wide as it holds, and a sheet often holds more
-	# than one frame: the row stride is the whole strip, not the four drawn.
 	@warning_ignore("integer_division")
 	var held: int = int(indices.size() / (TILE * TILE))
 	if held < 4:
@@ -269,7 +232,6 @@ func _paint_picked(
 	return true
 
 
-## Tiles of a map, wearing the palettes that map paints them with by day.
 func _paint_world(spec: PackedStringArray, offset: Variant, side: int) -> bool:
 	var map: Gen2WorldMap = _data.world_map(int(spec[1]), int(spec[2]))
 	if map == null:
@@ -302,9 +264,6 @@ func _paint_world(spec: PackedStringArray, offset: Variant, side: int) -> bool:
 
 
 func _paint_art(name: String, offset: Variant, side: int) -> bool:
-	# The host project is what `--path` points at, so hand art is found through
-	# the caller's own directory instead: `ICON_ART_DIR`, or `tools/icon_art`
-	# under whatever the tool was run from.
 	var here: String = OS.get_environment("ICON_ART_DIR")
 	if here == "":
 		here = "%s/tools/icon_art" % OS.get_environment("PWD")
@@ -331,7 +290,6 @@ func _paint_art(name: String, offset: Variant, side: int) -> bool:
 	return true
 
 
-## Copies an index buffer straight over, colour 0 included or left as a hole.
 func _blit_indices(
 	buffer: PackedByteArray, width: int, height: int, at: Vector2i,
 	palette: PackedColorArray, transparent: bool

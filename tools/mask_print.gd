@@ -2,25 +2,6 @@ extends SceneTree
 
 ## One drawing's PALETTE INDICES printed as text, and which of them the tileset
 ## calls its darkest shade.
-##
-## PRINT THE MASK BEFORE BELIEVING A MODELLING PROBLEM. It has settled four
-## questions in a minute each and each of them looked like geometry first: the
-## ship's border flood, the boulder's open ring, whether a stool wants FILLED,
-## and whether the stone vessel fills its own cell. Every one of them was a fact
-## about which pixels the flood can walk through, and none of them was visible in
-## a render or in a triangle count.
-##
-##   Godot --headless --path <pokerecomp> -s tools/mask_print.gd -- <cache> \
-##       <tileset> <tile> [tile ...] [--across N]
-##
-## The tiles are given in READING ORDER and laid out two across unless `--across`
-## says otherwise, so a 2x2 drawing is `80 81 82 83`. What comes back is one
-## character per pixel, the palette index the cartridge painted there.
-##
-## An index is not a colour: the same index is two colours under two palettes,
-## which is exactly why a cutout asks about indices. `shade_order` is the tile's
-## own indices ranked DARKEST FIRST, and the flags after it say which of the four
-## the `OUTLINE` rule would close against.
 
 const MOD := "user://mods/voxel3d"
 const TILE: int = 8
@@ -53,8 +34,6 @@ func _initialize() -> void:
 		quit(1)
 		return
 
-	# ANY map on the tileset will do: the atlas is the TILESET coloured by a map's
-	# palettes, and the indices this prints are the same under every one of them.
 	var map: Gen2WorldMap = null
 	for candidate: Gen2WorldMap in data.world_maps():
 		if candidate.tileset == want:

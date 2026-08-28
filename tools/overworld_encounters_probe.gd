@@ -1,33 +1,15 @@
 extends SceneTree
 
 ## Builds visible populations from real cartridge encounter tables and PRINTS
-## them. One seed twice must be byte-identical, two seeds must differ, nobody
-## may stand where an object is, the placement must be spread over the map
-## rather than gathered at one end of it, and no Pokemon may ever wear both the
-## shiny mark and the excellent-DV glow.
-##
-##   Godot --headless --path <pokerecomp> -s tools/overworld_encounters_probe.gd \
-##       -- <cartridge> [seed] [other seed]
+## them.
 
 const DEFAULT_SEED: int = 1234
 const OTHER_SEED: int = 5678
-## How many moves to walk the population through when testing the refusal.
 const ROAM_STEPS: int = 40
-## The spread check: how many seeds it builds, and how far the busiest eighth of
-## the candidate list may stand above the quietest before the placement is
-## called clustered. A population that favours one end of the collision walk is
-## a population standing in one patch of grass, which is what a weak generator
-## did here once: see `mods/overworld_encounters/rng.gd`.
 const SPREAD_RUNS: int = 200
 const SPREAD_OCTILES: int = 8
 const SPREAD_RATIO: float = 1.5
-## Every DV word there is. The two marks are decided from this one number, so
-## the claim that they cannot be worn at once is settled by reading all of them
-## rather than by sampling.
 const DV_WORDS: int = 0x10000
-## How many seeds are tried for a population carrying a shiny. One entry in 8192
-## is shiny, so six a build wants about fourteen hundred of them and this is the
-## bound rather than the count.
 const SHINY_SEED_ATTEMPTS: int = 20000
 
 
@@ -68,10 +50,6 @@ func _initialize() -> void:
 	moved["player"] = {"cell": Vector2i(1, 1), "facing": 2}
 	provider.set_context(moved)
 	var after_pose: String = JSON.stringify(provider.encounters())
-	# NOBODY STANDS ON AN NPC. `occupied` is the host's answer and the refusal is
-	# this mod's, on spawn and on every move, so both are walked here: the
-	# population is rebuilt on a context that holds the taken cells, then roamed
-	# for as many moves as the map has room for.
 	var taken: PackedVector2Array = _taken(context)
 	var busy: Dictionary = context.duplicate(true)
 	busy["occupied"] = taken
@@ -101,10 +79,6 @@ func _initialize() -> void:
 		taken.size(), "yes" if clear_spawn else "NO",
 		ROAM_STEPS, "yes" if clear_roam else "NO",
 	])
-	# THE MAP REFRESHES ITSELF. A population turns over on its own timers, a
-	# departure is refilled, a fight frees a slot like a timer does, and a shiny
-	# never leaves. All four are walked on a live provider rather than reasoned
-	# about, and the walk is long enough for every ordinary Pokemon to have gone.
 	var turnover: Dictionary = _turnover(plan, provider_script, context)
 	print("turnover over %d frames: %d left, %d arrived, cap held %s" % [
 		int(turnover["frames"]), int(turnover["left"]), int(turnover["arrived"]),
@@ -125,9 +99,6 @@ func _initialize() -> void:
 	print("a fought Pokemon frees its slot and is replaced: %s" % (
 		"yes" if bool(turnover["battle_refills"]) else "NO"
 	))
-	# NO POKEMON WEARS BOTH MARKS. Every DV word is read, so this is the claim
-	# settled rather than sampled, and the provider is walked a whole cycle to
-	# prove it puts a glow on nobody else and stays on its own rungs.
 	var glow: Dictionary = _glow_survey(plan, provider_script, context)
 	var octiles: Array[int] = _octiles(plan, context)
 	var busiest: int = octiles.max()
@@ -160,15 +131,6 @@ func _initialize() -> void:
 		and int(turnover["arrived"]) > 0 else 1)
 
 
-## A map left to run. Every ordinary Pokemon must leave and be replaced inside a
-## despawn span, the cap must hold the whole way, no id may be handed to two
-## Pokemon, and a shiny must still be standing at the end.
-##
-## The seed is SEARCHED for rather than the shiny planted: a build carrying one
-## is what the mod would actually produce, and a probe that reached past
-## `encounters()` to arrange the population would not be testing the path a
-## player takes. One entry in 8192 is shiny, so a handful of hundred builds finds
-## a map with one on it.
 func _turnover(
 	plan: GDScript, provider_script: GDScript, context: Dictionary
 ) -> Dictionary:
@@ -190,8 +152,6 @@ func _turnover(
 		var shiny: bool = plan.is_shiny(int(entry["dvs"]))
 		if shiny:
 			shiny_id = StringName(entry["id"])
-		## The timer rides on the entry, so what is exempt is read rather than
-		## inferred: a shiny carries no countdown at all and everybody else does.
 		if shiny == entry.has(provider_script.DESPAWN_AT):
 			timers = false
 
@@ -228,8 +188,6 @@ func _turnover(
 			next[id] = live.get(id, frame)
 		live = next
 
-	## A fight is a departure the timer did not cause. Its slot must be filled by
-	## somebody new rather than left empty for the rest of the map.
 	var fought: StringName = &""
 	var standing: Array = provider.encounters()
 	for entry: Dictionary in standing:
@@ -256,8 +214,6 @@ func _turnover(
 	}
 
 
-## A seed whose population on this map carries a Pokemon worth a glow. One DV word
-## in sixty-five is excellent, so this lands almost at once.
 func _a_glowing_map(plan: GDScript, context: Dictionary) -> int:
 	for attempt: int in SHINY_SEED_ATTEMPTS:
 		for entry: Dictionary in plan.build(context, attempt + 1, 6):
@@ -266,8 +222,6 @@ func _a_glowing_map(plan: GDScript, context: Dictionary) -> int:
 	return 1
 
 
-## A seed whose population on this map carries a shiny, and the number of builds
-## it took to find one.
 func _a_shiny_map(plan: GDScript, context: Dictionary, maximum: int) -> int:
 	for attempt: int in SHINY_SEED_ATTEMPTS:
 		for entry: Dictionary in plan.build(context, attempt + 1, maximum):
@@ -276,16 +230,6 @@ func _a_shiny_map(plan: GDScript, context: Dictionary, maximum: int) -> int:
 	return 1
 
 
-## The two marks over every DV word there is, and one whole glow cycle out of a
-## live provider: who it reaches, and how many distinct strengths it spends.
-## The provider is built here rather than borrowed. It used to be handed the one
-## the roaming test had already walked, which stopped meaning anything the moment
-## a population turned over: forty roam steps is longer than a despawn span, so
-## by the time the glow was read the Pokemon it was about had left the map and
-## the survey passed by finding nobody rather than by finding only the right
-## ones. Its own provider, on a seed whose population carries an excellent
-## Pokemon, walked for one glow period, which is a fiftieth of the shortest
-## timer.
 func _glow_survey(
 	plan: GDScript, provider_script: GDScript, context: Dictionary
 ) -> Dictionary:
@@ -310,9 +254,6 @@ func _glow_survey(
 				continue
 			if not plan.is_excellent(int(entry.get("dvs", 0))):
 				only_excellent = false
-			# THROUGH THE HOST'S OWN ROUNDING, not the raw amount the mod sends:
-			# what bounds the textures a glow spends is `_glow`, so that is what
-			# the count has to be taken over.
 			var landed: Dictionary = Gen2WorldEncounters._glow(entry["glow"])
 			rungs[landed.get("amount", 0.0)] = true
 	out["only_excellent"] = only_excellent
@@ -320,9 +261,6 @@ func _glow_survey(
 	return out
 
 
-## Where the picks land inside the candidate list, in eighths. The list is the
-## collision walk in map order, so an eighth of it is a band of the map and a
-## histogram of it is what clustering shows up in.
 func _octiles(plan: GDScript, context: Dictionary) -> Array[int]:
 	var cells: PackedVector2Array = (context["eligible"] as Dictionary)[&"grass"]
 	var out: Array[int] = []
@@ -341,9 +279,6 @@ func _octiles(plan: GDScript, context: Dictionary) -> Array[int]:
 	return out
 
 
-## Cells an object is standing on, made out of the eligible list so the refusal
-## is tested against cells a wild would otherwise be put on. A quarter of them,
-## since taking all of them leaves nowhere to stand and proves nothing.
 func _taken(context: Dictionary) -> PackedVector2Array:
 	var out := PackedVector2Array()
 	for cells: PackedVector2Array in (context["eligible"] as Dictionary).values():

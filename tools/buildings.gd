@@ -2,20 +2,9 @@ extends SceneTree
 
 ## HOW MANY DISTINCT BUILDINGS THE GAME DRAWS, which is what says whether a
 ## painting tool is a finite job.
-##
-## A building is a connected group of `facade` and `roof` tiles, flooded four
-## ways. Two placements of one drawing carry the same rectangle of tile ids, so
-## the ARRANGEMENT is the identity, exactly as the reference keys its band table
-## by the building's tile grid rather than by tile id. What comes back is a
-## catalogue: how many drawings, how often each is placed, and on how many maps.
-##
-## Written for the house tool: a person can paint 112 drawings and cannot paint
-## 243 placements, and until this was run nobody knew which number it was.
-##
-##   Godot --headless --path <pokerecomp> -s tools/buildings.gd -- <cache> \
-##       [tileset]
 
 const MOD := "user://mods/voxel3d"
+
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
@@ -81,7 +70,6 @@ func _initialize() -> void:
 							continue
 						seen[index] = 1
 						stack.append(next)
-				# The whole rectangle, holes and all, is the drawing's identity.
 				var rows: Array = []
 				for row: int in box.size.y:
 					var line: Array = []

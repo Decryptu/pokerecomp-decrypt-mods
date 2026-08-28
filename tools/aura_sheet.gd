@@ -1,74 +1,31 @@
 extends SceneTree
 
 ## A contact sheet of candidate marks for a high-DV wild Pokemon on the map,
-## drawn from one cartridge's own art. Nothing here is a mod: it composes the
-## same pixels the world renderer composes, so a candidate can be looked at
-## before the host is asked for a seam that carries it.
-##
-## Each cell is one treatment over the same species on the same plate, at whole
-## pixel scale, with its name burnt into the picture beside it.
-##
-## `marks` is the shortlist beside the shiny a candidate has to be told apart
-## from. `anims` sweeps the cartridge's own animations instead, named as
-## `label:id` pairs, each at the frame asked for: the ones that draw a shell or
-## a halo AROUND a battler rather than a burst beside it are what an aura wants.
-##
-##   Godot --path <pokerecomp> -s tools/aura_sheet.gd -- crystal <out.png> \
-##       [species] [anim frame] [marks|anims|glow|ground|pad|round2|pulse] \
-##       [label:id,...]
-##
-## `frames` is the one mode that draws no sheet: it writes one PNG per frame of
-## a glow's cycle into the directory named instead of an output file, so the
-## pulse can be looked at moving rather than as four stills. It needs no display.
-##
-## `glow` is the third kind: no overlay at all, the Pokemon's OWN four colours
-## walked toward a light, which is what a mod already changes when a shiny wears
-## its own palette. Drawn as a strip, since a glow is a cycle and not a picture.
+## drawn from one cartridge's own art.
 
 const WINDOW_SIZE := Vector2i(780, 830)
-## What is cropped out of the capture, so the window's own unused margin is not
-## in the picture.
 const SHEET_SIZE := Vector2i(764, 820)
 const PLATE := 48
 const SCALE: int = 3
 const COLUMNS: int = 4
 const CAPTURE_ON: int = 8
-## `_draw_encounter_pulse`'s own translation, kept here so a candidate sits
-## where the world renderer would put it.
 const BATTLER_CENTRE := Vector2(
 	(Gen2BattleScreenMap.ENEMY_AT.x + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * Gen2Tiles.TILE_WIDTH,
 	(Gen2BattleScreenMap.ENEMY_AT.y + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * Gen2Tiles.TILE_HEIGHT
 )
-## The eight `showemote` bubbles. The last four sheets are engine overlays and
-## are not marks a mod may ask for.
 const EMOTE_CANDIDATES: Array[int] = [
 	Gen2WorldActors.EMOTE_BOLT,
 	Gen2WorldActors.EMOTE_HAPPY,
 	Gen2WorldActors.EMOTE_HEART,
 	Gen2WorldActors.EMOTE_SHOCK,
 ]
-## The status block past the moves, which is where the cartridge keeps the
-## animations written to LOOP over one battler rather than to hit it once.
-## `ANIM_IN_LOVE`, which is the one animation past the moves written to sit over
-## a battler for as long as the status lasts rather than to hit it once. Sampled
-## at three frames, since a mark that moves has to be read as a strip.
 const LOOP_ANIM: int = 0x10A
 const LOOP_FRAMES: Array[int] = [12, 24, 36]
-## The shiny burst's own tail, where the big star is gone and only the small
-## twinkles are left. A candidate for a mark that shimmers without being read as
-## the shiny sparkle.
 const TWINKLE_FRAMES: Array[int] = [32, 40, 48]
-## Where a glow's cycle is sampled, and what it is walked toward. The last is
-## the cartridge's own white, which is colour 3 of every overworld palette.
 const GLOW_STEPS: Array[float] = [0.0, 0.2, 0.4, 0.6]
-## How the glow is sampled for the sheet, and how far it goes at the top of its
-## cycle. The cycle itself is a raised cosine, so the Pokemon spends most of it
-## near its own colours and only passes through the peak.
 const PULSE_STEPS: int = 4
 const PULSE_PEAK: float = 0.45
-## How many rungs one half of the cycle is rounded onto. See `_write_frames`.
 const GLOW_RUNGS: int = 4
-## Where the pad sits under the Pokemon's own 16x16, in pixels from its top.
 const PAD_LIFTS: Array[int] = [10, 12, 14]
 const GLOW_LIGHTS: Array = [
 	{"name": "WHITE", "color": Color(1.0, 1.0, 1.0)},
@@ -114,18 +71,11 @@ func _initialize() -> void:
 	current_scene = _sheet
 
 
-## One PNG per frame of the cycle, at hardware scale. [param options] is
-## `light,peak,frames`, the light being an index into [constant GLOW_LIGHTS].
 func _write_frames(data: GameData, species: int, options: String) -> void:
 	var parts: PackedStringArray = options.split(",", false)
 	var light: int = clampi(int(parts[0]) if parts.size() > 0 else 1, 0, GLOW_LIGHTS.size() - 1)
 	var peak: float = float(parts[1]) if parts.size() > 1 else PULSE_PEAK
 	var count: int = maxi(int(parts[2]) if parts.size() > 2 else 30, 2)
-	## What ships is a LADDER, not a curve: every distinct set of four colours
-	## is a texture the renderers cache and never evict, so a glow that
-	## interpolates freely is a new texture every frame for as long as the map is
-	## up. Rounding the cycle onto a few rungs bounds that at one texture a rung,
-	## and the hardware never had a colour between two rungs anyway.
 	var rungs: int = maxi(int(parts[3]) if parts.size() > 3 else GLOW_RUNGS, 1)
 	var sheet := Sheet.new()
 	sheet.data = data
@@ -156,17 +106,12 @@ func _process(_delta: float) -> bool:
 	return true
 
 
-## The sheet itself. Every candidate is composed into one plate-sized image at
-## hardware scale and then blown up by whole pixels, so what is looked at is
-## what the hardware would show and not a resampling of it.
 class Sheet extends Node2D:
 	var data: GameData = null
 	var species: int = 21
 	var anim_frame: int = 24
 	var mode: String = "marks"
 	var sweep: String = ""
-	## Built once, before the first draw: a texture created inside `_draw` is not
-	## uploaded by the time that same call samples it and lands as a white rect.
 	var _built: Array = []
 
 	func _ready() -> void:
@@ -188,7 +133,6 @@ class Sheet extends Node2D:
 		for index: int in _built.size():
 			_draw_cell(_built[index], index)
 
-	## One cell per `label:id` pair, each animation run to `anim_frame`.
 	func _sweep_cells() -> Array:
 		var out: Array = []
 		for pair: String in sweep.split(",", false):
@@ -200,8 +144,6 @@ class Sheet extends Node2D:
 			out.append({"name": "%s f%d" % [parts[0], ran], "image": plate})
 		return out
 
-	## `GLOW_STEPS` of the cycle, at each of the lights below. Colour 0 is the
-	## sprite's cut-out and is left alone.
 	func _glow_cells() -> Array:
 		var out: Array = []
 		for light: Dictionary in GLOW_LIGHTS:
@@ -228,11 +170,6 @@ class Sheet extends Node2D:
 		), _mon_at())
 		return image
 
-	## The four sheets past the eight bubbles, which are the engine's own
-	## overlays rather than `showemote` arguments: a jump shadow, the rod,
-	## Strength's dust and the tall-grass rustle. Every tile of each, laid out
-	## in a row under a caption naming the sheet, so what is in them is looked at
-	## rather than guessed.
 	func _ground_cells() -> Array:
 		var out: Array = []
 		for effect: String in ["shadow", "boulder_dust", "grass_rustle", "rod"]:
@@ -252,9 +189,6 @@ class Sheet extends Node2D:
 			out.append({"name": "%s, %d tiles" % [name, int(sheet["tiles"])], "image": plate})
 		return out
 
-	## The jump shadow's one tile and its mirror, laid under the Pokemon and lit
-	## instead of black: a pad on the ground rather than anything in the air, so
-	## nothing about it can be read as the shiny's own burst.
 	func _pad_cells() -> Array:
 		var out: Array = []
 		var sheet: Dictionary = data.overworld_effect("shadow")
@@ -269,8 +203,6 @@ class Sheet extends Node2D:
 				out.append({"name": "PAD %s at %d" % [light["name"], lift], "image": plate})
 		return out
 
-	## Two of the sheet's one tile, side by side, the second mirrored, at the
-	## foot of the Pokemon's own 16x16.
 	func _blit_pad(plate: Image, sheet: Dictionary, light: Color, lift: int) -> void:
 		var palette := PackedColorArray([
 			Color(0, 0, 0, 0), light, light.darkened(0.25), light.darkened(0.5),
@@ -293,8 +225,6 @@ class Sheet extends Node2D:
 			data.palette(species, false), Gen2WorldSprite.FACING_DOWN, 0
 		)
 
-	## The shortlist that came out of the pad and mote sweeps, beside the two
-	## pictures a candidate has to be told apart from.
 	func _round_two_cells() -> Array:
 		var gold: Color = GLOW_LIGHTS[1]["color"]
 		return [
@@ -308,9 +238,6 @@ class Sheet extends Node2D:
 			{"name": "GLOW gold, 20%", "image": _mark(gold, false, false, 0.2)},
 		]
 
-	## One plate carrying any of the three: the pad under the feet, the motes
-	## around the shoulders, and the Pokemon's own colours walked toward the
-	## light. Drawn in that order, since only the pad is behind it.
 	func _mark(light: Color, pad: bool, motes: bool, glow: float) -> Image:
 		var plate := Image.create(PLATE, PLATE, false, Image.FORMAT_RGBA8)
 		plate.fill(Color(0.16, 0.22, 0.16))
@@ -323,8 +250,6 @@ class Sheet extends Node2D:
 			_blit_motes(plate, light)
 		return plate
 
-	## `boulder_dust`'s puffs at the corners of the Pokemon's own square, which
-	## is as far out as a mark may go before it laps into the next walk cell.
 	func _blit_motes(plate: Image, light: Color) -> void:
 		var sheet: Dictionary = data.overworld_effect("boulder_dust")
 		if sheet.is_empty():
@@ -354,9 +279,6 @@ class Sheet extends Node2D:
 			lit, Gen2WorldSprite.FACING_DOWN, 0
 		)
 
-	## The glow as it is actually seen: a cycle, sampled evenly. One row per
-	## light, so a peak that is too far for one colour can be judged against the
-	## same peak in another.
 	func _pulse_cells() -> Array:
 		var out: Array = []
 		for light: Dictionary in GLOW_LIGHTS:
@@ -409,15 +331,11 @@ class Sheet extends Node2D:
 			cell["name"], HORIZONTAL_ALIGNMENT_LEFT, PLATE * SCALE + 28, 17
 		)
 
-	## What a shiny already wears, so a candidate is judged beside it and not
-	## against a memory of it.
 	func _sparkle() -> Image:
 		var plate: Image = _plate(true)
 		_blit_anim(plate, 0x101, anim_frame)
 		return plate
 
-	## The Pokemon standing on a flat plate, in the species' own four colours,
-	## which is what the actor layer draws it in.
 	func _plate(shiny: bool) -> Image:
 		var image := Image.create(PLATE, PLATE, false, Image.FORMAT_RGBA8)
 		image.fill(Color(0.16, 0.22, 0.16))
@@ -432,12 +350,9 @@ class Sheet extends Node2D:
 		_blend(image, mon, _mon_at())
 		return image
 
-	## Where the Pokemon's own 16x16 sits on the plate, which is what every
-	## overlay is measured from.
 	func _mon_at() -> Vector2i:
 		return Vector2i((PLATE - 16) / 2, (PLATE - 16) / 2)
 
-	## `SpawnEmote`: four tiles of the emote's sheet, two rows above the sprite.
 	func _blit_emote(plate: Image, emote: int) -> void:
 		var sheet: Dictionary = data.overworld_effect(RomLayout.EMOTE_NAMES[emote])
 		if sheet.is_empty():
@@ -453,9 +368,6 @@ class Sheet extends Node2D:
 				(index & 1) * 8, (index >> 1) * 8 - 16
 			))
 
-	## One frame of a battle animation over the Pokemon, translated the way
-	## `_draw_encounter_pulse` translates the shiny pulse: the enemy battler's
-	## centre onto the cell's. Answers the frame it actually reached.
 	func _blit_anim(plate: Image, anim: int, until: int) -> int:
 		var anim_data: Gen2BattleAnimData = Gen2BattleAnimData.from_game_data(data)
 		var player: Gen2BattleAnimPlayer = Gen2BattleAnimPlayer.create(
@@ -494,8 +406,6 @@ class Sheet extends Node2D:
 			float(int(sprite.get("x", 0)) - 8), float(int(sprite.get("y", 0)) - 16)
 		)))
 
-	## Battle object palette slot 0 is filled with the battler's own pair, which
-	## out here is the Pokemon standing on the plate.
 	func _battler_pair() -> Array:
 		var row: Dictionary = data.species(species)
 		if row.is_empty():
@@ -545,8 +455,6 @@ class Sheet extends Node2D:
 				image.set_pixel(x, y, color)
 		return image
 
-	## Source over destination, one pixel at a time: `blend_rect` premultiplies
-	## and these are hardware colours with a hard cut-out.
 	func _blend(destination: Image, source: Image, at: Vector2i) -> void:
 		for y: int in source.get_height():
 			for x: int in source.get_width():
