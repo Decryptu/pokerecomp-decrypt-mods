@@ -4374,6 +4374,20 @@ func _object_bin(
 		)
 
 
+## Whether the tile under a world position draws the side facing this way. A
+## room cuts its sides away so the camera can see in, and a tool reading the
+## mesh alone would call the cut an opening.
+func draws_side(world: Vector2, normal: Vector3) -> bool:
+	var tx: int = floori(world.x / TILE) + _margin.x
+	var ty: int = floori(world.y / TILE) + _margin.y
+	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
+		return false
+	return _room_faces(tx, ty, normal)
+
+
+## Which sides a tile draws. A room band is looked at from the south, so it
+## keeps every side but its north one; the shell keeps only the sides that face
+## into the room.
 func _room_faces(tx: int, ty: int, normal: Vector3) -> bool:
 	if _room.is_empty():
 		return true
@@ -4381,7 +4395,7 @@ func _room_faces(tx: int, ty: int, normal: Vector3) -> bool:
 	if here == 0:
 		return true
 	if here == ROOM_DRAWN or here == ROOM_BEHIND:
-		return normal.z > 0.0
+		return normal.z >= 0.0
 	if here == ROOM_FILL:
 		return true
 	if normal.x > 0.0:

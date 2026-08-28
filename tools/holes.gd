@@ -1,12 +1,17 @@
 extends SceneTree
 
 ## WHERE THE TERRAIN IS OPEN, found in the mesh itself rather than in a
-## picture.
+## picture. A joint between edges of unequal length and a side a room cuts away
+## for the camera are both closed ground, and neither is counted.
 
 const MOD := "user://mods/voxel3d"
 const TILE: float = 8.0
 const GRID: float = 100.0
 const NAMED: int = 24
+
+
+var _tally: Dictionary = {}
+var _scripts: Dictionary = {}
 
 
 func _initialize() -> void:
@@ -22,71 +27,92 @@ func _initialize() -> void:
 		return
 	var select: String = args[1] if args.size() > 1 else "all"
 	var least: int = int(args[2]) if args.size() > 2 else 1
-	var by_drop: Dictionary = {}
-	var by_tileset: Dictionary = {}
-
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
-	var atlas_script: GDScript = load("%s/shape/atlas.gd" % MOD)
-	var mesher_script: GDScript = load("%s/shape/mesher.gd" % MOD)
-	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
-	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
-
-	var maps: int = 0
-	var open_maps: int = 0
-	var total: int = 0
-	var named: int = 0
+	for part: String in ["profile", "atlas", "mesher", "tile_shape", "map_source"]:
+		_scripts[part] = load("%s/shape/%s.gd" % [MOD, part])
+	_tally = {
+		"drop": {}, "tileset": {}, "place": {},
+		"maps": 0, "open": 0, "total": 0, "named": 0,
+	}
 	for map: Gen2WorldMap in data.world_maps():
-		if not _wanted(map, select):
-			continue
-		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
-		var atlas: RefCounted = atlas_script.new()
-		var animation := Gen2WorldAnimation.new()
-		animation.configure_tileset(data, tileset, 1)
-		if not atlas.build(data, map, tileset, 1, animation):
-			continue
-		var shape: RefCounted = shape_script.new(profile, map.tileset)
-		var source: RefCounted = source_script.new(null, map, tileset, data)
-		var mesher: RefCounted = mesher_script.new()
-		mesher.resolve(source, shape)
-		var meshes: Array = mesher.emit(atlas)
-		maps += 1
-
-		var bare: Array = _bare(meshes + mesher.take_water() + mesher.take_tufts())
-		if not bare.is_empty() and named < NAMED:
-			print("%s  ts%d  %d tiles with no floor at all" % [
-				"%d,%d" % [map.group, map.number], map.tileset, bare.size()
-			])
-			for index: int in (bare.size() if select != "all" else mini(12, bare.size())):
-				print("   tile %d,%d" % [bare[index].x, bare[index].y])
-		var cracks: Array = _cracks(meshes + mesher.take_water(), least)
-		total += cracks.size()
-		if cracks.is_empty():
-			continue
-		open_maps += 1
-		for crack: Dictionary in cracks:
-			var drop: float = float(crack["drop"])
-			by_drop[drop] = int(by_drop.get(drop, 0)) + 1
-		by_tileset[map.tileset] = int(by_tileset.get(map.tileset, 0)) + cracks.size()
-		if named >= NAMED:
-			continue
-		named += 1
-		print("%s  ts%d  %d cracks" % [
-			"%d,%d" % [map.group, map.number], map.tileset, cracks.size()
-		])
-		cracks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-			return float(a["drop"]) > float(b["drop"]))
-		for index: int in (cracks.size() if select != "all" else mini(12, cracks.size())):
-			var crack: Dictionary = cracks[index]
-			print("   tile %-9s %-11s  %5.1f to %-5.1f  drop %.1f px  %s" % [
-				"%d,%d" % [crack["tile"].x, crack["tile"].y], crack["run"],
-				crack["low"], crack["high"], crack["drop"], crack["line"],
-			])
-		if select == "all" and cracks.size() > 12:
-			print("   ... and %d more" % (cracks.size() - 12))
-	print("%d maps, %d with cracks, %d cracks" % [maps, open_maps, total])
-	_ranked("by drop", by_drop, total, "%.1f px")
-	_ranked("by tileset", by_tileset, total, "ts%d")
+		if _wanted(map, select):
+			_measure(data, map, select, least)
+	print("%d maps, %d with cracks, %d cracks" % [
+		int(_tally["maps"]), int(_tally["open"]), int(_tally["total"]),
+	])
+	var total: int = int(_tally["total"])
+	_ranked("by drop", _tally["drop"], total, "%.1f px")
+	_ranked("by place", _tally["place"], total, "%s")
+	_ranked("by tileset", _tally["tileset"], total, "ts%d")
 	quit(0)
+
+
+func _measure(
+	data: GameData, map: Gen2WorldMap, select: String, least: int
+) -> void:
+	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
+	var atlas: RefCounted = (_scripts["atlas"] as GDScript).new()
+	var animation := Gen2WorldAnimation.new()
+	animation.configure_tileset(data, tileset, 1)
+	if not atlas.build(data, map, tileset, 1, animation):
+		return
+	var shape: RefCounted = (_scripts["tile_shape"] as GDScript).new(
+		_scripts["profile"], map.tileset
+	)
+	var source: RefCounted = (_scripts["map_source"] as GDScript).new(
+		null, map, tileset, data
+	)
+	var mesher: RefCounted = (_scripts["mesher"] as GDScript).new()
+	mesher.resolve(source, shape)
+	var meshes: Array = mesher.emit(atlas)
+	_tally["maps"] = int(_tally["maps"]) + 1
+	_show_bare(map, select, _bare(meshes + mesher.take_water() + mesher.take_tufts()))
+	_show_cracks(
+		map, select, source.outside(),
+		_cracks(meshes + mesher.take_water(), least, mesher)
+	)
+
+
+func _show_bare(map: Gen2WorldMap, select: String, bare: Array) -> void:
+	if bare.is_empty() or int(_tally["named"]) >= NAMED:
+		return
+	print("%s  ts%d  %d tiles with no floor at all" % [
+		"%d,%d" % [map.group, map.number], map.tileset, bare.size()
+	])
+	for index: int in (bare.size() if select != "all" else mini(12, bare.size())):
+		print("   tile %d,%d" % [bare[index].x, bare[index].y])
+
+
+func _show_cracks(
+	map: Gen2WorldMap, select: String, outside: bool, cracks: Array
+) -> void:
+	_tally["total"] = int(_tally["total"]) + cracks.size()
+	if cracks.is_empty():
+		return
+	_tally["open"] = int(_tally["open"]) + 1
+	_count_in(_tally["place"], "outside" if outside else "inside", cracks.size())
+	_count_in(_tally["tileset"], map.tileset, cracks.size())
+	for crack: Dictionary in cracks:
+		_count_in(_tally["drop"], float(crack["drop"]), 1)
+	if int(_tally["named"]) >= NAMED:
+		return
+	_tally["named"] = int(_tally["named"]) + 1
+	print("%s  ts%d  %d cracks" % [
+		"%d,%d" % [map.group, map.number], map.tileset, cracks.size()
+	])
+	cracks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a["drop"]) > float(b["drop"]))
+	for index: int in (cracks.size() if select != "all" else mini(12, cracks.size())):
+		var crack: Dictionary = cracks[index]
+		print("   tile %-9s %-11s  %5.1f to %-5.1f  drop %.1f px  %s" % [
+			"%d,%d" % [crack["tile"].x, crack["tile"].y], crack["run"],
+			crack["low"], crack["high"], crack["drop"], crack["line"],
+		])
+	if select == "all" and cracks.size() > 12:
+		print("   ... and %d more" % (cracks.size() - 12))
+
+
+func _count_in(counts: Dictionary, key: Variant, more: int) -> void:
+	counts[key] = int(counts.get(key, 0)) + more
 
 
 func _ranked(title: String, counts: Dictionary, total: int, form: String) -> void:
@@ -137,28 +163,44 @@ func _bare(meshes: Array) -> Array:
 	return bare
 
 
-func _cracks(meshes: Array, least: int) -> Array:
-	var counts: Dictionary = {}
-	for mesh: ArrayMesh in meshes:
-		for surface: int in mesh.get_surface_count():
-			var points: PackedVector3Array = mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
-			for at: int in range(0, points.size() - 2, 3):
-				var flat: bool = absf((points[at + 1] - points[at]).cross(
-					points[at + 2] - points[at]
-				).normalized().y) > 0.5
-				_count(counts, points[at], points[at + 1], flat)
-				_count(counts, points[at + 1], points[at + 2], flat)
-				_count(counts, points[at + 2], points[at], flat)
+func _cracks(meshes: Array, least: int, mesher: RefCounted) -> Array:
+	var surfaces: Array = _surfaces(meshes)
+	var lines: Dictionary = _boundary_lines(_edge_counts(surfaces, _line_ends(surfaces)))
+	var cracks: Array = []
+	for line: String in lines:
+		var crack: Dictionary = _crack_of(line, lines[line], least)
+		if not crack.is_empty() and _sides_drawn(crack, mesher):
+			cracks.append(crack)
+	return cracks
+
+
+## The two tiles a line runs between each own the side facing the other. Where
+## the mesher draws neither, the gap is the room's own cut-away.
+func _sides_drawn(crack: Dictionary, mesher: RefCounted) -> bool:
+	var bounds: PackedStringArray = (crack["line"] as String).split(",")
+	var middle := Vector2(
+		(float(bounds[0]) + float(bounds[2])) * 0.5,
+		(float(bounds[1]) + float(bounds[3])) * 0.5
+	)
+	var step := Vector2(1.0, 0.0) if crack["run"] == "north-south" else Vector2(0.0, 1.0)
+	var out := Vector3(step.x, 0.0, step.y)
+	return mesher.draws_side(middle - step * TILE * 0.5, out) \
+		or mesher.draws_side(middle + step * TILE * 0.5, -out)
+
+
+## Every edge that bounds one flat face and no other, gathered by the line in
+## the ground plan it lies along.
+func _boundary_lines(counts: Dictionary) -> Dictionary:
 	var lines: Dictionary = {}
 	for key: String in counts:
 		var edge: Array = counts[key]
-		if int(edge[2]) != 1 or bool(edge[3]) == false:
+		if int(edge[2]) != 1 or not bool(edge[3]):
 			continue
 		var a: Vector3 = edge[0]
 		var b: Vector3 = edge[1]
 		if absf(a.x - b.x) > 0.01 and absf(a.z - b.z) > 0.01:
 			continue
-		if a.x > b.x or (absf(a.x - b.x) < 0.01 and a.z > b.z):
+		if not _line_first(a, b):
 			var swap: Vector3 = a
 			a = b
 			b = swap
@@ -169,35 +211,131 @@ func _cracks(meshes: Array, least: int) -> Array:
 		var pair := Vector2(a.y, b.y)
 		if not ys.has(pair):
 			ys.append(pair)
-	var cracks: Array = []
-	for line: String in lines:
-		var ys: Array = lines[line]
-		if ys.size() < 2:
-			continue
-		var low: float = 1e9
-		var high: float = -1e9
-		var drop: float = 0.0
-		for pair: Vector2 in ys:
-			low = minf(low, minf(pair.x, pair.y))
-			high = maxf(high, maxf(pair.x, pair.y))
-			for other: Vector2 in ys:
-				drop = maxf(drop, maxf(absf(pair.x - other.x), absf(pair.y - other.y)))
-		if drop < float(least):
-			continue
-		var bounds: PackedStringArray = line.split(",")
-		var x0: float = float(bounds[0])
-		var z0: float = float(bounds[1])
-		var x1: float = float(bounds[2])
-		var z1: float = float(bounds[3])
-		cracks.append({
-			"tile": Vector2i(floori(minf(x0, x1) / TILE), floori(minf(z0, z1) / TILE)),
-			"run": "north-south" if absf(x1 - x0) < 0.01 else "east-west",
-			"low": low,
-			"high": high,
-			"drop": drop,
-			"line": line,
-		})
-	return cracks
+	return lines
+
+
+func _line_first(a: Vector3, b: Vector3) -> bool:
+	if absf(a.x - b.x) >= 0.01:
+		return a.x < b.x
+	return a.z <= b.z
+
+
+## Two heights on one line and nothing between them: the drop is what a player
+## would see through.
+func _crack_of(line: String, ys: Array, least: int) -> Dictionary:
+	if ys.size() < 2:
+		return {}
+	var low: float = 1e9
+	var high: float = -1e9
+	var drop: float = 0.0
+	for pair: Vector2 in ys:
+		low = minf(low, minf(pair.x, pair.y))
+		high = maxf(high, maxf(pair.x, pair.y))
+		for other: Vector2 in ys:
+			drop = maxf(drop, maxf(absf(pair.x - other.x), absf(pair.y - other.y)))
+	if drop < float(least):
+		return {}
+	var bounds: PackedStringArray = line.split(",")
+	var x0: float = float(bounds[0])
+	var z0: float = float(bounds[1])
+	var x1: float = float(bounds[2])
+	var z1: float = float(bounds[3])
+	return {
+		"tile": Vector2i(floori(minf(x0, x1) / TILE), floori(minf(z0, z1) / TILE)),
+		"run": "north-south" if absf(x1 - x0) < 0.01 else "east-west",
+		"low": low,
+		"high": high,
+		"drop": drop,
+		"line": line,
+	}
+
+
+func _surfaces(meshes: Array) -> Array:
+	var surfaces: Array = []
+	for mesh: ArrayMesh in meshes:
+		for surface: int in mesh.get_surface_count():
+			surfaces.append(mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX])
+	return surfaces
+
+
+func _flat_face(points: PackedVector3Array, at: int) -> bool:
+	return absf((points[at + 1] - points[at]).cross(
+		points[at + 2] - points[at]
+	).normalized().y) > 0.5
+
+
+## Where every edge on a straight line begins and ends, so an edge crossing a
+## neighbour's end is cut there. A long edge meeting several short ones is a
+## joint, not an opening, and pairing whole edges reads it as one.
+func _line_ends(surfaces: Array) -> Dictionary:
+	var ends: Dictionary = {}
+	for points: PackedVector3Array in surfaces:
+		for at: int in range(0, points.size() - 2, 3):
+			for corner: int in 3:
+				var a: Vector3 = points[at + corner]
+				var b: Vector3 = points[at + (corner + 1) % 3]
+				var key: String = _line_key(a, b)
+				if key.is_empty():
+					continue
+				if not ends.has(key):
+					ends[key] = {}
+				var along: Dictionary = ends[key]
+				along[_snap(a).x if key.begins_with("x") else _snap(a).z] = true
+				along[_snap(b).x if key.begins_with("x") else _snap(b).z] = true
+	return ends
+
+
+func _edge_counts(surfaces: Array, ends: Dictionary) -> Dictionary:
+	var counts: Dictionary = {}
+	for points: PackedVector3Array in surfaces:
+		for at: int in range(0, points.size() - 2, 3):
+			var flat: bool = _flat_face(points, at)
+			for corner: int in 3:
+				_count_cut(
+					counts, ends,
+					points[at + corner], points[at + (corner + 1) % 3], flat
+				)
+	return counts
+
+
+## The line an edge lies on, east-west or north-south and sloped or level, or
+## nothing where the edge runs up or across.
+func _line_key(a: Vector3, b: Vector3) -> String:
+	var along_x: bool = absf(a.z - b.z) < 0.005
+	if along_x == (absf(a.x - b.x) < 0.005):
+		return ""
+	var low: Vector3 = a if (a.x < b.x if along_x else a.z < b.z) else b
+	var high: Vector3 = b if low == a else a
+	var from: float = low.x if along_x else low.z
+	var slope: float = (high.y - low.y) / ((high.x - low.x) if along_x else (high.z - low.z))
+	return "%s|%.2f|%.4f|%.3f" % [
+		"x" if along_x else "z", a.z if along_x else a.x, slope, low.y - slope * from,
+	]
+
+
+func _count_cut(
+	counts: Dictionary, ends: Dictionary, a: Vector3, b: Vector3, flat: bool
+) -> void:
+	var key: String = _line_key(a, b)
+	if key.is_empty():
+		_count(counts, a, b, flat)
+		return
+	var along_x: bool = key.begins_with("x")
+	var from: float = _snap(a).x if along_x else _snap(a).z
+	var to: float = _snap(b).x if along_x else _snap(b).z
+	var cuts := PackedFloat32Array()
+	for at: float in ends[key] as Dictionary:
+		if at > minf(from, to) + 0.005 and at < maxf(from, to) - 0.005:
+			cuts.append(at)
+	cuts.sort()
+	if from > to:
+		cuts.reverse()
+	var last: Vector3 = a
+	for at: float in cuts:
+		var next: Vector3 = a.lerp(b, (at - from) / (to - from))
+		_count(counts, last, next, flat)
+		last = next
+	_count(counts, last, b, flat)
 
 
 func _count(counts: Dictionary, a: Vector3, b: Vector3, flat: bool) -> void:

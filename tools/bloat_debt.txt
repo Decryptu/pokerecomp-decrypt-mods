@@ -93,8 +93,6 @@ tools/follower_probe.gd:_rules
 tools/follower_shot.gd:_initialize
 tools/follower_shot.gd:_process
 tools/ground.gd:_initialize
-tools/holes.gd:_cracks
-tools/holes.gd:_initialize
 tools/horizon_shot.gd:_burn
 tools/horizon_shot.gd:_initialize
 tools/horizon_shot.gd:_report_foliage
