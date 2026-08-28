@@ -350,6 +350,10 @@ var _shelf := PackedByteArray()
 ## Written only for a rim, and read only by `_emit`.
 var _ramp := PackedByteArray()
 var _corners := PackedInt32Array()
+## Per tile: whether a door pass lifted it to the height of the wall it stands
+## in. It is flat art at a wall's height and it is not floor, which is the one
+## thing `_skirt_column` cannot tell from the two grids it reads.
+var _doorway := PackedByteArray()
 ## The southernmost map row of the structure each tile belongs to. The fold reads
 ## north from there rather than from the tile itself, so every column of one
 ## structure shows the same drawing standing up and a face exposed at its back
@@ -1171,6 +1175,10 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_ledge.fill(LEDGE_NONE)
 	_shelf.resize(count)
 	_shelf.fill(0)
+	# Written only where a door pass lifts a tile, so it is cleared here rather
+	# than filled in by a pass that may not run on this tileset at all.
+	_doorway.resize(count)
+	_doorway.fill(0)
 	_room.resize(count)
 	_room.fill(0)
 
@@ -1317,10 +1325,10 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_fence_tiles = shape.fence_face()
 	_fence_mask = PackedByteArray()
 	_measure_fences()
-	# After every one of them, since each can still move a height and a ramp is
 	# Before the ramps, or the rim slopes down into the mouth it stands beside and
 	# a cave entrance comes out at the point of a funnel.
 	_measure_mouths()
+	# After every one of them, since each can still move a height and a ramp is
 	# cut from the heights as they finally stand.
 	_measure_ramps()
 	# After the ramps, which is what sizes and fills the corners they write into.
@@ -2728,6 +2736,7 @@ func _measure_doors(shape: RefCounted) -> void:
 		if high <= 0:
 			continue
 		_heights[at] = high
+		_doorway[at] = 1
 		for corner: int in 4:
 			_corners[at * 4 + corner] = high
 
@@ -2792,6 +2801,7 @@ func _measure_collision_doors(source: RefCounted) -> void:
 		if high <= 0:
 			continue
 		_heights[at] = high
+		_doorway[at] = 1
 		for corner: int in 4:
 			_corners[at * 4 + corner] = high
 
@@ -9865,6 +9875,8 @@ func _skirt_column(edge: Vector2i, inward: Vector2i) -> Vector2i:
 		if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
 			break
 		var index: int = at.y * _size.x + at.x
+		if _doorway[index] == 1:
+			continue
 		if _art[index] == ART_FLAT and _tiles[index] >= 0:
 			return Vector2i(_tiles[index], _heights[index])
 	return Vector2i(-1, 0)
