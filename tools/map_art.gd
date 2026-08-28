@@ -14,6 +14,10 @@ extends SceneTree
 ##
 ##   Godot --path <pokerecomp> -s tools/map_art.gd -- <cache> <group> <number> \
 ##       <out.png> [scale] [ring tx] [ring ty] [ring w] [ring h] [window tiles]
+##
+## It prints the ORIGIN, the tile its own top-left corner is, which is what
+## `map_grid.py --origin` takes to number a cropped picture in the map's own
+## coordinates.
 
 const TILE: int = 8
 const BLOCK_TILES: int = 4
@@ -53,17 +57,26 @@ func _initialize() -> void:
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 	var image: Image = _paint(data, map, tileset)
 	var scale: int = int(args[4]) if args.size() > 4 else 1
+	## The tile the picture's own top-left corner is, which is 0,0 uncropped.
+	var origin := Vector2i.ZERO
 	if args.size() > 8:
 		var ring := Rect2i(int(args[5]), int(args[6]), int(args[7]), int(args[8]))
 		var window: int = int(args[9]) if args.size() > 9 else WINDOW
+		origin = Vector2i(maxi(ring.position.x - window, 0),
+			maxi(ring.position.y - window, 0))
 		image = _ringed(image, ring, window)
 	if scale > 1:
 		image.resize(
 			image.get_width() * scale, image.get_height() * scale, Image.INTERPOLATE_NEAREST
 		)
 	image.save_png(args[3])
+	# THE ORIGIN IS THE PAIRING. A cropped picture ruled at 0,0 numbers every tile
+	# wrong, and `map_grid.py --origin` is the field that fixes it, so the one
+	# tool that knows the number says it rather than leaving it to be worked out
+	# from the ring and the window by hand.
 	print("map ", map.group, ",", map.number, " tileset ", map.tileset,
-		" tiles ", map.width_blocks * BLOCK_TILES, "x", map.height_blocks * BLOCK_TILES)
+		" tiles ", map.width_blocks * BLOCK_TILES, "x", map.height_blocks * BLOCK_TILES,
+		" origin ", origin.x, ",", origin.y)
 	quit()
 
 
