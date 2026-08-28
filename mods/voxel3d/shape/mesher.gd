@@ -5601,7 +5601,7 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 		_object_seat(object, start, across, front, tiles, mask, span, window, atlas)
 		return
 	if bool(object.get(&"tower", false)):
-		_object_tower(object, start, across, front, tiles, window, atlas)
+		_object_tower(object, start, across, tiles, window, atlas)
 		return
 	var top_rows: int = clampi(int(object.get(&"top", 0)), 0, window.size.y)
 	var face_rows: int = window.size.y - top_rows
@@ -5788,18 +5788,20 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 ## The axis is the object's own box: the widest course is exactly `depth` deep and
 ## `window` wide, so the tower stands where the box stood and covers what it
 ## covered.
+## The measured FRONT is not among the arguments, and that is the one thing about
+## this that is not obvious: `_object_front` holds a box back to the last cell the
+## thing blocks, which for a tower is the top of its own facade rather than the
+## wall's foot, and read from there the tower stood eight rows north of its own
+## door. The arrangement says where the wall is; nothing measured does.
 func _object_tower(
-	object: Dictionary, start: Vector2i, across: Vector2i, front: float,
+	object: Dictionary, start: Vector2i, across: Vector2i,
 	tiles: Array, window: Rect2i, atlas: RefCounted
 ) -> void:
 	var base: float = _object_base(object, start, across)
 	var cx: float = _world_x(start.x) + float(window.position.x) \
 		+ float(window.size.x) * 0.5
-	# The axis DOWN THE PAGE is authored and is not the box's own middle.
-	# `_object_front` holds a box back to the last cell the thing blocks, which
-	# for a tower is the top of its own facade rather than the wall's foot, and
-	# read from there the tower stood eight rows north of its own door. The
-	# arrangement says where the wall is; nothing measured does.
+	# The axis DOWN THE PAGE is authored and is not the box's own middle. See the
+	# note above the signature.
 	var cz: float = _world_z(start.y) + float(object[&"axis"]) * TILE
 	var door := Vector2i(-1, -1)
 	if object.has(&"door"):
