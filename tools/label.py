@@ -29,6 +29,9 @@ DIM = (150, 150, 160)
 STATE = 40
 DETAIL = 26
 PAD = 14
+# The smallest either line is allowed to shrink to before it is let overrun.
+# A plate is read on a phone, and a caption below this stops being one.
+FLOOR = 13
 
 
 def font(px, bold):
@@ -49,12 +52,32 @@ def font(px, bold):
     return ImageFont.load_default()
 
 
+def fitted(text, px, bold, room):
+    """The largest of that size or smaller at which TEXT fits in ROOM.
+
+    A line wider than the plate is drawn off the edge of it and clipped, which
+    is the one failure this whole tool exists to stop: the caption a reviewer
+    is meant to identify the picture by came back reading "seen from inside th".
+    """
+    while px > FLOOR:
+        face = font(px, bold)
+        if face.getlength(text) <= room:
+            return face
+        px -= 1
+    return font(px, bold)
+
+
 def labelled(art, state, detail, counter):
     """The picture with a strip above it carrying its own name."""
-    big = font(STATE, True)
-    small = font(DETAIL, False)
+    wide = art.size[0]
+    # The counter sits on the state's own line, so it is off the room the state
+    # has; the detail runs under it and has the whole width.
+    taken = font(DETAIL, False).getlength(counter) + PAD if counter else 0
+    big = fitted(state, STATE, True, wide - PAD * 2 - taken)
+    small = fitted(detail, DETAIL, False, wide - PAD * 2) if detail \
+        else font(DETAIL, False)
     bar = PAD * 2 + STATE + (DETAIL + PAD // 2 if detail else 0)
-    out = Image.new("RGB", (art.size[0], art.size[1] + bar), BACK)
+    out = Image.new("RGB", (wide, art.size[1] + bar), BACK)
     out.paste(art.convert("RGB"), (0, bar))
     g = ImageDraw.Draw(out)
     g.text((PAD, PAD), state, font=big, fill=INK, anchor="la")
@@ -62,7 +85,7 @@ def labelled(art, state, detail, counter):
         g.text((PAD, PAD + STATE + PAD // 2), detail, font=small, fill=DIM,
                anchor="la")
     if counter:
-        g.text((art.size[0] - PAD, PAD), counter, font=small, fill=DIM,
+        g.text((wide - PAD, PAD), counter, font=font(DETAIL, False), fill=DIM,
                anchor="ra")
     return out
 
