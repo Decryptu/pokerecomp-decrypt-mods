@@ -50,3 +50,6 @@ paint shiny_charm "anim:17:0@13,9" "anim:15:0@8,16"
 # The item ball off the ground, three of them climbing: one catch after another
 # and each one worth more than the last.
 paint catch_combo "sprite:84@2,11" "sprite:84@8,7" "sprite:84@14,3"
+# The ZEPHYRBADGE off the trainer card's own badge sheet, four tiles of it. A
+# badge is what this cartridge already means by an achievement.
+paint achievements "tiles:card_badges:0,1,2,3:2"
