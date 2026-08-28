@@ -5,7 +5,7 @@ extends SceneTree
 ##
 ##   Godot --path <pokerecomp> --resolution 800x720 \
 ##       -s tools/achievements_shot.gd -- \
-##       <cartridge> <out.png> [kind] [badges] [group] [number] [thumbnail]
+##       <cartridge> <out.png> [kind] [badges] [group,number] [cell] [flags ...]
 ##
 ## THE RESOLUTION IS PART OF THE COMMAND, for the reason
 ## `tools/shiny_charm_shot.gd` gives: 800x720 is the hardware's 160x144 at a
@@ -15,12 +15,27 @@ extends SceneTree
 ## already won when the picture is taken; the notice is of the one after them,
 ## so `badges 0` photographs the ZEPHYRBADGE being won.
 ##
+## `group,number` and `cell` say where the player is standing, and both default
+## to the place the default badge is actually won: in front of FALKNER in the
+## VIOLET GYM. THE CELL IS CHECKED. A cell the player could not be standing on
+## is refused rather than photographed, because the screen puts the player
+## wherever it is told and a picture of somebody inside a tree is a picture of
+## nothing that ever happened. `start_cell` defaults to 4,4 and that is exactly
+## how the first thumbnail was taken standing in the middle of a forest.
+##
 ## Nothing is staged but the badge. The tool opens a save, which is what hands
 ## the mod its ledger, then sets one engine flag on the live run the way a gym
 ## script does. The host's own progress reading sees that field move, the mod
 ## asks for a banner, and the world screen raises it on the next frame it can.
 ## So the wording, the icon, the sound and the moment it lands are the mod's and
 ## the host's rather than this tool's.
+##
+## Flags, in any order after the cell:
+##
+## | `thumbnail` | Centre the shot on the 1280x720 white field a mod thumbnail is |
+## | `framed` | The hardware's own 160x144 instead of SCREEN FILL. What a small
+##   interior wants, since filling the surface with a map narrower than it only
+##   buys more of the void past its edge |
 ##
 ## Rendering needs a display.
 
@@ -31,9 +46,11 @@ const DEFAULT_WINDOW := Vector2i(800, 720)
 ## rather than stretched to fill.
 const THUMBNAIL_SIZE := Vector2i(1280, 720)
 
-## Cherrygrove City by day: an outdoor town wide enough that the banner has a
-## map under it rather than a wall.
-const DEFAULT_MAP := Vector2i(26, 2)
+## The VIOLET GYM, and the cell in front of FALKNER: where the ZEPHYRBADGE is
+## actually won, which is `GameData.catalog()`'s own answer for badge 0. He
+## stands on 5,1 and the row below him is the only way anybody reaches him.
+const DEFAULT_MAP := Vector2i(10, 7)
+const DEFAULT_CELL := Vector2i(5, 2)
 const DEFAULT_BADGES: int = 0
 const JOHTO_BADGES: int = 8
 
@@ -63,13 +80,15 @@ var _thumbnail: bool = false
 var _frames: int = 0
 var _waited: int = 0
 var _staged: bool = false
+var _framed: bool = false
+var _cell := DEFAULT_CELL
 var _data: GameData = null
 
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.size() < 2:
-		print("usage: -- <cartridge> <out.png> [kind] [badges] [group] [number] [thumbnail]")
+		print("usage: -- <cartridge> <out.png> [kind] [badges] [group,number] [cell] [thumbnail]")
 		quit(2)
 		return
 	_out = args[1]
@@ -82,11 +101,18 @@ func _initialize() -> void:
 		quit(2)
 		return
 	_badges = clampi(int(args[3]) if args.size() > 3 else DEFAULT_BADGES, 0, JOHTO_BADGES)
-	var map := Vector2i(
-		int(args[4]) if args.size() > 4 else DEFAULT_MAP.x,
-		int(args[5]) if args.size() > 5 else DEFAULT_MAP.y
-	)
-	_thumbnail = args.size() > 6 and args[6] == "thumbnail"
+	var map: Vector2i = _pair(args[4] if args.size() > 4 else "", DEFAULT_MAP)
+	_cell = _pair(args[5] if args.size() > 5 else "", DEFAULT_CELL)
+	for index: int in range(6, args.size()):
+		match String(args[index]):
+			"thumbnail":
+				_thumbnail = true
+			"framed":
+				_framed = true
+			_:
+				print("no flag called ", args[index])
+				quit(2)
+				return
 
 	_data = GameData.open_argument(args[0])
 	if _data == null:
@@ -111,6 +137,11 @@ func _initialize() -> void:
 		quit(1)
 		return
 
+	## In memory for this process: nothing here writes the options file, and the
+	## screen takes the option again whenever it applies its own share of it, so
+	## this means the same thing whichever order it is set in.
+	if _framed:
+		Gen2OptionsStore.current().screen_fill = false
 	DisplayServer.window_set_size(DEFAULT_WINDOW)
 	root.set_content_scale_size(DEFAULT_WINDOW)
 	root.size = DEFAULT_WINDOW
@@ -118,6 +149,9 @@ func _initialize() -> void:
 	_screen = packed.instantiate() as Gen2WorldScreen
 	_screen.map_group = map.x
 	_screen.map_number = map.y
+	## Without this the screen uses `start_cell`'s own 4,4, which is a cell on no
+	## map in particular and was in the middle of a wood on the first one tried.
+	_screen.start_cell = _cell
 	## Pinned so two captures of one map are one picture: the seed the screen
 	## resolves is what a wandering NPC's own generator is built from.
 	_screen.encounter_seed = 1
@@ -147,9 +181,11 @@ func _process(_delta: float) -> bool:
 	## is an interface node the screen adds while it runs, and the sub-viewport
 	## a clean capture reads does not carry it.
 	##
-	## SCREEN FILL is left where it ships, which is on. It is what a player sees,
-	## and with it off no banner is drawn at all, the cartridge's own landmark
-	## sign included.
+	## SCREEN FILL is left where it ships unless `framed` says otherwise. On, an
+	## outdoor map fills the surface with more map, which is the picture it is
+	## for; a map smaller than the surface just shows more of the void past its
+	## own edge, which `tools/preview_world.gd` draws the same way and which no
+	## flag here can crop away.
 	var image: Image = Gen2ToolPath.capture(root)
 	if image == null:
 		quit(1)
@@ -179,6 +215,9 @@ func _stage() -> void:
 		print("the screen opened no world")
 		quit(1)
 		return
+	if not _standable(world):
+		return
+	_face_the_leader()
 	var crystal: bool = Gen2WorldState.is_crystal_profile(_data)
 	for badge: int in _badges:
 		world.state.set_engine_flag(Gen2WorldState.badge_flag(badge, crystal))
@@ -196,6 +235,47 @@ func _stage() -> void:
 		Gen2WorldState.badge_flag(mini(_badges, JOHTO_BADGES - 1), crystal)
 	)
 	_staged = _raise_notice()
+
+
+## Refuses a cell the player could not be standing on.
+##
+## The screen puts the player wherever `start_cell` says, walkable or not, and a
+## picture of somebody inside a tree is a picture of nothing that ever happened.
+## The question is the cartridge's own: `CollisionPermissionTable` through
+## `Gen2WorldCollision.is_walkable`, which is what the overworld asks of a cell
+## before it lets a step onto it.
+func _standable(world: Gen2WorldAPI) -> bool:
+	var map: Gen2WorldMap = world.current_map
+	if map == null:
+		print("the screen opened no map")
+		quit(1)
+		return false
+	if _cell.x < 0 or _cell.y < 0 \
+		or _cell.x >= map.collision_width or _cell.y >= map.collision_height:
+		print("cell ", _cell, " is off map ", _screen.map_group, ",",
+			_screen.map_number, ", which is ", map.collision_width, "x",
+			map.collision_height, " cells")
+		quit(1)
+		return false
+	if not Gen2WorldCollision.is_walkable(world.collision_code_at(_cell)):
+		print("cell ", _cell, " on map ", _screen.map_group, ",",
+			_screen.map_number, " is not a cell the player can stand on")
+		quit(1)
+		return false
+	for object: Dictionary in map.events.get("objects", []):
+		if Vector2i(int(object.get("x", -1)), int(object.get("y", -1))) == _cell:
+			print("cell ", _cell, " is where one of the map's own people stands")
+			quit(1)
+			return false
+	return true
+
+
+## Turns the player to face whoever is standing on the cell above, which is how
+## a gym leader is talked to. The press is refused as a step because that cell
+## is occupied, and a refused step is exactly what turns the sprite.
+func _face_the_leader() -> void:
+	_screen.move_up()
+	_screen.advance_frames(SETTLE_FRAMES)
 
 
 ## Runs the map's own name sign out, so the next banner up is the mod's.
@@ -219,6 +299,14 @@ func _raise_notice() -> bool:
 	print("no banner was raised in ", FRAME_CAP, " frames")
 	quit(1)
 	return false
+
+
+## A `x,y` argument, or [param fallback] where it is absent or malformed.
+func _pair(text: String, fallback: Vector2i) -> Vector2i:
+	var parts: PackedStringArray = text.split(",", false)
+	if parts.size() != 2:
+		return fallback
+	return Vector2i(int(parts[0]), int(parts[1]))
 
 
 func _write(image: Image) -> bool:
