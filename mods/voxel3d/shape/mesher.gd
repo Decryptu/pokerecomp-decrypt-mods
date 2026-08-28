@@ -944,42 +944,63 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 	_house.fill(HOUSE_NONE)
 	_houses.clear()
 	var painted: Array = Houses.of_tileset(tileset_number)
+	# Largest drawing first, so a big house claims before a piece of it can.
 	painted.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return (a["tiles"] as Array).size() * ((a["tiles"][0] as Array).size()) \
 			> (b["tiles"] as Array).size() * ((b["tiles"][0] as Array).size()))
 	var found: Array = []
 	var offered: Array = []
+	var where: Dictionary = _tile_spots()
+	for house: Dictionary in painted:
+		_offer_house(house, where, found, offered)
+	_drop_overlapping(offered)
+	var claims: Dictionary = _claim_houses(offered)
+	for index: int in found.size():
+		_paint_house(shape, found[index], index, claims)
+
+
+## Every grid position each tile id sits at, so a pattern is looked for from its
+## anchor rather than from every tile of the map.
+## Every grid position each tile id sits at, so a pattern is looked for from its
+## anchor rather than from every tile of the map.
+func _tile_spots() -> Dictionary:
 	var where: Dictionary = {}
-	for at: int in count:
+	for at: int in _size.x * _size.y:
 		var tile: int = maxi(_tiles[at], 0)
 		if not where.has(tile):
 			where[tile] = []
 		(where[tile] as Array).append(at)
-	for house: Dictionary in painted:
-		var pattern: Array = house["tiles"]
-		var across := Vector2i((pattern[0] as Array).size(), pattern.size())
-		if across.x > _size.x or across.y > _size.y:
-			continue
-		var anchor: Vector3i = _pattern_anchor(pattern, across)
-		for spot: int in where.get(anchor.z, []) as Array:
-			@warning_ignore("integer_division")
-			var tx: int = spot % _size.x - anchor.x
-			@warning_ignore("integer_division")
-			var ty: int = spot / _size.x - anchor.y
-			if tx < 0 or ty < 0 \
-					or tx > _size.x - across.x or ty > _size.y - across.y:
-				continue
-			if not _pattern_at(pattern, across, tx, ty):
-				continue
-			var plans: Array = _house_plan(house)
-			found.append([house, Vector2i(tx, ty), across, plans])
-			for index: int in plans.size():
-				var rect: Rect2i = _house_tile_rect(plans[index], across)
-				rect.position += Vector2i(tx, ty)
-				offered.append([
-					rect.size.x * rect.size.y, found.size() - 1, index, rect, 0
-				])
+	return where
 
+
+func _offer_house(
+	house: Dictionary, where: Dictionary, found: Array, offered: Array
+) -> void:
+	var pattern: Array = house["tiles"]
+	var across := Vector2i((pattern[0] as Array).size(), pattern.size())
+	if across.x > _size.x or across.y > _size.y:
+		return
+	var anchor: Vector3i = _pattern_anchor(pattern, across)
+	for spot: int in where.get(anchor.z, []) as Array:
+		var tile: Vector2i = _tile_of(spot) - Vector2i(anchor.x, anchor.y)
+		if tile.x < 0 or tile.y < 0 \
+				or tile.x > _size.x - across.x or tile.y > _size.y - across.y:
+			continue
+		if not _pattern_at(pattern, across, tile.x, tile.y):
+			continue
+		var plans: Array = _house_plan(house)
+		found.append([house, tile, across, plans])
+		for index: int in plans.size():
+			var rect: Rect2i = _house_tile_rect(plans[index], across)
+			rect.position += tile
+			offered.append([
+				rect.size.x * rect.size.y, found.size() - 1, index, rect, 0
+			])
+
+
+## A box mostly inside a bigger box belonging to another placement is a piece of
+## that one seen twice, and is struck out.
+func _drop_overlapping(offered: Array) -> void:
 	for offer: Array in offered:
 		for other: Array in offered:
 			if other[1] == offer[1] or other[0] <= offer[0]:
@@ -988,6 +1009,9 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 					* 100 >= offer[0] * FRAGMENT_OF:
 				offer[4] = 1
 				break
+
+
+func _claim_houses(offered: Array) -> Dictionary:
 	var claims: Dictionary = {}
 	for offer: Array in offered:
 		if offer[4] == 1 or _house_claimed(offer[3] as Rect2i):
@@ -1000,31 +1024,36 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 			for column: int in rect.size.x:
 				_house[(rect.position.y + row) * _size.x
 					+ rect.position.x + column] = HOUSE_WALL
-	for index: int in found.size():
-		var place: Array = found[index]
-		var house: Dictionary = place[0]
-		var start: Vector2i = place[1]
-		var across: Vector2i = place[2]
-		if not (place[3] as Array).is_empty():
-			if claims.has(index):
-				_houses.append([house, start, across, [], claims[index]])
-			continue
-		var paint: Array = house["paint"]
-		for row: int in across.y:
-			for column: int in across.x:
-				var at: int = (start.y + row) * _size.x + start.x + column
-				var stroke: String = _house_word(paint, row, column)
-				if stroke == "":
+	return claims
+
+
+## A placement with boxes is kept as boxes; one without is painted per tile.
+func _paint_house(
+	shape: RefCounted, place: Array, index: int, claims: Dictionary
+) -> void:
+	var house: Dictionary = place[0]
+	var start: Vector2i = place[1]
+	var across: Vector2i = place[2]
+	if not (place[3] as Array).is_empty():
+		if claims.has(index):
+			_houses.append([house, start, across, [], claims[index]])
+		return
+	var paint: Array = house["paint"]
+	for row: int in across.y:
+		for column: int in across.x:
+			var at: int = (start.y + row) * _size.x + start.x + column
+			var stroke: String = _house_word(paint, row, column)
+			if stroke == "":
+				continue
+			if stroke == Houses.NONE:
+				if _part[at] == PART_NONE:
 					continue
-				if stroke == Houses.NONE:
-					if _part[at] == PART_NONE:
-						continue
-					_house[at] = HOUSE_GROUND
-				elif stroke == Houses.ROOF:
-					_house[at] = HOUSE_ROOF
-				else:
-					_house[at] = HOUSE_WALL
-				_house_tile(shape, at, stroke)
+				_house[at] = HOUSE_GROUND
+			elif stroke == Houses.ROOF:
+				_house[at] = HOUSE_ROOF
+			else:
+				_house[at] = HOUSE_WALL
+			_house_tile(shape, at, stroke)
 
 
 func _house_word(paint: Array, row: int, column: int) -> String:
@@ -1479,6 +1508,17 @@ func _measure_fences() -> void:
 	_fence_arms.fill(0)
 	@warning_ignore("integer_division")
 	var cells := Vector2i(_size.x / CELL_TILES, _size.y / CELL_TILES)
+	var here: PackedByteArray = _fence_cells(cells)
+	if here.is_empty():
+		return
+	for cell_y: int in cells.y:
+		for cell_x: int in cells.x:
+			if here[cell_y * cells.x + cell_x] == 1:
+				_arm_fence_cell(cells, here, cell_x, cell_y)
+
+
+## Which walk cells carry a fence at all, so a run is read cell by cell.
+func _fence_cells(cells: Vector2i) -> PackedByteArray:
 	var here := PackedByteArray()
 	here.resize(cells.x * cells.y)
 	var any: bool = false
@@ -1489,30 +1529,46 @@ func _measure_fences() -> void:
 			any = true
 			@warning_ignore("integer_division")
 			here[(ty / CELL_TILES) * cells.x + tx / CELL_TILES] = 1
-	if not any:
-		return
-	for cell_y: int in cells.y:
-		for cell_x: int in cells.x:
-			if here[cell_y * cells.x + cell_x] == 0:
+	return here if any else PackedByteArray()
+
+
+## A fence cell runs the way its neighbours lie. A cell standing alone runs
+## across, since a post on its own is drawn face-on.
+## A fence cell runs the way its neighbours lie. A cell standing alone runs
+## across, since a post on its own is drawn face-on.
+func _arm_fence_cell(
+	cells: Vector2i, here: PackedByteArray, cell_x: int, cell_y: int
+) -> void:
+	var arms: int = 0
+	if _fence_beside(cells, here, cell_x, cell_y, Vector2i(1, 0)):
+		arms |= FENCE_ACROSS
+	if _fence_beside(cells, here, cell_x, cell_y, Vector2i(0, 1)):
+		arms |= FENCE_AWAY
+	if arms == 0:
+		arms = FENCE_ACROSS
+	for row: int in CELL_TILES:
+		for column: int in CELL_TILES:
+			var at: int = (cell_y * CELL_TILES + row) * _size.x \
+				+ cell_x * CELL_TILES + column
+			if _art[at] != ART_FENCE:
 				continue
-			var arms: int = 0
-			if (cell_x > 0 and here[cell_y * cells.x + cell_x - 1] == 1) \
-					or (cell_x + 1 < cells.x and here[cell_y * cells.x + cell_x + 1] == 1):
-				arms |= FENCE_ACROSS
-			if (cell_y > 0 and here[(cell_y - 1) * cells.x + cell_x] == 1) \
-					or (cell_y + 1 < cells.y and here[(cell_y + 1) * cells.x + cell_x] == 1):
-				arms |= FENCE_AWAY
-			if arms == 0:
-				arms = FENCE_ACROSS
-			for row: int in CELL_TILES:
-				for column: int in CELL_TILES:
-					var at: int = (cell_y * CELL_TILES + row) * _size.x \
-						+ cell_x * CELL_TILES + column
-					if _art[at] != ART_FENCE:
-						continue
-					_fence_arms[at] = arms
-					_heights[at] = 0
-					_volume[at] = 0
+			_fence_arms[at] = arms
+			_heights[at] = 0
+			_volume[at] = 0
+
+
+## Whether another fence cell lies either way along one axis.
+func _fence_beside(
+	cells: Vector2i, here: PackedByteArray, cell_x: int, cell_y: int,
+	axis: Vector2i
+) -> bool:
+	for way: int in [-1, 1]:
+		var to := Vector2i(cell_x + axis.x * way, cell_y + axis.y * way)
+		if to.x < 0 or to.y < 0 or to.x >= cells.x or to.y >= cells.y:
+			continue
+		if here[to.y * cells.x + to.x] == 1:
+			return true
+	return false
 
 
 func _fence_profile(atlas: RefCounted) -> void:
@@ -1520,21 +1576,29 @@ func _fence_profile(atlas: RefCounted) -> void:
 	_fence_tall = 0
 	if _fence_tiles.size() < 2:
 		return
-	var across: int = (_fence_tiles[0] as Array).size()
-	_fence_wide = across * TILE_PX
+	_fence_wide = (_fence_tiles[0] as Array).size() * TILE_PX
 	var rows: int = _fence_tiles.size() * TILE_PX
-	var dark := PackedByteArray()
-	dark.resize(_fence_wide * rows)
-	var foot: int = -1
-	for py: int in rows:
-		for px: int in _fence_wide:
-			var index: int = atlas.pixel(_profile_tile(px, py), px % TILE_PX, py % TILE_PX)
-			if atlas.is_dark(_profile_tile(px, py), index, 1):
-				dark[py * _fence_wide + px] = 1
-				foot = py
+	var dark: PackedByteArray = _fence_dark(atlas, rows)
+	var foot: int = _last_dark_row(dark, rows)
 	if foot < 0:
 		return
 	_fence_tall = foot + 1
+	var mask: PackedByteArray = _fence_cut(dark)
+	# Nothing hangs below a column's own lowest dark pixel: a fence stands on the
+	# ground rather than trailing the background under it.
+	for px: int in _fence_wide:
+		var foot_row: int = -1
+		for py: int in _fence_tall:
+			if dark[py * _fence_wide + px] == 1:
+				foot_row = py
+		for py: int in range(foot_row + 1, _fence_tall):
+			mask[py * _fence_wide + px] = 0
+	_fence_mask = mask
+
+
+## The fence cut out of its background, flooded from the TOP ROW alone: a fence
+## is open to the sky above it and stands on the ground at its foot.
+func _fence_cut(dark: PackedByteArray) -> PackedByteArray:
 	var mask := PackedByteArray()
 	mask.resize(_fence_wide * _fence_tall)
 	mask.fill(1)
@@ -1558,14 +1622,28 @@ func _fence_profile(atlas: RefCounted) -> void:
 			stack.append(at - _fence_wide)
 		if py < _fence_tall - 1:
 			stack.append(at + _fence_wide)
-	for px: int in _fence_wide:
-		var foot_row: int = -1
-		for py: int in _fence_tall:
+	return mask
+
+
+func _fence_dark(atlas: RefCounted, rows: int) -> PackedByteArray:
+	var dark := PackedByteArray()
+	dark.resize(_fence_wide * rows)
+	for py: int in rows:
+		for px: int in _fence_wide:
+			var tile: int = _profile_tile(px, py)
+			var index: int = atlas.pixel(tile, px % TILE_PX, py % TILE_PX)
+			if atlas.is_dark(tile, index, 1):
+				dark[py * _fence_wide + px] = 1
+	return dark
+
+
+func _last_dark_row(dark: PackedByteArray, rows: int) -> int:
+	var foot: int = -1
+	for py: int in rows:
+		for px: int in _fence_wide:
 			if dark[py * _fence_wide + px] == 1:
-				foot_row = py
-		for py: int in range(foot_row + 1, _fence_tall):
-			mask[py * _fence_wide + px] = 0
-	_fence_mask = mask
+				foot = py
+	return foot
 
 
 func _profile_tile(px: int, py: int) -> int:
