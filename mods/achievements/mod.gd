@@ -36,10 +36,6 @@ var _ledger: Ledger = Ledger.new()
 ## The slot being played. Held because a scan writes the ledger back into it, and
 ## null between one being closed and the next opening.
 var _save: Gen2SaveData = null
-## The cartridge this save is on, opened once and only because
-## `progress_for` needs it to know which badge flags to read: a Gold save read
-## with Crystal's table is every badge off by one.
-var _data: GameData = null
 
 
 func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
@@ -69,7 +65,6 @@ func save_created(save: Gen2SaveData) -> void:
 
 func save_activated(save: Gen2SaveData) -> void:
 	_save = save
-	_data = null
 	if save == null:
 		## A development run has no slot to own a set, and awarding into one
 		## that is never written would announce the same thing every boot.
@@ -78,13 +73,13 @@ func save_activated(save: Gen2SaveData) -> void:
 	_ledger.restore(_host.read_save_data(_manifest, save))
 	## The reading off the save rather than off the world: the slot has been
 	## chosen and no world exists yet, and this is the one that answers for a
-	## save the mod was installed onto.
-	_scan(_host.progress_for(save, _cartridge(save)))
+	## save the mod was installed onto. The save names its own cartridge, so the
+	## badge table is the right one without this mod holding any cache.
+	_scan(_host.progress_for(save))
 
 
 func save_deactivated() -> void:
 	_save = null
-	_data = null
 	_ledger.closed()
 
 
@@ -150,12 +145,3 @@ func _rows() -> Array:
 			"locked": not held,
 		})
 	return out
-
-
-## The cartridge the slot is on. `progress_for` reads badges out of one of two
-## engine-flag tables and picks Crystal's when it is handed nothing, so a Gold
-## or Silver save has to say so.
-func _cartridge(save: Gen2SaveData) -> GameData:
-	if _data == null and not String(save.game_id).is_empty():
-		_data = GameData.open(save.game_id)
-	return _data
