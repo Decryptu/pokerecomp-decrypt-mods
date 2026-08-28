@@ -77,9 +77,9 @@ ordinary text box there.
 **ACHIEVEMENTS** in the start menu. The count is the first row, then the thirty,
 eight at a time, scrolled with the d-pad and left with B.
 
-A locked one reads `?`, the way the Pokedex draws an entry you have not seen.
-That is the cartridge's own answer to the question, and it is the one this mod
-takes: what is left is a thing to find out rather than a list to tick off.
+Every row names itself and what it asks, earned or not, so the page can be read
+as a list of what to go and do. The icon is the mark: an earned row wears its
+badge, item or species, and an unearned one leaves that column blank.
 
 ## Settings
 

@@ -375,7 +375,9 @@ on is pulled back to the near edge of the last cell the drawing covers that is
 blocked all the way across, and only where that clears the box entirely. Fourteen
 placements move over the whole game. A chair, a stool and a ladder stand on cells
 the cartridge lets you walk onto, which is its answer and not a placement to
-correct.
+correct: an object with a height gives its cells a walkable top, and the walker
+and its shadow both read that, so all 585 seats are stood on rather than stood
+inside.
 
 An object may be **turned** rather than stood up, because a round drawing wants a
 lathed model. Sixteen things are declared this way: a desk, five chairs, a ship, a

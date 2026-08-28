@@ -68,6 +68,11 @@ what a mod is allowed to touch.
 
 ## License
 
-MIT, in [`LICENSE`](LICENSE). No cartridge data, artwork or audio is included in
-this repository or in any mod it publishes. Geometry, colour and text all come
-from what the host game decoded from the player's own cartridge.
+MIT, in [`LICENSE`](LICENSE). No ROM, save file or extracted cartridge cache is
+in this repository or in any mod it publishes, and no mod decodes a cartridge
+itself: geometry, colour and text all come from what the host game decoded from
+the player's own copy.
+
+The exception is a mod's `icon.png` and `thumbnail.webp`, which are cartridge
+pixels, painted and photographed by `tools/mod_icons.sh` from a cartridge you
+supply, so that the launcher has a mod to show. Nothing else ships as art.
