@@ -54,8 +54,9 @@ func _initialize() -> void:
 		mesher.emit(atlas)
 
 		var at: int = Time.get_ticks_usec()
-		var ring: int = (mesher.get("_margin") as Vector2i).x
-		var walked: Dictionary = walk_script.of_map(data, map, profile, ring)
+		var walked: Dictionary = walk_script.of_map(
+			data, map, profile, mesher.stamped_bounds_tiles()
+		)
 		walk_usec += Time.get_ticks_usec() - at
 		var found: Dictionary = walked["drawings"]
 		houses += (walked["buildings"] as Array).size()

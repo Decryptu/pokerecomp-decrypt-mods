@@ -7,13 +7,23 @@ const MapSourceScript: GDScript = preload("map_source.gd")
 
 const TILE: int = 8
 const CELL_TILES: int = 2
-const BLOCK_TILES: int = 4
 const CELLS_PER_BLOCK: int = 2
+const BLOCK_TILES: int = 4
 const SPOT_LIMIT: int = 4096
 
 
+static func _block_of(tile: Vector2i) -> Vector2i:
+	return Vector2i(
+		floori(float(tile.x) / float(BLOCK_TILES)),
+		floori(float(tile.y) / float(BLOCK_TILES))
+	)
+
+
+## `grid` is the mesher's own grid in map tiles, `stamped_bounds_tiles`: its
+## ring is grown per side, so a single margin cannot say where the walk ends.
+## An empty rectangle walks the map alone.
 static func of_map(
-	data: GameData, map: Gen2WorldMap, profile: GDScript, margin: int = 0
+	data: GameData, map: Gen2WorldMap, profile: GDScript, grid: Rect2i = Rect2i()
 ) -> Dictionary:
 	var out: Dictionary = {"drawings": {}, "buildings": []}
 	if data == null or map == null:
@@ -23,9 +33,12 @@ static func of_map(
 		return out
 	var shape: RefCounted = TileShapeScript.new(profile, map.tileset)
 	var source: RefCounted = MapSourceScript.new(null, map, tileset, data)
-	var origin := Vector2i(-margin, -margin)
-	var size := Vector2i(map.width_blocks, map.height_blocks) \
-		* RomLayout.MAP_BLOCK_TILE_WIDTH + Vector2i(margin, margin) * 2
+	var origin: Vector2i = grid.position
+	var size: Vector2i = grid.size
+	if size.x <= 0 or size.y <= 0:
+		origin = Vector2i.ZERO
+		size = Vector2i(map.width_blocks, map.height_blocks) \
+			* RomLayout.MAP_BLOCK_TILE_WIDTH
 	if size.x <= 0 or size.y <= 0:
 		return out
 
@@ -35,31 +48,29 @@ static func of_map(
 	klass.resize(size.x * size.y)
 	var ids: Dictionary = {}
 	var known: Dictionary = {}
-	@warning_ignore("integer_division")
-	var blocks := Vector2i(
-		size.x / BLOCK_TILES, size.y / BLOCK_TILES
-	)
-	@warning_ignore("integer_division")
-	var block_origin: Vector2i = origin / BLOCK_TILES
-	for by: int in blocks.y:
-		for bx: int in blocks.x:
-			var block: int = source.block_at(
-				block_origin.x + bx, block_origin.y + by
-			)
+	var first: Vector2i = _block_of(origin)
+	var last: Vector2i = _block_of(origin + size - Vector2i.ONE)
+	for by: int in range(first.y, last.y + 1):
+		for bx: int in range(first.x, last.x + 1):
+			var block: int = source.block_at(bx, by)
 			for cy: int in CELLS_PER_BLOCK:
 				for cx: int in CELLS_PER_BLOCK:
-					var permission: int = source.permission_at(Vector2i(
-						block_origin.x * CELLS_PER_BLOCK + bx * CELLS_PER_BLOCK + cx,
-						block_origin.y * CELLS_PER_BLOCK + by * CELLS_PER_BLOCK + cy
-					))
+					var cell := Vector2i(bx * CELLS_PER_BLOCK + cx, by * CELLS_PER_BLOCK + cy)
+					var permission: int = source.permission_at(cell)
 					for down: int in CELL_TILES:
 						for right: int in CELL_TILES:
-							var slot_x: int = cx * CELL_TILES + right
-							var slot_y: int = cy * CELL_TILES + down
-							var at: int = (by * BLOCK_TILES + slot_y) * size.x \
-								+ bx * BLOCK_TILES + slot_x
+							var slot := Vector2i(
+								cx * CELL_TILES + right, cy * CELL_TILES + down
+							)
+							var in_grid := Vector2i(
+								bx * BLOCK_TILES + slot.x, by * BLOCK_TILES + slot.y
+							) - origin
+							if in_grid.x < 0 or in_grid.y < 0 \
+									or in_grid.x >= size.x or in_grid.y >= size.y:
+								continue
+							var at: int = in_grid.y * size.x + in_grid.x
 							var tile: int = -1 if block < 0 else tileset.tile_index(
-								block, slot_y * BLOCK_TILES + slot_x
+								block, slot.y * BLOCK_TILES + slot.x
 							)
 							tiles[at] = tile
 							if tile < 0:

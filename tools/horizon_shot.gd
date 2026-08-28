@@ -4,9 +4,10 @@ extends SceneTree
 
 const WINDOW_SIZE := Vector2i(1600, 900)
 const SETTLE_FRAMES: int = 60
-const RENDERER := "user://mods/voxel3d/world/renderer.gd"
 const Steering: GDScript = preload("../mods/voxel3d/steering.gd")
+const Staging: GDScript = preload("staging.gd")
 
+var _staging: RefCounted = Staging.new()
 var _screen: Gen2WorldScreen = null
 var _renderer: Node = null
 var _out: String = ""
@@ -17,8 +18,6 @@ var _pitch: float = 18.0
 var _distance: float = 480.0
 var _zoom: float = 1.0
 var _still: bool = false
-var _restore: Dictionary = {}
-var _restore_id: StringName = &""
 
 
 func _initialize() -> void:
@@ -29,7 +28,7 @@ func _initialize() -> void:
 			+ " [hold=] [label=] [out=]")
 		quit(2)
 		return
-	var named: Dictionary = _named(args)
+	var named: Dictionary = Staging.named(args)
 	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache for %s" % args[0])
@@ -53,12 +52,14 @@ func _initialize() -> void:
 	_pitch = float(named.get("pitch", "18"))
 	_distance = float(named.get("distance", "480"))
 	_zoom = float(named.get("zoom", "1.0"))
-	var window: Vector2i = _size(String(named.get("window", "")))
+	var window: Vector2i = Staging.window_size(
+		String(named.get("window", "")), WINDOW_SIZE
+	)
 	var wanted := Vector2i(map.collision_width / 2, map.collision_height / 2)
 	if String(named.get("cell", "")).contains(","):
 		var parts: PackedStringArray = String(named["cell"]).split(",")
 		wanted = Vector2i(int(parts[0]), int(parts[1]))
-	var start: Vector2i = _open_ground(map, wanted)
+	var start: Vector2i = Staging.open_ground(map, wanted)
 	if start == Vector2i.MAX:
 		print("no walkable room on map %d,%d" % [group, number])
 		quit(1)
@@ -74,9 +75,9 @@ func _initialize() -> void:
 	var view := StringName(named.get("view", "voxel3d"))
 	print("view       %s %s" % [String(view), str(host.select_view(view))])
 	if named.has("static"):
-		_apply_statics(String(named["static"]))
+		Staging.apply_statics(String(named["static"]))
 	if named.has("set"):
-		_apply_options(host, view, String(named["set"]))
+		_staging.apply_options(host, view, String(named["set"]))
 	if not host.failures().is_empty():
 		print("failures   %s" % str(host.failures()))
 
@@ -108,7 +109,7 @@ func _process(_delta: float) -> bool:
 		_screen.advance_frames(SETTLE_FRAMES)
 		return false
 	if _frames == 3:
-		_renderer = _find_renderer(_screen)
+		_renderer = Staging.find_renderer(_screen)
 		if _renderer == null:
 			print("no view renderer in the tree: was the view selected?")
 			quit(1)
@@ -275,80 +276,8 @@ func _burn(image: Image, text: String) -> void:
 		at += 6 * GLYPH_SCALE
 
 
-func _named(args: PackedStringArray) -> Dictionary:
-	var out: Dictionary = {}
-	for index: int in range(3, args.size()):
-		var pair: String = args[index]
-		var at: int = pair.find("=")
-		if at <= 0:
-			continue
-		out[pair.substr(0, at)] = pair.substr(at + 1)
-	return out
-
-
-func _size(text: String) -> Vector2i:
-	var parts: PackedStringArray = text.split("x")
-	if parts.size() != 2 or int(parts[0]) <= 0 or int(parts[1]) <= 0:
-		return WINDOW_SIZE
-	return Vector2i(int(parts[0]), int(parts[1]))
-
-
-func _apply_statics(spec: String) -> void:
-	var script: GDScript = load(RENDERER)
-	if script == null:
-		print("no renderer script at %s" % RENDERER)
-		return
-	for pair: String in spec.split(",", false):
-		var parts: PackedStringArray = pair.split(":")
-		if parts.size() != 2:
-			continue
-		var name: String = parts[0].strip_edges()
-		var text: String = parts[1].strip_edges()
-		var value: Variant = int(text)
-		if text.contains("."):
-			value = float(text)
-		if script.get(name) is bool:
-			value = bool(value)
-		script.set(name, value)
-		print("static     %s = %s" % [name, str(script.get(name))])
-
-
-func _apply_options(host: Gen2ModHost, id: StringName, spec: String) -> void:
-	for pair: String in spec.split(",", false):
-		var parts: PackedStringArray = pair.split(":")
-		if parts.size() != 2:
-			continue
-		var key := StringName(parts[0].strip_edges())
-		var text: String = parts[1].strip_edges()
-		var value: Variant = int(text)
-		if text.contains("."):
-			value = float(text)
-		_restore[key] = host.option(id, key)
-		print("option     %s = %s %s" % [
-			String(key), str(value), str(host.set_option(id, key, value)),
-		])
-	_restore_id = id
-
-
 func _finalize() -> void:
-	if _restore.is_empty():
-		return
-	var host: Gen2ModHost = Gen2ModHost.instance()
-	for key: StringName in _restore:
-		if _restore[key] != null:
-			host.set_option(_restore_id, key, _restore[key])
-
-
-func _find_renderer(node: Node) -> Node:
-	var script: Script = node.get_script() as Script
-	if script != null and script.resource_path.begins_with("user://mods/") \
-			and node.has_method("refresh"):
-		return node
-	for child: Node in node.get_children():
-		var found: Node = _find_renderer(child)
-		if found != null:
-			return found
-	return null
+	_staging.restore()
 
 
 func _save(data: GameData, group: int, number: int, cell: Vector2i) -> Gen2SaveData:
@@ -370,51 +299,3 @@ func _save(data: GameData, group: int, number: int, cell: Vector2i) -> Gen2SaveD
 
 const ROOM_CELLS: int = 24
 const SEARCH_CELLS: int = 40
-
-
-func _open_ground(map: Gen2WorldMap, wanted: Vector2i) -> Vector2i:
-	var refused: Dictionary = {}
-	for radius: int in SEARCH_CELLS:
-		for offset: Vector2i in _ring(radius):
-			var cell: Vector2i = wanted + offset
-			if refused.has(cell) or not _walkable(map, cell):
-				continue
-			var region: Dictionary = _region(map, cell)
-			if region.size() >= ROOM_CELLS:
-				return cell
-			refused.merge(region)
-	return Vector2i.MAX
-
-
-func _ring(radius: int) -> Array:
-	if radius == 0:
-		return [Vector2i.ZERO]
-	var out: Array = []
-	for offset: int in range(-radius, radius + 1):
-		out.append(Vector2i(offset, -radius))
-		out.append(Vector2i(offset, radius))
-		if offset != -radius and offset != radius:
-			out.append(Vector2i(-radius, offset))
-			out.append(Vector2i(radius, offset))
-	return out
-
-
-func _region(map: Gen2WorldMap, from: Vector2i) -> Dictionary:
-	var seen: Dictionary = {from: true}
-	var stack: Array = [from]
-	while not stack.is_empty() and seen.size() < ROOM_CELLS:
-		var at: Vector2i = stack.pop_back()
-		for way: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
-			var next: Vector2i = at + way
-			if seen.has(next) or not _walkable(map, next):
-				continue
-			seen[next] = true
-			stack.append(next)
-	return seen
-
-
-func _walkable(map: Gen2WorldMap, cell: Vector2i) -> bool:
-	if cell.x < 0 or cell.y < 0 \
-			or cell.x >= map.collision_width or cell.y >= map.collision_height:
-		return false
-	return Gen2WorldCollision.is_walkable(map.collision[cell.y * map.collision_width + cell.x])

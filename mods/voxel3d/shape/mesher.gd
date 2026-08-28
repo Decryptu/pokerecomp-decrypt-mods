@@ -736,19 +736,48 @@ func _fact_cliff(
 	fact[FACT_HEIGHT] = -1 if is_volume and not shape.is_pinned(tile) \
 		else shape.height(shape_class)
 
+
+## Tiles a slice of a banded pass answers, so one slice is the same size on a
+## wide map as on a narrow one.
+const BAND_TILES: int = 512
+
+var _resolve_passes: Array[Callable] = []
+var _resolve_at: int = 0
+
+
 func resolve(source: RefCounted, shape: RefCounted) -> void:
+	begin_resolve(source, shape)
+	while not resolve_step(0):
+		pass
+
+
+## Sizing the grid comes first and whole, so `size_tiles` answers straight away.
+func begin_resolve(source: RefCounted, shape: RefCounted) -> void:
 	_forget()
+	_resolve_passes = []
+	_resolve_at = 0
 	if source == null or not source.valid():
 		return
 	_outside = source.outside()
 	_room_wall = [] if _outside else shape.room_wall()
 	_ground_table = shape.ground_table()
 	_size_grid(source, shape)
-	_fill_grid(source, shape)
-	var painted_map: Gen2WorldMap = source.map()
-	if painted_map != null:
-		_match_houses(shape, painted_map.tileset)
-	_measure(source, shape)
+	_resolve_passes = _passes(source, shape)
+
+
+## Runs whole passes until the budget is spent, and answers whether the map is
+## measured. A budget of zero runs the lot.
+func resolve_step(budget_usec: int) -> bool:
+	var until: int = Time.get_ticks_usec() + budget_usec
+	while _resolve_at < _resolve_passes.size():
+		_resolve_passes[_resolve_at].call()
+		_resolve_at += 1
+		if budget_usec > 0 and Time.get_ticks_usec() >= until:
+			break
+	if _resolve_at < _resolve_passes.size():
+		return false
+	_resolve_passes = []
+	return true
 
 
 func _forget() -> void:
@@ -761,6 +790,8 @@ func _forget() -> void:
 		_model_cutouts, _chunk_cache, _structure_owner, _commonest_index
 	]:
 		held.clear()
+	# `_house_plans` is not among them: a plan is read off the drawing alone and
+	# every drawing has its own id, so it outlives the map it was first met on.
 
 
 ## The grid is the map plus the ring around it, each side grown on its own.
@@ -796,7 +827,7 @@ func _size_grid(source: RefCounted, shape: RefCounted) -> void:
 
 
 ## A shell tile stands outside the map and wears the room's own wall. Marked in
-## one pass so the fill below tests a byte rather than four bounds a tile.
+## one pass so the fill after it tests a byte rather than four bounds a tile.
 func _mark_shell() -> void:
 	_room.fill(0)
 	if _room_wall.is_empty():
@@ -808,12 +839,6 @@ func _mark_shell() -> void:
 				or tx >= _map_end.x or ty >= _map_end.y
 			):
 				_room[ty * _size.x + tx] = ROOM_SHELL
-
-
-func _fill_grid(source: RefCounted, shape: RefCounted) -> void:
-	_mark_shell()
-	for ty: int in _size.y:
-		_fill_row(source, shape, ty)
 
 
 func _fill_row(source: RefCounted, shape: RefCounted, ty: int) -> void:
@@ -883,39 +908,75 @@ func _blank_tile(at: int) -> void:
 	_part[at] = PART_NONE
 
 
-## Every measuring pass, in the order each depends on the last.
-func _measure(source: RefCounted, shape: RefCounted) -> void:
-	_measure_columns()
-	_measure_cliffs()
-	_apply_levels(source)
-	_measure_plateaus()
-	_settle_ponds()
-	_settle_beds()
-	_measure_buildings()
-	_settle_void()
-	_settle_unmeasured()
-	_measure_room()
-	_measure_room_fill()
-	_measure_furniture()
-	_measure_cutouts()
-	_measure_objects(shape, source)
-	_settle_aprons()
-	_measure_room_behind()
-	_measure_house_boxes(source)
-	_settle_house_ground()
-	_measure_stairs(shape)
-	_measure_ledges(source)
-	_fence_tiles = shape.fence_face()
-	_fence_mask = PackedByteArray()
-	_measure_fences()
-	_measure_mouths()
-	_measure_ramps()
-	_measure_mounds(shape)
-	_measure_doors(shape)
-	_measure_collision_doors(source)
-	_measure_shores()
-	_measure_surfaces()
-	_measure_bank()
+## Every pass, in the order each depends on the last. One is the unit a slice
+## stops on, so the longest of them is the longest frame a resolve can cost.
+func _passes(source: RefCounted, shape: RefCounted) -> Array[Callable]:
+	var passes: Array[Callable] = [_mark_shell]
+	_band_rows(passes, _fill_rows.bind(source, shape))
+	passes.append_array([
+		_match_map_houses.bind(source, shape),
+		_measure_columns,
+		_measure_cliffs,
+		_apply_levels.bind(source),
+		_measure_plateaus,
+		_settle_ponds,
+		_settle_beds,
+		_measure_buildings,
+		_settle_void,
+		_settle_unmeasured,
+		_measure_room,
+		_measure_room_fill,
+		_measure_furniture,
+	])
+	_band_rows(passes, _measure_cutouts)
+	passes.append_array([
+		_measure_objects.bind(shape, source),
+		_settle_aprons,
+		_measure_room_behind,
+		_measure_house_boxes.bind(source),
+		_settle_house_ground,
+		_measure_stairs.bind(shape),
+		_measure_ledges.bind(source),
+		_measure_fences.bind(shape),
+		_measure_mouths,
+		_measure_ramps,
+		_measure_mounds.bind(shape),
+		_measure_doors.bind(shape),
+	])
+	_band(passes, _measure_collision_doors.bind(source))
+	passes.append_array([
+		_measure_shores,
+		_measure_surfaces,
+		_measure_bank,
+	])
+	return passes
+
+
+## A pass whose rows are answered in order is spent a band of rows at a time.
+## The band comes first in its signature, since a bound argument lands after it.
+func _band_rows(passes: Array[Callable], over: Callable) -> void:
+	var rows: int = maxi(BAND_TILES / maxi(_size.x, 1), 1)
+	for from: int in range(0, _size.y, rows):
+		passes.append(over.bind(from, mini(from + rows, _size.y)))
+
+
+## The same for a pass that walks the grid by index rather than by row.
+func _band(passes: Array[Callable], over: Callable) -> void:
+	var count: int = _size.x * _size.y
+	for from: int in range(0, count, BAND_TILES):
+		passes.append(over.bind(from, mini(from + BAND_TILES, count)))
+
+
+func _fill_rows(from: int, to: int, source: RefCounted, shape: RefCounted) -> void:
+	for ty: int in range(from, to):
+		_fill_row(source, shape, ty)
+
+
+func _match_map_houses(source: RefCounted, shape: RefCounted) -> void:
+	var painted_map: Gen2WorldMap = source.map()
+	if painted_map != null:
+		_match_houses(shape, painted_map.tileset)
+
 
 func _apply_levels(source: RefCounted) -> void:
 	var map: Gen2WorldMap = source.map()
@@ -961,8 +1022,6 @@ func _match_houses(shape: RefCounted, tileset_number: int) -> void:
 
 ## Every grid position each tile id sits at, so a pattern is looked for from its
 ## anchor rather than from every tile of the map.
-## Every grid position each tile id sits at, so a pattern is looked for from its
-## anchor rather than from every tile of the map.
 func _tile_spots() -> Dictionary:
 	var where: Dictionary = {}
 	for at: int in _size.x * _size.y:
@@ -980,7 +1039,7 @@ func _offer_house(
 	var across := Vector2i((pattern[0] as Array).size(), pattern.size())
 	if across.x > _size.x or across.y > _size.y:
 		return
-	var anchor: Vector3i = _pattern_anchor(pattern, across)
+	var anchor: Vector3i = _pattern_anchor(pattern, across, where)
 	for spot: int in where.get(anchor.z, []) as Array:
 		var tile: Vector2i = _tile_of(spot) - Vector2i(anchor.x, anchor.y)
 		if tile.x < 0 or tile.y < 0 \
@@ -1503,7 +1562,9 @@ func _fence_box(
 			)
 
 
-func _measure_fences() -> void:
+func _measure_fences(shape: RefCounted) -> void:
+	_fence_tiles = shape.fence_face()
+	_fence_mask = PackedByteArray()
 	_fence_arms.resize(_size.x * _size.y)
 	_fence_arms.fill(0)
 	@warning_ignore("integer_division")
@@ -1923,9 +1984,7 @@ func _measure_doors(shape: RefCounted) -> void:
 		@warning_ignore("integer_division")
 		var from := Vector2i(at % _size.x, at / _size.x)
 		var high: int = 0
-		for step: Vector2i in [
-			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
-		]:
+		for step: Vector2i in STEPS:
 			var to: Vector2i = from + step
 			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
 				continue
@@ -1941,11 +2000,10 @@ func _measure_doors(shape: RefCounted) -> void:
 			_corners[at * 4 + corner] = high
 
 
-func _measure_collision_doors(source: RefCounted) -> void:
+func _measure_collision_doors(from: int, to: int, source: RefCounted) -> void:
 	if source == null or not _outside:
 		return
-	var count: int = _size.x * _size.y
-	for at: int in count:
+	for at: int in range(from, to):
 		if not _flat_and_free(at):
 			continue
 		if _tallest_beside(at) <= 0 or not _is_collision_door(source, at):
@@ -1998,9 +2056,7 @@ func _measure_mouths() -> void:
 		@warning_ignore("integer_division")
 		var from := Vector2i(at % _size.x, at / _size.x)
 		var high: int = 0
-		for step: Vector2i in [
-			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
-		]:
+		for step: Vector2i in STEPS:
 			var to: Vector2i = from + step
 			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
 				continue
@@ -2557,8 +2613,8 @@ func _span_box(at: int, tx: int, ty: int) -> Rect2i:
 	return Rect2i(start, across)
 
 
-func _measure_cutouts() -> void:
-	for ty: int in _size.y:
+func _measure_cutouts(from: int, to: int) -> void:
+	for ty: int in range(from, to):
 		for tx: int in _size.x:
 			var at: int = ty * _size.x + tx
 			if _art[at] != ART_CUTOUT or (_span_x[at] == 1 and _span_y[at] == 1):
@@ -2624,14 +2680,27 @@ func _repeats(start: Vector2i, span: Vector2i) -> bool:
 	return false
 
 
-func _pattern_anchor(pattern: Array, across: Vector2i) -> Vector3i:
+## The pattern tile with the fewest spots on this map, so a placement is looked
+## for from the rarest tile of the drawing rather than from a roof corner every
+## house on the map shares. The order placements come out in does not move with
+## it: a spot ascends row by row, and so does the origin under it.
+func _pattern_anchor(pattern: Array, across: Vector2i, where: Dictionary) -> Vector3i:
+	var anchor := Vector3i(0, 0, 0)
+	var fewest: int = 1 << 30
 	for row: int in across.y:
 		var line: Array = pattern[row]
 		for column: int in across.x:
 			var want: int = int(line[column])
-			if want >= 0:
-				return Vector3i(column, row, want)
-	return Vector3i(0, 0, 0)
+			if want < 0:
+				continue
+			var spots: int = (where.get(want, []) as Array).size()
+			if spots >= fewest:
+				continue
+			anchor = Vector3i(column, row, want)
+			fewest = spots
+			if spots == 0:
+				return anchor
+	return anchor
 
 
 func _pattern_at(pattern: Array, across: Vector2i, tx: int, ty: int) -> bool:
@@ -4982,8 +5051,8 @@ func _house_plan(house: Dictionary) -> Array:
 	var paint: Array = house["paint"]
 	var rows: int = paint.size()
 	var cols: int = String(paint[0]).length()
-	var owner: PackedInt32Array = _house_flood(paint, rows, cols, Houses.WALL)
-	var terrace: PackedInt32Array = _house_flood(paint, rows, cols, "")
+	var owner: PackedInt32Array = _house_flood(_house_mask(paint, Houses.WALL), cols)
+	var terrace: PackedInt32Array = _house_flood(_house_mask(paint, ""), cols)
 	var count: int = 0
 	for at: int in owner.size():
 		count = maxi(count, owner[at] + 1)
@@ -5004,46 +5073,51 @@ func _house_plan(house: Dictionary) -> Array:
 	return plans
 
 
-func _house_flood(
-	paint: Array, rows: int, cols: int, word: String
-) -> PackedInt32Array:
+## One byte a pixel, 1 where the paint answers the word, so the flood reads a
+## byte rather than indexing a string once a neighbour. An empty word is any
+## stroke at all.
+func _house_mask(paint: Array, word: String) -> PackedByteArray:
+	var blank: int = Houses.NONE.unicode_at(0)
+	var want: int = -1 if word.is_empty() else word.unicode_at(0)
+	var mask := PackedByteArray()
+	for line: String in paint:
+		var bytes: PackedByteArray = line.to_ascii_buffer()
+		for at: int in bytes.size():
+			var painted: bool = bytes[at] != blank if want < 0 else bytes[at] == want
+			bytes[at] = 1 if painted else 0
+		mask.append_array(bytes)
+	return mask
+
+
+@warning_ignore("integer_division")
+func _house_flood(mask: PackedByteArray, cols: int) -> PackedInt32Array:
 	var owner := PackedInt32Array()
-	owner.resize(rows * cols)
+	owner.resize(mask.size())
 	owner.fill(-1)
+	var steps := PackedInt32Array([-cols, cols, -1, 1])
 	var bodies: int = 0
 	var stack := PackedInt32Array()
-	for start: int in rows * cols:
-		if owner[start] >= 0:
-			continue
-		@warning_ignore("integer_division")
-		if not _house_is(paint[start / cols][start % cols], word):
+	for start: int in mask.size():
+		if owner[start] >= 0 or mask[start] == 0:
 			continue
 		owner[start] = bodies
 		stack.push_back(start)
 		while not stack.is_empty():
 			var at: int = stack[stack.size() - 1]
 			stack.remove_at(stack.size() - 1)
-			@warning_ignore("integer_division")
-			var y: int = at / cols
-			var x: int = at % cols
-			for step: Vector2i in [
-				Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
-			]:
-				var nx: int = x + step.x
-				var ny: int = y + step.y
-				if nx < 0 or ny < 0 or nx >= cols or ny >= rows:
+			for step: int in steps:
+				var next: int = at + step
+				if next < 0 or next >= mask.size() or owner[next] >= 0 \
+						or mask[next] == 0:
 					continue
-				var next: int = ny * cols + nx
-				if owner[next] >= 0 or not _house_is(paint[ny][nx], word):
+				var sideways: bool = absi(step) == 1
+				if sideways and next / cols != at / cols:
 					continue
 				owner[next] = bodies
 				stack.push_back(next)
 		bodies += 1
 	return owner
 
-
-func _house_is(stroke: String, word: String) -> bool:
-	return stroke != Houses.NONE if word.is_empty() else stroke == word
 
 const HOUSE_ROOF_STEP: int = 1
 
@@ -7123,9 +7197,7 @@ func _measure_room_fill() -> void:
 					or tx >= _map_end.x - 1 \
 					or ty >= _map_end.y - 1:
 				at_edge = true
-			for step: Vector2i in [
-				Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
-			]:
+			for step: Vector2i in STEPS:
 				var to := Vector2i(tx + step.x, ty + step.y)
 				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
 					continue
@@ -7166,9 +7238,7 @@ func _emit_skirt(tx: int, ty: int, atlas: RefCounted) -> void:
 	_sink = SINK_TERRAIN
 	_skirt_fence(tx, ty, edge, float(floor_at.y), atlas)
 	_sink = SINK_WATER if floor_at.y < 0 else SINK_TERRAIN
-	for step: Vector2i in [
-		Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
-	]:
+	for step: Vector2i in STEPS:
 		_skirt_side(tx, ty, step, floor_at, atlas)
 	_sink = SINK_TERRAIN
 

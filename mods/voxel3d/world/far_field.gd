@@ -229,7 +229,7 @@ func advance(focus: Vector3, reach: float) -> void:
 		), Vector2(near.width_blocks, near.height_blocks), origin,
 			near.border_block, near.tileset, false)
 		_stand(layer, origin, size, NEAR_DEPTH)
-		var found: Dictionary = _walk_of(near, 0)
+		var found: Dictionary = _walk_of(near, Rect2i())
 		_foliage.place(near, origin, sheet, found.get("drawings", {}), _stamped)
 		_houses.place(near, origin, sheet, found.get("buildings", []), _stamped)
 
@@ -245,7 +245,7 @@ func advance(focus: Vector3, reach: float) -> void:
 		_dress(layer, _sheet(map, true), here, _tile_texture(tileset), blocks,
 			origin, map.border_block, map.tileset, false)
 		_stand(layer, origin, blocks * BLOCK_PIXELS, HERE_DEPTH)
-		var here_found: Dictionary = _walk_of(map, _ring_tiles())
+		var here_found: Dictionary = _walk_of(map, _ring_grid())
 		_foliage.place(
 			map, Vector2.ZERO, _sheet(map, true), here_found.get("drawings", {}), _hole
 		)
@@ -260,8 +260,8 @@ func advance(focus: Vector3, reach: float) -> void:
 	_hide_from(used)
 
 
-func _walk_of(map: Gen2WorldMap, margin: int) -> Dictionary:
-	var key: String = "%d:%d:%d" % [map.group, map.number, margin]
+func _walk_of(map: Gen2WorldMap, grid: Rect2i) -> Dictionary:
+	var key: String = "%d:%d:%s" % [map.group, map.number, str(grid)]
 	if _walked.has(key):
 		return _walked[key]
 	if _walk_owed:
@@ -269,14 +269,18 @@ func _walk_of(map: Gen2WorldMap, margin: int) -> Dictionary:
 	_walk_owed = true
 	if _walked.size() >= SHEET_LIMIT:
 		_walked.clear()
-	_walked[key] = FarDrawings.of_map(_world.data, map, Profile, margin)
+	_walked[key] = FarDrawings.of_map(_world.data, map, Profile, grid)
 	return _walked[key]
 
 
-func _ring_tiles() -> int:
+## The mesher's grid in map tiles, which is what it stamped models over.
+func _ring_grid() -> Rect2i:
 	if not _stamped.has_area():
-		return 0
-	return int(-_stamped.position.x / TILE)
+		return Rect2i()
+	return Rect2i(
+		Vector2i((_stamped.position / TILE).floor()),
+		Vector2i((_stamped.size / TILE).round())
+	)
 
 
 func _place_fill(map: Gen2WorldMap, tileset: Gen2WorldTileset, seen: Rect2) -> void:

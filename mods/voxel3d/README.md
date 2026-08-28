@@ -63,10 +63,11 @@ half is a quarter of the work, and it costs no art quality: the picture is Game
 Boy texels and a divisor draws them larger rather than blurrier. Default FULL on
 desktop, a half on phone or tablet.
 
-**DISTANCE** is the other half. The biggest map meshes whole in 39 ms and in
-13 ms at sixteen cells for the same picture, since at the default pitch the eye
-frames about sixteen cells of ground. A LOW camera reaches ninety cells out, and
-FULL is for that.
+**DISTANCE** is the other half. The dearest map in the game is 520 ms of
+geometry whole and 300 ms at sixteen cells for the same picture, since at the
+default pitch the eye frames about sixteen cells of ground. Measuring that map is
+another 240 ms and is paid at any distance. A LOW camera reaches ninety cells
+out, and FULL is for that.
 
 ## How a map is built
 
@@ -77,9 +78,9 @@ grouped on the same grid, which is where a filled window pays most: on the
 largest shot in the game, 5.39M triangles in 116 draws becomes 1.26M in 166.
 
 A build is spread over frames, since a town is 200 ms of geometry and that was a
-visible stop on every warp; whatever is on screen keeps being drawn meanwhile. A
-battle keeps the map it resolved, so a second fight on a route pays for geometry
-alone.
+visible stop on every warp; whatever is on screen keeps being drawn meanwhile.
+Measuring the map is spread the same way, one pass of it a frame. A battle keeps
+the map it resolved, so a second fight on a route pays for geometry alone.
 
 Walking out of the middle of the window rebuilds it around you: the map is
 resolved once and only the geometry emitted again, with a margin of a third of
@@ -482,18 +483,20 @@ is playing in. Indoors the far field is off entirely: carrying a floor out of a
 house would lay its lino across the void.
 
 **Trees and buildings stand on it.** A far map is walked once, tile by tile,
-asking the tileset which drawing stands where, which costs about 11 ms a map
-against the quarter of a second a real resolve takes. Each drawing wears a card
-cut from its own map's sheet by `shape/mesher.gd:far_card_for`, named by its whole
-arrangement of tiles through `shape/far_drawings.gd`, so a neighbour's conifers
-are its own and not this map's. `tools/far_drawings.gd` checks that against a
-real resolve: every card is the mesh's own pixel for pixel, and 14 of Crystal's
-77 outdoor maps disagree about how many spots a drawing stands on, the walk
-finding a few fewer or more than the mesh does. One simplification is
-deliberate: a drawing gets one card rather than its own bodies, so a cell of four
-sea rocks is one rock out there. `world/far_houses.gd` stands a far building as a roof over a footprint with
-a wall under the front, painted off that map's sheet: a box and not a house, since
-out here a map has to be stood up in milliseconds.
+asking the tileset which drawing stands where, which costs about 13 ms a map
+against the quarter of a second a real resolve takes. The map under the player is
+walked over the mesher's own grid, `stamped_bounds_tiles`, since that ring is
+grown a side at a time and one margin cannot say where the walk ends. Each
+drawing wears a card cut from its own map's sheet by
+`shape/mesher.gd:far_card_for`, named by its whole arrangement of tiles through
+`shape/far_drawings.gd`, so a neighbour's conifers are its own and not this
+map's. `tools/far_drawings.gd` checks that against a real resolve over all 77
+outdoor maps: every card is the mesh's own pixel for pixel, and every drawing
+stands on the same spots. One simplification is deliberate: a drawing gets one
+card rather than its own bodies, so a cell of four sea rocks is one rock out
+there. `world/far_houses.gd` stands a far building as a roof over a footprint
+with a wall under the front, painted off that map's sheet: a box and not a house,
+since out here a map has to be stood up in milliseconds.
 
 **Past every map** the cartridge fills everything with one border block repeated
 to the horizon, and on forty of the seventy-seven outdoor maps every tile of it
