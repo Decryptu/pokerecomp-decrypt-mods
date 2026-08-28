@@ -732,28 +732,34 @@ func _fact_cliff(
 		else shape.height(shape_class)
 
 func resolve(source: RefCounted, shape: RefCounted) -> void:
-	_size = Vector2i.ZERO
-	_masks.clear()
-	_hulls.clear()
-	_facts.clear()
-	_border.clear()
-	_edge_floor = Vector2i(-2, 0)
-	_ground_table = {}
-	_ground_by_id.clear()
-	_model_meshes.clear()
-	_model_spots.clear()
-	_model_bodies.clear()
-	_model_measures.clear()
-	_model_inputs.clear()
-	_model_cutouts.clear()
-	_chunk_cache.clear()
-	_structure_owner.clear()
-	_commonest_index.clear()
+	_forget()
 	if source == null or not source.valid():
 		return
 	_outside = source.outside()
 	_room_wall = [] if _outside else shape.room_wall()
 	_ground_table = shape.ground_table()
+	_size_grid(source, shape)
+	_fill_grid(source, shape)
+	var painted_map: Gen2WorldMap = source.map()
+	if painted_map != null:
+		_match_houses(shape, painted_map.tileset)
+	_measure(source, shape)
+
+
+func _forget() -> void:
+	_size = Vector2i.ZERO
+	_edge_floor = Vector2i(-2, 0)
+	_ground_table = {}
+	for held: Variant in [
+		_masks, _hulls, _facts, _border, _ground_by_id, _model_meshes,
+		_model_spots, _model_bodies, _model_measures, _model_inputs,
+		_model_cutouts, _chunk_cache, _structure_owner, _commonest_index
+	]:
+		held.clear()
+
+
+## The grid is the map plus the ring around it, each side grown on its own.
+func _size_grid(source: RefCounted, shape: RefCounted) -> void:
 	var ring: int = _ring_depth(source, shape) if _outside \
 		else (ROOM_RING if not _room_wall.is_empty() else 0)
 	_map_size = source.size_cells() * RomLayout.MAP_BLOCK_CELL_WIDTH
@@ -768,121 +774,112 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_size = _map_size + _margin + _margin_far
 	_map_end = _margin + _map_size
 	var count: int = _size.x * _size.y
-	_tiles.resize(count)
-	_art.resize(count)
-	_depths.resize(count)
-	_round.resize(count)
-	_filled.resize(count)
-	_stem.resize(count)
-	_stem_rise.resize(count)
-	_outlined.resize(count)
-	_modelled.resize(count)
-	_shrub.resize(count)
-	_rock.resize(count)
-	_potted.resize(count)
-	_column.resize(count)
-	_stretch.resize(count)
-	_tufted.resize(count)
-	_long_grass.resize(count)
-	_swaying.resize(count)
-	_span_x.resize(count)
-	_span_y.resize(count)
-	_span_cut.resize(count)
-	_lying.resize(count)
-	_on_furniture.resize(count)
-	_klass.resize(count)
-	_part.resize(count)
-	_drop.resize(count)
-	_slope.resize(count)
-	_pitched.resize(count)
-	_void.resize(count)
-	_margin_left.resize(count)
-	_margin_right.resize(count)
-	_heights.resize(count)
-	_volume.resize(count)
-	_cliff.resize(count)
-	_front.resize(count)
-	_lip.resize(count)
-	_bases.resize(count)
+	for band: Variant in [
+		_tiles, _art, _depths, _round, _filled, _stem, _stem_rise, _outlined,
+		_modelled, _shrub, _rock, _potted, _column, _stretch, _tufted,
+		_long_grass, _swaying, _span_x, _span_y, _span_cut, _lying,
+		_on_furniture, _klass, _part, _drop, _slope, _pitched, _void,
+		_margin_left, _margin_right, _heights, _volume, _cliff, _front, _lip,
+		_bases
+	]:
+		band.resize(count)
 	_ledge.resize(count)
 	_ledge.fill(LEDGE_NONE)
-	_shelf.resize(count)
-	_shelf.fill(0)
-	_doorway.resize(count)
-	_doorway.fill(0)
-	_room.resize(count)
-	_room.fill(0)
+	for cleared: Variant in [_shelf, _doorway, _room]:
+		cleared.resize(count)
+		cleared.fill(0)
 
+
+## A shell tile stands outside the map and wears the room's own wall. Marked in
+## one pass so the fill below tests a byte rather than four bounds a tile.
+func _mark_shell() -> void:
+	_room.fill(0)
+	if _room_wall.is_empty():
+		return
 	for ty: int in _size.y:
-		var cell_y: int = (ty - _margin.y) >> 1
 		for tx: int in _size.x:
-			var at: int = ty * _size.x + tx
-			var shell: bool = not _room_wall.is_empty() and (
+			if (
 				tx < _margin.x or ty < _margin.y
 				or tx >= _map_end.x or ty >= _map_end.y
-			)
-			_room[at] = ROOM_SHELL if shell else 0
-			var tile: int = _room_wall_tile(tx, ty) if shell \
-				else source.tile_at(tx - _margin.x, ty - _margin.y)
-			_tiles[at] = tile
-			_bases[at] = ty
-			_cliff[at] = 0
-			_front[at] = 0
-			_lip[at] = 0
-			if tile < 0:
-				_heights[at] = 0
-				_volume[at] = 0
-				_art[at] = ART_FLAT
-				_part[at] = PART_NONE
-				continue
-			var permission: int = -1 if shell else source.permission_at(
-				Vector2i((tx - _margin.x) >> 1, cell_y)
-			)
-			var fact: Array = _facts.get(tile * FACT_STRIDE + permission + 1, [])
-			if fact.is_empty():
-				fact = _tile_fact(shape, tile, permission)
-				_facts[tile * FACT_STRIDE + permission + 1] = fact
-			_art[at] = fact[FACT_ART]
-			_depths[at] = fact[FACT_DEPTH]
-			_round[at] = fact[FACT_ROUND]
-			_filled[at] = fact[FACT_FILLED]
-			_stem[at] = fact[FACT_STEM]
-			_stem_rise[at] = fact[FACT_STEM_RISE]
-			_outlined[at] = fact[FACT_OUTLINED]
-			_modelled[at] = fact[FACT_MODELLED]
-			_shrub[at] = fact[FACT_SHRUB]
-			_rock[at] = fact[FACT_ROCK]
-			_potted[at] = fact[FACT_POTTED]
-			_column[at] = fact[FACT_COLUMN]
-			_stretch[at] = fact[FACT_STRETCH]
-			var grass_code: int = source.code_at(
-				Vector2i((tx - _margin.x) >> 1, cell_y)
-			)
-			_tufted[at] = 1 if fact[FACT_TUFTED] == 1 \
-				or Gen2WorldCollision.is_grass(grass_code) else 0
-			_long_grass[at] = int(Gen2WorldCollision.is_long_grass(grass_code))
-			_swaying[at] = fact[FACT_SWAYS]
-			_lying[at] = fact[FACT_LYING]
-			_on_furniture[at] = fact[FACT_ON_FURNITURE]
-			_span_x[at] = fact[FACT_SPAN_X]
-			_span_y[at] = fact[FACT_SPAN_Y]
-			_span_cut[at] = 0
-			_klass[at] = fact[FACT_KLASS]
-			_part[at] = fact[FACT_PART]
-			_drop[at] = fact[FACT_DROP]
-			_slope[at] = fact[FACT_SLOPE]
-			_void[at] = fact[FACT_VOID]
-			_margin_left[at] = fact[FACT_MARGIN_LEFT]
-			_margin_right[at] = fact[FACT_MARGIN_RIGHT]
-			_volume[at] = fact[FACT_VOLUME]
-			_cliff[at] = fact[FACT_CLIFF]
-			_front[at] = fact[FACT_FRONT]
-			_lip[at] = fact[FACT_LIP]
-			_heights[at] = fact[FACT_HEIGHT]
+			):
+				_room[ty * _size.x + tx] = ROOM_SHELL
 
-	var painted_map: Gen2WorldMap = source.map()
-	if painted_map != null:
-		_match_houses(shape, painted_map.tileset)
+
+func _fill_grid(source: RefCounted, shape: RefCounted) -> void:
+	_mark_shell()
+	for ty: int in _size.y:
+		_fill_row(source, shape, ty)
+
+
+func _fill_row(source: RefCounted, shape: RefCounted, ty: int) -> void:
+	var cell_y: int = (ty - _margin.y) >> 1
+	for tx: int in _size.x:
+		var at: int = ty * _size.x + tx
+		var shell: bool = _room[at] == ROOM_SHELL
+		var tile: int = _room_wall_tile(tx, ty) if shell \
+			else source.tile_at(tx - _margin.x, ty - _margin.y)
+		_tiles[at] = tile
+		_bases[at] = ty
+		_cliff[at] = 0
+		_front[at] = 0
+		_lip[at] = 0
+		if tile < 0:
+			_blank_tile(at)
+			continue
+		var cell := Vector2i((tx - _margin.x) >> 1, cell_y)
+		var permission: int = -1 if shell else source.permission_at(cell)
+		var key: int = tile * FACT_STRIDE + permission + 1
+		var fact: Array = _facts.get(key, [])
+		if fact.is_empty():
+			fact = _tile_fact(shape, tile, permission)
+			_facts[key] = fact
+		_art[at] = fact[FACT_ART]
+		_depths[at] = fact[FACT_DEPTH]
+		_round[at] = fact[FACT_ROUND]
+		_filled[at] = fact[FACT_FILLED]
+		_stem[at] = fact[FACT_STEM]
+		_stem_rise[at] = fact[FACT_STEM_RISE]
+		_outlined[at] = fact[FACT_OUTLINED]
+		_modelled[at] = fact[FACT_MODELLED]
+		_shrub[at] = fact[FACT_SHRUB]
+		_rock[at] = fact[FACT_ROCK]
+		_potted[at] = fact[FACT_POTTED]
+		_column[at] = fact[FACT_COLUMN]
+		_stretch[at] = fact[FACT_STRETCH]
+		_swaying[at] = fact[FACT_SWAYS]
+		_lying[at] = fact[FACT_LYING]
+		_on_furniture[at] = fact[FACT_ON_FURNITURE]
+		_span_x[at] = fact[FACT_SPAN_X]
+		_span_y[at] = fact[FACT_SPAN_Y]
+		_span_cut[at] = 0
+		_klass[at] = fact[FACT_KLASS]
+		_part[at] = fact[FACT_PART]
+		_drop[at] = fact[FACT_DROP]
+		_slope[at] = fact[FACT_SLOPE]
+		_void[at] = fact[FACT_VOID]
+		_margin_left[at] = fact[FACT_MARGIN_LEFT]
+		_margin_right[at] = fact[FACT_MARGIN_RIGHT]
+		_volume[at] = fact[FACT_VOLUME]
+		_cliff[at] = fact[FACT_CLIFF]
+		_front[at] = fact[FACT_FRONT]
+		_lip[at] = fact[FACT_LIP]
+		_heights[at] = fact[FACT_HEIGHT]
+		var grass: int = source.code_at(cell)
+		_tufted[at] = int(
+			fact[FACT_TUFTED] == 1 or Gen2WorldCollision.is_grass(grass)
+		)
+		_long_grass[at] = int(Gen2WorldCollision.is_long_grass(grass))
+
+
+func _blank_tile(at: int) -> void:
+	_heights[at] = 0
+	_volume[at] = 0
+	_art[at] = ART_FLAT
+	_part[at] = PART_NONE
+
+
+## Every measuring pass, in the order each depends on the last.
+func _measure(source: RefCounted, shape: RefCounted) -> void:
 	_measure_columns()
 	_measure_cliffs()
 	_apply_levels(source)
@@ -914,7 +911,6 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_measure_shores()
 	_measure_surfaces()
 	_measure_bank()
-
 
 func _apply_levels(source: RefCounted) -> void:
 	var map: Gen2WorldMap = source.map()
