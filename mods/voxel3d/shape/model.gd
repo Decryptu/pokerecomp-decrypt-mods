@@ -379,98 +379,162 @@ const LEAF: int = 2
 const POT: int = 3
 
 
+## The box a tree is carved out of, in voxels.
+class Frame:
+	var reach: int = 0
+	var wide: int = 0
+	var tall: int = 0
+	var pot_high: int = 0
+	var trunk_high: int = 0
+	var crown_high: int = 0
+	var trunk_half: float = 0.0
+
+
 func tree(measured: Measure) -> ArrayMesh:
 	_vertices = PackedVector3Array()
 	_normals = PackedVector3Array()
 	_colors = PackedColorArray()
 	_sways = PackedVector2Array()
-
 	_voxel = ROCK_VOXEL if measured.rock or measured.potted else VOXEL
-	var rows: int = measured.profile.size()
+	var frame: Frame = _frame(measured)
+	_sway_still = measured.rock
+	_sway_foot = float(frame.pot_high + frame.trunk_high) * _voxel
+	_sway_span = float(maxi(frame.crown_high - 1, 1)) * _voxel
+	var solid: PackedByteArray = _carve(measured, frame)
+	_shell(solid, measured, frame)
+	return _tree_mesh()
+
+
+func _frame(measured: Measure) -> Frame:
+	var out := Frame.new()
 	var stretch: float = measured.stretch
 	if stretch <= 0.0:
 		stretch = 1.0 if measured.shrub else CROWN_STRETCH
-	var crown_high: int = maxi(ceili(float(rows) * stretch / _voxel), 2)
-	var trunk_high: int = 0 if measured.shrub else maxi(ceili(
-		maxf(float(measured.trunk_height), POT_STALK) / _voxel
-		if not measured.pot.is_empty()
-		else maxf(float(measured.trunk_height), float(measured.width()) * TRUNK_MIN)
-			/ _voxel
-	), 2)
-	var trunk_half: float = maxf(
+	out.crown_high = maxi(ceili(float(measured.profile.size()) * stretch / _voxel), 2)
+	out.trunk_high = 0 if measured.shrub else _trunk_high(measured)
+	out.trunk_half = maxf(
 		float(measured.width()) * TRUNK_THICKNESS * 0.5 / _voxel, 1.0
 	)
 	var widest: float = 0.0
 	for radius: float in measured.profile:
 		widest = maxf(widest, radius / _voxel)
-	var pot_high: int = 0
 	var pot_wide: float = 0.0
 	if not measured.pot.is_empty():
-		pot_high = maxi(ceili(float(measured.pot.size()) / _voxel), 1)
+		out.pot_high = maxi(ceili(float(measured.pot.size()) / _voxel), 1)
 		for radius: float in measured.pot:
 			pot_wide = maxf(pot_wide, radius / _voxel)
-	var reach: int = ceili(
-		maxf(widest, pot_wide) + (0.0 if measured.shrub or pot_high > 0 else ROOT_REACH)
-	) + 1
-	var wide: int = reach * 2 + 1
-	var tall: int = pot_high + trunk_high + crown_high + 1
-	_sway_still = measured.rock
-	_sway_foot = float(pot_high + trunk_high) * _voxel
-	_sway_span = float(maxi(crown_high - 1, 1)) * _voxel
+	var roots: float = 0.0 if measured.shrub or out.pot_high > 0 else ROOT_REACH
+	out.reach = ceili(maxf(widest, pot_wide) + roots) + 1
+	out.wide = out.reach * 2 + 1
+	out.tall = out.pot_high + out.trunk_high + out.crown_high + 1
+	return out
 
+
+func _trunk_high(measured: Measure) -> int:
+	var high: float = maxf(float(measured.trunk_height), POT_STALK)
+	if measured.pot.is_empty():
+		high = maxf(
+			float(measured.trunk_height), float(measured.width()) * TRUNK_MIN
+		)
+	return maxi(ceili(high / _voxel), 2)
+
+
+func _carve(measured: Measure, frame: Frame) -> PackedByteArray:
 	var solid := PackedByteArray()
-	solid.resize(wide * wide * tall)
-	for vy: int in tall:
-		for vz: int in wide:
-			for vx: int in wide:
-				var x: float = float(vx - reach)
-				var z: float = float(vz - reach)
-				var plan: float = sqrt(x * x + z * z)
-				var fill: int = EMPTY
-				if vy < pot_high:
-					var at_row: int = mini(
-						int(float(pot_high - 1 - vy) * _voxel), measured.pot.size() - 1
-					)
-					var wall: float = measured.pot[at_row] / _voxel
-					if vy == pot_high - 1:
-						wall += 1.0
-					if plan <= wall:
-						fill = POT
-				elif vy < pot_high + trunk_high:
-					var root: float = 0.0 if pot_high > 0 else maxf(
-						1.0 - float(vy - pot_high) / (float(trunk_high) * ROOT_RISE), 0.0
-					) * ROOT_REACH
-					var along: float = maxf(absf(x), absf(z))
-					var across_root: float = minf(absf(x), absf(z))
-					if plan <= trunk_half \
-							or (across_root <= trunk_half * 0.55 \
-								and along <= trunk_half + root):
-						fill = BARK
-				if fill == EMPTY:
-					var radius: float = _radius(
-						measured, vy - pot_high - trunk_high, crown_high
-					)
-					if radius > 0.0:
-						var ragged: float = 0.0 if measured.column \
-							else (ROCK_NOISE if measured.rock else LEAF_NOISE)
-						if plan <= radius * _wobble(x, z, plan, vy, ragged):
-							fill = LEAF
-				solid[(vy * wide + vz) * wide + vx] = fill
+	solid.resize(frame.wide * frame.wide * frame.tall)
+	for vy: int in frame.tall:
+		for vz: int in frame.wide:
+			for vx: int in frame.wide:
+				var x: float = float(vx - frame.reach)
+				var z: float = float(vz - frame.reach)
+				solid[(vy * frame.wide + vz) * frame.wide + vx] = _fill(
+					measured, frame, vy, x, z, sqrt(x * x + z * z)
+				)
+	return solid
 
-	for vy: int in tall:
-		_band = _band_at(measured, vy - pot_high - trunk_high, crown_high)
-		_wrap = _wrap_at(measured, vy - pot_high - trunk_high, crown_high)
-		if vy < pot_high and not measured.pot_bands.is_empty():
+
+## Pot, then trunk, then crown. A voxel the pot or the trunk does not claim is
+## still offered to the crown, so leaves reach down past the trunk they grow on.
+func _fill(
+	measured: Measure, frame: Frame, vy: int, x: float, z: float, plan: float
+) -> int:
+	var fill: int = EMPTY
+	if vy < frame.pot_high:
+		fill = _pot_fill(measured, frame, vy, plan)
+	elif vy < frame.pot_high + frame.trunk_high:
+		fill = _bark_fill(frame, vy, x, z, plan)
+	if fill != EMPTY:
+		return fill
+	return _leaf_fill(measured, frame, vy, x, z, plan)
+
+
+## The pot's own wall, with its rim a voxel proud so the lip reads.
+func _pot_fill(measured: Measure, frame: Frame, vy: int, plan: float) -> int:
+	var at_row: int = mini(
+		int(float(frame.pot_high - 1 - vy) * _voxel), measured.pot.size() - 1
+	)
+	var wall: float = measured.pot[at_row] / _voxel
+	if vy == frame.pot_high - 1:
+		wall += 1.0
+	return POT if plan <= wall else EMPTY
+
+
+## The trunk, with roots flaring along the axes at its foot. A potted plant has
+## no roots to show.
+func _bark_fill(
+	frame: Frame, vy: int, x: float, z: float, plan: float
+) -> int:
+	if plan <= frame.trunk_half:
+		return BARK
+	var root: float = 0.0
+	if frame.pot_high == 0:
+		root = maxf(
+			1.0 - float(vy - frame.pot_high) / (float(frame.trunk_high) * ROOT_RISE),
+			0.0
+		) * ROOT_REACH
+	var along: float = maxf(absf(x), absf(z))
+	var across: float = minf(absf(x), absf(z))
+	if across <= frame.trunk_half * 0.55 and along <= frame.trunk_half + root:
+		return BARK
+	return EMPTY
+
+
+func _leaf_fill(
+	measured: Measure, frame: Frame, vy: int, x: float, z: float, plan: float
+) -> int:
+	var radius: float = _radius(
+		measured, vy - frame.pot_high - frame.trunk_high, frame.crown_high
+	)
+	if radius <= 0.0:
+		return EMPTY
+	var ragged: float = 0.0
+	if not measured.column:
+		ragged = ROCK_NOISE if measured.rock else LEAF_NOISE
+	return LEAF if plan <= radius * _wobble(x, z, plan, vy, ragged) else EMPTY
+
+
+## One layer of colour per voxel row, then a face wherever a solid voxel meets
+## air.
+func _shell(solid: PackedByteArray, measured: Measure, frame: Frame) -> void:
+	for vy: int in frame.tall:
+		var up: int = vy - frame.pot_high - frame.trunk_high
+		_band = _band_at(measured, up, frame.crown_high)
+		_wrap = _wrap_at(measured, up, frame.crown_high)
+		if vy < frame.pot_high and not measured.pot_bands.is_empty():
 			_band = measured.pot_bands[clampi(
 				measured.pot_bands.size() - 1 - int(float(vy) * _voxel),
 				0, measured.pot_bands.size() - 1
 			)]
-		for vz: int in wide:
-			for vx: int in wide:
-				if solid[(vy * wide + vz) * wide + vx] == EMPTY:
-					continue
-				_faces(solid, wide, tall, vx, vy, vz, reach, measured)
+		for vz: int in frame.wide:
+			for vx: int in frame.wide:
+				if solid[(vy * frame.wide + vz) * frame.wide + vx] != EMPTY:
+					_faces(
+						solid, frame.wide, frame.tall, vx, vy, vz, frame.reach,
+						measured
+					)
 
+
+func _tree_mesh() -> ArrayMesh:
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = _vertices
