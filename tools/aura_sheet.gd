@@ -371,7 +371,7 @@ class Sheet extends Node2D:
 	func _blit_anim(plate: Image, anim: int, until: int) -> int:
 		var anim_data: Gen2BattleAnimData = Gen2BattleAnimData.from_game_data(data)
 		var player: Gen2BattleAnimPlayer = Gen2BattleAnimPlayer.create(
-			anim_data, anim, true, 1 if anim == 0x101 else 0
+			anim_data, anim, true, int(anim == 0x101)
 		)
 		if player == null:
 			return -1

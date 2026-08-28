@@ -63,7 +63,7 @@ func _initialize() -> void:
 	_samples(world, first, data)
 	_wild_sample(world, first, data)
 	var failures: int = _rules(world, first, validate)
-	quit(1 if failures > 0 else 0)
+	quit(int(failures > 0))
 
 
 func _with_seed(settings: Dictionary, seed_value: int) -> Dictionary:

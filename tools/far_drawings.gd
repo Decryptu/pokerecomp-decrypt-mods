@@ -111,7 +111,7 @@ func _initialize() -> void:
 		% [maps, differ, drawings, spots, cut, houses]
 		+ " walk %.1f ms, cut %.1f ms"
 		% [float(walk_usec) / 1000.0, float(cut_usec) / 1000.0])
-	quit(1 if differ > 0 else 0)
+	quit(int(differ > 0))
 
 
 func _start(spot: Vector2, across: Vector2i) -> Vector2i:

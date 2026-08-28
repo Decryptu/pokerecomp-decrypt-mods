@@ -41,7 +41,7 @@ func image(
 	var drawn: int = 0
 	for entry: Variant in sprites:
 		if entry is Dictionary:
-			drawn += 1 if _blit(into, entry as Dictionary, view, player_off, enemy_off) else 0
+			drawn += int(_blit(into, entry as Dictionary, view, player_off, enemy_off))
 	return into if drawn > 0 else null
 
 

@@ -66,7 +66,7 @@ func _initialize() -> void:
 	failures += _petting(trail_script)
 	failures += _finding(finder)
 	failures += _picking_up(actor_script, options, data)
-	quit(1 if failures > 0 else 0)
+	quit(int(failures > 0))
 
 
 func _summary() -> Dictionary:

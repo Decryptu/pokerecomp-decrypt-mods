@@ -67,7 +67,7 @@ func _initialize() -> void:
 		var order: PackedInt32Array = atlas.shade_order(tile)
 		var closed: Array = []
 		for entry: int in 4:
-			closed.append(1 if atlas.is_dark(tile, entry, 1) else 0)
+			closed.append(int(atlas.is_dark(tile, entry, 1)))
 		print("  tile %3d  darkest first %s  closed under OUTLINE 1: %s"
 			% [tile, order, closed])
 	quit()

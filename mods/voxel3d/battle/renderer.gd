@@ -338,7 +338,7 @@ func _backpic(kind: String) -> Texture2D:
 	var colors: String = String(_view.get("player_backpic_palette", kind))
 	var dmg: int = _palette_map(PAL_BG_PLAYER)
 	return _texture(
-		"b%s:%s:%d:%d" % [kind, colors, dmg, 1 if _graying() else 0],
+		"b%s:%s:%d:%d" % [kind, colors, dmg, int(_graying())],
 		_data.player_backpic(kind),
 		_battler_palette(_data.player_palette(colors), dmg),
 	)
@@ -438,8 +438,8 @@ func _pic(species: int, back: bool) -> Texture2D:
 	var shiny: bool = _shiny(back)
 	return _texture(
 		"%d:%d:%d:%d:%d:%d" % [
-			species, form, 1 if back else 0, dmg,
-			1 if _graying() else 0, 1 if shiny else 0,
+			species, form, int(back), dmg,
+			int(_graying()), int(shiny),
 		],
 		_data.unown_pic(form - 1, back) if unown else _data.species_pic(species, back),
 		_battler_palette(_data.palette(species, shiny), dmg),
@@ -463,7 +463,7 @@ func _substitute_pic(species: int, back: bool) -> Texture2D:
 	var dmg: int = _palette_map(PAL_BG_PLAYER if back else PAL_BG_ENEMY)
 	var shiny: bool = _shiny(back)
 	var key: String = "sub:%d:%d:%d:%d:%d" % [
-		species, 1 if back else 0, dmg, 1 if _graying() else 0, 1 if shiny else 0
+		species, int(back), dmg, int(_graying()), int(shiny)
 	]
 	if _pic_textures.has(key):
 		return _pic_textures[key]
@@ -494,7 +494,7 @@ func _trainer_pic(trainer_class: int) -> Texture2D:
 		return null
 	var dmg: int = _palette_map(PAL_BG_ENEMY)
 	return _texture(
-		"t%d:%d:%d" % [trainer_class, dmg, 1 if _graying() else 0],
+		"t%d:%d:%d" % [trainer_class, dmg, int(_graying())],
 		_data.trainer_pic(trainer_class),
 		_battler_palette(_data.trainer_palette(trainer_class), dmg),
 	)

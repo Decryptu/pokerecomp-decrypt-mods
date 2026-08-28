@@ -57,7 +57,7 @@ func _initialize() -> void:
 		moved += here
 		off_tileset += refused
 		if here > 0 or refused > 0:
-			moved_maps += 1 if here > 0 else 0
+			moved_maps += int(here > 0)
 			rows.append({"map": "%d,%d" % [map.group, map.number], "moved": here,
 				"refused": refused, "ring": seen, "ways": map.connections.size()})
 

@@ -199,7 +199,7 @@ func _pc_row(party_count: int) -> bool:
 
 
 func _switch(key: StringName, enabled: bool) -> void:
-	var result: Dictionary = _host.set_option(MOD_ID, key, 1 if enabled else 0)
+	var result: Dictionary = _host.set_option(MOD_ID, key, int(enabled))
 	_expect(bool(result.get("ok", false)), "%s can be switched" % key)
 
 

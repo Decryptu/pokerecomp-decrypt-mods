@@ -237,9 +237,9 @@ func _glow_survey(
 	for dvs: int in DV_WORDS:
 		var shiny: bool = plan.is_shiny(dvs)
 		var excellent: bool = plan.is_excellent(dvs)
-		out["shiny"] = int(out["shiny"]) + (1 if shiny else 0)
-		out["excellent"] = int(out["excellent"]) + (1 if excellent else 0)
-		out["both"] = int(out["both"]) + (1 if shiny and excellent else 0)
+		out["shiny"] = int(out["shiny"]) + int(shiny)
+		out["excellent"] = int(out["excellent"]) + int(excellent)
+		out["both"] = int(out["both"]) + int(shiny and excellent)
 	var settings: Dictionary = context.duplicate(true)
 	settings["generation"] = 9
 	settings["run_seed"] = _a_glowing_map(plan, settings)

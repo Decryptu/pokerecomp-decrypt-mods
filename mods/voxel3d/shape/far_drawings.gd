@@ -91,7 +91,7 @@ static func _buildings(
 			continue
 		if not known.has(klass[at]):
 			var built: StringName = shape.building_part(named_by_id[klass[at]])
-			known[klass[at]] = 2 if built == &"roof" else (1 if built == &"wall" else 0)
+			known[klass[at]] = 2 if built == &"roof" else int(built == &"wall")
 		part[at] = known[klass[at]]
 		any = any or part[at] > 0
 	var out: Array = []
@@ -132,7 +132,7 @@ static func _buildings(
 			rows.resize(box.size.y)
 			for row: int in box.size.y:
 				rows[row] = 2 if roofs.has(box.position.y + row) \
-					else (1 if walls.has(box.position.y + row) else 0)
+					else int(walls.has(box.position.y + row))
 				for column: int in box.size.x:
 					drawn.append(_tile_at(
 						tiles, size, box.position.x + column, box.position.y + row

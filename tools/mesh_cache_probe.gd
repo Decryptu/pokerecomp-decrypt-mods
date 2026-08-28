@@ -71,7 +71,7 @@ func _initialize() -> void:
 			print("%d,%d  warped %s" % [map.group, map.number, str(warped)])
 			print("      cold   %s" % str(fresh))
 	print("%d maps checked at %d cells, %d differ" % [checked, draw_cells, bad])
-	quit(1 if bad > 0 else 0)
+	quit(int(bad > 0))
 
 
 func _emit(

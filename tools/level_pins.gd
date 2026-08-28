@@ -59,7 +59,7 @@ func _initialize() -> void:
 					map.collision_at(cx, cy)
 				)
 				var can_stand: bool = permission == Gen2WorldCollision.LAND_TILE
-				walkable[cy * cells.x + cx] = 1 if can_stand else 0
+				walkable[cy * cells.x + cx] = int(can_stand)
 				var level: Variant = (levels[cy] as Array)[cx]
 				if not can_stand or int((walls[cy] as Array)[cx]) == 1 or level == null:
 					row += NONE

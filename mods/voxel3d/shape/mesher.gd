@@ -650,67 +650,90 @@ func _margin_cells() -> Vector2i:
 
 func _tile_fact(shape: RefCounted, tile: int, permission: int) -> Array:
 	var shape_class: StringName = shape.at(tile, permission)
-	var art: StringName = shape.art(shape_class)
-	var stem: Array = shape.stem_rows(shape_class)
-	var stem_index: int = 0
-	var stem_rise: int = 0
-	if not stem.is_empty():
-		var found: int = _stem_shapes.find(stem)
-		if found < 0:
-			found = _stem_shapes.size()
-			_stem_shapes.append(stem)
-		stem_index = found + 1
-		stem_rise = clampi(stem.size(), 0, 32)
 	if not _class_ids.has(shape_class):
 		_class_ids[shape_class] = _class_ids.size()
+	var fact: Array = []
+	fact.resize(FACT_SWAYS + 1)
+	fact[FACT_KLASS] = int(_class_ids[shape_class])
+	fact[FACT_ART] = _art_mode(shape.art(shape_class))
+	fact[FACT_DEPTH] = clampi(shape.depth(shape_class), 1, 16)
+	fact[FACT_OUTLINED] = shape.outline_shades(shape_class)
+	fact[FACT_STRETCH] = shape.model_stretch(shape_class)
+	fact[FACT_DROP] = shape.roof_drop(shape_class)
+	var span: Vector2i = shape.span_cells(shape_class)
+	fact[FACT_SPAN_X] = maxi(span.x, 1)
+	fact[FACT_SPAN_Y] = maxi(span.y, 1)
+	_fact_flags(fact, shape, shape_class)
+	_fact_stem(fact, shape, shape_class)
+	_fact_building(fact, shape, shape_class, tile)
+	_fact_cliff(fact, shape, shape_class, tile)
+	return fact
+
+
+func _fact_flags(fact: Array, shape: RefCounted, shape_class: StringName) -> void:
+	fact[FACT_ROUND] = int(shape.is_round(shape_class))
+	fact[FACT_FILLED] = int(shape.is_filled(shape_class))
+	fact[FACT_MODELLED] = int(shape.is_model(shape_class))
+	fact[FACT_SHRUB] = int(shape.is_shrub(shape_class))
+	fact[FACT_ROCK] = int(shape.is_rock(shape_class))
+	fact[FACT_POTTED] = int(shape.is_potted(shape_class))
+	fact[FACT_COLUMN] = int(shape.is_column(shape_class))
+	fact[FACT_TUFTED] = int(shape.is_tufted(shape_class))
+	fact[FACT_SWAYS] = int(shape.is_swaying(shape_class))
+	fact[FACT_LYING] = int(shape.is_lying(shape_class))
+	fact[FACT_ON_FURNITURE] = int(shape_class == &"on_furniture")
+	fact[FACT_VOID] = int(shape_class == &"void")
+
+
+## A stem is kept once and named by index, since one drawing's stem serves every
+## placement of it. Index 0 means none, so the stored index is one-based.
+func _fact_stem(fact: Array, shape: RefCounted, shape_class: StringName) -> void:
+	var stem: Array = shape.stem_rows(shape_class)
+	if stem.is_empty():
+		fact[FACT_STEM] = 0
+		fact[FACT_STEM_RISE] = 0
+		return
+	var found: int = _stem_shapes.find(stem)
+	if found < 0:
+		found = _stem_shapes.size()
+		_stem_shapes.append(stem)
+	fact[FACT_STEM] = found + 1
+	fact[FACT_STEM_RISE] = clampi(stem.size(), 0, 32)
+
+
+func _fact_building(
+	fact: Array, shape: RefCounted, shape_class: StringName, tile: int
+) -> void:
 	var part: int = PART_NONE
 	match shape.building_part(shape_class):
 		&"wall":
 			part = PART_WALL
 		&"roof":
 			part = PART_ROOF
-	var margin: Vector2i = shape.facade_margin(tile) if part == PART_WALL \
-		else Vector2i.ZERO
-	var is_volume: bool = art == &"upright"
-	var cliff: int = 1 if shape.is_cliff(tile) and (is_volume or art == &"top") \
-		else 0
-	var span: Vector2i = shape.span_cells(shape_class)
-	var fact: Array = []
-	fact.resize(FACT_SWAYS + 1)
-	fact[FACT_ART] = _art_mode(art)
-	fact[FACT_DEPTH] = clampi(shape.depth(shape_class), 1, 16)
-	fact[FACT_ROUND] = 1 if shape.is_round(shape_class) else 0
-	fact[FACT_FILLED] = 1 if shape.is_filled(shape_class) else 0
-	fact[FACT_STEM] = stem_index
-	fact[FACT_STEM_RISE] = stem_rise
-	fact[FACT_OUTLINED] = shape.outline_shades(shape_class)
-	fact[FACT_MODELLED] = 1 if shape.is_model(shape_class) else 0
-	fact[FACT_SHRUB] = 1 if shape.is_shrub(shape_class) else 0
-	fact[FACT_ROCK] = 1 if shape.is_rock(shape_class) else 0
-	fact[FACT_POTTED] = 1 if shape.is_potted(shape_class) else 0
-	fact[FACT_COLUMN] = 1 if shape.is_column(shape_class) else 0
-	fact[FACT_STRETCH] = shape.model_stretch(shape_class)
-	fact[FACT_TUFTED] = 1 if shape.is_tufted(shape_class) else 0
-	fact[FACT_SWAYS] = 1 if shape.is_swaying(shape_class) else 0
-	fact[FACT_LYING] = 1 if shape.is_lying(shape_class) else 0
-	fact[FACT_ON_FURNITURE] = 1 if shape_class == &"on_furniture" else 0
-	fact[FACT_SPAN_X] = maxi(span.x, 1)
-	fact[FACT_SPAN_Y] = maxi(span.y, 1)
-	fact[FACT_KLASS] = int(_class_ids[shape_class])
+	var margin: Vector2i = Vector2i.ZERO
+	var slope: int = 0
+	if part == PART_WALL:
+		margin = shape.facade_margin(tile)
+		slope = int(shape.is_facade_slope(tile))
 	fact[FACT_PART] = part
-	fact[FACT_DROP] = shape.roof_drop(shape_class)
-	fact[FACT_SLOPE] = 1 if part == PART_WALL and shape.is_facade_slope(tile) else 0
-	fact[FACT_VOID] = 1 if shape_class == &"void" else 0
 	fact[FACT_MARGIN_LEFT] = margin.x
 	fact[FACT_MARGIN_RIGHT] = margin.y
-	fact[FACT_VOLUME] = 1 if is_volume else 0
+	fact[FACT_SLOPE] = slope
+
+
+## An unpinned volume's height is -1, which means measure it off the drawing.
+func _fact_cliff(
+	fact: Array, shape: RefCounted, shape_class: StringName, tile: int
+) -> void:
+	var is_volume: bool = fact[FACT_ART] == ART_UPRIGHT
+	var on_face: bool = is_volume or fact[FACT_ART] == ART_TOP
+	var cliff: int = int(on_face and shape.is_cliff(tile))
+	fact[FACT_VOLUME] = int(is_volume)
 	fact[FACT_CLIFF] = cliff
-	fact[FACT_FRONT] = 1 if cliff == 1 and shape.is_cliff_front(tile) else 0
-	fact[FACT_LIP] = 1 if not is_volume and shape.is_cliff_lip(tile) else 0
+	fact[FACT_FRONT] = int(cliff == 1 and shape.is_cliff_front(tile))
+	fact[FACT_LIP] = int(not is_volume and shape.is_cliff_lip(tile))
 	fact[FACT_HEIGHT] = -1 if is_volume and not shape.is_pinned(tile) \
 		else shape.height(shape_class)
-	return fact
-
 
 func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_size = Vector2i.ZERO
@@ -841,7 +864,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			)
 			_tufted[at] = 1 if fact[FACT_TUFTED] == 1 \
 				or Gen2WorldCollision.is_grass(grass_code) else 0
-			_long_grass[at] = 1 if Gen2WorldCollision.is_long_grass(grass_code) else 0
+			_long_grass[at] = int(Gen2WorldCollision.is_long_grass(grass_code))
 			_swaying[at] = fact[FACT_SWAYS]
 			_lying[at] = fact[FACT_LYING]
 			_on_furniture[at] = fact[FACT_ON_FURNITURE]
@@ -1197,7 +1220,7 @@ func _house_tile(shape: RefCounted, at: int, stroke: String) -> void:
 	_art[at] = _art_mode(shape.art(painted))
 	_depths[at] = clampi(shape.depth(painted), 1, 16)
 	_heights[at] = shape.height(painted)
-	_volume[at] = 1 if _art[at] == ART_UPRIGHT else 0
+	_volume[at] = int(_art[at] == ART_UPRIGHT)
 	match painted:
 		&"facade":
 			_part[at] = PART_WALL
@@ -1205,7 +1228,7 @@ func _house_tile(shape: RefCounted, at: int, stroke: String) -> void:
 			_part[at] = PART_ROOF
 		_:
 			_part[at] = PART_NONE
-	_slope[at] = 1 if stroke == Houses.FRONT else 0
+	_slope[at] = int(stroke == Houses.FRONT)
 	_round[at] = 0
 	_filled[at] = 0
 	_stem[at] = 0
@@ -2852,7 +2875,7 @@ func _measure_buildings() -> void:
 					var index: int = (ty - step) * _size.x + tx
 					var climbed: int = clampi(step - flat + 1, 0, pitch)
 					_heights[index] = top - (pitch - climbed) * BAND
-					_pitched[index] = 1 if climbed > 0 else 0
+					_pitched[index] = int(climbed > 0)
 					@warning_ignore("integer_division")
 					_bases[index] = ty + under / BAND
 					_volume[index] = 1
@@ -3035,8 +3058,8 @@ func _beside(tx: int, ty: int, step: Vector2i) -> int:
 	if _art[index] == ART_LEDGE:
 		var steps: Array[Vector2i] = _ledge_steps(_ledge[index])
 		var base: int = _heights[index]
-		var u: int = 1 if step.x < 0 else 0
-		var v: int = 1 if step.y < 0 else 0
+		var u: int = int(step.x < 0)
+		var v: int = int(step.y < 0)
 		if step.x == 0:
 			return int(minf(
 				_wedge_y(base, steps, 0, v), _wedge_y(base, steps, 1, v)
@@ -3088,7 +3111,7 @@ var _masks: Dictionary = {}
 
 
 func _mask_key(tiles: Array, filled: bool, outline: int) -> String:
-	return "%s,%d,%d" % [str(tiles), 1 if filled else 0, outline]
+	return "%s,%d,%d" % [str(tiles), int(filled), outline]
 
 
 func _structure_mask(
@@ -3158,7 +3181,7 @@ func _mask_frame(
 		covered += int(ring[index])
 
 	for at: int in indices.size():
-		open[at] = 1 if ground.has(indices[at]) else 0
+		open[at] = int(ground.has(indices[at]))
 	return _flood(size, open, filled)
 
 
@@ -3393,7 +3416,7 @@ func _model_bodies_of(
 			var only := PackedByteArray()
 			only.resize(mask.size())
 			for pixel: int in body.size():
-				only[pixel] = 1 if body[pixel] == group else 0
+				only[pixel] = int(body[pixel] == group)
 			var measured: RefCounted = Model.measure(
 				only, span, tiles, across, atlas, _potted[at] == 1
 			)
@@ -3550,7 +3573,7 @@ func far_card_for(
 	var only := PackedByteArray()
 	only.resize(mask.size())
 	for pixel: int in body.size():
-		only[pixel] = 1 if body[pixel] == best else 0
+		only[pixel] = int(body[pixel] == best)
 	var cutout: ImageTexture = _cut_out(only, span, tiles, across, atlas)
 	if cutout == null:
 		return []
@@ -4193,7 +4216,7 @@ func _object_stool(
 	for j: int in wide:
 		for i: int in wide:
 			var to_centre := Vector2(float(i) + 0.5 - radius, float(j) + 0.5 - radius)
-			filled[j * wide + i] = 1 if to_centre.length() <= radius - 0.5 else 0
+			filled[j * wide + i] = int(to_centre.length() <= radius - 0.5)
 	for j: int in wide:
 		for i: int in wide:
 			if filled[j * wide + i] == 0:
@@ -4716,7 +4739,7 @@ func _object_model(
 			var only := PackedByteArray()
 			only.resize(mask.size())
 			for pixel: int in body.size():
-				only[pixel] = 1 if body[pixel] == group else 0
+				only[pixel] = int(body[pixel] == group)
 			var measured: RefCounted = Model.measure(only, span, tiles, across, atlas)
 			measured.shrub = bool(object.get(&"shrub", true))
 			measured.rock = bool(object.get(&"rock", true))
@@ -5544,8 +5567,8 @@ func _stair_head(
 	for piece: int in wide:
 		var along: int = piece * edge
 		var tile: int = _tile_at(
-			start.x + (across.x - 1 if step.x > 0 else (0 if step.x < 0 else piece)),
-			start.y + (across.y - 1 if step.y > 0 else (0 if step.y < 0 else piece))
+			start.x + _stair_offset(step.x, across.x, piece),
+			start.y + _stair_offset(step.y, across.y, piece)
 		)
 		var uv: Rect2 = atlas.uv_box(tile, Rect2i(0, 0, edge, edge))
 		if step.x != 0:
@@ -5647,7 +5670,7 @@ func _cutout(
 	var mask: PackedByteArray = _structure_mask(tiles, across, atlas, filled, outline)
 	var levels: PackedByteArray = _cell_levels(
 		mask, span, round_plan, roundi(depth),
-		"%s,%d,%d" % [key, 1 if round_plan else 0, roundi(depth)]
+		"%s,%d,%d" % [key, int(round_plan), roundi(depth)]
 	)
 
 	var edge: int = int(TILE)
@@ -5882,14 +5905,17 @@ func _cutout_box(
 			for step: int in length + 1:
 				var open: bool = false
 				if step < length:
-					var at := Vector2i(
-						origin.x + box.position.x + (step if horizontal else (0 if near else box.size.x - 1)),
-						origin.y + box.position.y + ((0 if near else box.size.y - 1) if horizontal else step)
-					)
-					var beyond := Vector2i(
-						at.x + (0 if horizontal else (-1 if near else 1)),
-						at.y + ((-1 if near else 1) if horizontal else 0)
-					)
+					var side: int = box.size.y - 1 if horizontal else box.size.x - 1
+					var across: int = 0 if near else side
+					var outward: int = -1 if near else 1
+					var at := origin + box.position
+					var beyond := Vector2i.ZERO
+					if horizontal:
+						at += Vector2i(step, across)
+						beyond = at + Vector2i(0, outward)
+					else:
+						at += Vector2i(across, step)
+						beyond = at + Vector2i(outward, 0)
 					open = not _drawn(mask, span, beyond.x, beyond.y) \
 						or int(levels[beyond.y * span.x + beyond.x]) < level
 				if open and run < 0:
@@ -6165,6 +6191,14 @@ func _rail_box(
 	)
 
 
+## The far row along a step's own axis, the near row against it, and the piece's
+## own place across it.
+func _stair_offset(step: int, across: int, piece: int) -> int:
+	if step > 0:
+		return across - 1
+	return 0 if step < 0 else piece
+
+
 func _tile_at(tx: int, ty: int) -> int:
 	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
 		return 0
@@ -6365,7 +6399,7 @@ func _tufts(
 	blade.resize(edge * edge)
 	for py: int in edge:
 		for px: int in edge:
-			blade[py * edge + px] = 1 if atlas.pixel(tile, px, py) != ground else 0
+			blade[py * edge + px] = int(atlas.pixel(tile, px, py) != ground)
 	var taken := PackedByteArray()
 	taken.resize(edge * edge)
 	for py: int in edge:
@@ -6901,8 +6935,8 @@ const SKIRT_ALONG: int = 8
 
 func _skirt_floor(edge: Vector2i) -> Vector2i:
 	var inward := Vector2i(
-		1 if edge.x == 0 else (-1 if edge.x == _size.x - 1 else 0),
-		1 if edge.y == 0 else (-1 if edge.y == _size.y - 1 else 0)
+		1 if edge.x == 0 else (-int(edge.x == _size.x - 1)),
+		1 if edge.y == 0 else (-int(edge.y == _size.y - 1))
 	)
 	var found: Vector2i = _skirt_column(edge, inward)
 	if found.x >= 0:
