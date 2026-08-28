@@ -3774,185 +3774,294 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 	_turn = false
 
 
+## One standing object, measured out of its own drawing.
+class Standing:
+	var start := Vector2i.ZERO
+	var across := Vector2i.ZERO
+	var window := Rect2i()
+	var span := Vector2i.ZERO
+	var tiles: Array = []
+	var mask := PackedByteArray()
+	## Rows of the drawing that lie across the depth rather than down the height.
+	var top_rows: int = 0
+	var face_from: int = 0
+	var face_rows: int = 0
+	var deep: float = 0.0
+	var tall: float = 0.0
+	var base: float = 0.0
+	var high: float = 0.0
+	var front: float = 0.0
+	var back: float = 0.0
+	var left: float = 0.0
+	var right: float = 0.0
+
+
 func _emit_object_body(index: int, atlas: RefCounted) -> void:
 	var entry: Array = _objects[index]
 	var object: Dictionary = entry[0]
-	var start: Vector2i = entry[1]
-	var across: Vector2i = entry[2]
-	var front: float = entry[3]
-	var tiles: Array = []
+	var it := Standing.new()
+	it.start = entry[1]
+	it.across = entry[2]
+	it.front = entry[3]
+	it.span = it.across * int(TILE)
+	it.window = object[&"window"]
+	it.tiles = _object_tiles(object, it.start, it.across)
+	it.mask = _object_mask(object, it.tiles, it.across, atlas)
+	if _object_built(object, it, atlas):
+		return
+	_object_measure(object, it)
+	if _turn:
+		_turn_pivot = Vector3(
+			(it.left + it.right) * 0.5, 0.0, (it.front + it.back) * 0.5
+		)
+	_object_faces(it, atlas)
+	_object_sides(object, it, atlas)
+
+
+## The drawing an object wears: its own authored art where it has some, else the
+## tiles the map places under it.
+func _object_tiles(object: Dictionary, start: Vector2i, across: Vector2i) -> Array:
 	var painted: Array = object.get(&"art", [])
+	var tiles: Array = []
 	for row: int in across.y:
 		for column: int in across.x:
 			tiles.append(
 				int((painted[row] as Array)[column]) if not painted.is_empty()
 				else _tile_at(start.x + column, start.y + row)
 			)
-	var span: Vector2i = across * int(TILE)
+	return tiles
+
+
+func _object_mask(
+	object: Dictionary, tiles: Array, across: Vector2i, atlas: RefCounted
+) -> PackedByteArray:
 	var mask: PackedByteArray = _structure_mask(
 		tiles, across, atlas, bool(object.get(&"filled", false)),
 		int(object.get(&"outline", 1))
 	)
-	if bool(object.get(&"solid", false)):
-		mask = mask.duplicate()
-		mask.fill(1)
-	var window: Rect2i = object[&"window"]
+	if not bool(object.get(&"solid", false)):
+		return mask
+	mask = mask.duplicate()
+	mask.fill(1)
+	return mask
+
+
+## An object declared as one of the authored shapes builds itself and is done.
+func _object_built(
+	object: Dictionary, it: Standing, atlas: RefCounted
+) -> bool:
 	if bool(object.get(&"model", false)):
-		_object_model(object, start, across, tiles, mask, span, window, atlas)
-		return
-	if bool(object.get(&"bin", false)):
-		_object_bin(object, start, across, front, tiles, mask, span, window, atlas)
-		return
-	if bool(object.get(&"terminal", false)):
+		_object_model(
+			object, it.start, it.across, it.tiles, it.mask, it.span, it.window, atlas
+		)
+	elif bool(object.get(&"bin", false)):
+		_object_bin(
+			object, it.start, it.across, it.front, it.tiles, it.mask, it.span,
+			it.window, atlas
+		)
+	elif bool(object.get(&"terminal", false)):
 		_object_terminal(
-			object, start, across, front, tiles, mask, span, window, atlas
+			object, it.start, it.across, it.front, it.tiles, it.mask, it.span,
+			it.window, atlas
 		)
-		return
-	if bool(object.get(&"stool", false)):
-		_object_stool(object, start, across, front, tiles, mask, span, window, atlas)
-		return
-	if bool(object.get(&"seat", false)):
-		_object_seat(object, start, across, front, tiles, mask, span, window, atlas)
-		return
-	if bool(object.get(&"tower", false)):
-		_object_tower(object, start, across, tiles, window, atlas)
-		return
-	var top_rows: int = clampi(int(object.get(&"top", 0)), 0, window.size.y)
-	var face_rows: int = window.size.y - top_rows
-	var face_from: int = window.position.y + top_rows
-	var face_until: int = window.position.y + window.size.y
+	elif bool(object.get(&"stool", false)):
+		_object_stool(
+			object, it.start, it.across, it.front, it.tiles, it.mask, it.span,
+			it.window, atlas
+		)
+	elif bool(object.get(&"seat", false)):
+		_object_seat(
+			object, it.start, it.across, it.front, it.tiles, it.mask, it.span,
+			it.window, atlas
+		)
+	elif bool(object.get(&"tower", false)):
+		_object_tower(object, it.start, it.across, it.tiles, it.window, atlas)
+	else:
+		return false
+	return true
+
+
+func _object_measure(object: Dictionary, it: Standing) -> void:
+	it.top_rows = clampi(int(object.get(&"top", 0)), 0, it.window.size.y)
+	it.face_rows = it.window.size.y - it.top_rows
+	it.face_from = it.window.position.y + it.top_rows
+	var face_until: int = it.window.position.y + it.window.size.y
 	if bool(object.get(&"foot", false)):
-		var reach: Vector2i = _drawn_rows(mask, span, window, face_from, face_until)
-		if reach.y > reach.x:
-			face_from = reach.x
-			face_until = reach.y
-			face_rows = face_until - face_from
-	var deep: float = float(object[&"depth"])
-	var tall: float = float(object[&"height"])
-	var base: float = _object_base(object, start, across)
-	var back: float = front - deep
-	var left: float = _world_x(start.x) + float(window.position.x)
-	var right: float = left + float(window.size.x)
-	var high: float = base + tall
-	if _turn:
-		_turn_pivot = Vector3((left + right) * 0.5, 0.0, (front + back) * 0.5)
-
-	var taken := PackedByteArray()
-	taken.resize(window.size.x * window.size.y)
-	for row: int in window.size.y:
-		var py: int = window.position.y + row
-		var above: bool = py < face_from
-		var down_stop: int = mini(
-			((py / int(TILE)) + 1) * int(TILE) - window.position.y,
-			face_from - window.position.y if above else window.size.y
+		var reach: Vector2i = _drawn_rows(
+			it.mask, it.span, it.window, it.face_from, face_until
 		)
-		var px: int = window.position.x
-		while px < window.position.x + window.size.x:
-			var column: int = px - window.position.x
-			if taken[row * window.size.x + column] == 1 \
-					or not _drawn(mask, span, px, py):
-				px += 1
-				continue
-			var stop: int = mini(
-				(px / int(TILE) + 1) * int(TILE),
-				window.position.x + window.size.x
-			)
-			var run: int = px
-			while run < stop and taken[row * window.size.x + run - window.position.x] == 0 \
-					and _drawn(mask, span, run, py):
-				run += 1
-			var deep_rows: int = 1
-			while row + deep_rows < down_stop:
-				var whole: bool = true
-				for step: int in run - px:
-					if taken[(row + deep_rows) * window.size.x + column + step] == 1 \
-							or not _drawn(mask, span, px + step, py + deep_rows):
-						whole = false
-						break
-				if not whole:
-					break
-				deep_rows += 1
-			for down: int in deep_rows:
-				for step: int in run - px:
-					taken[(row + down) * window.size.x + column + step] = 1
-			var far: float = 0.0
-			var near: float = 0.0
-			if above:
-				far = back + deep * float(row) / float(top_rows)
-				near = back + deep * float(row + deep_rows) / float(top_rows)
-			else:
-				far = high - tall * float(py - face_from) / float(face_rows)
-				near = high - tall * float(py - face_from + deep_rows) / float(face_rows)
-			@warning_ignore("integer_division")
-			var tile: int = int(tiles[(py / int(TILE)) * across.x + px / int(TILE)])
-			var uv: Rect2 = atlas.uv_box(
-				tile, Rect2i(px % int(TILE), py % int(TILE), run - px, deep_rows)
-			)
-			var x0: float = _world_x(start.x) + float(px)
-			var x1: float = _world_x(start.x) + float(run)
-			if above:
-				_quad(
-					Vector3(x0, high, near), Vector3(x1, high, near),
-					Vector3(x1, high, far), Vector3(x0, high, far),
-					Vector3.UP, uv, SHADE_TOP_FLAT
-				)
-			else:
-				_quad(
-					Vector3(x0, near, front), Vector3(x1, near, front),
-					Vector3(x1, far, front), Vector3(x0, far, front),
-					Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
-				)
-			px = run
+		if reach.y > reach.x:
+			it.face_from = reach.x
+			it.face_rows = reach.y - reach.x
+	it.deep = float(object[&"depth"])
+	it.tall = float(object[&"height"])
+	it.base = _object_base(object, it.start, it.across)
+	it.back = it.front - it.deep
+	it.left = _world_x(it.start.x) + float(it.window.position.x)
+	it.right = it.left + float(it.window.size.x)
+	it.high = it.base + it.tall
 
+
+## The drawing itself, greedily gathered into the largest rectangles that stay
+## inside one tile: the top rows lie across the depth, the rest stand up the face.
+func _object_faces(it: Standing, atlas: RefCounted) -> void:
+	var taken := PackedByteArray()
+	taken.resize(it.window.size.x * it.window.size.y)
+	for row: int in it.window.size.y:
+		var py: int = it.window.position.y + row
+		var above: bool = py < it.face_from
+		@warning_ignore("integer_division")
+		var down_stop: int = mini(
+			((py / int(TILE)) + 1) * int(TILE) - it.window.position.y,
+			it.face_from - it.window.position.y if above else it.window.size.y
+		)
+		var px: int = it.window.position.x
+		while px < it.window.position.x + it.window.size.x:
+			px = _object_patch(it, atlas, taken, row, py, px, above, down_stop)
+
+
+## One rectangle from `px` rightward, as deep as it can go without leaving the
+## tile or meeting a pixel already spent. Answers where the next one starts.
+func _object_patch(
+	it: Standing, atlas: RefCounted, taken: PackedByteArray, row: int, py: int,
+	px: int, above: bool, down_stop: int
+) -> int:
+	var column: int = px - it.window.position.x
+	if taken[row * it.window.size.x + column] == 1 \
+			or not _drawn(it.mask, it.span, px, py):
+		return px + 1
+	@warning_ignore("integer_division")
+	var stop: int = mini(
+		(px / int(TILE) + 1) * int(TILE),
+		it.window.position.x + it.window.size.x
+	)
+	var run: int = px
+	while run < stop \
+			and taken[row * it.window.size.x + run - it.window.position.x] == 0 \
+			and _drawn(it.mask, it.span, run, py):
+		run += 1
+	var deep_rows: int = _object_patch_depth(
+		it, taken, row, py, px, column, run, down_stop
+	)
+	for down: int in deep_rows:
+		for step: int in run - px:
+			taken[(row + down) * it.window.size.x + column + step] = 1
+	_object_quad(it, atlas, py, px, run, row, deep_rows, above)
+	return run
+
+
+func _object_patch_depth(
+	it: Standing, taken: PackedByteArray, row: int, py: int, px: int,
+	column: int, run: int, down_stop: int
+) -> int:
+	var deep_rows: int = 1
+	while row + deep_rows < down_stop:
+		var whole: bool = true
+		for step: int in run - px:
+			if taken[(row + deep_rows) * it.window.size.x + column + step] == 1 \
+					or not _drawn(it.mask, it.span, px + step, py + deep_rows):
+				whole = false
+				break
+		if not whole:
+			break
+		deep_rows += 1
+	return deep_rows
+
+
+func _object_quad(
+	it: Standing, atlas: RefCounted, py: int, px: int, run: int, row: int,
+	deep_rows: int, above: bool
+) -> void:
+	var far: float = 0.0
+	var near: float = 0.0
+	if above:
+		far = it.back + it.deep * float(row) / float(it.top_rows)
+		near = it.back + it.deep * float(row + deep_rows) / float(it.top_rows)
+	else:
+		far = it.high - it.tall * float(py - it.face_from) / float(it.face_rows)
+		near = it.high - it.tall \
+			* float(py - it.face_from + deep_rows) / float(it.face_rows)
+	@warning_ignore("integer_division")
+	var tile: int = int(it.tiles[(py / int(TILE)) * it.across.x + px / int(TILE)])
+	var uv: Rect2 = atlas.uv_box(
+		tile, Rect2i(px % int(TILE), py % int(TILE), run - px, deep_rows)
+	)
+	var x0: float = _world_x(it.start.x) + float(px)
+	var x1: float = _world_x(it.start.x) + float(run)
+	if above:
+		_quad(
+			Vector3(x0, it.high, near), Vector3(x1, it.high, near),
+			Vector3(x1, it.high, far), Vector3(x0, it.high, far),
+			Vector3.UP, uv, SHADE_TOP_FLAT
+		)
+		return
+	_quad(
+		Vector3(x0, near, it.front), Vector3(x1, near, it.front),
+		Vector3(x1, far, it.front), Vector3(x0, far, it.front),
+		Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
+	)
+
+
+## The three faces the drawing does not show, and the lid where nothing lies
+## across the top already.
+func _object_sides(
+	object: Dictionary, it: Standing, atlas: RefCounted
+) -> void:
 	if bool(object.get(&"wrap", false)) or bool(object.get(&"box", false)):
 		var ends := Rect2()
 		if bool(object.get(&"box", false)):
 			ends = _bin_texel(
-				atlas, tiles, across, mask, span, window,
-				window.position.y, window.position.y + top_rows, -1
+				atlas, it.tiles, it.across, it.mask, it.span, it.window,
+				it.window.position.y, it.window.position.y + it.top_rows, -1
 			)
 		_object_wrap(
-			atlas, tiles, across, mask, span, window, face_from, face_rows,
-			left, right, front, back, base, high, ends
+			atlas, it.tiles, it.across, it.mask, it.span, it.window, it.face_from,
+			it.face_rows, it.left, it.right, it.front, it.back, it.base, it.high,
+			ends
 		)
 		return
 	var side: Rect2 = _object_texel(
-		atlas, tiles, across, mask, span, window,
-		window.position.y + top_rows, window.position.y + window.size.y
+		atlas, it.tiles, it.across, it.mask, it.span, it.window,
+		it.window.position.y + it.top_rows,
+		it.window.position.y + it.window.size.y
 	)
 	_quad(
-		Vector3(right, base, back), Vector3(left, base, back),
-		Vector3(left, high, back), Vector3(right, high, back),
+		Vector3(it.right, it.base, it.back), Vector3(it.left, it.base, it.back),
+		Vector3(it.left, it.high, it.back), Vector3(it.right, it.high, it.back),
 		Vector3(0.0, 0.0, -1.0), side, SHADE_NORTH
 	)
 	_quad(
-		Vector3(right, base, front), Vector3(right, base, back),
-		Vector3(right, high, back), Vector3(right, high, front),
+		Vector3(it.right, it.base, it.front), Vector3(it.right, it.base, it.back),
+		Vector3(it.right, it.high, it.back), Vector3(it.right, it.high, it.front),
 		Vector3(1.0, 0.0, 0.0), side, SHADE_SIDE
 	)
 	_quad(
-		Vector3(left, base, back), Vector3(left, base, front),
-		Vector3(left, high, front), Vector3(left, high, back),
+		Vector3(it.left, it.base, it.back), Vector3(it.left, it.base, it.front),
+		Vector3(it.left, it.high, it.front), Vector3(it.left, it.high, it.back),
 		Vector3(-1.0, 0.0, 0.0), side, SHADE_SIDE
 	)
-	if top_rows == 0:
-		var cap: int = int(object.get(&"cap", 0))
-		if cap > 0:
-			_object_cap(
-				atlas, tiles, across, mask, span, window, cap,
-				left, right, high, front, back
-			)
-		else:
-			_quad(
-				Vector3(left, high, front), Vector3(right, high, front),
-				Vector3(right, high, back), Vector3(left, high, back),
-				Vector3.UP,
-				_object_texel(
-					atlas, tiles, across, mask, span, window,
-					window.position.y, window.position.y + window.size.y
-				),
-				SHADE_TOP_FLAT
-			)
+	if it.top_rows == 0:
+		_object_lid(object, it, atlas)
+
+
+func _object_lid(object: Dictionary, it: Standing, atlas: RefCounted) -> void:
+	var cap: int = int(object.get(&"cap", 0))
+	if cap > 0:
+		_object_cap(
+			atlas, it.tiles, it.across, it.mask, it.span, it.window, cap,
+			it.left, it.right, it.high, it.front, it.back
+		)
+		return
+	_quad(
+		Vector3(it.left, it.high, it.front), Vector3(it.right, it.high, it.front),
+		Vector3(it.right, it.high, it.back), Vector3(it.left, it.high, it.back),
+		Vector3.UP,
+		_object_texel(
+			atlas, it.tiles, it.across, it.mask, it.span, it.window,
+			it.window.position.y, it.window.position.y + it.window.size.y
+		),
+		SHADE_TOP_FLAT
+	)
 
 
 func _object_tower(
@@ -4236,13 +4345,32 @@ func _row_run(mask: PackedByteArray, span: Vector2i, window: Rect2i, py: int) ->
 	return widest
 
 
+## A round seat on four splayed legs, built from the drawing's own widest row.
 func _object_stool(
 	_object: Dictionary, start: Vector2i, across: Vector2i, front: float, tiles: Array,
 	mask: PackedByteArray, span: Vector2i, window: Rect2i, atlas: RefCounted
 ) -> void:
+	var wide: int = _stool_width(mask, span, window)
+	if wide < 2:
+		return
 	var base: float = float(_ground_art(start.x, start.y + across.y - 1).y)
 	var tile: int = int(tiles[0])
-	var dark: Rect2 = _shade_texel(atlas, tile, 0)
+	var radius: float = float(wide) * 0.5
+	var left: float = _world_x(start.x) + float(window.position.x) \
+		+ (float(window.size.x) - float(wide)) * 0.5
+	var back: float = front - float(wide)
+	var low: float = base + STOOL_LEG
+	_stool_seat(wide, left, back, low, low + STOOL_SEAT, tile, atlas)
+	_stool_legs(
+		Vector2(left + radius, back + radius), radius, base, low, tile, atlas
+	)
+
+
+## The seat is as wide as the drawing's widest row, and there is only a stool to
+## build if a row near that width carries a seat.
+func _stool_width(
+	mask: PackedByteArray, span: Vector2i, window: Rect2i
+) -> int:
 	var rows := PackedInt32Array()
 	var widest: int = 0
 	for py: int in range(window.position.y, window.position.y + window.size.y):
@@ -4250,7 +4378,7 @@ func _object_stool(
 		rows.append(run)
 		widest = maxi(widest, run)
 	if widest < 2:
-		return
+		return 0
 	var first: int = -1
 	var last: int = -1
 	for row: int in rows.size():
@@ -4260,19 +4388,16 @@ func _object_stool(
 			first = row
 		if float(rows[row]) >= float(widest) * STOOL_SEAT_SHARE:
 			last = row
-	if first < 0 or last < first:
-		return
-	var wide: int = widest
+	return widest if first >= 0 and last >= first else 0
+
+
+## A disc of unit columns: a lid on each, and a rim wherever the disc ends.
+func _stool_seat(
+	wide: int, left: float, back: float, low: float, high: float, tile: int,
+	atlas: RefCounted
+) -> void:
 	var radius: float = float(wide) * 0.5
-	var left: float = _world_x(start.x) + float(window.position.x) \
-		+ (float(window.size.x) - float(wide)) * 0.5
-	var back: float = front - float(wide)
-	var low: float = base + STOOL_LEG
-	var high: float = low + STOOL_SEAT
-	var centre := Vector2(left + radius, back + radius)
 	var rim: Rect2 = _shade_texel(atlas, tile, 1)
-	var pale: Rect2 = _shade_texel(atlas, tile, 3)
-	var body: Rect2 = _shade_texel(atlas, tile, 2)
 	var filled := PackedByteArray()
 	filled.resize(wide * wide)
 	for j: int in wide:
@@ -4285,46 +4410,71 @@ func _object_stool(
 				continue
 			var x0: float = left + float(i)
 			var z0: float = back + float(j)
-			var out: float = Vector2(
-				float(i) + 0.5 - radius, float(j) + 0.5 - radius
-			).length() / radius
-			var lid: Rect2 = body
-			if i == 0 or j == 0 or i + 1 >= wide or j + 1 >= wide \
-					or filled[j * wide + i - 1] == 0 or filled[j * wide + i + 1] == 0 \
-					or filled[(j - 1) * wide + i] == 0 \
-					or filled[(j + 1) * wide + i] == 0:
-				lid = dark
-			elif out < STOOL_GLINT:
-				lid = pale
 			_quad(
 				Vector3(x0, high, z0 + 1.0), Vector3(x0 + 1.0, high, z0 + 1.0),
 				Vector3(x0 + 1.0, high, z0), Vector3(x0, high, z0),
-				Vector3.UP, lid, SHADE_TOP_FLAT
+				Vector3.UP, _stool_lid(filled, wide, i, j, radius, tile, atlas),
+				SHADE_TOP_FLAT
 			)
-			if j + 1 >= wide or filled[(j + 1) * wide + i] == 0:
-				_quad(
-					Vector3(x0, low, z0 + 1.0), Vector3(x0 + 1.0, low, z0 + 1.0),
-					Vector3(x0 + 1.0, high, z0 + 1.0), Vector3(x0, high, z0 + 1.0),
-					Vector3(0.0, 0.0, 1.0), rim, SHADE_SOUTH
-				)
-			if j == 0 or filled[(j - 1) * wide + i] == 0:
-				_quad(
-					Vector3(x0 + 1.0, low, z0), Vector3(x0, low, z0),
-					Vector3(x0, high, z0), Vector3(x0 + 1.0, high, z0),
-					Vector3(0.0, 0.0, -1.0), rim, SHADE_NORTH
-				)
-			if i + 1 >= wide or filled[j * wide + i + 1] == 0:
-				_quad(
-					Vector3(x0 + 1.0, low, z0 + 1.0), Vector3(x0 + 1.0, low, z0),
-					Vector3(x0 + 1.0, high, z0), Vector3(x0 + 1.0, high, z0 + 1.0),
-					Vector3(1.0, 0.0, 0.0), rim, SHADE_SIDE
-				)
-			if i == 0 or filled[j * wide + i - 1] == 0:
-				_quad(
-					Vector3(x0, low, z0), Vector3(x0, low, z0 + 1.0),
-					Vector3(x0, high, z0 + 1.0), Vector3(x0, high, z0),
-					Vector3(-1.0, 0.0, 0.0), rim, SHADE_SIDE
-				)
+			_stool_rim(filled, wide, i, j, x0, z0, low, high, rim)
+
+
+## The lid darkens at the disc's edge and catches a highlight near its middle.
+func _stool_lid(
+	filled: PackedByteArray, wide: int, i: int, j: int, radius: float,
+	tile: int, atlas: RefCounted
+) -> Rect2:
+	if _stool_edge(filled, wide, i, j):
+		return _shade_texel(atlas, tile, 0)
+	var out: float = Vector2(
+		float(i) + 0.5 - radius, float(j) + 0.5 - radius
+	).length() / radius
+	return _shade_texel(atlas, tile, 3 if out < STOOL_GLINT else 2)
+
+
+func _stool_edge(filled: PackedByteArray, wide: int, i: int, j: int) -> bool:
+	if i == 0 or j == 0 or i + 1 >= wide or j + 1 >= wide:
+		return true
+	return (
+		filled[j * wide + i - 1] == 0 or filled[j * wide + i + 1] == 0
+		or filled[(j - 1) * wide + i] == 0 or filled[(j + 1) * wide + i] == 0
+	)
+
+
+func _stool_rim(
+	filled: PackedByteArray, wide: int, i: int, j: int, x0: float, z0: float,
+	low: float, high: float, rim: Rect2
+) -> void:
+	if j + 1 >= wide or filled[(j + 1) * wide + i] == 0:
+		_quad(
+			Vector3(x0, low, z0 + 1.0), Vector3(x0 + 1.0, low, z0 + 1.0),
+			Vector3(x0 + 1.0, high, z0 + 1.0), Vector3(x0, high, z0 + 1.0),
+			Vector3(0.0, 0.0, 1.0), rim, SHADE_SOUTH
+		)
+	if j == 0 or filled[(j - 1) * wide + i] == 0:
+		_quad(
+			Vector3(x0 + 1.0, low, z0), Vector3(x0, low, z0),
+			Vector3(x0, high, z0), Vector3(x0 + 1.0, high, z0),
+			Vector3(0.0, 0.0, -1.0), rim, SHADE_NORTH
+		)
+	if i + 1 >= wide or filled[j * wide + i + 1] == 0:
+		_quad(
+			Vector3(x0 + 1.0, low, z0 + 1.0), Vector3(x0 + 1.0, low, z0),
+			Vector3(x0 + 1.0, high, z0), Vector3(x0 + 1.0, high, z0 + 1.0),
+			Vector3(1.0, 0.0, 0.0), rim, SHADE_SIDE
+		)
+	if i == 0 or filled[j * wide + i - 1] == 0:
+		_quad(
+			Vector3(x0, low, z0), Vector3(x0, low, z0 + 1.0),
+			Vector3(x0, high, z0 + 1.0), Vector3(x0, high, z0),
+			Vector3(-1.0, 0.0, 0.0), rim, SHADE_SIDE
+		)
+
+
+func _stool_legs(
+	centre: Vector2, radius: float, base: float, low: float, tile: int,
+	atlas: RefCounted
+) -> void:
 	var reach: float = radius * STOOL_LEG_REACH
 	var half: float = STOOL_LEG_THICK * 0.5
 	for corner: Vector2 in [
