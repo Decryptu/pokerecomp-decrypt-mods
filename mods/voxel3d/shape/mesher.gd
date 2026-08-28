@@ -140,6 +140,14 @@ const FENCE_THICK: float = 3.0
 var _size := Vector2i.ZERO
 var _map_size := Vector2i.ZERO
 var _margin := Vector2i.ZERO
+## The ring on the map's FAR sides, south and east, which is not always the one
+## on its near sides: a ring grows only on a side whose own outer edge would cut
+## a drawing in half. See [method _ring_side].
+var _margin_far := Vector2i.ZERO
+## The grid tile one past the map's own far corner, which is where the map ends
+## and the ring begins again. `_margin + _map_size`, kept because it is asked for
+## in every pass that has to tell the map from the ring around it.
+var _map_end := Vector2i.ZERO
 ## How far the bank field counts outward before every tile past it is open water,
 ## in tiles, and what its texture's 0 to 1 stands for. Six is well past the widest
 ## line either term in `world/water.gd` draws from it.
@@ -954,7 +962,7 @@ func emitted_bounds_tiles() -> Rect2i:
 func stamped_bounds_tiles() -> Rect2i:
 	if _size == Vector2i.ZERO:
 		return Rect2i()
-	return Rect2i(-_margin, _map_size + _margin * 2)
+	return Rect2i(-_margin, _size)
 
 
 ## All the ground this mesher could ever emit, in MAP tiles: the map, the border
@@ -967,8 +975,8 @@ func stamped_bounds_tiles() -> Rect2i:
 func drawn_bounds_tiles() -> Rect2i:
 	if _size == Vector2i.ZERO:
 		return Rect2i()
-	var out: Vector2i = _margin + Vector2i(_skirt_reach(), _skirt_reach())
-	return Rect2i(-out, _map_size + out * 2)
+	var reach := Vector2i(_skirt_reach(), _skirt_reach())
+	return Rect2i(-(_margin + reach), _size + reach * 2)
 
 
 ## The world x and z of a GRID tile's own corner. The grid is the map inside its
@@ -1129,9 +1137,17 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 	_ground_table = shape.ground_table()
 	var ring: int = _ring_depth(source, shape) if _outside \
 		else (ROOM_RING if not _room_wall.is_empty() else 0)
-	_margin = Vector2i(ring, ring)
 	_map_size = source.size_cells() * RomLayout.MAP_BLOCK_CELL_WIDTH
-	_size = _map_size + _margin * 2
+	_margin = Vector2i(
+		_ring_side(source, shape, ring, Vector2i(-1, 0)),
+		_ring_side(source, shape, ring, Vector2i(0, -1))
+	)
+	_margin_far = Vector2i(
+		_ring_side(source, shape, ring, Vector2i(1, 0)),
+		_ring_side(source, shape, ring, Vector2i(0, 1))
+	)
+	_size = _map_size + _margin + _margin_far
+	_map_end = _margin + _map_size
 	var count: int = _size.x * _size.y
 	_tiles.resize(count)
 	_art.resize(count)
@@ -1188,7 +1204,7 @@ func resolve(source: RefCounted, shape: RefCounted) -> void:
 			var at: int = ty * _size.x + tx
 			var shell: bool = not _room_wall.is_empty() and (
 				tx < _margin.x or ty < _margin.y
-				or tx >= _size.x - _margin.x or ty >= _size.y - _margin.y
+				or tx >= _map_end.x or ty >= _map_end.y
 			)
 			_room[at] = ROOM_SHELL if shell else 0
 			var tile: int = _room_wall_tile(tx, ty) if shell \
@@ -2408,7 +2424,7 @@ func _measure_ramps() -> void:
 func _in_map(tx: int, ty: int) -> bool:
 	return (
 		tx >= _margin.x and ty >= _margin.y
-		and tx < _size.x - _margin.x and ty < _size.y - _margin.y
+		and tx < _map_end.x and ty < _map_end.y
 	)
 
 
@@ -6084,10 +6100,10 @@ func _room_faces(tx: int, ty: int, normal: Vector3) -> bool:
 	if normal.x > 0.0:
 		return tx < _margin.x
 	if normal.x < 0.0:
-		return tx >= _size.x - _margin.x
+		return tx >= _map_end.x
 	if normal.z > 0.0:
 		return ty < _margin.y
-	return ty >= _size.y - _margin.y
+	return ty >= _map_end.y
 
 
 ## The stool, built in voxels out of its own drawing.
@@ -9056,7 +9072,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	# cream band lying across the bottom of the frame with nothing under it. The
 	# top of a wall is only worth drawing on the walls that are still there.
 	if not _room.is_empty() and _room[at] == ROOM_SHELL \
-			and ty >= _size.y - _margin.y:
+			and ty >= _map_end.y:
 		_sink = SINK_TERRAIN
 	elif tilted:
 		_face_roof(tx, ty, atlas.uv(cap), SHADE_TOP_FLAT)
@@ -9516,6 +9532,83 @@ func _ring_depth(source: RefCounted, shape: RefCounted) -> int:
 	return RING_TILES_MODELLED
 
 
+## How much deeper than [method _ring_depth] one side of the ring may go, in
+## tiles, before the side keeps the depth it had.
+##
+## Past the map next door lies the map after it, so no ring is wide enough to
+## finish every drawing and the growth has to stop somewhere. Eight tiles is two
+## blocks and it is what the gates and the edge houses need: the sides that ask
+## for more are asking for a whole town, and paying for a deeper ring that still
+## cuts something buys nothing.
+const RING_GROWTH: int = 8
+
+
+## One side's ring depth: the base, grown a walk cell at a time while that side's
+## own outermost row still carries a wall or a roof.
+##
+## A ring ends in the middle of whatever the map next door draws there, and a
+## building the edge cuts is stood up by the fold as though it were whole. The
+## run's top is a wall rather than a roof, so the lid wears the wall's own art
+## and there is no roof at all. Saffron is the case the reviewer named: its ring
+## reaches sixteen tiles, which is map 25,1 ROUTE 5's row 20, and Route 5's gate
+## house runs from row 18, so the walls and the door land inside the ring and the
+## roof does not.
+##
+## PER SIDE, and not per map, because the grid is the expensive thing: clearing
+## that one gate by growing Saffron's ring all round costs a fifth of the game's
+## resolve, and growing its north side alone costs a twenty-fifth of Saffron's.
+## A side that already ends in open ground never moves, so no map that reads
+## right today is made worse by this.
+func _ring_side(
+	source: RefCounted, shape: RefCounted, base: int, out: Vector2i
+) -> int:
+	if not _outside or base <= 0:
+		return base
+	var depth: int = base
+	while _ring_cuts(source, shape, base, depth, out):
+		depth += CELL_TILES
+		if depth > base + RING_GROWTH:
+			return base
+	return depth
+
+
+## Whether one side's outermost row, at that depth, carries any of a building.
+##
+## Read across the width the OTHER sides keep, so growing one side never depends
+## on what another one did and the four answers can be taken in any order.
+func _ring_cuts(
+	source: RefCounted, shape: RefCounted, base: int, depth: int, out: Vector2i
+) -> bool:
+	if out.y != 0:
+		var ty: int = -depth if out.y < 0 else _map_size.y + depth - 1
+		for tx: int in range(-base, _map_size.x + base):
+			if _ring_building(source, shape, tx, ty):
+				return true
+		return false
+	var tx: int = -depth if out.x < 0 else _map_size.x + depth - 1
+	for ty: int in range(-base, _map_size.y + base):
+		if _ring_building(source, shape, tx, ty):
+			return true
+	return false
+
+
+## Whether one map tile, which may lie well outside the map, is a wall or a roof.
+##
+## The class the tile resolves to, and not the `_part` grid, because the grid is
+## what this answer decides the size of. It is the reading the pass that fills
+## `_part` makes of the same tile, so the two agree wherever both can be asked.
+func _ring_building(
+	source: RefCounted, shape: RefCounted, tx: int, ty: int
+) -> bool:
+	var tile: int = source.tile_at(tx, ty)
+	if tile < 0:
+		return false
+	var part: StringName = shape.building_part(
+		shape.at(tile, source.permission_at(Vector2i(tx >> 1, ty >> 1)))
+	)
+	return part == &"wall" or part == &"roof"
+
+
 ## The wall behind furniture that stands against it.
 ##
 ## An object hands every tile it covers back to the floor, which is right for a
@@ -9531,7 +9624,7 @@ func _measure_room_behind() -> void:
 	var tall: int = ROOM_CELLS * CELL_TILES * BAND
 	var base: int = _margin.y + CELL_TILES - 1
 	for ty: int in range(_margin.y, _margin.y + CELL_TILES):
-		for tx: int in range(_margin.x, _size.x - _margin.x):
+		for tx: int in range(_margin.x, _map_end.x):
 			var at: int = ty * _size.x + tx
 			if _object_covered[at] == 0 or _heights[at] >= tall:
 				continue
@@ -9583,10 +9676,10 @@ func _measure_room() -> void:
 			if _room[at] != ROOM_SHELL:
 				continue
 			_heights[at] = tall
-			_bases[at] = floor_row if ty >= _size.y - _margin.y else ty
-	for tx: int in range(_margin.x, _size.x - _margin.x):
+			_bases[at] = floor_row if ty >= _map_end.y else ty
+	for tx: int in range(_margin.x, _map_end.x):
 		var run: int = 0
-		while _margin.y + run < _size.y - _margin.y \
+		while _margin.y + run < _map_end.y \
 				and _volume[(_margin.y + run) * _size.x + tx] == 1:
 			run += 1
 		if run == 0:
@@ -9640,8 +9733,8 @@ func _measure_room_fill() -> void:
 			@warning_ignore("integer_division")
 			var ty: int = at / _size.x
 			if tx <= _margin.x or ty <= _margin.y \
-					or tx >= _size.x - _margin.x - 1 \
-					or ty >= _size.y - _margin.y - 1:
+					or tx >= _map_end.x - 1 \
+					or ty >= _map_end.y - 1:
 				at_edge = true
 			for step: Vector2i in [
 				Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
