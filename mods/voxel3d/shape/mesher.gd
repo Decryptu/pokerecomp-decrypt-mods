@@ -4967,6 +4967,45 @@ func _house_body(
 		array.fill(-1)
 	var walls := PackedInt32Array()
 	walls.resize(rows)
+	var box: Vector4i = _house_extent(cols, rows, owner, terrace, body, walls, tops)
+	if box.y < 0:
+		return {}
+	var left: int = box.x
+	var right: int = box.y
+	var foot: int = _house_foot(walls, box.z)
+	var gap: int = int(foot + 1 < rows and walls[foot + 1] * 2 < walls[foot])
+	var reach: Vector2i = _house_roof_rows(
+		paint, rows, left, right, tops, eave_from, eave_to, cap_from, cap_to
+	)
+	var top_row: int = reach.x
+	var peak: int = reach.y
+	_house_carry(cap_from, cap_to, left, right)
+	var rival: PackedInt32Array = _house_rivals(rows, cols, owner, terrace, body, box.w)
+	var cover: Vector2i = _house_reach(
+		paint, rows, cols, rival, tops, left, right, Vector2i(top_row, peak - 1)
+	)
+	var ridge: Vector2i = _house_ridge(tops, left, right, peak)
+	return {
+		"rows": rows, "cols": cols, "foot": foot, "gap": gap,
+		"left": left, "right": right,
+		"cover_left": cover.x, "cover_right": cover.y,
+		"top_row": top_row, "north_row": maxi(top_row + gap, foot + 1 - (right + 1 - left)),
+		"south_row": foot + 1,
+		"tops": tops, "eave_from": eave_from, "eave_to": eave_to,
+		"cap_from": cap_from, "cap_to": cap_to, "m0": ridge.x, "m1": ridge.y,
+		"peak_rise": float(foot + 1 - peak),
+		"left_rise": float(foot + 1 - tops[left]),
+		"right_rise": float(foot + 1 - tops[right]),
+		"thick": _house_thick(eave_from, eave_to, left, right, ridge.x),
+	}
+
+
+## The body's own box as left, right, bottom and terrace group, filling in the
+## wall count per row and the first wall row per column on the way.
+func _house_extent(
+	cols: int, rows: int, owner: PackedInt32Array, terrace: PackedInt32Array,
+	body: int, walls: PackedInt32Array, tops: PackedInt32Array
+) -> Vector4i:
 	var left: int = cols
 	var right: int = -1
 	var bottom: int = -1
@@ -4982,14 +5021,27 @@ func _house_body(
 			right = maxi(right, x)
 			bottom = maxi(bottom, y)
 			group = terrace[y * cols + x]
-	if right < 0:
-		return {}
+	return Vector4i(left, right, bottom, group)
+
+
+## The bottom row of the wall proper: a row holding less than half the row above
+## it is the ground the house stands on rather than more house.
+func _house_foot(walls: PackedInt32Array, bottom: int) -> int:
 	var foot: int = bottom
 	while foot > 0 and (walls[foot] == 0 or walls[foot] * 2 < walls[foot - 1]):
 		foot -= 1
-	var gap: int = 0
-	if foot + 1 < rows and walls[foot + 1] * 2 < walls[foot]:
-		gap = 1
+	return foot
+
+
+## Above each wall column: a run of front-facing roof, then a run of roof seen
+## from above. Answers the highest drawn row and the highest wall row.
+## Above each wall column: a run of front-facing roof, then a run of roof seen
+## from above. Answers the highest drawn row and the highest wall row.
+func _house_roof_rows(
+	paint: Array, rows: int, left: int, right: int, tops: PackedInt32Array,
+	eave_from: PackedInt32Array, eave_to: PackedInt32Array,
+	cap_from: PackedInt32Array, cap_to: PackedInt32Array
+) -> Vector2i:
 	var peak: int = rows
 	var top_row: int = rows
 	for x: int in range(left, right + 1):
@@ -4997,78 +5049,87 @@ func _house_body(
 			continue
 		peak = mini(peak, tops[x])
 		top_row = mini(top_row, tops[x])
-		var y: int = tops[x] - 1
-		while y >= 0 and paint[y][x] == Houses.FRONT:
-			eave_from[x] = y
-			if eave_to[x] < 0:
-				eave_to[x] = y
-			y -= 1
-		while y >= 0 and paint[y][x] == Houses.ROOF:
-			cap_from[x] = y
-			if cap_to[x] < 0:
-				cap_to[x] = y
-			y -= 1
+		var y: int = _house_paint_run(
+			paint, tops[x] - 1, x, Houses.FRONT, eave_from, eave_to
+		)
+		y = _house_paint_run(paint, y, x, Houses.ROOF, cap_from, cap_to)
 		if cap_from[x] >= 0:
 			top_row = mini(top_row, cap_from[x])
 		elif eave_from[x] >= 0:
 			top_row = mini(top_row, eave_from[x])
-	_house_carry(cap_from, cap_to, left, right)
+	return Vector2i(top_row, peak)
+
+
+## Walks up one column while the paint reads `stroke`, recording the run's top
+## and bottom. Answers the first row that does not.
+func _house_paint_run(
+	paint: Array, from: int, x: int, stroke: String,
+	first: PackedInt32Array, last: PackedInt32Array
+) -> int:
+	var y: int = from
+	while y >= 0 and paint[y][x] == stroke:
+		first[x] = y
+		if last[x] < 0:
+			last[x] = y
+		y -= 1
+	return y
+
+
+## How many columns each column is from another body on the same terrace, so a
+## roof knows how far it may oversail before it reaches its neighbour.
+func _house_rivals(
+	rows: int, cols: int, owner: PackedInt32Array, terrace: PackedInt32Array,
+	body: int, group: int
+) -> PackedInt32Array:
 	var rival := PackedInt32Array()
 	rival.resize(cols)
 	rival.fill(cols * 2)
 	for x: int in cols:
 		for y: int in rows:
 			var at: int = y * cols + x
-			if terrace[at] != group:
-				continue
-			if owner[at] >= 0 and owner[at] != body:
+			if terrace[at] == group and owner[at] >= 0 and owner[at] != body:
 				rival[x] = 0
 	for x: int in range(1, cols):
 		rival[x] = mini(rival[x], rival[x - 1] + 1)
 	for x: int in range(cols - 2, -1, -1):
 		rival[x] = mini(rival[x], rival[x + 1] + 1)
-	var cover: Vector2i = _house_reach(
-		paint, rows, cols, rival, tops, left, right, Vector2i(top_row, peak - 1)
-	)
-	var m0: int = cols
+	return rival
+
+
+## The run of columns standing at the highest row, which is the ridge.
+func _house_ridge(
+	tops: PackedInt32Array, left: int, right: int, peak: int
+) -> Vector2i:
+	var m0: int = right + 1
 	var m1: int = -1
 	for x: int in range(left, right + 1):
 		if tops[x] == peak:
 			m0 = mini(m0, x)
 			m1 = maxi(m1, x)
-	if m1 < 0:
-		m0 = left
-		m1 = right
-	var north_row: int = maxi(top_row + gap, foot + 1 - (right + 1 - left))
-	var plan: Dictionary = {
-		"rows": rows, "cols": cols, "foot": foot, "gap": gap,
-		"left": left, "right": right,
-		"cover_left": cover.x, "cover_right": cover.y,
-		"top_row": top_row, "north_row": north_row, "south_row": foot + 1,
-		"tops": tops, "eave_from": eave_from, "eave_to": eave_to,
-		"cap_from": cap_from, "cap_to": cap_to, "m0": m0, "m1": m1,
-		"peak_rise": float(foot + 1 - peak),
-		"left_rise": float(foot + 1 - tops[left]),
-		"right_rise": float(foot + 1 - tops[right]),
-		"thick": 0,
-	}
-	if eave_to[m0] >= 0:
-		plan["thick"] = eave_to[m0] - eave_from[m0] + 1
-	else:
-		var seen: Dictionary = {}
-		for x: int in range(left, right + 1):
-			if eave_to[x] < 0:
-				continue
-			var band: int = eave_to[x] - eave_from[x] + 1
-			seen[band] = int(seen.get(band, 0)) + 1
-		var best: int = 0
-		for band: int in seen:
-			if seen[band] > int(seen.get(best, 0)) or (
-				seen[band] == int(seen.get(best, 0)) and band > best
-			):
-				best = band
-		plan["thick"] = best
-	return plan
+	return Vector2i(m0, m1) if m1 >= 0 else Vector2i(left, right)
+
+
+## The eave's thickness in rows: the ridge column's own, else the commonest over
+## the body, taking the taller where two are as common.
+func _house_thick(
+	eave_from: PackedInt32Array, eave_to: PackedInt32Array,
+	left: int, right: int, ridge: int
+) -> int:
+	if eave_to[ridge] >= 0:
+		return eave_to[ridge] - eave_from[ridge] + 1
+	var seen: Dictionary = {}
+	for x: int in range(left, right + 1):
+		if eave_to[x] < 0:
+			continue
+		var band: int = eave_to[x] - eave_from[x] + 1
+		seen[band] = int(seen.get(band, 0)) + 1
+	var best: int = 0
+	for band: int in seen:
+		if seen[band] > int(seen.get(best, 0)) or (
+			seen[band] == int(seen.get(best, 0)) and band > best
+		):
+			best = band
+	return best
 
 
 func _house_rise(plan: Dictionary, x: float) -> float:
