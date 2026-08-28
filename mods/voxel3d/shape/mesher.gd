@@ -3333,8 +3333,17 @@ func _cliff_evidence(
 						seeds[index] = mini(int(seeds.get(index, height)), height)
 					elif height > 0:
 						patches[index] = mini(int(patches.get(index, height)), height)
+				# The ground a cliff stands on lies under its FRONT, and a column
+				# whose run does not END in a front band is a corner: the front is
+				# at the top of it and the run carries on down the rim beside the
+				# plateau, so what lies under the bottom of it is more plateau. Six
+				# such columns called Cianwood's rock the ground its own wall
+				# stands on, which blocked the region and left the whole rock at
+				# the town's level.
 				var below: int = ty + run
-				if below < _size.y and _is_plateau_floor(below * _size.x + tx):
+				if _front[(below - 1) * _size.x + tx] == 1 \
+						and below < _size.y \
+						and _is_plateau_floor(below * _size.x + tx):
 					fronts[below * _size.x + tx] = true
 			ty += run
 	return any
