@@ -1659,6 +1659,15 @@ func _measure_house_boxes(source: RefCounted) -> void:
 		for row: int in across.y:
 			for column: int in across.x:
 				floors.append(_cell_floor((start.x + column) >> 1, (start.y + row) >> 1))
+		# AN AUTHORED OBJECT OUTRANKS A PAINTING OF THE SAME THING. Sprout Tower
+		# is painted in `houses.gd` and declared in `profile.gd:OBJECTS`, and both
+		# were built: the object stood the tower and the painting stood its own
+		# reading of the same drawing through it, which came out as a floor
+		# hanging off the first storey. The test is that the object covers the
+		# WHOLE painting, so a bench standing inside a house takes nothing from
+		# the house it stands in.
+		if _house_inside_object(start, across):
+			continue
 		var chosen: Array = _house_chosen(entry)
 		var footprint: PackedByteArray = _house_footprint(chosen, across)
 		var stood: PackedByteArray = _house_body_mask(chosen, across)
@@ -1698,6 +1707,22 @@ func _measure_house_boxes(source: RefCounted) -> void:
 				# which is where the map says what the building is standing in.
 				if stood[row * across.x + column] == 0:
 					_house_open[at] = Vector2i(start.x, start.x + across.x)
+
+
+## Whether the object pass has already claimed every tile of one painting.
+##
+## Both passes match by arrangement and either may reach a drawing the other one
+## does. Where an object covers the whole of a painting the object is the later
+## and the more specific reading, and the painting is not built at all.
+func _house_inside_object(start: Vector2i, across: Vector2i) -> bool:
+	if _object_covered.is_empty():
+		return false
+	for row: int in across.y:
+		for column: int in across.x:
+			var at: int = (start.y + row) * _size.x + start.x + column
+			if at < 0 or at >= _object_covered.size() or _object_covered[at] == 0:
+				return false
+	return true
 
 
 ## Per tile the depth cap released: the columns of the drawing that covered it,
@@ -5506,6 +5531,9 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 	if bool(object.get(&"seat", false)):
 		_object_seat(object, start, across, front, tiles, mask, span, window, atlas)
 		return
+	if bool(object.get(&"tower", false)):
+		_object_tower(object, start, across, front, tiles, window, atlas)
+		return
 	var top_rows: int = clampi(int(object.get(&"top", 0)), 0, window.size.y)
 	var face_rows: int = window.size.y - top_rows
 	# A drawing's last rows are not always drawn. The face band is authored as
@@ -5663,6 +5691,218 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 					window.position.y, window.position.y + window.size.y
 				),
 				SHADE_TOP_FLAT
+			)
+
+
+## A pagoda, built as the STACK OF LAYERS it is rather than as one box.
+##
+## Every other reading of a tower here has been a box with the drawing hung down
+## its front, and the drawing is a facade: its rows are storey, roof, storey,
+## roof, storey, roof going UP, so a box paints a roof's slats onto a vertical
+## wall, caps the whole thing with a flat lid and lays the door on the pavement.
+##
+## Nothing in a flat drawing says how tall a storey stands, how far a roof
+## oversails it or how steeply it falls, so the layers are AUTHORED beside the
+## arrangement in `profile.gd:OBJECTS`. Per layer, bottom first:
+##
+##   tiles     how tall it stands, in map tiles
+##   half      half its width where it stands, in tiles from the tower's axis, so
+##             3 is a six tile core and 4 is a roof oversailing it by one tile all
+##             round
+##   top_half  a roof's half width where it meets what stands on it. A wall leaves
+##             it out and is a box
+##   art       the rectangle of the drawing its four faces wear, in the
+##             arrangement's own tiles: x, y, width, height
+##   top       a roof's own top surface, the same rectangle. Only the topmost roof
+##             owns one, since every roof below is covered by the storey it carries
+##
+## The axis is the object's own box: the widest course is exactly `depth` deep and
+## `window` wide, so the tower stands where the box stood and covers what it
+## covered.
+func _object_tower(
+	object: Dictionary, start: Vector2i, across: Vector2i, front: float,
+	tiles: Array, window: Rect2i, atlas: RefCounted
+) -> void:
+	var base: float = _object_base(object, start, across)
+	var cx: float = _world_x(start.x) + float(window.position.x) \
+		+ float(window.size.x) * 0.5
+	# The axis DOWN THE PAGE is authored and is not the box's own middle.
+	# `_object_front` holds a box back to the last cell the thing blocks, which
+	# for a tower is the top of its own facade rather than the wall's foot, and
+	# read from there the tower stood eight rows north of its own door. The
+	# arrangement says where the wall is; nothing measured does.
+	var cz: float = _world_z(start.y) + float(object[&"axis"]) * TILE
+	var door := Vector2i(-1, -1)
+	if object.has(&"door"):
+		var span: Array = object[&"door"]
+		door = Vector2i(int(span[0]), int(span[1]))
+	var low: float = base
+	for layer: Dictionary in object[&"layers"] as Array:
+		var high: float = low + float(layer[&"tiles"]) * TILE
+		var half: float = float(layer[&"half"]) * TILE
+		var top_half: float = float(layer.get(&"top_half", layer[&"half"])) * TILE
+		var art: Array = layer[&"art"]
+		var box := Rect2i(int(art[0]), int(art[1]), int(art[2]), int(art[3]))
+		for side: int in 4:
+			_tower_face(
+				tiles, across, box, door, side, cx, cz, low, high, half, top_half,
+				atlas
+			)
+		if layer.has(&"top"):
+			var over: Array = layer[&"top"]
+			_tower_top(
+				tiles, across,
+				Rect2i(int(over[0]), int(over[1]), int(over[2]), int(over[3])),
+				cx, cz, high, top_half, atlas
+			)
+		low = high
+
+
+## The shade each of a tower's four faces wears, south first and clockwise.
+const TOWER_SHADES: Array = [SHADE_SOUTH, SHADE_SIDE, SHADE_NORTH, SHADE_SIDE]
+
+
+## One face of one layer of a tower, cut per tile across and down.
+##
+## The face is `2 * half` wide where it stands and `2 * top_half` wide where it
+## ends, which is a wall where the two are equal and a roof's slope where they are
+## not. Every position across it is pulled in by the same ratio, so the four faces
+## of a roof meet along its hips with no corner authored anywhere.
+##
+## The art is repeated across a face wider than itself and STRETCHED down one
+## taller than itself. Stretched rather than repeated, because a storey drawn one
+## tile high stands two tiles here and repeating it draws its windows twice.
+func _tower_face(
+	tiles: Array, across: Vector2i, art: Rect2i, door: Vector2i, side: int,
+	cx: float, cz: float, low: float, high: float, half: float, top_half: float,
+	atlas: RefCounted
+) -> void:
+	if half <= 0.0 or art.size.x <= 0 or art.size.y <= 0:
+		return
+	@warning_ignore("integer_division")
+	var wide: int = int(half * 2.0) / TILE_PX
+	if wide <= 0:
+		return
+	var rows: int = art.size.y
+	var normal: Vector3 = [
+		Vector3(0.0, 0.0, 1.0), Vector3(1.0, 0.0, 0.0),
+		Vector3(0.0, 0.0, -1.0), Vector3(-1.0, 0.0, 0.0),
+	][side]
+	for band: int in rows:
+		# The drawing's rows run DOWN the page and a face is measured UP from the
+		# ground, so the first row of the art is the top band of the face. Taken
+		# the other way round a two row storey is built upside down, which put the
+		# head of the door at its threshold.
+		var t0: float = float(rows - band - 1) / float(rows)
+		var t1: float = float(rows - band) / float(rows)
+		var y0: float = lerpf(low, high, t0)
+		var y1: float = lerpf(low, high, t1)
+		# How far in each end of the band stands, as a fraction of the widest
+		# course, which is what keeps a tile column straight up a slope.
+		var s0: float = lerpf(1.0, top_half / half, t0)
+		var s1: float = lerpf(1.0, top_half / half, t1)
+		var tile_row: int = art.position.y + band
+		for column: int in wide:
+			var art_column: int = _tower_art_column(art, door, side, column, wide)
+			var at: int = tile_row * across.x + art_column
+			if at < 0 or at >= tiles.size():
+				continue
+			var uv: Rect2 = atlas.uv_box(
+				int(tiles[at]), Rect2i(0, 0, TILE_PX, TILE_PX)
+			)
+			var u0: float = -half + float(column) * TILE
+			var u1: float = u0 + TILE
+			_quad(
+				_tower_corner(side, cx, cz, u0 * s0, y0, half * s0),
+				_tower_corner(side, cx, cz, u1 * s0, y0, half * s0),
+				_tower_corner(side, cx, cz, u1 * s1, y1, half * s1),
+				_tower_corner(side, cx, cz, u0 * s1, y1, half * s1),
+				normal, uv, TOWER_SHADES[side]
+			)
+
+
+## One corner of a tower's face: how far ALONG it the point stands, and how far
+## OUT the course it belongs to reaches. Both are already pulled in by the layer's
+## own narrowing, so this is the one place that knows which way each face runs and
+## nothing else about a tower carries a sign.
+##
+## The faces run clockwise seen from above, south first, each read left to right as
+## it is seen from OUTSIDE, which is the order `_quad` takes its corners in.
+func _tower_corner(
+	side: int, cx: float, cz: float, along: float, y: float, out: float
+) -> Vector3:
+	match side:
+		0:
+			return Vector3(cx + along, y, cz + out)
+		1:
+			return Vector3(cx + out, y, cz - along)
+		2:
+			return Vector3(cx - along, y, cz - out)
+		_:
+			return Vector3(cx - out, y, cz + along)
+
+
+## Which column of the drawing one position across a tower's face wears.
+##
+## A face wider than its art repeats it, sampled about the middle of each tile so
+## that the two ends wear the same column and the corners of a roof match. The
+## three faces that are not the front take the nearest column that is NOT the
+## door, since a tower has one way in.
+func _tower_art_column(
+	art: Rect2i, door: Vector2i, side: int, column: int, wide: int
+) -> int:
+	@warning_ignore("integer_division")
+	var at: int = (column * 2 + 1) * art.size.x / (wide * 2)
+	at = art.position.x + clampi(at, 0, art.size.x - 1)
+	if side == 0 or door.x < 0 or at < door.x or at > door.y:
+		return at
+	var left: int = door.x - 1
+	var right: int = door.y + 1
+	if left < art.position.x:
+		return mini(right, art.position.x + art.size.x - 1)
+	if right > art.position.x + art.size.x - 1:
+		return left
+	return left if at - door.x <= door.y - at else right
+
+
+## A tower roof's own top surface, laid flat and cut per tile.
+##
+## Only the topmost roof has one. Every roof under it is covered by the storey it
+## carries, which is exactly its own top width.
+func _tower_top(
+	tiles: Array, across: Vector2i, art: Rect2i,
+	cx: float, cz: float, y: float, half: float, atlas: RefCounted
+) -> void:
+	if half <= 0.0 or art.size.x <= 0 or art.size.y <= 0:
+		return
+	@warning_ignore("integer_division")
+	var wide: int = int(half * 2.0) / TILE_PX
+	if wide <= 0:
+		return
+	for row: int in wide:
+		@warning_ignore("integer_division")
+		var art_row: int = art.position.y + clampi(
+			(row * 2 + 1) * art.size.y / (wide * 2), 0, art.size.y - 1
+		)
+		var z0: float = -half + float(row) * TILE
+		var z1: float = z0 + TILE
+		for column: int in wide:
+			@warning_ignore("integer_division")
+			var art_column: int = art.position.x + clampi(
+				(column * 2 + 1) * art.size.x / (wide * 2), 0, art.size.x - 1
+			)
+			var at: int = art_row * across.x + art_column
+			if at < 0 or at >= tiles.size():
+				continue
+			var uv: Rect2 = atlas.uv_box(
+				int(tiles[at]), Rect2i(0, 0, TILE_PX, TILE_PX)
+			)
+			var x0: float = -half + float(column) * TILE
+			var x1: float = x0 + TILE
+			_quad(
+				Vector3(cx + x0, y, cz + z1), Vector3(cx + x1, y, cz + z1),
+				Vector3(cx + x1, y, cz + z0), Vector3(cx + x0, y, cz + z0),
+				Vector3.UP, uv, SHADE_TOP_FLAT
 			)
 
 
