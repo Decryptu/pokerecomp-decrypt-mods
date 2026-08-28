@@ -11,7 +11,16 @@ only correct when the entries it drops were genuinely fixed.
 """
 import argparse, pathlib, re, subprocess, sys
 
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 DEBT = pathlib.Path(__file__).with_name("bloat_debt.txt")
+
+
+def named(path):
+    """Repo-relative, so a debt entry means the same however the path arrived."""
+    try:
+        return pathlib.Path(path).resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return path
 
 CC_MAX = 10
 LEN_MAX = 60
@@ -78,8 +87,9 @@ def main():
     ).stdout.split()
 
     breaches, ranked, over = [], [], set()
-    for path in paths:
-        comments, ratio, found = scan(path)
+    for full in paths:
+        path = named(full)
+        comments, ratio, found = scan(full)
         if ratio > COMMENT_MAX and comments > COMMENT_FLOOR:
             breaches.append((path, f"{path}: {ratio}% comment lines, over {COMMENT_MAX}%"))
         for one in found:
