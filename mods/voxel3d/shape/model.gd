@@ -60,17 +60,17 @@ class Measure extends RefCounted:
 		return profile.size() + trunk_height
 
 
-static func measure(
-	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
-	atlas: RefCounted, measured_pot: bool = false
-) -> Measure:
-	var out := Measure.new()
-	out.potted = measured_pot
-	var widths := PackedInt32Array()
-	widths.resize(span.y)
-	var first_row: int = -1
-	var last_row: int = -1
+## Solid pixels per row, and the first and last row that has any.
+class Rows:
+	var width := PackedInt32Array()
+	var first: int = -1
+	var last: int = -1
 	var widest: int = 0
+
+
+static func _rows(mask: PackedByteArray, span: Vector2i) -> Rows:
+	var out := Rows.new()
+	out.width.resize(span.y)
 	for py: int in span.y:
 		var first: int = -1
 		var last: int = -1
@@ -79,61 +79,136 @@ static func measure(
 				if first < 0:
 					first = px
 				last = px
-		widths[py] = 0 if first < 0 else last + 1 - first
-		widest = maxi(widest, widths[py])
-		if widths[py] > 0:
-			if first_row < 0:
-				first_row = py
-			last_row = py
-	if first_row < 0:
-		out.profile = PackedFloat32Array([6.0, 8.0, 8.0, 6.0])
-		out.tones = PackedColorArray([Color(0.35, 0.62, 0.28), Color(0.2, 0.42, 0.18)])
-		out.shades = out.tones
-		out.bark = PackedColorArray([Color(0.42, 0.28, 0.14)])
-		return out
+		out.width[py] = 0 if first < 0 else last + 1 - first
+		out.widest = maxi(out.widest, out.width[py])
+		if out.width[py] > 0:
+			if out.first < 0:
+				out.first = py
+			out.last = py
+	return out
 
-	var narrow: int = maxi(widest / 2, 1)
-	var widest_row: int = first_row
-	for py: int in range(first_row, last_row + 1):
-		if widths[py] == widest:
-			widest_row = py
+
+## Where the crown stops and the trunk starts, by the row that first narrows to
+## half the widest row and the run of narrow rows under it.
+static func _crown_bottom(rows: Rows) -> int:
+	var narrow: int = maxi(rows.widest / 2, 1)
+	var at: int = rows.first
+	for py: int in range(rows.first, rows.last + 1):
+		if rows.width[py] == rows.widest:
+			at = py
 			break
-	var crown_bottom: int = widest_row
-	while crown_bottom <= last_row and widths[crown_bottom] > narrow:
-		crown_bottom += 1
-	var trunk_bottom: int = crown_bottom
-	while trunk_bottom <= last_row and widths[trunk_bottom] > 0 \
-			and widths[trunk_bottom] <= narrow:
-		trunk_bottom += 1
+	while at <= rows.last and rows.width[at] > narrow:
+		at += 1
+	return at
+
+
+static func _trunk_bottom(rows: Rows, crown_bottom: int) -> int:
+	var narrow: int = maxi(rows.widest / 2, 1)
+	var at: int = crown_bottom
+	while at <= rows.last and rows.width[at] > 0 and rows.width[at] <= narrow:
+		at += 1
+	return at
+
+
+## Where a pot starts: the run under the crown no wider than its thinnest row.
+static func _pot_top(rows: Rows, crown_bottom: int) -> int:
+	var thin: int = 0
+	for py: int in range(crown_bottom, rows.last + 1):
+		if rows.width[py] > 0 and (thin == 0 or rows.width[py] < thin):
+			thin = rows.width[py]
+	var at: int = crown_bottom
+	while at <= rows.last and rows.width[at] <= thin:
+		at += 1
+	return at
+
+
+## The bark colours, which are the trunk's own colours less the leaf ones and
+## less anything lighter than the lightest leaf.
+static func _wood(bark: PackedColorArray, tones: PackedColorArray) -> PackedColorArray:
+	var lightest: float = 0.0
+	for leaf: Color in tones:
+		lightest = maxf(lightest, leaf.get_luminance())
+	var out := PackedColorArray()
+	for colour: Color in bark:
+		if colour.get_luminance() > lightest:
+			continue
+		var claimed: bool = false
+		for leaf: Color in tones:
+			claimed = claimed or leaf.is_equal_approx(colour)
+		if not claimed:
+			out.append(colour)
+	return out
+
+
+## What a shape with nothing measurable in it falls back to.
+static func _greenery(out: Measure) -> Measure:
+	if out.tones.is_empty():
+		out.tones = PackedColorArray([
+			Color(0.35, 0.62, 0.28), Color(0.2, 0.42, 0.18)
+		])
+	if out.shades.is_empty():
+		out.shades = out.tones
+	if out.bark.is_empty():
+		out.bark = PackedColorArray([Color(0.42, 0.28, 0.14)])
+	return out
+
+
+static func measure(
+	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
+	atlas: RefCounted, measured_pot: bool = false
+) -> Measure:
+	var out := Measure.new()
+	out.potted = measured_pot
+	var rows: Rows = _rows(mask, span)
+	if rows.first < 0:
+		out.profile = PackedFloat32Array([6.0, 8.0, 8.0, 6.0])
+		return _greenery(out)
+
+	var crown_bottom: int = _crown_bottom(rows)
+	var trunk_bottom: int = _trunk_bottom(rows, crown_bottom)
 	var trunk: int = 0
 	for py: int in range(crown_bottom, trunk_bottom):
-		trunk = maxi(trunk, widths[py])
-
-	for py: int in range(first_row, crown_bottom):
-		out.profile.append(float(widths[py]) * 0.5)
+		trunk = maxi(trunk, rows.width[py])
+	for py: int in range(rows.first, crown_bottom):
+		out.profile.append(float(rows.width[py]) * 0.5)
 	if out.profile.is_empty():
-		out.profile.append(float(widest) * 0.5)
+		out.profile.append(float(rows.widest) * 0.5)
 	out.trunk_height = maxi(trunk_bottom - crown_bottom, 2)
 	out.trunk_width = maxi(trunk, 3)
 
 	var pot_top: int = crown_bottom
 	if measured_pot:
-		var thin: int = 0
-		for py: int in range(crown_bottom, last_row + 1):
-			if widths[py] > 0 and (thin == 0 or widths[py] < thin):
-				thin = widths[py]
-		while pot_top <= last_row and widths[pot_top] <= thin:
-			pot_top += 1
+		pot_top = _pot_top(rows, crown_bottom)
 		out.trunk_height = maxi(pot_top - crown_bottom, 1)
-	if measured_pot and pot_top <= last_row:
-		for py: int in range(pot_top, last_row + 1):
-			out.pot.append(float(widths[py]) * 0.5)
-		out.pot_bands = _bands(mask, span, tiles, across, atlas, pot_top, last_row)
-	out.tones = _tones(mask, span, tiles, across, atlas, first_row, crown_bottom - 1)
-	out.shades = _tones(
-		mask, span, tiles, across, atlas, first_row, crown_bottom - 1, false
+		_measure_pot(out, rows, pot_top, mask, span, tiles, across, atlas)
+	_measure_crown(out, rows, crown_bottom, mask, span, tiles, across, atlas)
+	var bark_bottom: int = (pot_top - 1) if pot_top > crown_bottom else rows.last
+	out.bark = _tones(
+		mask, span, tiles, across, atlas, crown_bottom, bark_bottom
 	)
-	out.bands = _bands(mask, span, tiles, across, atlas, first_row, crown_bottom - 1)
+	_measure_bark(out)
+	return _greenery(out)
+
+
+static func _measure_pot(
+	out: Measure, rows: Rows, pot_top: int, mask: PackedByteArray,
+	span: Vector2i, tiles: Array, across: Vector2i, atlas: RefCounted
+) -> void:
+	for py: int in range(pot_top, rows.last + 1):
+		out.pot.append(float(rows.width[py]) * 0.5)
+	if pot_top <= rows.last:
+		out.pot_bands = _bands(mask, span, tiles, across, atlas, pot_top, rows.last)
+
+
+static func _measure_crown(
+	out: Measure, rows: Rows, crown_bottom: int, mask: PackedByteArray,
+	span: Vector2i, tiles: Array, across: Vector2i, atlas: RefCounted
+) -> void:
+	var top: int = rows.first
+	var end: int = crown_bottom - 1
+	out.tones = _tones(mask, span, tiles, across, atlas, top, end)
+	out.shades = _tones(mask, span, tiles, across, atlas, top, end, false)
+	out.bands = _bands(mask, span, tiles, across, atlas, top, end)
 	out.cap = _cap(out.bands)
 	out.cap_rows = _cap_rows(out.bands, out.cap)
 	for at: int in range(out.cap_rows, out.bands.size()):
@@ -141,35 +216,18 @@ static func measure(
 	if out.side_bands.is_empty():
 		out.side_bands = out.bands
 	out.wraps = _wraps(
-		mask, span, tiles, across, atlas, first_row + out.cap_rows, crown_bottom - 1
+		mask, span, tiles, across, atlas, top + out.cap_rows, end
 	)
-	out.bark = _tones(
-		mask, span, tiles, across, atlas, crown_bottom,
-		(pot_top - 1) if measured_pot and pot_top > crown_bottom else last_row
-	)
-	var lightest: float = 0.0
-	for leaf: Color in out.tones:
-		lightest = maxf(lightest, leaf.get_luminance())
-	var wood := PackedColorArray()
-	for colour: Color in out.bark:
-		var claimed: bool = false
-		for leaf: Color in out.tones:
-			if leaf.is_equal_approx(colour):
-				claimed = true
-		if not claimed and colour.get_luminance() <= lightest:
-			wood.append(colour)
+
+
+## The trunk keeps its own colours where it has any of its own, and borrows the
+## darkest leaf shade where every colour on it is also a leaf's.
+static func _measure_bark(out: Measure) -> void:
+	var wood: PackedColorArray = _wood(out.bark, out.tones)
 	if wood.is_empty() and not out.bark.is_empty() and not out.shades.is_empty():
 		wood.append(out.shades[out.shades.size() - 1])
 	if not wood.is_empty():
 		out.bark = wood
-	if out.tones.is_empty():
-		out.tones = PackedColorArray([Color(0.35, 0.62, 0.28), Color(0.2, 0.42, 0.18)])
-	if out.shades.is_empty():
-		out.shades = out.tones
-	if out.bark.is_empty():
-		out.bark = PackedColorArray([Color(0.42, 0.28, 0.14)])
-	return out
-
 
 static func _tones(
 	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,

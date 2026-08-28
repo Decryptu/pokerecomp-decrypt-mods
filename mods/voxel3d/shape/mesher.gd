@@ -590,11 +590,57 @@ func _world_z(ty: int) -> float:
 	return float(ty - _margin.y) * TILE
 
 
-func grid_index(map_tile: Vector2i) -> int:
-	var at: Vector2i = map_tile + _margin
-	if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
+## The four-neighbourhood, in the order the passes below walk it.
+const STEPS: Array[Vector2i] = [
+	Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
+]
+
+
+## A grid index, or -1 off the grid. Every lookup goes through here so no pass
+## carries its own bounds test.
+func _index(tx: int, ty: int) -> int:
+	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
 		return -1
-	return at.y * _size.x + at.x
+	return ty * _size.x + tx
+
+
+func _index_of(tile: Vector2i) -> int:
+	return _index(tile.x, tile.y)
+
+
+func _tile_of(at: int) -> Vector2i:
+	@warning_ignore("integer_division")
+	return Vector2i(at % _size.x, at / _size.x)
+
+
+## The in-grid four-neighbours of a tile.
+func _neighbours(at: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	var from: Vector2i = _tile_of(at)
+	for step: Vector2i in STEPS:
+		var index: int = _index(from.x + step.x, from.y + step.y)
+		if index >= 0:
+			out.append(index)
+	return out
+
+
+## Every tile reachable from `start` through `accept`, marking `seen` as it goes.
+func _spread(start: int, seen: PackedByteArray, accept: Callable) -> PackedInt32Array:
+	var region := PackedInt32Array()
+	seen[start] = 1
+	region.append(start)
+	var walked: int = 0
+	while walked < region.size():
+		for index: int in _neighbours(region[walked]):
+			if seen[index] == 0 and accept.call(index):
+				seen[index] = 1
+				region.append(index)
+		walked += 1
+	return region
+
+
+func grid_index(map_tile: Vector2i) -> int:
+	return _index_of(map_tile + _margin)
 
 
 func _margin_cells() -> Vector2i:
@@ -1517,81 +1563,75 @@ func _measure_ramps() -> void:
 	for at: int in count:
 		for corner: int in 4:
 			_corners[at * 4 + corner] = _heights[at]
+	var distance: PackedInt32Array = _shelf_depths()
+	for at: int in count:
+		if distance[at] >= 0:
+			_slope_shelf(at, distance)
+
+
+## How many tiles in from its own lip each shelf tile lies, by breadth. A lip is
+## a shelf tile with lower ground beside it inside the map.
+func _shelf_depths() -> PackedInt32Array:
+	var count: int = _size.x * _size.y
 	var distance := PackedInt32Array()
 	distance.resize(count)
 	distance.fill(-1)
 	var stack := PackedInt32Array()
 	for at: int in count:
-		if _shelf[at] == 0 or _heights[at] <= 0:
-			continue
-		var tx: int = at % _size.x
-		@warning_ignore("integer_division")
-		var ty: int = at / _size.x
-		for step: Vector2i in [
-			Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
-		]:
-			var to := Vector2i(tx + step.x, ty + step.y)
-			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-				continue
-			if not _in_map(to.x, to.y):
-				continue
-			var index: int = to.y * _size.x + to.x
-			if _shelf[index] == 1 or _heights[index] >= _heights[at]:
-				continue
+		if _shelf[at] == 1 and _heights[at] > 0 and _on_shelf_lip(at):
 			distance[at] = 1
 			stack.append(at)
-			break
 	var head: int = 0
 	while head < stack.size():
 		var at: int = stack[head]
 		head += 1
-		var tx: int = at % _size.x
-		@warning_ignore("integer_division")
-		var ty: int = at / _size.x
-		for step: Vector2i in [
-			Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
-		]:
-			var to := Vector2i(tx + step.x, ty + step.y)
-			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-				continue
-			var index: int = to.y * _size.x + to.x
-			if distance[index] >= 0 or _shelf[index] == 0 or _heights[index] <= 0:
-				continue
-			distance[index] = distance[at] + 1
-			stack.append(index)
+		for index: int in _neighbours(at):
+			if distance[index] < 0 and _shelf[index] == 1 and _heights[index] > 0:
+				distance[index] = distance[at] + 1
+				stack.append(index)
+	return distance
 
-	for at: int in count:
-		if distance[at] < 0:
+
+func _on_shelf_lip(at: int) -> bool:
+	var from: Vector2i = _tile_of(at)
+	for step: Vector2i in STEPS:
+		var to: Vector2i = from + step
+		var index: int = _index_of(to)
+		if index < 0 or not _in_map(to.x, to.y):
 			continue
-		var tx: int = at % _size.x
-		@warning_ignore("integer_division")
-		var ty: int = at / _size.x
-		var sloped: bool = false
-		for corner: int in 4:
-			var step := Vector2i(-1 if corner % 2 == 0 else 1, -1 if corner < 2 else 1)
-			var near: int = distance[at]
-			for reach: Vector2i in [
-				Vector2i(step.x, 0), Vector2i(0, step.y), step
-			]:
-				var to := Vector2i(tx + reach.x, ty + reach.y)
-				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-					continue
-				if not _in_map(to.x, to.y):
-					continue
-				var index: int = to.y * _size.x + to.x
-				if _shelf[index] == 0:
-					if _heights[index] < _heights[at]:
-						near = 0
-					continue
-				near = mini(near, maxi(distance[index], 0))
-			var high: int = mini(near * BAND, _heights[at])
-			_corners[at * 4 + corner] = high
-			sloped = sloped or high < _heights[at]
-		if sloped:
-			_ramp[at] = 1
-			_art[at] = ART_FLAT
-			_volume[at] = 0
+		if _shelf[index] == 0 and _heights[index] < _heights[at]:
+			return true
+	return false
 
+
+## One shelf tile: each corner pulled down to the shallowest depth around it, so
+## a shelf falls away as a slope rather than a step.
+func _slope_shelf(at: int, distance: PackedInt32Array) -> void:
+	var tile: Vector2i = _tile_of(at)
+	var sloped: bool = false
+	for corner: int in 4:
+		var step := Vector2i(-1 if corner % 2 == 0 else 1, -1 if corner < 2 else 1)
+		var near: int = distance[at]
+		for reach: Vector2i in [Vector2i(step.x, 0), Vector2i(0, step.y), step]:
+			near = _shelf_near(at, tile + reach, near, distance)
+		var high: int = mini(near * BAND, _heights[at])
+		_corners[at * 4 + corner] = high
+		sloped = sloped or high < _heights[at]
+	if sloped:
+		_ramp[at] = 1
+		_art[at] = ART_FLAT
+		_volume[at] = 0
+
+
+func _shelf_near(
+	at: int, to: Vector2i, near: int, distance: PackedInt32Array
+) -> int:
+	var index: int = _index_of(to)
+	if index < 0 or not _in_map(to.x, to.y):
+		return near
+	if _shelf[index] == 0:
+		return 0 if _heights[index] < _heights[at] else near
+	return mini(near, maxi(distance[index], 0))
 
 func _in_map(tx: int, ty: int) -> bool:
 	return (
@@ -1675,114 +1715,99 @@ const MOUND_MAX: int = 256
 
 func _measure_mounds(shape: RefCounted) -> void:
 	var tiles: Dictionary = shape.mound_tiles()
-	if tiles.is_empty():
-		return
 	var doors: Array = tiles.get(&"door", [])
 	var body: Array = tiles.get(&"body", [])
 	if doors.is_empty() or body.is_empty():
 		return
+	var inside: PackedByteArray = _mound_interiors(doors, body)
+	if inside.is_empty():
+		return
+	var distance: PackedInt32Array = _mound_depths(inside)
+	for at: int in inside.size():
+		if inside[at] == 1:
+			_raise_mound(at, inside, distance)
+
+
+## Every tile of a mound small enough to be one: a door tile and the body it
+## reaches. A region over `MOUND_MAX` is a landscape rather than a mound.
+func _mound_interiors(doors: Array, body: Array) -> PackedByteArray:
 	var count: int = _size.x * _size.y
 	var inside := PackedByteArray()
 	inside.resize(count)
 	var seen := PackedByteArray()
 	seen.resize(count)
 	var any: bool = false
+	var is_body: Callable = func(at: int) -> bool:
+		return _tiles[at] >= 0 and body.has(_tiles[at])
 	for start: int in count:
 		if seen[start] == 1 or _tiles[start] < 0 or not doors.has(_tiles[start]):
 			continue
-		var region := PackedInt32Array()
-		seen[start] = 1
-		region.append(start)
-		var walked: int = 0
-		while walked < region.size():
-			var at: int = region[walked]
-			walked += 1
-			@warning_ignore("integer_division")
-			var from := Vector2i(at % _size.x, at / _size.x)
-			for step: Vector2i in [
-				Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
-			]:
-				var to: Vector2i = from + step
-				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-					continue
-				var index: int = to.y * _size.x + to.x
-				if seen[index] == 1 or _tiles[index] < 0 or not body.has(_tiles[index]):
-					continue
-				seen[index] = 1
-				region.append(index)
+		var region: PackedInt32Array = _spread(start, seen, is_body)
 		if region.size() > MOUND_MAX:
 			continue
 		for at: int in region:
 			inside[at] = 1
 		any = true
-	if not any:
-		return
+	return inside if any else PackedByteArray()
 
+
+## How many tiles in from its own edge each mound tile lies, by breadth.
+func _mound_depths(inside: PackedByteArray) -> PackedInt32Array:
 	var distance := PackedInt32Array()
-	distance.resize(count)
+	distance.resize(inside.size())
 	distance.fill(0)
 	var queue := PackedInt32Array()
-	for at: int in count:
+	for at: int in inside.size():
 		if inside[at] == 0:
 			continue
 		distance[at] = -1
-		@warning_ignore("integer_division")
-		var from := Vector2i(at % _size.x, at / _size.x)
-		for step: Vector2i in [
-			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
-		]:
-			var to: Vector2i = from + step
-			if to.x >= 0 and to.y >= 0 and to.x < _size.x and to.y < _size.y \
-					and inside[to.y * _size.x + to.x] == 1:
-				continue
+		if _on_mound_edge(at, inside):
 			distance[at] = 1
 			queue.append(at)
-			break
 	var head: int = 0
 	while head < queue.size():
 		var at: int = queue[head]
 		head += 1
-		@warning_ignore("integer_division")
-		var from := Vector2i(at % _size.x, at / _size.x)
-		for step: Vector2i in [
-			Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
-		]:
-			var to: Vector2i = from + step
-			if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-				continue
-			var index: int = to.y * _size.x + to.x
-			if inside[index] == 0 or distance[index] >= 0:
-				continue
-			distance[index] = distance[at] + 1
-			queue.append(index)
+		for index: int in _neighbours(at):
+			if inside[index] == 1 and distance[index] < 0:
+				distance[index] = distance[at] + 1
+				queue.append(index)
+	return distance
 
-	for at: int in count:
-		if inside[at] == 0:
-			continue
-		var tx: int = at % _size.x
-		@warning_ignore("integer_division")
-		var ty: int = at / _size.x
-		_heights[at] = MOUND_HIGH
-		_art[at] = ART_FLAT
-		_volume[at] = 0
-		_modelled[at] = 0
-		var sloped: bool = false
-		for corner: int in 4:
-			var step := Vector2i(-1 if corner % 2 == 0 else 1, -1 if corner < 2 else 1)
-			var near: int = maxi(distance[at], 0)
-			for reach: Vector2i in [Vector2i(step.x, 0), Vector2i(0, step.y), step]:
-				var to := Vector2i(tx + reach.x, ty + reach.y)
-				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-					continue
-				if not _in_map(to.x, to.y):
-					continue
-				var index: int = to.y * _size.x + to.x
-				near = mini(near, maxi(distance[index], 0) if inside[index] == 1 else 0)
-			var high: int = mini(near * BAND, MOUND_HIGH)
-			_corners[at * 4 + corner] = high
-			sloped = sloped or high < MOUND_HIGH
-		if sloped:
-			_ramp[at] = 1
+
+## A tile with a neighbour outside the mound, the grid's own edge included.
+func _on_mound_edge(at: int, inside: PackedByteArray) -> bool:
+	var from: Vector2i = _tile_of(at)
+	for step: Vector2i in STEPS:
+		var index: int = _index(from.x + step.x, from.y + step.y)
+		if index < 0 or inside[index] == 0:
+			return true
+	return false
+
+
+## One mound tile: flat art at the mound's height, with each corner pulled down
+## to the shallowest depth around it so the rim slopes rather than steps.
+func _raise_mound(at: int, inside: PackedByteArray, distance: PackedInt32Array) -> void:
+	_heights[at] = MOUND_HIGH
+	_art[at] = ART_FLAT
+	_volume[at] = 0
+	_modelled[at] = 0
+	var tile: Vector2i = _tile_of(at)
+	var sloped: bool = false
+	for corner: int in 4:
+		var step := Vector2i(-1 if corner % 2 == 0 else 1, -1 if corner < 2 else 1)
+		var near: int = maxi(distance[at], 0)
+		for reach: Vector2i in [Vector2i(step.x, 0), Vector2i(0, step.y), step]:
+			var to: Vector2i = tile + reach
+			var index: int = _index_of(to)
+			if index < 0 or not _in_map(to.x, to.y):
+				continue
+			near = mini(near, maxi(distance[index], 0) if inside[index] == 1 else 0)
+		var high: int = mini(near * BAND, MOUND_HIGH)
+		_corners[at * 4 + corner] = high
+		sloped = sloped or high < MOUND_HIGH
+	if sloped:
+		_ramp[at] = 1
 
 
 func _measure_doors(shape: RefCounted) -> void:
