@@ -2979,10 +2979,23 @@ func _corner_across(step: Vector2i, reach: Vector2i) -> int:
 ## column draws no front at all, and what says how tall a rim stands is the rock it
 ## belongs to. Each column votes with the length of its own front run, so a face
 ## two tiles nearly everywhere is not lifted by the one column a cave mouth is cut
-## into. A structure with no front keeps what the column pass measured.
+## into.
+##
+## A structure with no front keeps what the column pass measured, but never
+## taller than the tallest face the map DOES draw. Nothing in a frontless
+## structure says how tall it is, so the column pass answers with the length of
+## its own run, and Route 22's rim between the pond and the field is sixteen
+## tiles long: it came out three cells of black curtain beside rock standing at
+## one. The cap is the whole map's tallest front rather than the commonest,
+## because a route carries cliffs of more than one height and capping at the
+## commonest brought unrelated rock down on nineteen maps; and it is a cap rather
+## than a reading, because a rim that measured ONE cell measured that off a
+## drawing that repeats and is evidence.
 func _measure_cliffs() -> void:
 	var seen := PackedByteArray()
 	seen.resize(_size.x * _size.y)
+	var structures: Array[PackedInt32Array] = []
+	var banded := PackedInt32Array()
 	for start: int in seen.size():
 		if seen[start] == 1 or _cliff[start] == 0:
 			continue
@@ -3006,8 +3019,25 @@ func _measure_cliffs() -> void:
 					continue
 				seen[index] = 1
 				stack.append(index)
-		var bands: int = _face_bands(members)
+		structures.append(members)
+		banded.append(_face_bands(members))
+	# The tallest face this map actually draws, which is the ceiling on the ones
+	# that draw none.
+	var tallest: int = 0
+	for bands: int in banded:
+		tallest = maxi(tallest, bands)
+	for index: int in structures.size():
+		var members: PackedInt32Array = structures[index]
+		var bands: int = banded[index]
 		if bands <= 0:
+			if tallest <= 0:
+				continue
+			for at: int in members:
+				if _heights[at] <= tallest * BAND:
+					continue
+				_heights[at] = tallest * BAND
+				_bases[at] = _cliff_base(at)
+				_shelf[at] = 1
 			continue
 		for at: int in members:
 			_heights[at] = bands * BAND
