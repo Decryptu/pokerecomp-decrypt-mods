@@ -38,7 +38,6 @@ mods/voxel3d/shape/mesher.gd:_match_houses
 mods/voxel3d/shape/mesher.gd:_measure_bank
 mods/voxel3d/shape/mesher.gd:_measure_buildings
 mods/voxel3d/shape/mesher.gd:_measure_cliffs
-mods/voxel3d/shape/mesher.gd:_measure_collision_doors
 mods/voxel3d/shape/mesher.gd:_measure_columns
 mods/voxel3d/shape/mesher.gd:_measure_cutouts
 mods/voxel3d/shape/mesher.gd:_measure_doors
@@ -47,10 +46,8 @@ mods/voxel3d/shape/mesher.gd:_measure_house_boxes
 mods/voxel3d/shape/mesher.gd:_measure_ledges
 mods/voxel3d/shape/mesher.gd:_measure_mouths
 mods/voxel3d/shape/mesher.gd:_measure_objects
-mods/voxel3d/shape/mesher.gd:_measure_plateaus
 mods/voxel3d/shape/mesher.gd:_measure_room
 mods/voxel3d/shape/mesher.gd:_measure_room_fill
-mods/voxel3d/shape/mesher.gd:_measure_shores
 mods/voxel3d/shape/mesher.gd:_measure_surfaces
 mods/voxel3d/shape/mesher.gd:_model_bodies_of
 mods/voxel3d/shape/mesher.gd:_object_bin
@@ -61,11 +58,7 @@ mods/voxel3d/shape/mesher.gd:_object_wrap
 mods/voxel3d/shape/mesher.gd:_plan_line
 mods/voxel3d/shape/mesher.gd:_ramp_side
 mods/voxel3d/shape/mesher.gd:_regions
-mods/voxel3d/shape/mesher.gd:_settle_aprons
-mods/voxel3d/shape/mesher.gd:_settle_beds
 mods/voxel3d/shape/mesher.gd:_settle_house_ground
-mods/voxel3d/shape/mesher.gd:_settle_ponds
-mods/voxel3d/shape/mesher.gd:_settle_void
 mods/voxel3d/shape/mesher.gd:_skirt_column
 mods/voxel3d/shape/mesher.gd:_stair_corner_riser
 mods/voxel3d/shape/mesher.gd:_stem_post
@@ -75,7 +68,6 @@ mods/voxel3d/shape/mesher.gd:_tufts
 mods/voxel3d/shape/mesher.gd:begin_emit
 mods/voxel3d/shape/mesher.gd:emit_step
 mods/voxel3d/shape/mesher.gd:far_card_for
-mods/voxel3d/shape/mesher.gd:resolve
 mods/voxel3d/shape/model.gd:_bands
 mods/voxel3d/shape/model.gd:_faces
 mods/voxel3d/shape/model.gd:_tone

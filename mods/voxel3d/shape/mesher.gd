@@ -6260,66 +6260,102 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	var tile: int = _tiles[at]
 	if tile < 0:
 		return
-	if _art[at] == ART_CUTOUT or _art[at] == ART_RAILING or _art[at] == ART_FENCE \
-			or _art[at] == ART_BALL:
-		var ground: Vector2i = _ground_art(tx, ty)
-		if ground.y < 0 and _house_ground.has(at):
-			_sink = SINK_WATER
-		_face_top(
-			tx, ty, float(ground.y), atlas.uv(ground.x),
-			SHADE_TOP_VOLUME if _floor_art.has(at) else SHADE_TOP_FLAT
-		)
-		_sink = SINK_TERRAIN
-		_side(tx, ty, ground.y, _beside(tx, ty, Vector2i(0, 1)),
-			Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas, ground.x)
-		_side(tx, ty, ground.y, _beside(tx, ty, Vector2i(0, -1)),
-			Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas, ground.x)
-		_side(tx, ty, ground.y, _beside(tx, ty, Vector2i(1, 0)),
-			Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas, ground.x)
-		_side(tx, ty, ground.y, _beside(tx, ty, Vector2i(-1, 0)),
-			Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas, ground.x)
-		if _house_covered[at] == 1:
-			for index: int in _house_over.get(at, PackedInt32Array()) as PackedInt32Array:
-				if not _owned_here("h%d" % index) or _house_done.has(index):
-					continue
-				_house_done[index] = true
-				_chunk_houses.append(index)
-				_emit_house(index, atlas)
-		elif _object_covered[at] == 1:
-			for index: int in _object_over.get(at, PackedInt32Array()) as PackedInt32Array:
-				if not _owned_here("o%d" % index) or _object_done.has(index):
-					continue
-				_object_done[index] = true
-				_chunk_objects.append(index)
-				_emit_object(index, atlas)
-		elif _art[at] == ART_BALL:
-			_ball(tx, ty, float(ground.y), atlas)
-		elif _art[at] == ART_RAILING:
-			_railing(tx, ty, float(ground.y), atlas)
-		elif _art[at] == ART_FENCE:
-			var cell: int = ((ty - _margin.y) >> 1) * _size.x + ((tx - _margin.x) >> 1)
-			if _owned_here("f%d" % cell) and not _fence_done.has(cell):
-				_fence_done[cell] = true
-				_chunk_fences.append(cell)
-				_fence(tx, ty, float(ground.y), atlas)
-		elif _modelled[at] == 1:
-			_place_model(tx, ty, atlas)
-		else:
-			_cutout(
-				tx, ty, float(_depths[at]), _round[at] == 1, _filled[at] == 1,
-				int(_outlined[at]), float(ground.y), ground.x, atlas
-			)
+	var art: int = _art[at]
+	if art == ART_CUTOUT or art == ART_RAILING or art == ART_FENCE \
+			or art == ART_BALL:
+		_emit_detail(tx, ty, at, atlas)
 		return
-	if _art[at] == ART_LEDGE:
+	if art == ART_LEDGE:
 		_wedge(tx, ty, atlas)
 		return
 	if _ramp[at] == 1:
 		_sink = SINK_TERRAIN
 		_ramp_tile(tx, ty, atlas)
 		return
+	_emit_body(tx, ty, at, tile, atlas)
+
+
+## A drawing that is not the ground it stands on: the floor under it is laid
+## first, with its four sides, and then the drawing itself.
+func _emit_detail(tx: int, ty: int, at: int, atlas: RefCounted) -> void:
+	var ground: Vector2i = _ground_art(tx, ty)
+	if ground.y < 0 and _house_ground.has(at):
+		_sink = SINK_WATER
+	_face_top(
+		tx, ty, float(ground.y), atlas.uv(ground.x),
+		SHADE_TOP_VOLUME if _floor_art.has(at) else SHADE_TOP_FLAT
+	)
+	_sink = SINK_TERRAIN
+	_side(tx, ty, ground.y, _beside(tx, ty, Vector2i(0, 1)),
+		Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas, ground.x)
+	_side(tx, ty, ground.y, _beside(tx, ty, Vector2i(0, -1)),
+		Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas, ground.x)
+	_side(tx, ty, ground.y, _beside(tx, ty, Vector2i(1, 0)),
+		Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas, ground.x)
+	_side(tx, ty, ground.y, _beside(tx, ty, Vector2i(-1, 0)),
+		Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas, ground.x)
+	_emit_standing(tx, ty, at, ground, atlas)
+
+
+## What stands on the floor that tile drew. A house or an object is emitted whole
+## from the first of its tiles this chunk owns, so each is drawn once.
+func _emit_standing(
+	tx: int, ty: int, at: int, ground: Vector2i, atlas: RefCounted
+) -> void:
+	if _house_covered[at] == 1:
+		_emit_covering(at, atlas, _house_over, _house_done, _chunk_houses, "h", true)
+		return
+	if _object_covered[at] == 1:
+		_emit_covering(
+			at, atlas, _object_over, _object_done, _chunk_objects, "o", false
+		)
+		return
+	if _art[at] == ART_BALL:
+		_ball(tx, ty, float(ground.y), atlas)
+		return
+	if _art[at] == ART_RAILING:
+		_railing(tx, ty, float(ground.y), atlas)
+		return
+	if _art[at] == ART_FENCE:
+		_emit_fence(tx, ty, float(ground.y), atlas)
+		return
+	if _modelled[at] == 1:
+		_place_model(tx, ty, atlas)
+		return
+	_cutout(
+		tx, ty, float(_depths[at]), _round[at] == 1, _filled[at] == 1,
+		int(_outlined[at]), float(ground.y), ground.x, atlas
+	)
+
+
+func _emit_fence(tx: int, ty: int, ground: float, atlas: RefCounted) -> void:
+	var cell: int = ((ty - _margin.y) >> 1) * _size.x + ((tx - _margin.x) >> 1)
+	if not _owned_here("f%d" % cell) or _fence_done.has(cell):
+		return
+	_fence_done[cell] = true
+	_chunk_fences.append(cell)
+	_fence(tx, ty, ground, atlas)
+
+
+func _emit_covering(
+	at: int, atlas: RefCounted, over: Dictionary, done: Dictionary,
+	chunk: Array, mark: String, house: bool
+) -> void:
+	for index: int in over.get(at, PackedInt32Array()) as PackedInt32Array:
+		if not _owned_here(mark + str(index)) or done.has(index):
+			continue
+		done[index] = true
+		chunk.append(index)
+		if house:
+			_emit_house(index, atlas)
+		else:
+			_emit_object(index, atlas)
+
+
+## The tile as a solid: its cap, its four sides, and whatever stands on it.
+func _emit_body(tx: int, ty: int, at: int, tile: int, atlas: RefCounted) -> void:
 	var here: int = _heights[at]
 	var is_volume: bool = _volume[at] == 1
-
 	@warning_ignore("integer_division")
 	var cap: int = _band_tile(tx, ty, maxi(here / BAND - 1, 0)) if is_volume else tile
 	if _floor_art.has(at):
@@ -6332,31 +6368,45 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		_sink = SINK_TERRAIN
 		return
 	var tilted: bool = _tilted(at)
-	if not _room.is_empty() and _room[at] == ROOM_SHELL \
-			and ty >= _map_end.y:
-		_sink = SINK_TERRAIN
-	elif tilted:
-		_face_roof(tx, ty, atlas.uv(cap), SHADE_TOP_FLAT)
-	else:
-		_face_top(
-			tx, ty, float(here), atlas.uv(cap),
-			SHADE_TOP_VOLUME if is_volume else SHADE_TOP_FLAT
-		)
+	_emit_cap(tx, ty, at, here, cap, tilted, is_volume, atlas)
 	_sink = SINK_TERRAIN
-
 	_roof_side(tx, ty, tilted, here, Vector2i(0, 1), Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
 	_roof_side(tx, ty, tilted, here, Vector2i(0, -1), Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
 	_roof_side(tx, ty, tilted, here, Vector2i(1, 0), Vector3(1.0, 0.0, 0.0), SHADE_SIDE, atlas)
 	_roof_side(tx, ty, tilted, here, Vector2i(-1, 0), Vector3(-1.0, 0.0, 0.0), SHADE_SIDE, atlas)
+	_emit_on_top(tx, ty, at, here, atlas)
+
+
+## The room's own shell south of the map draws no cap: the camera looks over it
+## from inside, and a lid there would roof the room.
+func _emit_cap(
+	tx: int, ty: int, at: int, here: int, cap: int, tilted: bool,
+	is_volume: bool, atlas: RefCounted
+) -> void:
+	if not _room.is_empty() and _room[at] == ROOM_SHELL and ty >= _map_end.y:
+		return
+	if tilted:
+		_face_roof(tx, ty, atlas.uv(cap), SHADE_TOP_FLAT)
+		return
+	_face_top(
+		tx, ty, float(here), atlas.uv(cap),
+		SHADE_TOP_VOLUME if is_volume else SHADE_TOP_FLAT
+	)
+
+
+func _emit_on_top(
+	tx: int, ty: int, at: int, here: int, atlas: RefCounted
+) -> void:
 	if _tufted[at] == 1:
 		_tufts(tx, ty, float(here), atlas, _long_grass[at] == 1)
 	if _modelled[at] == 1:
 		_place_model(tx, ty, atlas, float(here))
-	if _stair_at[at] >= 0 and _owned_here("s%d" % _stair_at[at]) \
-			and not _stair_done.has(_stair_at[at]):
-		_stair_done[_stair_at[at]] = true
-		_chunk_stairs.append(_stair_at[at])
-		_emit_stairs(_stair_at[at], atlas)
+	var stair: int = _stair_at[at]
+	if stair < 0 or _stair_done.has(stair) or not _owned_here("s%d" % stair):
+		return
+	_stair_done[stair] = true
+	_chunk_stairs.append(stair)
+	_emit_stairs(stair, atlas)
 
 const TUFT_THICK: float = 2.0
 const LONG_GRASS_STRETCH: float = 1.75
