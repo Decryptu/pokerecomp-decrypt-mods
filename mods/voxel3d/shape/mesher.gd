@@ -1629,6 +1629,7 @@ func _measure_house_boxes(source: RefCounted) -> void:
 	_house_over.clear()
 	_house_open.clear()
 	_house_ground.clear()
+	_released_ground.clear()
 	if _houses.is_empty():
 		return
 	var warps: Array = []
@@ -1730,6 +1731,9 @@ func _house_inside_object(start: Vector2i, across: Vector2i) -> bool:
 var _house_open: Dictionary = {}
 ## And the answer, once asked. Emptied with the map.
 var _house_ground: Dictionary = {}
+## The same answer for a covered tile the house pass never released, asked at
+## emit and kept so one tile walks its row once. See `_ground_art`.
+var _released_ground: Dictionary = {}
 
 
 ## The floor BESIDE one released tile, along its own row and outside the drawing.
@@ -8879,7 +8883,55 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 	var named: int = _ground_tile_at(at)
 	if named >= 0:
 		return Vector2i(named, 0)
+	# A COVERED BUILDING TILE HAS NO GROUND OF ITS OWN and no class `GROUND`
+	# names, so all that was left was its own drawing: a facade lying flat on the
+	# floor like a fallen billboard. Measured over the game that is 9787 tiles,
+	# every one of them a wall or a roof under a house or an object big enough
+	# that both rings above are the same building.
+	#
+	# The floor BESIDE it along its own row is the answer `_settle_house_ground`
+	# gives a house's released rows, and it is the same question asked one pass
+	# later for the tiles that pass never reached.
+	if _covered_at(at):
+		var beside: Vector2i = _released_ground.get(at, Vector2i(-1, 0))
+		if beside.x < 0:
+			beside = _floor_along_row(tx, ty)
+			if beside.x >= 0:
+				_released_ground[at] = beside
+		if beside.x >= 0:
+			return beside
 	return Vector2i(maxi(_tiles[at], 0), 0)
+
+
+## Whether either pass that stands a drawing up has covered this tile.
+func _covered_at(at: int) -> bool:
+	if not _house_covered.is_empty() and _house_covered[at] == 1:
+		return true
+	return not _object_covered.is_empty() and _object_covered[at] == 1
+
+
+## The floor beside one tile, found along its own ROW.
+##
+## Nearer first and both ways at once, so a building against a bank takes the
+## bank and one standing in a canal takes the canal. The row rather than the
+## rings, because what defeats the rings is a building wider than they reach.
+func _floor_along_row(tx: int, ty: int) -> Vector2i:
+	for step: int in range(1, _size.x):
+		var reached: bool = false
+		for way: int in [-1, 1]:
+			var at_x: int = tx + way * step
+			if at_x < 0 or at_x >= _size.x:
+				continue
+			reached = true
+			var index: int = ty * _size.x + at_x
+			if _art[index] == ART_FLAT and _tiles[index] >= 0 \
+					and _heights[index] >= 0:
+				return _floor_art.get(
+					index, Vector2i(maxi(_tiles[index], 0), _heights[index])
+				)
+		if not reached:
+			break
+	return Vector2i(-1, 0)
 
 
 func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
