@@ -898,7 +898,8 @@ func _fill_row(source: RefCounted, shape: RefCounted, ty: int) -> void:
 		_heights[at] = fact[FACT_HEIGHT]
 		var grass: int = source.code_at(cell)
 		_tufted[at] = int(
-			fact[FACT_TUFTED] == 1 or Gen2WorldCollision.is_grass(grass)
+			fact[FACT_TUFTED] == 1
+			or (Gen2WorldCollision.is_grass(grass) and not _is_water(at))
 		)
 		_long_grass[at] = int(Gen2WorldCollision.is_long_grass(grass))
 
