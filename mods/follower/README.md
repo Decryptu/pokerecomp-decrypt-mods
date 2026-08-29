@@ -87,6 +87,12 @@ same state. It lasts for the session only.
 Some Pokemon stay in the ball whatever the settings say: an empty slot, an egg, a
 fainted Pokemon, and any species the cartridge has no icon for.
 
+It also goes back in its ball for the frames the party is not physically with
+you: over a healing machine, at the Hall of Fame's, over either Day Care counter
+and in the trade cable. The host answers which of those has it, so the follower
+is put away for exactly those frames and is out again on the frame the scene
+ends, standing where it was rather than under you.
+
 ## How it is drawn
 
 The host draws the world and this mod draws nothing. `register_world_actor`

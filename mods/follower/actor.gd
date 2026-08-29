@@ -129,7 +129,7 @@ func _look_for_an_item() -> void:
 
 
 func _allowed() -> bool:
-	if _recalled:
+	if _recalled or not _world.party_with_player():
 		return false
 	var mode: StringName = _world.movement_mode
 	if mode == Gen2WorldAPI.MOVEMENT_BIKE and not bool(_settings[Options.CYCLING]):

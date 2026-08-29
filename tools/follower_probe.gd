@@ -28,6 +28,10 @@ const FACINGS: Dictionary = {
 
 const PARTY: Array[int] = [155, 172, 25, 249]
 
+## The cable club counter, which takes the party out of the player's hands.
+const TRADE_MAP := Vector2i(1, 3)
+const TRADE_CELL := Vector2i(2, 5)
+
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
@@ -73,6 +77,7 @@ func _initialize() -> void:
 	failures += _petting(trail_script)
 	failures += _finding(finder)
 	failures += _picking_up(actor_script, options, data)
+	failures += _in_the_ball(actor_script, options, data)
 	quit(int(failures > 0))
 
 
@@ -428,6 +433,58 @@ func _picking_up(actor_script: GDScript, options: GDScript, data: GameData) -> i
 		"a taken site is not offered again", _is_taken(world.hidden_items(), cell)
 	) else 1
 	return failures
+
+
+## The one thing a follower cannot infer: the party is not physically with the
+## player. The cable club on map 1,3 takes it, so the follower is in its ball for
+## those frames and out again on the frame the host answers.
+func _in_the_ball(actor_script: GDScript, options: GDScript, data: GameData) -> int:
+	var map: Gen2WorldMap = data.world_map(TRADE_MAP.x, TRADE_MAP.y)
+	if map == null:
+		_report("map %s is in the cartridge" % str(TRADE_MAP), false)
+		return 1
+	var world := Gen2WorldAPI.new(
+		data, map, data.world_tileset(map.tileset), TRADE_CELL
+	)
+	world.set_party_summary(
+		1, false, PARTY.slice(0, 1), [], ["CYNDA"], [false], {}, [false]
+	)
+	var host: Gen2ModHost = Gen2ModHost.instance()
+	options.register(host, options.MOD_ID)
+	var actor: RefCounted = actor_script.new()
+	actor.configure(host, options.MOD_ID)
+	actor.set_world(world)
+	actor.advance_frame()
+	_step(actor, world, Vector2i.UP)
+	var failures: int = 0
+	failures += 0 if _report(
+		"before the counter it is out", not actor.sprites().is_empty()
+	) else 1
+	world.interact()
+	actor.advance_frame()
+	failures += 0 if _report(
+		"the host says who has the party (%s)" % String(world.party_holder()),
+		not world.party_with_player()
+	) else 1
+	failures += 0 if _report(
+		"handed over, it is in its ball", actor.sprites().is_empty()
+	) else 1
+	world.complete_runtime_request({})
+	actor.advance_frame()
+	failures += 0 if _report(
+		"answered, it is out again on the same frame", not actor.sprites().is_empty()
+	) else 1
+	return failures
+
+
+func _step(actor: RefCounted, world: Gen2WorldAPI, direction: Vector2i) -> void:
+	if not world.can_walk_to(world.player_cell + direction, direction):
+		return
+	world.move(direction)
+	while world.player_step_in_progress():
+		world.advance_player_step_pass()
+		actor.advance_frame()
+	actor.advance_frame()
 
 
 func _walk_onto(

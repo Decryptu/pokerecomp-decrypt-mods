@@ -1,9 +1,13 @@
 {
-	"id": "follower",
-	"name": "Follower",
-	"version": "0.3.3",
-	"api_version": 7,
-	"entry": "mod.gd",
-	"games": ["gold", "silver", "crystal"],
-	"description": "One of your Pokemon walks behind you, drawn with its own party icon. Pick which one from its party menu, choose whether it stays out on a bike or on water, and put it away with one key. Face it and press A to pet it. It can also pick up hidden items."
+  "id": "follower",
+  "name": "Follower",
+  "version": "0.3.3",
+  "api_version": 25,
+  "entry": "mod.gd",
+  "games": [
+    "gold",
+    "silver",
+    "crystal"
+  ],
+  "description": "One of your Pokemon walks behind you, drawn with its own party icon. Pick which one from its party menu, choose whether it stays out on a bike or on water, and put it away with one key. Face it and press A to pet it. It can also pick up hidden items."
 }
