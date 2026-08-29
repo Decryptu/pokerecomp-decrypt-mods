@@ -482,10 +482,9 @@ func _hole_pixels() -> Rect2:
 
 
 func _ground(cells: Vector2) -> Vector3:
-	var at := Vector3(cells.x * CELL + CELL * 0.5, 0.0, cells.y * CELL + CELL * 0.5)
 	if _mesher != null:
-		at.y = float(_mesher.surface_height_at_position(at))
-	return at
+		return _mesher.standing_at(cells)
+	return Vector3(cells.x * CELL + CELL * 0.5, 0.0, cells.y * CELL + CELL * 0.5)
 
 
 func _rebuild_actors() -> void:
@@ -501,14 +500,14 @@ func _rebuild_actors() -> void:
 		if not _drawn_in_transition(object.index):
 			continue
 		_add_actor(
-			object.sprite, object.palette, object.facing, object.frame,
+			object.sprite, object.palette, object.drawn_facing(), object.frame,
 			Vector2(object.cell) + object.step_offset_cells(), PackedColorArray(),
 			object.height_offset_pixels(),
 			object.emote_id if object.emote_visible else Gen2WorldActors.EMOTE_NONE
 		)
 	_add_actor(
 		_world.player_sprite(), _world.player_palette(),
-		_world.player_facing, _world.player_walk_frame(),
+		_world.player_drawn_facing(), _world.player_walk_frame(),
 		_world.player_position_cells(), PackedColorArray(),
 		_world.player_height_offset_pixels()
 	)
@@ -544,7 +543,9 @@ func _add_connected_actors() -> void:
 		var cells := Vector2(object.cell + (entry["offset"] as Vector2i))
 		if here.distance_squared_to(cells * CELL) > CONNECTED_REACH * CONNECTED_REACH:
 			continue
-		_add_actor(object.sprite, object.palette, object.facing, object.frame, cells)
+		_add_actor(
+			object.sprite, object.palette, object.drawn_facing(), object.frame, cells
+		)
 
 
 func _add_actor(

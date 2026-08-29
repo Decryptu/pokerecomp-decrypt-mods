@@ -1947,6 +1947,39 @@ func _measure_surfaces() -> void:
 const WATER_DRAUGHT: int = 2
 
 
+## Where an actor standing on `cells` belongs, in world pixels. Ground, unless
+## the cell is inside a folded wall, where it is a height up that wall's face:
+## a player climbing a waterfall rides the fall rather than the rock behind it.
+func standing_at(cells: Vector2) -> Vector3:
+	var span: float = TILE * float(CELL_TILES)
+	var at := Vector3(cells.x * span + TILE, 0.0, cells.y * span + TILE)
+	var row: float = cells.y * float(CELL_TILES) + float(_margin.y)
+	var index: int = _fold_of(
+		floori(cells.x * float(CELL_TILES)) + _margin.x, floori(row)
+	)
+	if index < 0:
+		at.y = float(surface_height_at_position(at))
+		return at
+	var fold: Array = _folds[index]
+	var box: Rect2i = fold[0]
+	at.y = lerpf(float(fold[1]), float(fold[2]), clampf(
+		(float(box.end.y) - row) / float(box.size.y), 0.0, 1.0
+	))
+	at.z = _world_z(box.end.y) + FOLD_STAND
+	return at
+
+
+## How far in front of the face an actor on it stands, so its card is not in the
+## same plane as the rock.
+const FOLD_STAND: float = 2.0
+
+
+func _fold_of(tx: int, ty: int) -> int:
+	if _fold.is_empty() or tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
+		return -1
+	return _fold[ty * _size.x + tx]
+
+
 func surface_height_at_position(position: Vector3) -> int:
 	var tx: int = floori(position.x / TILE) + _margin.x
 	var ty: int = floori(position.z / TILE) + _margin.y
