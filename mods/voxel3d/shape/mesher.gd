@@ -821,6 +821,8 @@ func _size_grid(source: RefCounted, shape: RefCounted) -> void:
 		band.resize(count)
 	_ledge.resize(count)
 	_ledge.fill(LEDGE_NONE)
+	_stair_at.resize(count)
+	_stair_at.fill(-1)
 	for cleared: Variant in [_shelf, _doorway, _room]:
 		cleared.resize(count)
 		cleared.fill(0)
@@ -2339,8 +2341,13 @@ func _is_bed_floor(at: int) -> bool:
 var _bed_kerb: int = -1
 
 
+## A flight cut into the floor stands flat art below zero, which is water's own
+## signature, and every pass that asks about water asks here.
 func _is_water(at: int) -> bool:
-	return _tiles[at] >= 0 and _art[at] == ART_FLAT and _heights[at] < 0
+	return (
+		_tiles[at] >= 0 and _art[at] == ART_FLAT and _heights[at] < 0
+		and _stair_at[at] < 0
+	)
 
 
 func _cliff_evidence(
@@ -2805,8 +2812,6 @@ const STAIR_STEPS: int = 4
 
 
 func _measure_stairs(shape: RefCounted) -> void:
-	_stair_at.resize(_size.x * _size.y)
-	_stair_at.fill(-1)
 	_stairs.clear()
 	for flight: Dictionary in shape.stairs():
 		var pattern: Array = flight[&"tiles"]
@@ -5792,6 +5797,7 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 		var above: float = height + rise * (1.0 if down else -1.0)
 		var riser: int = box.position.x + (0 if step.x > 0 else box.size.x) \
 			if step.x != 0 else box.position.y + (0 if step.y > 0 else box.size.y)
+		var faces: Vector2i = -step if down else step
 		for piece: Rect2i in _tile_pieces(box):
 			var tile: int = _tile_at(
 				start.x + piece.position.x / int(TILE), start.y + piece.position.y / int(TILE)
@@ -5815,36 +5821,49 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 					step, base, height, piece, box,
 					Vector2(x0, z0), Vector2(x1, z1), uv
 				)
-			var low: float = minf(height, above)
-			var high: float = maxf(height, above)
-			if step.x != 0:
-				var rx: float = _world_x(start.x) + float(riser)
-				if step.x > 0:
-					_quad(
-						Vector3(rx, low, z0), Vector3(rx, low, z1),
-						Vector3(rx, high, z1), Vector3(rx, high, z0),
-						Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
-					)
-				else:
-					_quad(
-						Vector3(rx, low, z1), Vector3(rx, low, z0),
-						Vector3(rx, high, z0), Vector3(rx, high, z1),
-						Vector3(1.0, 0.0, 0.0), uv, SHADE_SIDE
-					)
-			else:
-				var rz: float = _world_z(start.y) + float(riser)
-				if step.y > 0:
-					_quad(
-						Vector3(x1, low, rz), Vector3(x0, low, rz),
-						Vector3(x0, high, rz), Vector3(x1, high, rz),
-						Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
-					)
-				else:
-					_quad(
-						Vector3(x0, low, rz), Vector3(x1, low, rz),
-						Vector3(x1, high, rz), Vector3(x0, high, rz),
-						Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
-					)
+			if tread > 0 or not down:
+				_stair_riser(
+					start, faces, riser, minf(height, above), maxf(height, above),
+					Vector2(x0, z0), Vector2(x1, z1), uv
+				)
+
+
+## The upright between two treads, facing the way a walker on the lower of them
+## sees it. A descending flight has none at its head: the floor's own edge stands
+## there already.
+func _stair_riser(
+	start: Vector2i, faces: Vector2i, at: int, low: float, high: float,
+	near: Vector2, far: Vector2, uv: Rect2
+) -> void:
+	if faces.x > 0:
+		var west: float = _world_x(start.x) + float(at)
+		_quad(
+			Vector3(west, low, near.y), Vector3(west, low, far.y),
+			Vector3(west, high, far.y), Vector3(west, high, near.y),
+			Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
+		)
+		return
+	if faces.x < 0:
+		var east: float = _world_x(start.x) + float(at)
+		_quad(
+			Vector3(east, low, far.y), Vector3(east, low, near.y),
+			Vector3(east, high, near.y), Vector3(east, high, far.y),
+			Vector3(1.0, 0.0, 0.0), uv, SHADE_SIDE
+		)
+		return
+	var rz: float = _world_z(start.y) + float(at)
+	if faces.y > 0:
+		_quad(
+			Vector3(far.x, low, rz), Vector3(near.x, low, rz),
+			Vector3(near.x, high, rz), Vector3(far.x, high, rz),
+			Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
+		)
+		return
+	_quad(
+		Vector3(near.x, low, rz), Vector3(far.x, low, rz),
+		Vector3(far.x, high, rz), Vector3(near.x, high, rz),
+		Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
+	)
 
 
 func _emit_stair_corner(
