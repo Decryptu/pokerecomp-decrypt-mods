@@ -8,8 +8,8 @@ extends SceneTree
 ##      [view=voxel3d] [window=WxH] [hold=] [every=]
 ##
 ## A PATH is one letter a step: `u d l r` walk, and a capital uses a field move
-## where the player stands, `F` Flash, `S` Surf, `W` Waterfall, through the
-## screen's own preview pair. `every=N` keeps a frame every N frames of a step,
+## where the player stands, `F` Flash, `S` Surf, `W` Waterfall, `P` Whirlpool,
+## through the screen's own preview pair. `every=N` keeps a frame every N frames of a step,
 ## which is how a climb is watched rather than counted. ONE ACT A DRIVER FRAME,
 ## since the world and the mesh both move on real ones.
 
@@ -19,7 +19,7 @@ const STEP_FRAMES: int = 24
 const SHUTTER: int = 8
 const Staging: GDScript = preload("staging.gd")
 const MOVES: Dictionary = {
-	"F": &"flash", "S": &"surf", "W": &"waterfall",
+	"F": &"flash", "S": &"surf", "W": &"waterfall", "P": &"whirlpool",
 }
 const STEPS: Dictionary = {
 	"u": Vector2i.UP, "d": Vector2i.DOWN, "l": Vector2i.LEFT, "r": Vector2i.RIGHT,

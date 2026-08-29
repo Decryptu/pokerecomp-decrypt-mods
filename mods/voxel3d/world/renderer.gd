@@ -459,7 +459,7 @@ func _advance_recolour() -> void:
 func _frame_camera() -> void:
 	if _world == null:
 		return
-	var here: Vector3 = _ground(_world.player_position_cells())
+	var here: Vector3 = _walker()
 	_stage.set_walker(here)
 	_stage.camera.fov = _rig.fov()
 	var pan: Vector3 = _rig.pan()
@@ -481,10 +481,22 @@ func _hole_pixels() -> Rect2:
 	return Rect2(Vector2(bounds.position) * TILE, Vector2(bounds.size) * TILE)
 
 
-func _ground(cells: Vector2) -> Vector3:
-	if _mesher != null:
+## Where a walker stands. A step in flight is asked for as the two CELLS it runs
+## between rather than as one fractional cell, because a fold is a step function
+## of that cell and a crossing would land between two of its values and cut. Both
+## ends through the geometry, and the move between them rides.
+func _ground(cells: Vector2, span: Dictionary = {}) -> Vector3:
+	if _mesher == null:
+		return Vector3(cells.x * CELL + CELL * 0.5, 0.0, cells.y * CELL + CELL * 0.5)
+	if span.is_empty():
 		return _mesher.standing_at(cells)
-	return Vector3(cells.x * CELL + CELL * 0.5, 0.0, cells.y * CELL + CELL * 0.5)
+	return _mesher.standing_at(Vector2(span["from"] as Vector2i)).lerp(
+		_mesher.standing_at(Vector2(span["to"] as Vector2i)), float(span["progress"])
+	)
+
+
+func _walker() -> Vector3:
+	return _ground(_world.player_position_cells(), _world.player_step_span())
 
 
 func _rebuild_actors() -> void:
@@ -501,21 +513,23 @@ func _rebuild_actors() -> void:
 			continue
 		_add_actor(
 			object.sprite, object.palette, object.drawn_facing(), object.frame,
-			Vector2(object.cell) + object.step_offset_cells(), PackedColorArray(),
-			object.height_offset_pixels(),
+			_ground(
+				Vector2(object.cell) + object.step_offset_cells(), object.step_span()
+			), PackedColorArray(), object.height_offset_pixels(),
 			object.emote_id if object.emote_visible else Gen2WorldActors.EMOTE_NONE
 		)
 	_add_actor(
 		_world.player_sprite(), _world.player_palette(),
 		_world.player_drawn_facing(), _world.player_walk_frame(),
-		_world.player_position_cells(), PackedColorArray(),
+		_walker(), PackedColorArray(),
 		_world.player_height_offset_pixels()
 	)
 	if _mod_actors != null and _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
 		for entry: Dictionary in _mod_actors.sprites():
 			_add_actor(
 				entry["sprite"], 0, int(entry["facing"]), int(entry["frame"]),
-				entry["position_cells"], entry.get("colors", PackedColorArray()),
+				_ground(entry["position_cells"]),
+				entry.get("colors", PackedColorArray()),
 				0.0, int(entry.get("emote", Gen2WorldActors.EMOTE_NONE))
 			)
 	if _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
@@ -544,18 +558,18 @@ func _add_connected_actors() -> void:
 		if here.distance_squared_to(cells * CELL) > CONNECTED_REACH * CONNECTED_REACH:
 			continue
 		_add_actor(
-			object.sprite, object.palette, object.drawn_facing(), object.frame, cells
+			object.sprite, object.palette, object.drawn_facing(), object.frame,
+			_ground(cells, object.step_span())
 		)
 
 
 func _add_actor(
-	sprite: Gen2WorldSprite, palette: int, facing: int, frame: int, cells: Vector2,
+	sprite: Gen2WorldSprite, palette: int, facing: int, frame: int, ground: Vector3,
 	colors: PackedColorArray = PackedColorArray(), height_offset: float = 0.0,
 	emote: int = Gen2WorldActors.EMOTE_NONE
 ) -> void:
 	var texture: Texture2D = _actor_texture(sprite, palette, facing, frame, colors)
 	if texture != null:
-		var ground: Vector3 = _ground(cells)
 		var stood: Vector3 = _actor_position(ground, height_offset)
 		_stage.add_standing_card(texture, stood)
 		_stage.add_shadow_caster(texture, ground, 1.0)
