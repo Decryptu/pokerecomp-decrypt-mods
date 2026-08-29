@@ -12,6 +12,7 @@ const AtlasScript: GDScript = preload("../shape/atlas.gd")
 const MesherScript: GDScript = preload("../shape/mesher.gd")
 const CameraRigScript: GDScript = preload("camera_rig.gd")
 const DioramaScript: GDScript = preload("diorama.gd")
+const Grid: GDScript = preload("grid.gd")
 const TransitionScript: GDScript = preload("transition.gd")
 
 const CELL: float = 16.0
@@ -21,6 +22,11 @@ const FIELD_OPACITY: float = 0.75
 
 var _world: Gen2WorldAPI = null
 var _animation: Gen2WorldAnimation = null
+
+## The surface pixel a drawn position is put on, and the camera's own two screen
+## axes it is measured in. See `grid.gd`.
+var _snap: float = 0.0
+var _axes: Array = []
 var _time_of_day: int = Gen2WorldPalette.TIME_MORNING
 
 var _stage: RefCounted = null
@@ -462,9 +468,22 @@ func _frame_camera() -> void:
 	var here: Vector3 = _walker()
 	_stage.set_walker(here)
 	_stage.camera.fov = _rig.fov()
-	var pan: Vector3 = _rig.pan()
-	_stage.aim_camera(here + pan + _rig.offset(), here + pan)
-	_stage.advance_far_field(here + pan)
+	_measure_grid()
+	var focus: Vector3 = _snapped(here + _rig.pan())
+	_stage.aim_camera(focus + _rig.offset(), focus)
+	_stage.advance_far_field(focus)
+
+
+func _measure_grid() -> void:
+	_snap = Grid.step(
+		2.0 * _rig.distance() * tan(deg_to_rad(_rig.fov()) * 0.5),
+		float(_stage.viewport.size.y)
+	)
+	_axes = Grid.axes(_rig.offset())
+
+
+func _snapped(point: Vector3) -> Vector3:
+	return Grid.snapped(point, _axes, _snap)
 
 
 func _stamped_pixels() -> Rect2:
@@ -570,9 +589,9 @@ func _add_actor(
 ) -> void:
 	var texture: Texture2D = _actor_texture(sprite, palette, facing, frame, colors)
 	if texture != null:
-		var stood: Vector3 = _actor_position(ground, height_offset)
+		var stood: Vector3 = _snapped(_actor_position(ground, height_offset))
 		_stage.add_standing_card(texture, stood)
-		_stage.add_shadow_caster(texture, ground, 1.0)
+		_stage.add_shadow_caster(texture, _snapped(ground), 1.0)
 		_add_emote(emote, stood)
 
 const EMOTE_SIDE: int = 2 * Gen2Tiles.TILE_WIDTH

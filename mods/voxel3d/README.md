@@ -746,6 +746,28 @@ Visible wild Pokemon use the same path. Their host-resolved four colours overrid
 the ordinary icon row so shininess stays visible, and the optional encounter
 handle stands each tile of the cartridge's shiny sparkle around the Pokemon.
 
+## One grid under the whole picture
+
+SMOOTH SCROLL hands this view a position between two hardware pixels, which is
+what lets a step be drawn a fraction of a cartridge pixel at a time instead of
+two whole ones a pass. Drawn raw, every card and quad lands on a sub-pixel phase
+of its own, and art sampled nearest crawls under a phase that drifts: a column of
+a 16 px drawing widens and narrows frame by frame. On a wall nobody sees it; on a
+follower's face, where a party icon's own two frames already move the head, it
+reads as a blur whenever the player walks.
+
+So the camera and every card go on one grid, `world/grid.gd`: the finest step the
+surface can draw, measured in the camera's own two screen axes, which is the same
+answer the host's 2D view reaches in `world_renderer.gd:_camera_pixels`. At a 540
+pixel surface that step is a sixth of a cartridge pixel, so the smoothing is kept
+and the phase is not. Terrain needs nothing of its own: it does not move, so a
+camera on the grid is enough for it.
+
+`tools/voxel_view_probe.gd` checks the arithmetic with no display: that two
+positions inside one surface pixel are the same drawn frame, that every snapped
+point stands a whole number of steps from every other, and that both hold at
+every pitch and bearing the view can be steered to.
+
 ## Surveying a tileset
 
 The height measurement is right for most of the world and wrong for drawings that
@@ -800,6 +822,7 @@ world/far_houses.gd  the buildings on those maps, as boxes
 world/frame.gd       the pass over the finished picture: tint, focus, the bars
 world/transition.gd  DoBattleTransition's own cells, over the map it closes on
 world/camera_rig.gd  pitch, distance, lens and the ease between settings
+world/grid.gd        the surface pixel the camera and every card are put on
 battle/renderer.gd   the battle Node: the arena, the battlers and the panels
 battle/arena.gd      where the fight is staged and where it is shot from
 battle/panel.gd      the frost behind a panel, over whatever the world drew there
