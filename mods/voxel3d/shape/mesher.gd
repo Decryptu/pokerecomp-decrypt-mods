@@ -594,8 +594,31 @@ func _world_x(tx: int) -> float:
 	return float(tx - _margin.x) * TILE
 
 
+## The near edge of a grid row. A FOLDED band has no plan depth of its own: it is
+## the storey above meeting the storey below, so its own rows all stand on its
+## face and every row north of it stands the band's depth further south. A row's
+## far edge is the next row's near edge, which is what leaves a folded row none.
 func _world_z(ty: int) -> float:
-	return float(ty - _margin.y) * TILE
+	return float(ty - _margin.y) * TILE + _fold_shift(ty)
+
+
+func _fold_shift(ty: int) -> float:
+	var shift: float = 0.0
+	for fold: Array in _folds:
+		var box: Rect2i = fold[0]
+		if ty < box.end.y:
+			shift += float(box.end.y - maxi(ty, box.position.y)) * TILE
+	return shift
+
+
+## The grid row a world z falls in, undoing what `_world_z` folded.
+func _row_at(z: float) -> int:
+	var row: int = floori(z / TILE) + _margin.y
+	for fold: Array in _folds:
+		var box: Rect2i = fold[0]
+		if z < _world_z(box.end.y):
+			row -= box.size.y
+	return row
 
 
 ## The four-neighbourhood, in the order the passes below walk it.
@@ -1929,10 +1952,7 @@ func _measure_surfaces() -> void:
 		var box := Rect2(
 			left, front - float(object[&"depth"]), float(window.size.x), float(object[&"depth"])
 		)
-		for ty: int in range(
-			floori(box.position.y / TILE) + _margin.y,
-			ceili(box.end.y / TILE) + _margin.y
-		):
+		for ty: int in range(_row_at(box.position.y), _row_at(box.end.y) + 1):
 			if ty < 0 or ty >= _size.y:
 				continue
 			for tx: int in range(
@@ -1951,9 +1971,10 @@ const WATER_DRAUGHT: int = 2
 ## the cell is inside a folded wall, where it is a height up that wall's face:
 ## a player climbing a waterfall rides the fall rather than the rock behind it.
 func standing_at(cells: Vector2) -> Vector3:
-	var span: float = TILE * float(CELL_TILES)
-	var at := Vector3(cells.x * span + TILE, 0.0, cells.y * span + TILE)
-	var row: float = cells.y * float(CELL_TILES) + float(_margin.y)
+	var row: float = cells.y * float(CELL_TILES) + float(_margin.y) + 1.0
+	var at := Vector3(
+		cells.x * TILE * float(CELL_TILES) + TILE, 0.0, _world_z_at(row)
+	)
 	var index: int = _fold_of(
 		floori(cells.x * float(CELL_TILES)) + _margin.x, floori(row)
 	)
@@ -1974,6 +1995,14 @@ func standing_at(cells: Vector2) -> Vector3:
 const FOLD_STAND: float = 2.0
 
 
+## `_world_z` between rows, so a position part way down one lands part way down
+## it, and a folded row, having no depth, holds still.
+func _world_z_at(row: float) -> float:
+	var whole: int = floori(row)
+	var near: float = _world_z(whole)
+	return near + (row - float(whole)) * (_world_z(whole + 1) - near)
+
+
 func _fold_of(tx: int, ty: int) -> int:
 	if _fold.is_empty() or tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
 		return -1
@@ -1982,7 +2011,7 @@ func _fold_of(tx: int, ty: int) -> int:
 
 func surface_height_at_position(position: Vector3) -> int:
 	var tx: int = floori(position.x / TILE) + _margin.x
-	var ty: int = floori(position.z / TILE) + _margin.y
+	var ty: int = _row_at(position.z)
 	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
 		return 0
 	var column: int = _height_at(tx, ty)
@@ -3294,13 +3323,13 @@ func _cells_match(cell_x: int, first_y: int, second_y: int) -> bool:
 
 func height_at_position(position: Vector3) -> int:
 	return _height_at(
-		floori(position.x / TILE) + _margin.x, floori(position.z / TILE) + _margin.y
+		floori(position.x / TILE) + _margin.x, _row_at(position.z)
 	)
 
 
 func occlusion_height_at_position(position: Vector3) -> int:
 	var tx: int = floori(position.x / TILE) + _margin.x
-	var ty: int = floori(position.z / TILE) + _margin.y
+	var ty: int = _row_at(position.z)
 	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
 		return 0
 	var at: int = ty * _size.x + tx
@@ -7040,6 +7069,10 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	var tile: int = _tiles[at]
 	if tile < 0:
 		return
+	## A folded row has no plan depth, so every quad it lays down is degenerate.
+	## Its last row is the exception: its south side IS the cliff's face.
+	if _fold_of(tx, ty) >= 0 and _fold_of(tx, ty + 1) >= 0:
+		return
 	var art: int = _art[at]
 	if art == ART_CUTOUT or art == ART_RAILING or art == ART_FENCE \
 			or art == ART_BALL:
@@ -7350,7 +7383,7 @@ func _wedge(tx: int, ty: int, atlas: RefCounted) -> void:
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	_quad(
 		Vector3(x0, _wedge_y(base, steps, 0, 1), z1),
 		Vector3(x1, _wedge_y(base, steps, 1, 1), z1),
@@ -7388,7 +7421,7 @@ func _wedge_end(
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	var low: float = float(base)
 	var a := Vector3.ZERO
 	var b := Vector3.ZERO
@@ -7686,7 +7719,7 @@ func _skirt_side(
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	var full: Rect2 = atlas.uv(floor_at.x)
 	var shade: Color = SHADE_SOUTH if step.y > 0 else (
 		SHADE_NORTH if step.y < 0 else SHADE_SIDE
@@ -7819,7 +7852,7 @@ func _emit_margined(
 	var x0: float = _world_x(tx) + float(left)
 	var x1: float = _world_x(tx) + TILE - float(right)
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	var uv: Rect2 = atlas.uv(cap)
 	_quad(
 		Vector3(x0, float(here), z1), Vector3(x1, float(here), z1),
@@ -7849,7 +7882,7 @@ func _margin_floor(
 	tx: int, ty: int, x0: float, x1: float, height: int, atlas: RefCounted
 ) -> void:
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	var ground: Vector2i = _ground_art(tx, ty)
 	var uv: Rect2 = atlas.uv(ground.x)
 	var y: float = float(maxi(height, ground.y))
@@ -7867,7 +7900,7 @@ func _side_span(
 	if neighbour >= here:
 		return
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	@warning_ignore("integer_division")
 	for step: int in (here - neighbour) / BAND:
 		var low: float = float(neighbour + step * BAND)
@@ -7950,7 +7983,7 @@ func _face_roof(tx: int, ty: int, uv: Rect2, shade: Color) -> void:
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	var a := Vector3(x0, _roof_corner(tx, ty, -1, 1), z1)
 	var b := Vector3(x1, _roof_corner(tx, ty, 1, 1), z1)
 	var c := Vector3(x1, _roof_corner(tx, ty, 1, -1), z0)
@@ -7967,7 +8000,7 @@ func _ramp_tile(tx: int, ty: int, atlas: RefCounted) -> void:
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	var nw: float = float(_corners[at * 4])
 	var ne: float = float(_corners[at * 4 + 1])
 	var sw: float = float(_corners[at * 4 + 2])
@@ -8006,7 +8039,7 @@ func _ramp_side(
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	var a := Vector3.ZERO
 	var b := Vector3.ZERO
 	if step.y > 0:
@@ -8032,7 +8065,7 @@ func _face_top(tx: int, ty: int, y: float, uv: Rect2, shade: Color) -> void:
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	_quad(
 		Vector3(x0, y, z1), Vector3(x1, y, z1), Vector3(x1, y, z0), Vector3(x0, y, z0),
 		Vector3.UP, uv, shade
@@ -8052,7 +8085,7 @@ func _side(
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	for step: int in (here - neighbour) / BAND:
 		var low: float = float(neighbour + step * BAND)
 		var high: float = low + TILE
