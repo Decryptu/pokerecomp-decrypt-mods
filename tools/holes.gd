@@ -1,8 +1,11 @@
 extends SceneTree
 
 ## WHERE THE TERRAIN IS OPEN, found in the mesh itself rather than in a
-## picture. A joint between edges of unequal length and a side a room cuts away
-## for the camera are both closed ground, and neither is counted.
+## picture. Two tests: two rims over one line of ground, and an upright edge
+## bounding one face where a corner wants two. A joint between edges of unequal
+## length and a side a room cuts away for the camera are both closed ground, and
+## neither is counted. A mesh opening is not always a visible one, since a solid
+## may stand behind it, so a picture still decides.
 
 const MOD := "user://mods/voxel3d"
 const TILE: float = 8.0
@@ -30,7 +33,7 @@ func _initialize() -> void:
 	for part: String in ["profile", "atlas", "mesher", "tile_shape", "map_source"]:
 		_scripts[part] = load("%s/shape/%s.gd" % [MOD, part])
 	_tally = {
-		"drop": {}, "tileset": {}, "place": {},
+		"drop": {}, "tileset": {}, "place": {}, "run": {},
 		"maps": 0, "open": 0, "total": 0, "named": 0,
 	}
 	for map: Gen2WorldMap in data.world_maps():
@@ -40,6 +43,7 @@ func _initialize() -> void:
 		int(_tally["maps"]), int(_tally["open"]), int(_tally["total"]),
 	])
 	var total: int = int(_tally["total"])
+	_ranked("by run", _tally["run"], total, "%s")
 	_ranked("by drop", _tally["drop"], total, "%.1f px")
 	_ranked("by place", _tally["place"], total, "%s")
 	_ranked("by tileset", _tally["tileset"], total, "ts%d")
@@ -64,11 +68,11 @@ func _measure(
 	var mesher: RefCounted = (_scripts["mesher"] as GDScript).new()
 	mesher.resolve(source, shape)
 	var meshes: Array = mesher.emit(atlas)
+	var water: Array = mesher.take_water()
 	_tally["maps"] = int(_tally["maps"]) + 1
-	_show_bare(map, select, _bare(meshes + mesher.take_water() + mesher.take_tufts()))
+	_show_bare(map, select, _bare(meshes + water + mesher.take_tufts()))
 	_show_cracks(
-		map, select, source.outside(),
-		_cracks(meshes + mesher.take_water(), least, mesher)
+		map, select, source.outside(), _cracks(meshes + water, least, mesher)
 	)
 
 
@@ -93,6 +97,7 @@ func _show_cracks(
 	_count_in(_tally["tileset"], map.tileset, cracks.size())
 	for crack: Dictionary in cracks:
 		_count_in(_tally["drop"], float(crack["drop"]), 1)
+		_count_in(_tally["run"], crack["run"], 1)
 	if int(_tally["named"]) >= NAMED:
 		return
 	_tally["named"] = int(_tally["named"]) + 1
@@ -165,13 +170,90 @@ func _bare(meshes: Array) -> Array:
 
 func _cracks(meshes: Array, least: int, mesher: RefCounted) -> Array:
 	var surfaces: Array = _surfaces(meshes)
-	var lines: Dictionary = _boundary_lines(_edge_counts(surfaces, _line_ends(surfaces)))
+	var counts: Dictionary = _edge_counts(surfaces, _line_ends(surfaces))
+	var lines: Dictionary = _boundary_lines(counts)
 	var cracks: Array = []
+	var ends: Dictionary = {}
 	for line: String in lines:
 		var crack: Dictionary = _crack_of(line, lines[line], least)
-		if not crack.is_empty() and _sides_drawn(crack, mesher):
-			cracks.append(crack)
+		if crack.is_empty() or not _sides_drawn(crack, mesher):
+			continue
+		cracks.append(crack)
+		var bounds: PackedStringArray = line.split(",")
+		ends["%s,%s" % [bounds[0], bounds[1]]] = true
+		ends["%s,%s" % [bounds[2], bounds[3]]] = true
+	for seam: Dictionary in _seams(counts, least):
+		if not ends.has(seam["line"]) and _seam_drawn(seam["at"], mesher):
+			cracks.append(seam)
 	return cracks
+
+
+## An upright edge bounding one face and no other. Two faces meeting at a
+## building's corner run the whole column together, so whatever one of them
+## alone still carries is open to the sky. The ground test cannot see it: its
+## test is two rims over one line of ground, and a corner is neither.
+func _seams(counts: Dictionary, least: int) -> Array:
+	var columns: Dictionary = {}
+	for key: String in counts:
+		var edge: Array = counts[key]
+		if int(edge[2]) != 1 or bool(edge[3]):
+			continue
+		var a: Vector3 = edge[0]
+		var b: Vector3 = edge[1]
+		if absf(a.x - b.x) > 0.005 or absf(a.z - b.z) > 0.005:
+			continue
+		var column: String = "%.2f,%.2f" % [a.x, a.z]
+		if not columns.has(column):
+			columns[column] = []
+		(columns[column] as Array).append(Vector2(minf(a.y, b.y), maxf(a.y, b.y)))
+	var seams: Array = []
+	for column: String in columns:
+		for run: Vector2 in _joined(columns[column]):
+			if run.y - run.x >= float(least):
+				seams.append(_seam_of(column, run))
+	return seams
+
+
+## Segments that touch are one opening: the cut that parted them is a
+## neighbouring face's end, not an edge of the gap.
+func _joined(runs: Array) -> Array:
+	runs.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+	var joined: Array = []
+	for run: Vector2 in runs:
+		var last: Vector2 = joined[-1] if not joined.is_empty() else Vector2.ZERO
+		if not joined.is_empty() and run.x <= last.y + 0.005:
+			joined[-1] = Vector2(last.x, maxf(last.y, run.y))
+			continue
+		joined.append(run)
+	return joined
+
+
+func _seam_of(column: String, run: Vector2) -> Dictionary:
+	var at: PackedStringArray = column.split(",")
+	return {
+		"tile": Vector2i(floori(float(at[0]) / TILE), floori(float(at[1]) / TILE)),
+		"at": Vector2(float(at[0]), float(at[1])),
+		"run": "upright",
+		"low": run.x,
+		"high": run.y,
+		"drop": run.y - run.x,
+		"line": column,
+	}
+
+
+## The four tiles a column stands between own the sides that would close it,
+## and any one of them may be the face a room cut away for the camera. Unlike a
+## line, which has one side each way, a column cannot say which face is missing,
+## so a cut anywhere around it disowns the gap.
+func _seam_drawn(at: Vector2, mesher: RefCounted) -> bool:
+	for quadrant: Vector2 in [
+		Vector2(-1.0, -1.0), Vector2(1.0, -1.0), Vector2(-1.0, 1.0), Vector2(1.0, 1.0)
+	]:
+		var centre: Vector2 = at + quadrant * TILE * 0.5
+		if not mesher.draws_side(centre, Vector3(-quadrant.x, 0.0, 0.0)) \
+			or not mesher.draws_side(centre, Vector3(0.0, 0.0, -quadrant.y)):
+			return false
+	return true
 
 
 ## The two tiles a line runs between each own the side facing the other. Where
@@ -280,8 +362,9 @@ func _line_ends(surfaces: Array) -> Dictionary:
 				if not ends.has(key):
 					ends[key] = {}
 				var along: Dictionary = ends[key]
-				along[_snap(a).x if key.begins_with("x") else _snap(a).z] = true
-				along[_snap(b).x if key.begins_with("x") else _snap(b).z] = true
+				var axis: String = key.left(1)
+				along[_along(_snap(a), axis)] = true
+				along[_along(_snap(b), axis)] = true
 	return ends
 
 
@@ -298,12 +381,13 @@ func _edge_counts(surfaces: Array, ends: Dictionary) -> Dictionary:
 	return counts
 
 
-## The line an edge lies on, east-west or north-south and sloped or level, or
-## nothing where the edge runs up or across.
+## The line an edge lies on: the column it stands in where it runs up, the
+## east-west or north-south line it lies along otherwise, sloped or level, or
+## nothing where the edge runs across the ground plan.
 func _line_key(a: Vector3, b: Vector3) -> String:
 	var along_x: bool = absf(a.z - b.z) < 0.005
 	if along_x == (absf(a.x - b.x) < 0.005):
-		return ""
+		return _column_key(a, b)
 	var low: Vector3 = a if (a.x < b.x if along_x else a.z < b.z) else b
 	var high: Vector3 = b if low == a else a
 	var from: float = low.x if along_x else low.z
@@ -313,6 +397,14 @@ func _line_key(a: Vector3, b: Vector3) -> String:
 	]
 
 
+## The column an edge stands in, or nothing where it runs across the ground
+## plan or does not run at all.
+func _column_key(a: Vector3, b: Vector3) -> String:
+	if absf(a.x - b.x) > 0.005 or absf(a.y - b.y) < 0.005:
+		return ""
+	return "y|%.2f|%.2f" % [a.x, a.z]
+
+
 func _count_cut(
 	counts: Dictionary, ends: Dictionary, a: Vector3, b: Vector3, flat: bool
 ) -> void:
@@ -320,9 +412,9 @@ func _count_cut(
 	if key.is_empty():
 		_count(counts, a, b, flat)
 		return
-	var along_x: bool = key.begins_with("x")
-	var from: float = _snap(a).x if along_x else _snap(a).z
-	var to: float = _snap(b).x if along_x else _snap(b).z
+	var axis: String = key.left(1)
+	var from: float = _along(_snap(a), axis)
+	var to: float = _along(_snap(b), axis)
 	var cuts := PackedFloat32Array()
 	for at: float in ends[key] as Dictionary:
 		if at > minf(from, to) + 0.005 and at < maxf(from, to) - 0.005:
@@ -350,6 +442,12 @@ func _count(counts: Dictionary, a: Vector3, b: Vector3, flat: bool) -> void:
 		(counts[key] as Array)[2] += 1
 		return
 	counts[key] = [one, two, 1, flat]
+
+
+func _along(point: Vector3, axis: String) -> float:
+	if axis == "x":
+		return point.x
+	return point.y if axis == "y" else point.z
 
 
 func _snap(point: Vector3) -> Vector3:
