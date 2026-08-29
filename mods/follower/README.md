@@ -11,9 +11,13 @@ follower steps into it. Both steps are drawn at the same fraction, which keeps
 the pair exactly one cell apart at rest and never more than one cell apart
 mid-step. It counts no frames of its own and cannot drift.
 
-A warp, a Fly and the first frame of a session put it back under you, and it
-walks out from there rather than crossing the new map. A ledge hop, and any
-script that commits a whole path at once, is taken at once.
+Walking off the edge of one map into the next renumbers every cell behind you,
+so the follower is carried into the new map's numbering and keeps walking: it
+crosses a town boundary a cell behind you, standing on the strip of the map you
+just left, rather than being put back under you and walking out again. A warp, a
+Fly and the first frame of a session do put it back under you, and it walks out
+from there. A ledge hop, and any script that commits a whole path at once, is
+taken at once.
 
 It is presentation only. It occupies no cell, blocks nothing, cannot be talked
 to and is not seen by trainers.

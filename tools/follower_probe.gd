@@ -11,6 +11,12 @@ const AWAY: Vector2i = Vector2i(24, 4)
 const ROUTE: Array = ["right", "right", "down", "down", "left", "warp", "down"]
 const OTHER_ROUTE: Array = ["down", "left", "left", "up", "right", "right"]
 
+## Walking west out of HOME into WEST, whose cells are numbered from an origin
+## ten cells to the west of HOME's own.
+const WEST: Vector2i = Vector2i(24, 5)
+const WEST_SHIFT: Vector2i = Vector2i(10, 0)
+const CROSSING: Array = ["left", "left", "cross", "left", "left"]
+
 const DIRECTIONS: Dictionary = {
 	"up": Vector2i.UP, "down": Vector2i.DOWN,
 	"left": Vector2i.LEFT, "right": Vector2i.RIGHT,
@@ -63,6 +69,7 @@ func _initialize() -> void:
 	failures += 0 if _report("one route twice is one walk", walked == again) else 1
 	failures += 0 if _report("two routes are two walks", walked != elsewhere) else 1
 	failures += _rules(trail_script)
+	failures += _crossing(trail_script)
 	failures += _petting(trail_script)
 	failures += _finding(finder)
 	failures += _picking_up(actor_script, options, data)
@@ -152,6 +159,16 @@ func _observations(route: Array) -> Array:
 			cell = Vector2i(2, 8)
 			out.append(_observation(map, cell, facing, Vector2.ZERO))
 			continue
+		if command == "cross":
+			map = WEST
+			cell += WEST_SHIFT + Vector2i.LEFT
+			facing = Gen2WorldSprite.FACING_LEFT
+			for frame: int in STEP_FRAMES:
+				var left_of: float = float(STEP_FRAMES - 1 - frame) / float(STEP_FRAMES)
+				out.append(_observation(
+					map, cell, facing, Vector2.RIGHT * left_of, WEST_SHIFT
+				))
+			continue
 		var direction: Vector2i = DIRECTIONS[command]
 		facing = int(FACINGS[command])
 		cell += direction
@@ -161,8 +178,65 @@ func _observations(route: Array) -> Array:
 	return out
 
 
-func _observation(map: Vector2i, cell: Vector2i, facing: int, offset: Vector2) -> Dictionary:
-	return {"map": map, "cell": cell, "facing": facing, "offset": offset, "allowed": true}
+func _observation(
+	map: Vector2i, cell: Vector2i, facing: int, offset: Vector2,
+	shift: Vector2i = Vector2i.MAX
+) -> Dictionary:
+	return {
+		"map": map, "cell": cell, "facing": facing, "offset": offset,
+		"shift": shift, "allowed": true,
+	}
+
+
+## Walking out of one map into the next must not move the follower on the ground
+## it stands on: its cell in the new numbering is the one it had in the old.
+func _crossing(trail_script: GDScript) -> int:
+	var walked: Dictionary = _cross(trail_script)
+	var failures: int = 0
+	for check: Array in [
+		["crossing a connection moves the follower no more than a step",
+			not bool(walked["jumped"])],
+		["it is still out on the frame it crosses on", not bool(walked["vanished"])],
+		["it walks one cell behind on the map it crossed into", bool(walked["behind"])],
+	]:
+		if not _report(String(check[0]), bool(check[1])):
+			failures += 1
+	var warped: RefCounted = trail_script.new()
+	var landed: Dictionary = {}
+	for observation: Dictionary in _observations(["left", "left", "warp"]):
+		landed = warped.observe(observation)
+	failures += 0 if _report(
+		"a warp still puts it back under the player", not bool(landed["out"])
+	) else 1
+	return failures
+
+
+## The crossing walked, in the follower's own terms: whether it ever moved more
+## than a step, ever went in its ball, and ever stood anywhere but one cell
+## behind. Cells either side of the boundary are compared in the new numbering.
+func _cross(trail_script: GDScript) -> Dictionary:
+	var trail: RefCounted = trail_script.new()
+	var out: Dictionary = {"jumped": false, "vanished": false, "behind": true}
+	var previous_cell := Vector2i.MAX
+	var previous_map := Vector2i(-1, -1)
+	for observation: Dictionary in _observations(CROSSING):
+		var map: Vector2i = observation["map"]
+		var pose: Dictionary = trail.observe(observation)
+		var cell: Vector2i = pose["cell"]
+		if map != previous_map and previous_map.x >= 0:
+			previous_cell += WEST_SHIFT
+			out["vanished"] = not bool(pose["out"])
+		if previous_cell != Vector2i.MAX and _apart(cell, previous_cell) > 1:
+			out["jumped"] = true
+		if bool(pose["out"]) and _apart(cell, observation["cell"]) != 1:
+			out["behind"] = false
+		previous_cell = cell
+		previous_map = map
+	return out
+
+
+func _apart(one: Vector2i, other: Vector2i) -> int:
+	return absi(one.x - other.x) + absi(one.y - other.y)
 
 
 func _rules(trail_script: GDScript) -> int:

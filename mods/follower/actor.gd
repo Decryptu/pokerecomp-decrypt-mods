@@ -20,6 +20,7 @@ var _pose: Dictionary = {}
 var _heart: int = 0
 var _outbox: Array = []
 var _stood_at := Vector2i.MAX
+var _map := Vector2i(-1, -1)
 
 
 func configure(host: Gen2ModHost, id: StringName) -> void:
@@ -41,14 +42,32 @@ func advance_frame() -> void:
 	if _world == null:
 		return
 	_heart = maxi(0, _heart - 1)
+	var map: Vector2i = _world.map_id()
 	_pose = _trail.observe({
-		"map": _world.map_id(),
+		"map": map,
+		"shift": _carry_shift(map),
 		"cell": _world.player_cell,
 		"facing": _world.player_facing,
 		"offset": _world.player_step_offset_cells(),
 		"allowed": _allowed(),
 	})
+	_map = map
 	_look_for_an_item()
+
+
+## Where the map just left sits in the one now loaded, in cells, off the host's
+## own connection graph. `map_placements` holds every map the graph reaches from
+## this one, so a crossing answers a shift and a warp into an unconnected map
+## answers none.
+func _carry_shift(map: Vector2i) -> Vector2i:
+	if map == _map or _map.x < 0:
+		return Vector2i.ZERO
+	var placement: Dictionary = _world.map_placements().get(
+		"%d:%d" % [_map.x, _map.y], {}
+	)
+	if placement.is_empty():
+		return Trail.NO_CARRY
+	return Vector2i(placement["origin"]) * RomLayout.MAP_BLOCK_CELL_WIDTH
 
 
 func sprites() -> Array:

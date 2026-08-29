@@ -7,6 +7,8 @@ extends RefCounted
 const RENDERER := "user://mods/voxel3d/world/renderer.gd"
 const ROOM_CELLS: int = 24
 const SEARCH_CELLS: int = 40
+const PARTY_LEVEL: int = 5
+const PARTY_HP: int = 20
 
 var _restore: Dictionary = {}
 var _restore_id: StringName = &""
@@ -77,6 +79,27 @@ func restore() -> void:
 	for key: StringName in _restore:
 		if _restore[key] != null:
 			host.set_option(_restore_id, key, _restore[key])
+
+
+## `party=155,172,...`, the species a staged run walks around with, which is
+## what a mod reading the party needs before it will draw anything. Empty text
+## answers null and the screen keeps whatever save it was given.
+static func party_save(data: GameData, spec: String) -> Gen2SaveData:
+	if data == null or spec.strip_edges().is_empty():
+		return null
+	var members: Array = []
+	for number: String in spec.split(",", false):
+		var mon := Gen2SaveMon.new()
+		mon.species = int(number.strip_edges())
+		mon.level = PARTY_LEVEL
+		mon.hp = PARTY_HP
+		mon.nickname = String(data.species(mon.species).get("name", ""))
+		members.append(mon)
+	var save := Gen2SaveData.new()
+	save.game_id = data.id
+	save.player_name = "PROBE"
+	save.party = members
+	return save
 
 
 static func find_renderer(node: Node) -> Node:
