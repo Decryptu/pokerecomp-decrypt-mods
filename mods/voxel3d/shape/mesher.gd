@@ -2355,32 +2355,42 @@ func _cliff_evidence(
 				continue
 			any = true
 			var run: int = 0
-			var faces_front: bool = false
 			while ty + run < _size.y and _cliff[(ty + run) * _size.x + tx] == 1:
-				faces_front = faces_front or _front[(ty + run) * _size.x + tx] == 1
 				run += 1
-			if faces_front:
-				var above: int = ty - 1
-				if above >= 0 and _is_plateau_floor(above * _size.x + tx):
-					var height: int = _cliff_height(tx, ty)
-					var index: int = above * _size.x + tx
-					if height >= PLATEAU_FLOOR:
-						seeds[index] = mini(int(seeds.get(index, height)), height)
-					elif height > 0:
-						patches[index] = mini(int(patches.get(index, height)), height)
-				var below: int = ty + run
-				if _front[(below - 1) * _size.x + tx] == 1 \
-						and below < _size.y \
-						and _is_plateau_floor(below * _size.x + tx):
-					fronts[below * _size.x + tx] = true
+			_seed_above(tx, ty, seeds, patches)
+			_front_below(tx, ty + run, fronts)
 			ty += run
 	return any
 
 
-func _cliff_height(tx: int, top_row: int) -> int:
+func _seed_above(
+	tx: int, top: int, seeds: Dictionary, patches: Dictionary
+) -> void:
+	var above: int = top - 1
+	if _front[top * _size.x + tx] == 0 or above < 0 \
+			or not _is_plateau_floor(above * _size.x + tx):
+		return
+	var height: int = _front_height(tx, top)
+	var index: int = above * _size.x + tx
+	if height >= PLATEAU_FLOOR:
+		seeds[index] = mini(int(seeds.get(index, height)), height)
+	elif height > 0:
+		patches[index] = mini(int(patches.get(index, height)), height)
+
+
+func _front_below(tx: int, below: int, fronts: Dictionary) -> void:
+	if _front[(below - 1) * _size.x + tx] == 0 or below >= _size.y \
+			or not _is_plateau_floor(below * _size.x + tx):
+		return
+	fronts[below * _size.x + tx] = true
+
+
+## The ground above a cliff stands on top of its front, so a run that turns a
+## corner speaks with the band it starts in and not with the rim below it.
+func _front_height(tx: int, top_row: int) -> int:
 	var height: int = 0
 	var ty: int = top_row
-	while ty < _size.y and _cliff[ty * _size.x + tx] == 1:
+	while ty < _size.y and _front[ty * _size.x + tx] == 1:
 		height = maxi(height, _heights[ty * _size.x + tx])
 		ty += 1
 	return height
