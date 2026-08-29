@@ -1331,9 +1331,7 @@ func _measure_house_boxes(source: RefCounted) -> void:
 				_modelled[at] = 0
 				_volume[at] = 0
 				_tufted[at] = 0
-				_cliff[at] = 0
-				_front[at] = 0
-				_lip[at] = 0
+				_release_terrain(at)
 				_pitched[at] = 0
 				_margin_left[at] = 0
 				_margin_right[at] = 0
@@ -1827,6 +1825,17 @@ func _profile_tile(px: int, py: int) -> int:
 	return int(row[px / TILE_PX])
 
 
+## A tile another pass has taken over is no longer the ground the cliff and
+## plateau passes read. Their marks outlive the height they were read from, and
+## `_measure_ramps` runs last, so a shelf left behind banks a face nobody
+## measured.
+func _release_terrain(at: int) -> void:
+	_cliff[at] = 0
+	_front[at] = 0
+	_lip[at] = 0
+	_shelf[at] = 0
+
+
 func _measure_ramps() -> void:
 	var count: int = _size.x * _size.y
 	_ramp.resize(count)
@@ -1904,6 +1913,7 @@ func _shelf_near(
 	if _shelf[index] == 0:
 		return 0 if _heights[index] < _heights[at] else near
 	return mini(near, maxi(distance[index], 0))
+
 
 func _in_map(tx: int, ty: int) -> bool:
 	return (
@@ -2383,6 +2393,7 @@ func _plateau_height(
 	if lift >= 0:
 		return lift
 	return patch if members.size() <= PATCH_TILES else -1
+
 
 func _settle_lips() -> void:
 	for ty: int in _size.y:
@@ -2949,9 +2960,7 @@ func _measure_objects(shape: RefCounted, source: RefCounted) -> void:
 						_modelled[at] = 0
 						_volume[at] = 0
 						_tufted[at] = 0
-						_cliff[at] = 0
-						_front[at] = 0
-						_lip[at] = 0
+						_release_terrain(at)
 						_heights[at] = floors[row * across.x + column]
 						var rise: int = int(object.get(&"rise", 0))
 						if rise > 0:
@@ -2992,9 +3001,7 @@ func _measure_stairs(shape: RefCounted) -> void:
 						_art[at] = ART_FLAT
 						_volume[at] = 0
 						_tufted[at] = 0
-						_cliff[at] = 0
-						_front[at] = 0
-						_lip[at] = 0
+						_release_terrain(at)
 						_heights[at] = base + fall
 
 
@@ -3023,9 +3030,7 @@ func _measure_ledges(source: RefCounted) -> void:
 					_heights[at] = base
 					_art[at] = ART_LEDGE
 					_volume[at] = 0
-					_cliff[at] = 0
-					_front[at] = 0
-					_lip[at] = 0
+					_release_terrain(at)
 					_bases[at] = tile.y
 	_join_ledge_corners()
 
@@ -3075,9 +3080,7 @@ func _set_ledge_tile(tile: Vector2i, facing: int, base: int) -> void:
 	_heights[at] = base
 	_art[at] = ART_LEDGE
 	_volume[at] = 0
-	_cliff[at] = 0
-	_front[at] = 0
-	_lip[at] = 0
+	_release_terrain(at)
 	_bases[at] = tile.y
 
 
@@ -7571,6 +7574,7 @@ func _measure_room_behind() -> void:
 			_room[at] = ROOM_BEHIND
 			_heights[at] = tall
 			_bases[at] = base
+			_release_terrain(at)
 			_art[at] = ART_UPRIGHT
 			_volume[at] = 1
 			_object_covered[at] = 0
@@ -7597,6 +7601,7 @@ func _measure_room() -> void:
 				continue
 			_heights[at] = tall
 			_bases[at] = floor_row if ty >= _map_end.y else ty
+			_release_terrain(at)
 	for tx: int in range(_margin.x, _map_end.x):
 		var run: int = 0
 		while _margin.y + run < _map_end.y \
@@ -7611,6 +7616,7 @@ func _measure_room() -> void:
 			var at: int = (_margin.y + step) * _size.x + tx
 			_heights[at] = tall
 			_bases[at] = base
+			_release_terrain(at)
 			_room[at] = ROOM_DRAWN
 
 
@@ -7663,9 +7669,7 @@ func _measure_room_fill() -> void:
 			_void[at] = 0
 			_modelled[at] = 0
 			_tufted[at] = 0
-			_cliff[at] = 0
-			_front[at] = 0
-			_lip[at] = 0
+			_release_terrain(at)
 			_pitched[at] = 0
 			_margin_left[at] = 0
 			_margin_right[at] = 0
