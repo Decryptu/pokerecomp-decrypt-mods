@@ -109,6 +109,14 @@ var _on_furniture := PackedByteArray()
 var _swaying := PackedByteArray()
 var _klass := PackedInt32Array()
 var _class_ids: Dictionary = {}
+## Water the paint lifted onto an upper storey, which no longer sits below zero.
+var _lifted := PackedByteArray()
+## A wall mass the paint marked is the cliff between two storeys, so its own plan
+## is that cliff's FACE rather than ground anyone stands on. Each is kept as its
+## box, the storey under it and the storey over it, and every tile of it points
+## at its own.
+var _folds: Array = []
+var _fold := PackedInt32Array()
 
 var _facts: Dictionary = {}
 const FACT_STRIDE: int = 258
@@ -586,18 +594,36 @@ func _world_x(tx: int) -> float:
 	return float(tx - _margin.x) * TILE
 
 
+## The near edge of a grid row. A FOLDED band has no plan depth of its own: it is
+## the storey above meeting the storey below, so its own rows all stand on its
+## face and every row north of it stands the band's depth further south. A row's
+## far edge is the next row's near edge, which is what leaves a folded row none.
 func _world_z(ty: int) -> float:
-	return float(ty - _margin.y) * TILE
+	return float(ty - _margin.y) * TILE + _fold_shift(ty)
+
+
+func _fold_shift(ty: int) -> float:
+	var shift: float = 0.0
+	for fold: Array in _folds:
+		var box: Rect2i = fold[0]
+		if ty < box.end.y:
+			shift += float(box.end.y - maxi(ty, box.position.y)) * TILE
+	return shift
+
+
+## The grid row a world z falls in, undoing what `_world_z` folded.
+func _row_at(z: float) -> int:
+	var row: int = floori(z / TILE) + _margin.y
+	for fold: Array in _folds:
+		var box: Rect2i = fold[0]
+		if z < _world_z(box.end.y):
+			row -= box.size.y
+	return row
 
 
 ## The four-neighbourhood, in the order the passes below walk it.
 const STEPS: Array[Vector2i] = [
 	Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
-]
-## `_pond_shore` answers differently by the order it meets the ground, so its own
-## order is pinned here rather than shared. See that function.
-const POND_STEPS: Array[Vector2i] = [
-	Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
 ]
 
 
@@ -823,9 +849,12 @@ func _size_grid(source: RefCounted, shape: RefCounted) -> void:
 	_ledge.fill(LEDGE_NONE)
 	_stair_at.resize(count)
 	_stair_at.fill(-1)
-	for cleared: Variant in [_shelf, _doorway, _room]:
+	for cleared: Variant in [_shelf, _doorway, _room, _lifted]:
 		cleared.resize(count)
 		cleared.fill(0)
+	_folds = []
+	_fold.resize(count)
+	_fold.fill(-1)
 
 
 ## A shell tile stands outside the map and wears the room's own wall. Marked in
@@ -985,21 +1014,102 @@ func _apply_levels(source: RefCounted) -> void:
 	var map: Gen2WorldMap = source.map()
 	if map == null or not Levels.has(map.group, map.number):
 		return
+	var lift: PackedInt32Array = _painted_levels(map)
+	_lift_walls(lift)
+	for at: int in lift.size():
+		if lift[at] <= 0 or _tiles[at] < 0:
+			continue
+		if _art[at] != ART_FLAT:
+			if _heights[at] >= 0:
+				_heights[at] += lift[at]
+			continue
+		if _heights[at] >= 0:
+			_heights[at] = lift[at]
+			continue
+		_lifted[at] = 1
+		_heights[at] += lift[at]
+
+
+func _painted_levels(map: Gen2WorldMap) -> PackedInt32Array:
+	var lift := PackedInt32Array()
+	lift.resize(_size.x * _size.y)
 	for ty: int in _size.y:
 		for tx: int in _size.x:
-			var at: int = ty * _size.x + tx
-			if _tiles[at] < 0:
-				continue
-			var height: int = Levels.height_at(
+			lift[ty * _size.x + tx] = Levels.height_at(
 				map.group, map.number,
 				Vector2i((tx - _margin.x) >> 1, (ty - _margin.y) >> 1)
 			)
-			if height <= 0:
+	return lift
+
+
+## A wall carries no level of its own. It is the transition between the floors
+## either side of it, so a mass of wall stands at least as tall as the tallest
+## floor it touches: that is how a cave's band becomes the cliff between two
+## storeys.
+func _lift_walls(lift: PackedInt32Array) -> void:
+	var seen := PackedByteArray()
+	seen.resize(lift.size())
+	for start: int in lift.size():
+		if seen[start] == 1 or lift[start] != Levels.WALLED:
+			continue
+		var members := PackedInt32Array()
+		var storeys: Vector2i = _wall_mass(start, lift, seen, members)
+		_keep_fold(members, storeys)
+		for at: int in members:
+			lift[at] = Levels.NOTHING
+			if _tiles[at] >= 0:
+				_heights[at] = maxi(_heights[at], storeys.y)
+
+
+## Floods one mass of wall into `members` and answers the storeys it stands
+## between, the lowest floor it meets and the tallest.
+func _wall_mass(
+	start: int, lift: PackedInt32Array, seen: PackedByteArray,
+	members: PackedInt32Array
+) -> Vector2i:
+	var storeys := Vector2i(1 << 30, 0)
+	var stack: Array[int] = [start]
+	seen[start] = 1
+	while not stack.is_empty():
+		var at: int = stack.pop_back()
+		members.append(at)
+		var from: Vector2i = _tile_of(at)
+		for step: Vector2i in STEPS:
+			var index: int = _index(from.x + step.x, from.y + step.y)
+			if index < 0:
 				continue
-			if _art[at] == ART_FLAT:
-				_heights[at] = height if _heights[at] >= 0 else _heights[at] + height
-			elif _heights[at] >= 0:
-				_heights[at] += height
+			if lift[index] == Levels.WALLED:
+				if seen[index] == 0:
+					seen[index] = 1
+					stack.append(index)
+				continue
+			if lift[index] < 0:
+				continue
+			storeys = Vector2i(
+				mini(storeys.x, lift[index]), maxi(storeys.y, lift[index])
+			)
+	if storeys.x > storeys.y:
+		storeys.x = storeys.y
+	return storeys
+
+
+## A mass worth folding stands between two storeys and is deep enough to be a
+## cliff rather than a kerb. Its face is its own south edge.
+const FOLD_TILES: int = 4
+
+
+func _keep_fold(members: PackedInt32Array, storeys: Vector2i) -> void:
+	if storeys.y - storeys.x < PLATEAU_FLOOR:
+		return
+	var box := Rect2i(_tile_of(members[0]), Vector2i.ONE)
+	for at: int in members:
+		box = box.merge(Rect2i(_tile_of(at), Vector2i.ONE))
+	if box.size.y < FOLD_TILES:
+		return
+	var index: int = _folds.size()
+	_folds.append([box, storeys.x, storeys.y])
+	for at: int in members:
+		_fold[at] = index
 
 
 func _match_houses(shape: RefCounted, tileset_number: int) -> void:
@@ -1842,10 +1952,7 @@ func _measure_surfaces() -> void:
 		var box := Rect2(
 			left, front - float(object[&"depth"]), float(window.size.x), float(object[&"depth"])
 		)
-		for ty: int in range(
-			floori(box.position.y / TILE) + _margin.y,
-			ceili(box.end.y / TILE) + _margin.y
-		):
+		for ty: int in range(_row_at(box.position.y), _row_at(box.end.y) + 1):
 			if ty < 0 or ty >= _size.y:
 				continue
 			for tx: int in range(
@@ -1860,9 +1967,51 @@ func _measure_surfaces() -> void:
 const WATER_DRAUGHT: int = 2
 
 
+## Where an actor standing on `cells` belongs, in world pixels. Ground, unless
+## the cell is inside a folded wall, where it is a height up that wall's face:
+## a player climbing a waterfall rides the fall rather than the rock behind it.
+func standing_at(cells: Vector2) -> Vector3:
+	var row: float = cells.y * float(CELL_TILES) + float(_margin.y) + 1.0
+	var at := Vector3(
+		cells.x * TILE * float(CELL_TILES) + TILE, 0.0, _world_z_at(row)
+	)
+	var index: int = _fold_of(
+		floori(cells.x * float(CELL_TILES)) + _margin.x, floori(row)
+	)
+	if index < 0:
+		at.y = float(surface_height_at_position(at))
+		return at
+	var fold: Array = _folds[index]
+	var box: Rect2i = fold[0]
+	at.y = lerpf(float(fold[1]), float(fold[2]), clampf(
+		(float(box.end.y) - row) / float(box.size.y), 0.0, 1.0
+	))
+	at.z = _world_z(box.end.y) + FOLD_STAND
+	return at
+
+
+## How far in front of the face an actor on it stands, so its card is not in the
+## same plane as the rock.
+const FOLD_STAND: float = 2.0
+
+
+## `_world_z` between rows, so a position part way down one lands part way down
+## it, and a folded row, having no depth, holds still.
+func _world_z_at(row: float) -> float:
+	var whole: int = floori(row)
+	var near: float = _world_z(whole)
+	return near + (row - float(whole)) * (_world_z(whole + 1) - near)
+
+
+func _fold_of(tx: int, ty: int) -> int:
+	if _fold.is_empty() or tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
+		return -1
+	return _fold[ty * _size.x + tx]
+
+
 func surface_height_at_position(position: Vector3) -> int:
 	var tx: int = floori(position.x / TILE) + _margin.x
-	var ty: int = floori(position.z / TILE) + _margin.y
+	var ty: int = _row_at(position.z)
 	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
 		return 0
 	var column: int = _height_at(tx, ty)
@@ -2261,26 +2410,25 @@ func _settle_ponds() -> void:
 			_heights[at] += shore
 
 
+## Ground the flood has not met yet, which is not the same answer as ground at
+## zero: reading the two as one made the shore depend on which the flood reached
+## last.
+const NO_SHORE: int = -2
+
+
 ## Floods one body of water into `members` and answers the height of the ground
 ## around it, or -1 where that ground is not all at one height.
-##
-## A zero reads as "nothing seen yet" rather than as ground at zero, so a ring of
-## 0 and 16 answers 16 or -1 depending on which the flood reaches last. Whirl
-## Islands, map 3,72 tiles 36,60 to 39,71, is the one pool in the game where that
-## decides anything: it stands a band proud of the floor beside it, and reading a
-## zero as a height leaves it recessed and opens the map edge behind it. Which is
-## right is a picture the reviewer has not been shown, so the order stands.
 func _pond_shore(
 	start: int, seen: PackedByteArray, members: PackedInt32Array
 ) -> int:
-	var shore: int = 0
+	var shore: int = NO_SHORE
 	var stack: Array[int] = [start]
 	seen[start] = 1
 	while not stack.is_empty():
 		var at: int = stack.pop_back()
 		members.append(at)
 		var from: Vector2i = _tile_of(at)
-		for step: Vector2i in POND_STEPS:
+		for step: Vector2i in STEPS:
 			var index: int = _index(from.x + step.x, from.y + step.y)
 			if index < 0:
 				shore = -1
@@ -2291,7 +2439,7 @@ func _pond_shore(
 					stack.append(index)
 				continue
 			var height: int = maxi(_heights[index], 0)
-			if shore == 0:
+			if shore == NO_SHORE:
 				shore = height
 			elif shore != height:
 				shore = -1
@@ -2342,12 +2490,13 @@ func _is_bed_floor(at: int) -> bool:
 var _bed_kerb: int = -1
 
 
-## A flight cut into the floor stands flat art below zero, which is water's own
-## signature, and every pass that asks about water asks here.
+## Flat art below zero, which is water's own signature and is how a sea rock and
+## a flight cut into the floor are sunk into it too, or a lake the paint stood on
+## an upper storey. Every pass that asks about water asks here.
 func _is_water(at: int) -> bool:
 	return (
-		_tiles[at] >= 0 and _art[at] == ART_FLAT and _heights[at] < 0
-		and _stair_at[at] < 0
+		_tiles[at] >= 0 and _art[at] == ART_FLAT and _stair_at[at] < 0
+		and (_heights[at] < 0 or _lifted[at] == 1)
 	)
 
 
@@ -3174,13 +3323,13 @@ func _cells_match(cell_x: int, first_y: int, second_y: int) -> bool:
 
 func height_at_position(position: Vector3) -> int:
 	return _height_at(
-		floori(position.x / TILE) + _margin.x, floori(position.z / TILE) + _margin.y
+		floori(position.x / TILE) + _margin.x, _row_at(position.z)
 	)
 
 
 func occlusion_height_at_position(position: Vector3) -> int:
 	var tx: int = floori(position.x / TILE) + _margin.x
-	var ty: int = floori(position.z / TILE) + _margin.y
+	var ty: int = _row_at(position.z)
 	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
 		return 0
 	var at: int = ty * _size.x + tx
@@ -3280,8 +3429,53 @@ func _structure_mask(
 		for at: int in mask.size():
 			if one[at] == 1:
 				mask[at] = 1
+	_prune_specks(mask, Vector2i(across.x * int(TILE), across.y * int(TILE)))
 	_masks[key] = mask
 	return mask
+
+
+## The smallest island a drawing can mean. A cave floor is dithered in the same
+## shade its ladder is drawn in, so every speck of that dither reads as part of
+## the shape and stands up as a pixel of its own.
+const SPECK: int = 4
+
+
+## Drops the islands too small to be anything.
+func _prune_specks(mask: PackedByteArray, size: Vector2i) -> void:
+	var seen := PackedByteArray()
+	seen.resize(mask.size())
+	for start: int in mask.size():
+		if mask[start] == 0 or seen[start] == 1:
+			continue
+		var island: PackedInt32Array = _mask_island(mask, seen, size, start)
+		if island.size() >= SPECK:
+			continue
+		for at: int in island:
+			mask[at] = 0
+
+
+## One four-connected island of the mask.
+func _mask_island(
+	mask: PackedByteArray, seen: PackedByteArray, size: Vector2i, start: int
+) -> PackedInt32Array:
+	var island := PackedInt32Array()
+	var stack: Array[int] = [start]
+	seen[start] = 1
+	while not stack.is_empty():
+		var at: int = stack.pop_back()
+		island.append(at)
+		@warning_ignore("integer_division")
+		var from := Vector2i(at % size.x, at / size.x)
+		for step: Vector2i in STEPS:
+			var to: Vector2i = from + step
+			if to.x < 0 or to.y < 0 or to.x >= size.x or to.y >= size.y:
+				continue
+			var index: int = to.y * size.x + to.x
+			if mask[index] == 0 or seen[index] == 1:
+				continue
+			seen[index] = 1
+			stack.append(index)
+	return island
 
 
 func _mask_frame(
@@ -4110,25 +4304,159 @@ func _object_sides(
 		it.window.position.y + it.top_rows,
 		it.window.position.y + it.window.size.y
 	)
-	_quad(
-		Vector3(it.right, it.base, it.back), Vector3(it.left, it.base, it.back),
-		Vector3(it.left, it.high, it.back), Vector3(it.right, it.high, it.back),
-		Vector3(0.0, 0.0, -1.0), side, SHADE_NORTH
-	)
-	_quad(
-		Vector3(it.right, it.base, it.front), Vector3(it.right, it.base, it.back),
-		Vector3(it.right, it.high, it.back), Vector3(it.right, it.high, it.front),
-		Vector3(1.0, 0.0, 0.0), side, SHADE_SIDE
-	)
-	_quad(
-		Vector3(it.left, it.base, it.back), Vector3(it.left, it.base, it.front),
-		Vector3(it.left, it.high, it.front), Vector3(it.left, it.high, it.back),
-		Vector3(-1.0, 0.0, 0.0), side, SHADE_SIDE
-	)
+	_object_back(it, side)
+	_object_edges(it, side)
 	if it.top_rows == 0:
 		_object_lid(object, it, atlas)
 
 
+## World height of one row of the window, the face's own mapping.
+func _object_y(it: Standing, py: int) -> float:
+	return it.high - it.tall * float(py - it.face_from) / float(it.face_rows)
+
+
+## The back plate, cut to the drawing. One quad across the whole window puts a
+## slab behind an open drawing, which a ladder seen from the north is.
+func _object_back(it: Standing, side: Rect2) -> void:
+	for slab: Rect2i in _object_slabs(it):
+		var x0: float = it.left + float(slab.position.x - it.window.position.x)
+		var x1: float = x0 + float(slab.size.x)
+		var low: float = _object_y(it, slab.position.y + slab.size.y)
+		var high: float = _object_y(it, slab.position.y)
+		_quad(
+			Vector3(x1, low, it.back), Vector3(x0, low, it.back),
+			Vector3(x0, high, it.back), Vector3(x1, high, it.back),
+			Vector3(0.0, 0.0, -1.0), side, SHADE_NORTH
+		)
+
+
+## Walls along the silhouette's own boundary, so the extrusion is closed where
+## the drawing stops rather than open along every edge of it. The lid owns the
+## face's first row, and the rows above it lie across the depth already.
+func _object_edges(it: Standing, side: Rect2) -> void:
+	for py: int in range(it.face_from, it.face_from + it.face_rows):
+		for run: Vector2i in _object_row_runs(it, py):
+			_object_upright(it, side, run.x, py, -1.0)
+			_object_upright(it, side, run.y, py, 1.0)
+	for px: int in range(
+		it.window.position.x, it.window.position.x + it.window.size.x
+	):
+		for run: Vector2i in _object_column_runs(it, px):
+			if run.x > it.face_from:
+				_object_level(it, side, px, run.x, 1.0)
+			_object_level(it, side, px, run.y, -1.0)
+
+
+## One upright wall a pixel tall, at the left or the right of a run.
+func _object_upright(
+	it: Standing, side: Rect2, px: int, py: int, facing: float
+) -> void:
+	var x: float = it.left + float(px - it.window.position.x)
+	var low: float = _object_y(it, py + 1)
+	var high: float = _object_y(it, py)
+	var near: float = it.front if facing > 0.0 else it.back
+	var far: float = it.back if facing > 0.0 else it.front
+	_quad(
+		Vector3(x, low, near), Vector3(x, low, far),
+		Vector3(x, high, far), Vector3(x, high, near),
+		Vector3(facing, 0.0, 0.0), side, SHADE_SIDE
+	)
+
+
+## One level wall a pixel wide, at the top or the bottom of a run.
+func _object_level(
+	it: Standing, side: Rect2, px: int, py: int, facing: float
+) -> void:
+	var x0: float = it.left + float(px - it.window.position.x)
+	var x1: float = x0 + 1.0
+	var y: float = _object_y(it, py)
+	var near: float = it.front if facing > 0.0 else it.back
+	var far: float = it.back if facing > 0.0 else it.front
+	_quad(
+		Vector3(x0, y, near), Vector3(x1, y, near),
+		Vector3(x1, y, far), Vector3(x0, y, far),
+		Vector3(0.0, facing, 0.0), side,
+		SHADE_TOP_FLAT if facing > 0.0 else SHADE_NORTH
+	)
+
+
+## The face's silhouette as the fewest rectangles, in window pixels.
+func _object_slabs(it: Standing) -> Array[Rect2i]:
+	var slabs: Array[Rect2i] = []
+	var taken := PackedByteArray()
+	taken.resize(it.window.size.x * it.face_rows)
+	for row: int in it.face_rows:
+		var px: int = it.window.position.x
+		var end: int = px + it.window.size.x
+		while px < end:
+			var run: int = _object_slab_run(it, taken, row, px)
+			if run > px:
+				slabs.append(Rect2i(
+					px, it.face_from + row, run - px, _object_slab_depth(
+						it, taken, row, px, run
+					)
+				))
+				px = run
+				continue
+			px += 1
+	return slabs
+
+
+## How far right the slab starting at `px` reaches, or `px` where none does.
+func _object_slab_run(
+	it: Standing, taken: PackedByteArray, row: int, px: int
+) -> int:
+	var end: int = it.window.position.x + it.window.size.x
+	var run: int = px
+	while run < end \
+			and taken[row * it.window.size.x + run - it.window.position.x] == 0 \
+			and _drawn(it.mask, it.span, run, it.face_from + row):
+		run += 1
+	return run
+
+
+## How far down that slab reaches, marking every pixel it claims.
+func _object_slab_depth(
+	it: Standing, taken: PackedByteArray, row: int, px: int, run: int
+) -> int:
+	var deep: int = 0
+	while row + deep < it.face_rows:
+		var whole: bool = true
+		for step: int in run - px:
+			var at: int = (row + deep) * it.window.size.x \
+				+ px + step - it.window.position.x
+			if taken[at] == 1 \
+					or not _drawn(it.mask, it.span, px + step, it.face_from + row + deep):
+				whole = false
+				break
+		if not whole:
+			break
+		for step: int in run - px:
+			taken[(row + deep) * it.window.size.x + px + step - it.window.position.x] = 1
+		deep += 1
+	return deep
+
+
+## Runs of drawn pixels down one column of the window, as first and past-the-end.
+func _object_column_runs(it: Standing, px: int) -> Array[Vector2i]:
+	var runs: Array[Vector2i] = []
+	var py: int = it.face_from
+	var end: int = it.face_from + it.face_rows
+	while py < end:
+		if not _drawn(it.mask, it.span, px, py):
+			py += 1
+			continue
+		var run: int = py
+		while run < end and _drawn(it.mask, it.span, px, run):
+			run += 1
+		runs.append(Vector2i(py, run))
+		py = run
+	return runs
+
+
+## The lid caps the columns that actually reach the top. One quad across the
+## whole window puts a slab over a drawing whose first row is open, which is
+## what a ladder is.
 func _object_lid(object: Dictionary, it: Standing, atlas: RefCounted) -> void:
 	var cap: int = int(object.get(&"cap", 0))
 	if cap > 0:
@@ -4137,16 +4465,35 @@ func _object_lid(object: Dictionary, it: Standing, atlas: RefCounted) -> void:
 			it.left, it.right, it.high, it.front, it.back
 		)
 		return
-	_quad(
-		Vector3(it.left, it.high, it.front), Vector3(it.right, it.high, it.front),
-		Vector3(it.right, it.high, it.back), Vector3(it.left, it.high, it.back),
-		Vector3.UP,
-		_object_texel(
-			atlas, it.tiles, it.across, it.mask, it.span, it.window,
-			it.window.position.y, it.window.position.y + it.window.size.y
-		),
-		SHADE_TOP_FLAT
+	var texel: Rect2 = _object_texel(
+		atlas, it.tiles, it.across, it.mask, it.span, it.window,
+		it.window.position.y, it.window.position.y + it.window.size.y
 	)
+	for run: Vector2i in _object_row_runs(it, it.window.position.y):
+		var left: float = it.left + float(run.x - it.window.position.x)
+		var right: float = it.left + float(run.y - it.window.position.x)
+		_quad(
+			Vector3(left, it.high, it.front), Vector3(right, it.high, it.front),
+			Vector3(right, it.high, it.back), Vector3(left, it.high, it.back),
+			Vector3.UP, texel, SHADE_TOP_FLAT
+		)
+
+
+## Every run of drawn columns along one row of the window, as start and end.
+func _object_row_runs(it: Standing, py: int) -> Array[Vector2i]:
+	var runs: Array[Vector2i] = []
+	var px: int = it.window.position.x
+	var end: int = px + it.window.size.x
+	while px < end:
+		if not _drawn(it.mask, it.span, px, py):
+			px += 1
+			continue
+		var run: int = px
+		while run < end and _drawn(it.mask, it.span, run, py):
+			run += 1
+		runs.append(Vector2i(px, run))
+		px = run
+	return runs
 
 
 func _object_tower(
@@ -6722,6 +7069,10 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	var tile: int = _tiles[at]
 	if tile < 0:
 		return
+	## A folded row has no plan depth, so every quad it lays down is degenerate.
+	## Its last row is the exception: its south side IS the cliff's face.
+	if _fold_of(tx, ty) >= 0 and _fold_of(tx, ty + 1) >= 0:
+		return
 	var art: int = _art[at]
 	if art == ART_CUTOUT or art == ART_RAILING or art == ART_FENCE \
 			or art == ART_BALL:
@@ -7032,7 +7383,7 @@ func _wedge(tx: int, ty: int, atlas: RefCounted) -> void:
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	_quad(
 		Vector3(x0, _wedge_y(base, steps, 0, 1), z1),
 		Vector3(x1, _wedge_y(base, steps, 1, 1), z1),
@@ -7070,7 +7421,7 @@ func _wedge_end(
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	var low: float = float(base)
 	var a := Vector3.ZERO
 	var b := Vector3.ZERO
@@ -7368,7 +7719,7 @@ func _skirt_side(
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	var full: Rect2 = atlas.uv(floor_at.x)
 	var shade: Color = SHADE_SOUTH if step.y > 0 else (
 		SHADE_NORTH if step.y < 0 else SHADE_SIDE
@@ -7501,7 +7852,7 @@ func _emit_margined(
 	var x0: float = _world_x(tx) + float(left)
 	var x1: float = _world_x(tx) + TILE - float(right)
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	var uv: Rect2 = atlas.uv(cap)
 	_quad(
 		Vector3(x0, float(here), z1), Vector3(x1, float(here), z1),
@@ -7531,7 +7882,7 @@ func _margin_floor(
 	tx: int, ty: int, x0: float, x1: float, height: int, atlas: RefCounted
 ) -> void:
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	var ground: Vector2i = _ground_art(tx, ty)
 	var uv: Rect2 = atlas.uv(ground.x)
 	var y: float = float(maxi(height, ground.y))
@@ -7549,7 +7900,7 @@ func _side_span(
 	if neighbour >= here:
 		return
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	@warning_ignore("integer_division")
 	for step: int in (here - neighbour) / BAND:
 		var low: float = float(neighbour + step * BAND)
@@ -7632,7 +7983,7 @@ func _face_roof(tx: int, ty: int, uv: Rect2, shade: Color) -> void:
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	var a := Vector3(x0, _roof_corner(tx, ty, -1, 1), z1)
 	var b := Vector3(x1, _roof_corner(tx, ty, 1, 1), z1)
 	var c := Vector3(x1, _roof_corner(tx, ty, 1, -1), z0)
@@ -7649,7 +8000,7 @@ func _ramp_tile(tx: int, ty: int, atlas: RefCounted) -> void:
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	var nw: float = float(_corners[at * 4])
 	var ne: float = float(_corners[at * 4 + 1])
 	var sw: float = float(_corners[at * 4 + 2])
@@ -7688,7 +8039,7 @@ func _ramp_side(
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	var a := Vector3.ZERO
 	var b := Vector3.ZERO
 	if step.y > 0:
@@ -7714,7 +8065,7 @@ func _face_top(tx: int, ty: int, y: float, uv: Rect2, shade: Color) -> void:
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	_quad(
 		Vector3(x0, y, z1), Vector3(x1, y, z1), Vector3(x1, y, z0), Vector3(x0, y, z0),
 		Vector3.UP, uv, shade
@@ -7734,7 +8085,7 @@ func _side(
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
 	var z0: float = _world_z(ty)
-	var z1: float = z0 + TILE
+	var z1: float = _world_z(ty + 1)
 	for step: int in (here - neighbour) / BAND:
 		var low: float = float(neighbour + step * BAND)
 		var high: float = low + TILE

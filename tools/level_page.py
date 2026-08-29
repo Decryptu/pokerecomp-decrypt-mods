@@ -118,9 +118,10 @@ PAGE = """<!doctype html>
   </p>
   <p class="hint">
     <b>A wall is a TRANSITION, and it carries no level.</b> A hatched cell is
-    where one level becomes another, and its height and its slope are worked out
-    from the floors you paint either side of it, so it has no number and cannot
-    have one. A level and a wall are exclusive: painting either clears the other.
+    where one level becomes another, so it has no number and cannot have one: a
+    mass of wall stands at least as tall as the tallest floor it touches, which is how a
+    cave&#39;s band becomes the cliff between its two storeys. A level and a wall
+    are exclusive: painting either clears the other.
   </p>
   <p class="hint">
     <b>A tree or a house is not a wall.</b> It is a thing standing on a floor,
@@ -144,14 +145,18 @@ const CELL = 16;
 // lake has ground at different half heights all the way round it. A half step
 // let a person write an impossibility down one cell at a time. Whole levels make
 // them choose, which is the only thing that can be built.
-const BANDS = [-1, 0, 1, 2, 3, 4, 5];
+// Up to 13, because a cave is two storeys and the wall between them is as many
+// levels tall as the waterfall down it. Most maps use three of these.
+const BANDS = [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 // A ramp a person can tell apart at a glance, low to high. EVERY level is
 // tinted, including zero: leaving zero untinted was the first version and the
 // reviewer could not see which cells they had painted, because most of a map is
 // zero and an untinted cell reads as an unanswered one.
 const COLORS = {
   "-1": "#4a63c8", "0": "#6b7280", "1": "#4fae4f", "2": "#d8c95a",
-  "3": "#e09a4a", "4": "#d4603c", "5": "#c04a8a",
+  "3": "#e09a4a", "4": "#d4603c", "5": "#c04a8a", "6": "#8f57c8",
+  "7": "#3f8fd0", "8": "#2f9c8c", "9": "#7fb040", "10": "#b8a030",
+  "11": "#b06a2c", "12": "#a03f3f", "13": "#8c3f70",
 };
 const WALL = "wall";
 const TINT = 0.55;
