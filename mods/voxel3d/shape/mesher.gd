@@ -5777,12 +5777,11 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 	var step: Vector2i = flight[&"step"]
 	var run: int = (across.x if step.x != 0 else across.y) * int(TILE)
 	var rise: float = float(climb) / float(steps)
-	var tread_deep: float = float(run) / float(steps)
 	if not down:
 		_stair_head(start, base, step, across, climb, atlas)
 	for tread: int in steps:
-		var from: int = int(float(tread) * tread_deep)
-		var deep: int = roundi(tread_deep)
+		var from: int = _stair_edge(run, steps, tread)
+		var deep: int = _stair_edge(run, steps, tread + 1) - from
 		var wide: int = (across.y if step.x != 0 else across.x) * int(TILE)
 		var box := Rect2i(0, 0, wide, wide)
 		if step.x != 0:
@@ -5856,7 +5855,7 @@ func _emit_stair_corner(
 	var rise: float = float(climb) / float(steps)
 	var edge := PackedInt32Array()
 	for tier: int in steps + 1:
-		edge.append(roundi(float(tier * span) / float(steps)))
+		edge.append(_stair_edge(span, steps, tier))
 
 	for tier: int in steps:
 		var low: int = edge[tier]
@@ -5958,6 +5957,12 @@ func _stair_corner_riser(
 					Vector3(x1, high, rz), Vector3(x0, high, rz),
 					Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
 				)
+
+
+## Treads share the run out to the pixel: each ends where the next begins, so a
+## flight covers its whole footprint and leaves no slot up its flanks.
+func _stair_edge(run: int, steps: int, tread: int) -> int:
+	return roundi(float(tread * run) / float(steps))
 
 
 func _stair_head(
