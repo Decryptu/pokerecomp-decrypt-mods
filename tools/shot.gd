@@ -88,6 +88,7 @@ func _initialize() -> void:
 	_actors(data, map, mesher, time_of_day)
 
 	var focus := Vector3((float(args[3]) + 0.5) * TILE, 0.0, (float(args[4]) + 0.5) * TILE)
+	focus.y = float(mesher.surface_height_at_position(focus))
 	_hold = maxi(int(args[10]) if args.size() > 10 else 6, 1)
 	var pitch: float = deg_to_rad(float(args[6]) if args.size() > 6 else 32.0)
 	var back: float = float(args[7]) if args.size() > 7 else 220.0
