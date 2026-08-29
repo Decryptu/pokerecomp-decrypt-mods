@@ -36,7 +36,6 @@ mods/voxel3d/shape/mesher.gd:_measure_doors
 mods/voxel3d/shape/mesher.gd:_measure_house_boxes
 mods/voxel3d/shape/mesher.gd:_measure_ledges
 mods/voxel3d/shape/mesher.gd:_measure_mouths
-mods/voxel3d/shape/mesher.gd:_measure_objects
 mods/voxel3d/shape/mesher.gd:_measure_room
 mods/voxel3d/shape/mesher.gd:_measure_room_fill
 mods/voxel3d/shape/mesher.gd:_measure_surfaces
