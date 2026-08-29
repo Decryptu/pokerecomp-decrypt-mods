@@ -14,7 +14,6 @@ mods/voxel3d/shape/map_source.gd:_drawn_block
 mods/voxel3d/shape/mesher.gd:_ball
 mods/voxel3d/shape/mesher.gd:_bodies
 mods/voxel3d/shape/mesher.gd:_cell_levels
-mods/voxel3d/shape/mesher.gd:_cliff_evidence
 mods/voxel3d/shape/mesher.gd:_commonest_edge_floor
 mods/voxel3d/shape/mesher.gd:_cut_out
 mods/voxel3d/shape/mesher.gd:_cutout
