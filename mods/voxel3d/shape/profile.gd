@@ -321,7 +321,7 @@ const OBJECTS: Dictionary = {
 		{
 			&"name": &"ladder",
 			&"tiles": [[40, 41], [56, 57]],
-			&"window": Rect2i(3, 0, 13, 16),
+			&"window": Rect2i(3, 0, 9, 16),
 			&"top": 0,
 			&"depth": 3,
 			&"height": 16,
@@ -329,7 +329,7 @@ const OBJECTS: Dictionary = {
 		{
 			&"name": &"ladder",
 			&"tiles": [[42, 43], [58, 59]],
-			&"window": Rect2i(3, 0, 13, 16),
+			&"window": Rect2i(3, 0, 9, 16),
 			&"top": 0,
 			&"depth": 3,
 			&"height": 16,
@@ -489,7 +489,7 @@ const OBJECTS: Dictionary = {
 		{
 			&"name": &"ladder",
 			&"tiles": [[10, 11], [26, 27]],
-			&"window": Rect2i(3, 0, 13, 16),
+			&"window": Rect2i(3, 0, 9, 16),
 			&"top": 0,
 			&"depth": 3,
 			&"height": 16,
@@ -499,7 +499,7 @@ const OBJECTS: Dictionary = {
 		{
 			&"name": &"ladder",
 			&"tiles": [[40, 41], [56, 57]],
-			&"window": Rect2i(3, 0, 13, 16),
+			&"window": Rect2i(3, 0, 9, 16),
 			&"top": 0,
 			&"depth": 3,
 			&"height": 16,
@@ -507,7 +507,7 @@ const OBJECTS: Dictionary = {
 		{
 			&"name": &"ladder",
 			&"tiles": [[42, 43], [58, 59]],
-			&"window": Rect2i(2, 0, 14, 16),
+			&"window": Rect2i(3, 0, 9, 16),
 			&"top": 0,
 			&"depth": 3,
 			&"height": 16,

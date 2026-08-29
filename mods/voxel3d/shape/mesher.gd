@@ -3280,8 +3280,53 @@ func _structure_mask(
 		for at: int in mask.size():
 			if one[at] == 1:
 				mask[at] = 1
+	_prune_specks(mask, Vector2i(across.x * int(TILE), across.y * int(TILE)))
 	_masks[key] = mask
 	return mask
+
+
+## The smallest island a drawing can mean. A cave floor is dithered in the same
+## shade its ladder is drawn in, so every speck of that dither reads as part of
+## the shape and stands up as a pixel of its own.
+const SPECK: int = 4
+
+
+## Drops the islands too small to be anything.
+func _prune_specks(mask: PackedByteArray, size: Vector2i) -> void:
+	var seen := PackedByteArray()
+	seen.resize(mask.size())
+	for start: int in mask.size():
+		if mask[start] == 0 or seen[start] == 1:
+			continue
+		var island: PackedInt32Array = _mask_island(mask, seen, size, start)
+		if island.size() >= SPECK:
+			continue
+		for at: int in island:
+			mask[at] = 0
+
+
+## One four-connected island of the mask.
+func _mask_island(
+	mask: PackedByteArray, seen: PackedByteArray, size: Vector2i, start: int
+) -> PackedInt32Array:
+	var island := PackedInt32Array()
+	var stack: Array[int] = [start]
+	seen[start] = 1
+	while not stack.is_empty():
+		var at: int = stack.pop_back()
+		island.append(at)
+		@warning_ignore("integer_division")
+		var from := Vector2i(at % size.x, at / size.x)
+		for step: Vector2i in STEPS:
+			var to: Vector2i = from + step
+			if to.x < 0 or to.y < 0 or to.x >= size.x or to.y >= size.y:
+				continue
+			var index: int = to.y * size.x + to.x
+			if mask[index] == 0 or seen[index] == 1:
+				continue
+			seen[index] = 1
+			stack.append(index)
+	return island
 
 
 func _mask_frame(
@@ -4110,25 +4155,159 @@ func _object_sides(
 		it.window.position.y + it.top_rows,
 		it.window.position.y + it.window.size.y
 	)
-	_quad(
-		Vector3(it.right, it.base, it.back), Vector3(it.left, it.base, it.back),
-		Vector3(it.left, it.high, it.back), Vector3(it.right, it.high, it.back),
-		Vector3(0.0, 0.0, -1.0), side, SHADE_NORTH
-	)
-	_quad(
-		Vector3(it.right, it.base, it.front), Vector3(it.right, it.base, it.back),
-		Vector3(it.right, it.high, it.back), Vector3(it.right, it.high, it.front),
-		Vector3(1.0, 0.0, 0.0), side, SHADE_SIDE
-	)
-	_quad(
-		Vector3(it.left, it.base, it.back), Vector3(it.left, it.base, it.front),
-		Vector3(it.left, it.high, it.front), Vector3(it.left, it.high, it.back),
-		Vector3(-1.0, 0.0, 0.0), side, SHADE_SIDE
-	)
+	_object_back(it, side)
+	_object_edges(it, side)
 	if it.top_rows == 0:
 		_object_lid(object, it, atlas)
 
 
+## World height of one row of the window, the face's own mapping.
+func _object_y(it: Standing, py: int) -> float:
+	return it.high - it.tall * float(py - it.face_from) / float(it.face_rows)
+
+
+## The back plate, cut to the drawing. One quad across the whole window puts a
+## slab behind an open drawing, which a ladder seen from the north is.
+func _object_back(it: Standing, side: Rect2) -> void:
+	for slab: Rect2i in _object_slabs(it):
+		var x0: float = it.left + float(slab.position.x - it.window.position.x)
+		var x1: float = x0 + float(slab.size.x)
+		var low: float = _object_y(it, slab.position.y + slab.size.y)
+		var high: float = _object_y(it, slab.position.y)
+		_quad(
+			Vector3(x1, low, it.back), Vector3(x0, low, it.back),
+			Vector3(x0, high, it.back), Vector3(x1, high, it.back),
+			Vector3(0.0, 0.0, -1.0), side, SHADE_NORTH
+		)
+
+
+## Walls along the silhouette's own boundary, so the extrusion is closed where
+## the drawing stops rather than open along every edge of it. The lid owns the
+## face's first row, and the rows above it lie across the depth already.
+func _object_edges(it: Standing, side: Rect2) -> void:
+	for py: int in range(it.face_from, it.face_from + it.face_rows):
+		for run: Vector2i in _object_row_runs(it, py):
+			_object_upright(it, side, run.x, py, -1.0)
+			_object_upright(it, side, run.y, py, 1.0)
+	for px: int in range(
+		it.window.position.x, it.window.position.x + it.window.size.x
+	):
+		for run: Vector2i in _object_column_runs(it, px):
+			if run.x > it.face_from:
+				_object_level(it, side, px, run.x, 1.0)
+			_object_level(it, side, px, run.y, -1.0)
+
+
+## One upright wall a pixel tall, at the left or the right of a run.
+func _object_upright(
+	it: Standing, side: Rect2, px: int, py: int, facing: float
+) -> void:
+	var x: float = it.left + float(px - it.window.position.x)
+	var low: float = _object_y(it, py + 1)
+	var high: float = _object_y(it, py)
+	var near: float = it.front if facing > 0.0 else it.back
+	var far: float = it.back if facing > 0.0 else it.front
+	_quad(
+		Vector3(x, low, near), Vector3(x, low, far),
+		Vector3(x, high, far), Vector3(x, high, near),
+		Vector3(facing, 0.0, 0.0), side, SHADE_SIDE
+	)
+
+
+## One level wall a pixel wide, at the top or the bottom of a run.
+func _object_level(
+	it: Standing, side: Rect2, px: int, py: int, facing: float
+) -> void:
+	var x0: float = it.left + float(px - it.window.position.x)
+	var x1: float = x0 + 1.0
+	var y: float = _object_y(it, py)
+	var near: float = it.front if facing > 0.0 else it.back
+	var far: float = it.back if facing > 0.0 else it.front
+	_quad(
+		Vector3(x0, y, near), Vector3(x1, y, near),
+		Vector3(x1, y, far), Vector3(x0, y, far),
+		Vector3(0.0, facing, 0.0), side,
+		SHADE_TOP_FLAT if facing > 0.0 else SHADE_NORTH
+	)
+
+
+## The face's silhouette as the fewest rectangles, in window pixels.
+func _object_slabs(it: Standing) -> Array[Rect2i]:
+	var slabs: Array[Rect2i] = []
+	var taken := PackedByteArray()
+	taken.resize(it.window.size.x * it.face_rows)
+	for row: int in it.face_rows:
+		var px: int = it.window.position.x
+		var end: int = px + it.window.size.x
+		while px < end:
+			var run: int = _object_slab_run(it, taken, row, px)
+			if run > px:
+				slabs.append(Rect2i(
+					px, it.face_from + row, run - px, _object_slab_depth(
+						it, taken, row, px, run
+					)
+				))
+				px = run
+				continue
+			px += 1
+	return slabs
+
+
+## How far right the slab starting at `px` reaches, or `px` where none does.
+func _object_slab_run(
+	it: Standing, taken: PackedByteArray, row: int, px: int
+) -> int:
+	var end: int = it.window.position.x + it.window.size.x
+	var run: int = px
+	while run < end \
+			and taken[row * it.window.size.x + run - it.window.position.x] == 0 \
+			and _drawn(it.mask, it.span, run, it.face_from + row):
+		run += 1
+	return run
+
+
+## How far down that slab reaches, marking every pixel it claims.
+func _object_slab_depth(
+	it: Standing, taken: PackedByteArray, row: int, px: int, run: int
+) -> int:
+	var deep: int = 0
+	while row + deep < it.face_rows:
+		var whole: bool = true
+		for step: int in run - px:
+			var at: int = (row + deep) * it.window.size.x \
+				+ px + step - it.window.position.x
+			if taken[at] == 1 \
+					or not _drawn(it.mask, it.span, px + step, it.face_from + row + deep):
+				whole = false
+				break
+		if not whole:
+			break
+		for step: int in run - px:
+			taken[(row + deep) * it.window.size.x + px + step - it.window.position.x] = 1
+		deep += 1
+	return deep
+
+
+## Runs of drawn pixels down one column of the window, as first and past-the-end.
+func _object_column_runs(it: Standing, px: int) -> Array[Vector2i]:
+	var runs: Array[Vector2i] = []
+	var py: int = it.face_from
+	var end: int = it.face_from + it.face_rows
+	while py < end:
+		if not _drawn(it.mask, it.span, px, py):
+			py += 1
+			continue
+		var run: int = py
+		while run < end and _drawn(it.mask, it.span, px, run):
+			run += 1
+		runs.append(Vector2i(py, run))
+		py = run
+	return runs
+
+
+## The lid caps the columns that actually reach the top. One quad across the
+## whole window puts a slab over a drawing whose first row is open, which is
+## what a ladder is.
 func _object_lid(object: Dictionary, it: Standing, atlas: RefCounted) -> void:
 	var cap: int = int(object.get(&"cap", 0))
 	if cap > 0:
@@ -4137,16 +4316,35 @@ func _object_lid(object: Dictionary, it: Standing, atlas: RefCounted) -> void:
 			it.left, it.right, it.high, it.front, it.back
 		)
 		return
-	_quad(
-		Vector3(it.left, it.high, it.front), Vector3(it.right, it.high, it.front),
-		Vector3(it.right, it.high, it.back), Vector3(it.left, it.high, it.back),
-		Vector3.UP,
-		_object_texel(
-			atlas, it.tiles, it.across, it.mask, it.span, it.window,
-			it.window.position.y, it.window.position.y + it.window.size.y
-		),
-		SHADE_TOP_FLAT
+	var texel: Rect2 = _object_texel(
+		atlas, it.tiles, it.across, it.mask, it.span, it.window,
+		it.window.position.y, it.window.position.y + it.window.size.y
 	)
+	for run: Vector2i in _object_row_runs(it, it.window.position.y):
+		var left: float = it.left + float(run.x - it.window.position.x)
+		var right: float = it.left + float(run.y - it.window.position.x)
+		_quad(
+			Vector3(left, it.high, it.front), Vector3(right, it.high, it.front),
+			Vector3(right, it.high, it.back), Vector3(left, it.high, it.back),
+			Vector3.UP, texel, SHADE_TOP_FLAT
+		)
+
+
+## Every run of drawn columns along one row of the window, as start and end.
+func _object_row_runs(it: Standing, py: int) -> Array[Vector2i]:
+	var runs: Array[Vector2i] = []
+	var px: int = it.window.position.x
+	var end: int = px + it.window.size.x
+	while px < end:
+		if not _drawn(it.mask, it.span, px, py):
+			px += 1
+			continue
+		var run: int = px
+		while run < end and _drawn(it.mask, it.span, run, py):
+			run += 1
+		runs.append(Vector2i(px, run))
+		px = run
+	return runs
 
 
 func _object_tower(
