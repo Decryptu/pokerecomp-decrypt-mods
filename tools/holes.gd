@@ -96,7 +96,7 @@ func _show_cracks(
 	_count_in(_tally["place"], "outside" if outside else "inside", cracks.size())
 	_count_in(_tally["tileset"], map.tileset, cracks.size())
 	for crack: Dictionary in cracks:
-		_count_in(_tally["drop"], float(crack["drop"]), 1)
+		_count_in(_tally["drop"], snappedf(float(crack["drop"]), 0.1), 1)
 		_count_in(_tally["run"], crack["run"], 1)
 	if int(_tally["named"]) >= NAMED:
 		return
