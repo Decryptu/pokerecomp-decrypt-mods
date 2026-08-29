@@ -109,6 +109,14 @@ var _on_furniture := PackedByteArray()
 var _swaying := PackedByteArray()
 var _klass := PackedInt32Array()
 var _class_ids: Dictionary = {}
+## Water the paint lifted onto an upper storey, which no longer sits below zero.
+var _lifted := PackedByteArray()
+## A wall mass the paint marked is the cliff between two storeys, so its own plan
+## is that cliff's FACE rather than ground anyone stands on. Each is kept as its
+## box, the storey under it and the storey over it, and every tile of it points
+## at its own.
+var _folds: Array = []
+var _fold := PackedInt32Array()
 
 var _facts: Dictionary = {}
 const FACT_STRIDE: int = 258
@@ -594,11 +602,6 @@ func _world_z(ty: int) -> float:
 const STEPS: Array[Vector2i] = [
 	Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)
 ]
-## `_pond_shore` answers differently by the order it meets the ground, so its own
-## order is pinned here rather than shared. See that function.
-const POND_STEPS: Array[Vector2i] = [
-	Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
-]
 
 
 ## A grid index, or -1 off the grid. Every lookup goes through here so no pass
@@ -823,9 +826,12 @@ func _size_grid(source: RefCounted, shape: RefCounted) -> void:
 	_ledge.fill(LEDGE_NONE)
 	_stair_at.resize(count)
 	_stair_at.fill(-1)
-	for cleared: Variant in [_shelf, _doorway, _room]:
+	for cleared: Variant in [_shelf, _doorway, _room, _lifted]:
 		cleared.resize(count)
 		cleared.fill(0)
+	_folds = []
+	_fold.resize(count)
+	_fold.fill(-1)
 
 
 ## A shell tile stands outside the map and wears the room's own wall. Marked in
@@ -985,21 +991,102 @@ func _apply_levels(source: RefCounted) -> void:
 	var map: Gen2WorldMap = source.map()
 	if map == null or not Levels.has(map.group, map.number):
 		return
+	var lift: PackedInt32Array = _painted_levels(map)
+	_lift_walls(lift)
+	for at: int in lift.size():
+		if lift[at] <= 0 or _tiles[at] < 0:
+			continue
+		if _art[at] != ART_FLAT:
+			if _heights[at] >= 0:
+				_heights[at] += lift[at]
+			continue
+		if _heights[at] >= 0:
+			_heights[at] = lift[at]
+			continue
+		_lifted[at] = 1
+		_heights[at] += lift[at]
+
+
+func _painted_levels(map: Gen2WorldMap) -> PackedInt32Array:
+	var lift := PackedInt32Array()
+	lift.resize(_size.x * _size.y)
 	for ty: int in _size.y:
 		for tx: int in _size.x:
-			var at: int = ty * _size.x + tx
-			if _tiles[at] < 0:
-				continue
-			var height: int = Levels.height_at(
+			lift[ty * _size.x + tx] = Levels.height_at(
 				map.group, map.number,
 				Vector2i((tx - _margin.x) >> 1, (ty - _margin.y) >> 1)
 			)
-			if height <= 0:
+	return lift
+
+
+## A wall carries no level of its own. It is the transition between the floors
+## either side of it, so a mass of wall stands at least as tall as the tallest
+## floor it touches: that is how a cave's band becomes the cliff between two
+## storeys.
+func _lift_walls(lift: PackedInt32Array) -> void:
+	var seen := PackedByteArray()
+	seen.resize(lift.size())
+	for start: int in lift.size():
+		if seen[start] == 1 or lift[start] != Levels.WALLED:
+			continue
+		var members := PackedInt32Array()
+		var storeys: Vector2i = _wall_mass(start, lift, seen, members)
+		_keep_fold(members, storeys)
+		for at: int in members:
+			lift[at] = Levels.NOTHING
+			if _tiles[at] >= 0:
+				_heights[at] = maxi(_heights[at], storeys.y)
+
+
+## Floods one mass of wall into `members` and answers the storeys it stands
+## between, the lowest floor it meets and the tallest.
+func _wall_mass(
+	start: int, lift: PackedInt32Array, seen: PackedByteArray,
+	members: PackedInt32Array
+) -> Vector2i:
+	var storeys := Vector2i(1 << 30, 0)
+	var stack: Array[int] = [start]
+	seen[start] = 1
+	while not stack.is_empty():
+		var at: int = stack.pop_back()
+		members.append(at)
+		var from: Vector2i = _tile_of(at)
+		for step: Vector2i in STEPS:
+			var index: int = _index(from.x + step.x, from.y + step.y)
+			if index < 0:
 				continue
-			if _art[at] == ART_FLAT:
-				_heights[at] = height if _heights[at] >= 0 else _heights[at] + height
-			elif _heights[at] >= 0:
-				_heights[at] += height
+			if lift[index] == Levels.WALLED:
+				if seen[index] == 0:
+					seen[index] = 1
+					stack.append(index)
+				continue
+			if lift[index] < 0:
+				continue
+			storeys = Vector2i(
+				mini(storeys.x, lift[index]), maxi(storeys.y, lift[index])
+			)
+	if storeys.x > storeys.y:
+		storeys.x = storeys.y
+	return storeys
+
+
+## A mass worth folding stands between two storeys and is deep enough to be a
+## cliff rather than a kerb. Its face is its own south edge.
+const FOLD_TILES: int = 4
+
+
+func _keep_fold(members: PackedInt32Array, storeys: Vector2i) -> void:
+	if storeys.y - storeys.x < PLATEAU_FLOOR:
+		return
+	var box := Rect2i(_tile_of(members[0]), Vector2i.ONE)
+	for at: int in members:
+		box = box.merge(Rect2i(_tile_of(at), Vector2i.ONE))
+	if box.size.y < FOLD_TILES:
+		return
+	var index: int = _folds.size()
+	_folds.append([box, storeys.x, storeys.y])
+	for at: int in members:
+		_fold[at] = index
 
 
 func _match_houses(shape: RefCounted, tileset_number: int) -> void:
@@ -2261,26 +2348,25 @@ func _settle_ponds() -> void:
 			_heights[at] += shore
 
 
+## Ground the flood has not met yet, which is not the same answer as ground at
+## zero: reading the two as one made the shore depend on which the flood reached
+## last.
+const NO_SHORE: int = -2
+
+
 ## Floods one body of water into `members` and answers the height of the ground
 ## around it, or -1 where that ground is not all at one height.
-##
-## A zero reads as "nothing seen yet" rather than as ground at zero, so a ring of
-## 0 and 16 answers 16 or -1 depending on which the flood reaches last. Whirl
-## Islands, map 3,72 tiles 36,60 to 39,71, is the one pool in the game where that
-## decides anything: it stands a band proud of the floor beside it, and reading a
-## zero as a height leaves it recessed and opens the map edge behind it. Which is
-## right is a picture the reviewer has not been shown, so the order stands.
 func _pond_shore(
 	start: int, seen: PackedByteArray, members: PackedInt32Array
 ) -> int:
-	var shore: int = 0
+	var shore: int = NO_SHORE
 	var stack: Array[int] = [start]
 	seen[start] = 1
 	while not stack.is_empty():
 		var at: int = stack.pop_back()
 		members.append(at)
 		var from: Vector2i = _tile_of(at)
-		for step: Vector2i in POND_STEPS:
+		for step: Vector2i in STEPS:
 			var index: int = _index(from.x + step.x, from.y + step.y)
 			if index < 0:
 				shore = -1
@@ -2291,7 +2377,7 @@ func _pond_shore(
 					stack.append(index)
 				continue
 			var height: int = maxi(_heights[index], 0)
-			if shore == 0:
+			if shore == NO_SHORE:
 				shore = height
 			elif shore != height:
 				shore = -1
@@ -2342,12 +2428,13 @@ func _is_bed_floor(at: int) -> bool:
 var _bed_kerb: int = -1
 
 
-## A flight cut into the floor stands flat art below zero, which is water's own
-## signature, and every pass that asks about water asks here.
+## Flat art below zero, which is water's own signature and is how a sea rock and
+## a flight cut into the floor are sunk into it too, or a lake the paint stood on
+## an upper storey. Every pass that asks about water asks here.
 func _is_water(at: int) -> bool:
 	return (
-		_tiles[at] >= 0 and _art[at] == ART_FLAT and _heights[at] < 0
-		and _stair_at[at] < 0
+		_tiles[at] >= 0 and _art[at] == ART_FLAT and _stair_at[at] < 0
+		and (_heights[at] < 0 or _lifted[at] == 1)
 	)
 
 
