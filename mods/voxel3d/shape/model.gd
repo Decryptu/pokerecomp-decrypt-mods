@@ -307,12 +307,18 @@ static func _bands(
 	return out
 
 
+## The bands a cap is read from: the top half of the run, one where the run is
+## one band, and none where there is no run at all.
+static func _cap_half(bands: PackedColorArray) -> int:
+	return mini(maxi(bands.size() / 2, 1), bands.size())
+
+
 static func _cap(bands: PackedColorArray) -> Color:
 	if bands.is_empty():
 		return Color(0.5, 0.5, 0.5)
 	var counts: Dictionary = {}
 	var colours: Dictionary = {}
-	for at: int in maxi(bands.size() / 2, 1):
+	for at: int in _cap_half(bands):
 		var key: int = bands[at].to_rgba32()
 		counts[key] = int(counts.get(key, 0)) + 1
 		colours[key] = bands[at]
@@ -325,7 +331,7 @@ static func _cap(bands: PackedColorArray) -> Color:
 
 static func _cap_rows(bands: PackedColorArray, cap: Color) -> int:
 	var deepest: int = -1
-	for at: int in maxi(bands.size() / 2, 1):
+	for at: int in _cap_half(bands):
 		if bands[at].is_equal_approx(cap):
 			deepest = at
 	return deepest + 1
