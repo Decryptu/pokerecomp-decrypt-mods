@@ -508,14 +508,20 @@ func _hole_pixels() -> Rect2:
 ## Where a walker stands. A step in flight is asked for as the two CELLS it runs
 ## between rather than as one fractional cell, because a fold is a step function
 ## of that cell and a crossing would land between two of its values and cut. Both
-## ends through the geometry, and the move between them rides.
-func _ground(cells: Vector2, span: Dictionary = {}) -> Vector3:
+## ends through the geometry, and the move between them rides. [param shift] puts
+## a neighbouring map's own cell numbering into this one's, and reaches the span
+## as well as the position: a span answers the cells of the map its object is on.
+func _ground(
+	cells: Vector2, span: Dictionary = {}, shift: Vector2 = Vector2.ZERO
+) -> Vector3:
+	var at: Vector2 = cells + shift
 	if _mesher == null:
-		return Vector3(cells.x * CELL + CELL * 0.5, 0.0, cells.y * CELL + CELL * 0.5)
+		return Vector3(at.x * CELL + CELL * 0.5, 0.0, at.y * CELL + CELL * 0.5)
 	if span.is_empty():
-		return _mesher.standing_at(cells)
-	return _mesher.standing_at(Vector2(span["from"] as Vector2i)).lerp(
-		_mesher.standing_at(Vector2(span["to"] as Vector2i)), float(span["progress"])
+		return _mesher.standing_at(at)
+	return _mesher.standing_at(Vector2(span["from"] as Vector2i) + shift).lerp(
+		_mesher.standing_at(Vector2(span["to"] as Vector2i) + shift),
+		float(span["progress"])
 	)
 
 
@@ -578,12 +584,15 @@ func _add_connected_actors() -> void:
 	var here: Vector2 = _world.player_position_cells() * CELL
 	for entry: Dictionary in _world.connected_map_objects():
 		var object: Gen2WorldObject = entry["object"]
-		var cells := Vector2(object.cell + (entry["offset"] as Vector2i))
-		if here.distance_squared_to(cells * CELL) > CONNECTED_REACH * CONNECTED_REACH:
+		var shift := Vector2(entry["offset"] as Vector2i)
+		var cells: Vector2 = Vector2(object.cell) + object.step_offset_cells()
+		if here.distance_squared_to((cells + shift) * CELL) \
+				> CONNECTED_REACH * CONNECTED_REACH:
 			continue
 		_add_actor(
 			object.sprite, object.palette, object.drawn_facing(), object.frame,
-			_ground(cells, object.step_span())
+			_ground(cells, object.step_span(), shift), PackedColorArray(),
+			object.height_offset_pixels()
 		)
 
 
