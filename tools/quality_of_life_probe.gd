@@ -49,7 +49,8 @@ func _initialize() -> void:
 
 func _registration() -> void:
 	_expect(_host.failures().is_empty(), "the host reports no registration failures")
-	_expect(_host.options(MOD_ID).size() == KEYS.size(), "seven options registered")
+	_expect(_host.options(MOD_ID).size() == KEYS.size(),
+		"%d options registered" % KEYS.size())
 	_expect(_host.field_move_source_ids().has(MOD_ID), "field-move source registered")
 	_expect(_host.repel_renewal_ids().has(MOD_ID), "Repel renewal registered")
 	_expect(_host.catch_experience_ids().has(MOD_ID), "catch EXP policy registered")
