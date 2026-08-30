@@ -5,8 +5,16 @@ Each map holds a limited population drawn from its own active grass, cave and
 surf tables. They only walk on cells where their encounter method applies, they
 disappear on a map change, and meeting one starts the normal wild battle.
 
-Each one moves at most one cell every 1.6 seconds, so you have time to walk
-around them.
+Each one walks at most one cell every 1.6 seconds, so you have time to walk
+around them. It walks the way a map object does, sliding between the two cells
+over the same sixteen passes an NPC spends, and you meet it on either cell while
+it is in flight. The population does not step on one beat: each wild waits a
+little behind the one before it.
+
+The host owns the walk. The mod asks for one step, a direction, and it asks only
+where the host would agree: a cell eligible for the same method the wild already
+stands on, not the player's, not one the map's own objects hold, and not one
+another wild holds or is walking into.
 
 ## The map keeps turning over
 

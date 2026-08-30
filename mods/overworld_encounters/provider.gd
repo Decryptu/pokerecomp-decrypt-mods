@@ -12,6 +12,16 @@ const GLOW_PEAK: float = 0.45
 const GLOW_COLOR := Color(1.0, 0.87, 0.35)
 const MOVE_FRAMES: int = 96
 
+## What one wild waits behind the one before it, so a population walks about
+## rather than marching on one beat.
+const STAGGER_FRAMES: int = 7
+
+## Where the host will have taken a walker by the next frame, held on the entry
+## until then. The host reads nothing of it.
+const WALKING: StringName = &"walking"
+
+const NOWHERE := Vector2i(-0x40000000, -0x40000000)
+
 const DESPAWN_MIN_FRAMES: int = 30 * 60
 const DESPAWN_MAX_FRAMES: int = 60 * 60
 const DESPAWN_AT: StringName = &"despawn_at"
@@ -61,8 +71,8 @@ func _rebuild() -> void:
 
 func advance_frame() -> void:
 	_frame += 1
-	if _frame % MOVE_FRAMES == 0:
-		_roam()
+	_land()
+	_roam()
 	var pulse: bool = _frame % SHINY_PULSE_FRAMES == 0
 	var amount: float = _glow_amount()
 	for entry: Dictionary in _entries:
@@ -74,7 +84,12 @@ func advance_frame() -> void:
 
 
 func encounters() -> Array:
-	return _entries.duplicate(true)
+	var out: Array = []
+	for entry: Dictionary in _entries:
+		var row: Dictionary = entry.duplicate(true)
+		row.erase(WALKING)
+		out.append(row)
+	return out
 
 
 func battle_finished(id: StringName, _result: Dictionary) -> void:
@@ -106,8 +121,8 @@ func _refill() -> void:
 	if _entries.size() >= _maximum():
 		return
 	var taken: Array[Vector2i] = []
-	for entry: Dictionary in _entries:
-		taken.append(Vector2i(entry["cell"]))
+	for cell: Vector2i in _taken():
+		taken.append(cell)
 	var entry: Dictionary = Plan.mint(_context, _refresh, taken, _next_number, _id)
 	if entry.is_empty():
 		return
@@ -131,36 +146,70 @@ func _maximum() -> int:
 	return Options.maximum(_host, _id)
 
 
+## The step asked for on the frame before has been taken. The host owns the walk
+## from there and holds the wild on its target until this row names that cell, so
+## naming it here is what hands the entry back.
+func _land() -> void:
+	for entry: Dictionary in _entries:
+		if not entry.has(WALKING):
+			continue
+		entry["cell"] = entry[WALKING]
+		entry.erase(WALKING)
+		entry.erase("step")
+
+
+## A wild asks to walk to the next cell rather than appearing on it, and the host
+## runs that step over a map object's own passes. Every reason the host would
+## refuse one is tested here first, since a refused step would leave this row
+## standing on a cell the wild never reached.
 func _roam() -> void:
-	var eligible: Dictionary = _context.get("eligible", {})
+	var taken: Dictionary = _taken()
+	for index: int in _entries.size():
+		var entry: Dictionary = _entries[index]
+		if (_frame + index * STAGGER_FRAMES) % MOVE_FRAMES != 0:
+			continue
+		var to: Vector2i = _step_to(entry, index, taken)
+		if to == NOWHERE:
+			continue
+		taken[to] = true
+		entry["step"] = to - Vector2i(entry["cell"])
+		entry["facing"] = _facing(entry["step"])
+		entry[WALKING] = to
+
+
+## Where one wild would walk, or NOWHERE. The cell has to be eligible for the
+## method it already stands on: an entry keeps its admission only while it is, so
+## a wild walking off the grass would be rechecked against the surf table.
+func _step_to(entry: Dictionary, index: int, taken: Dictionary) -> Vector2i:
+	var method: StringName = StringName(entry.get("method", &""))
+	if method == &"" or entry.has(WALKING):
+		return NOWHERE
 	var player: Dictionary = _context.get("player", {})
 	var player_cell: Vector2i = Vector2i(player.get("cell", Vector2i(-1, -1)))
 	var occupied: PackedVector2Array = _context.get("occupied", PackedVector2Array())
-	for index: int in _entries.size():
-		var entry: Dictionary = _entries[index]
-		var method: StringName = StringName(entry.get("method", &""))
-		if method == &"":
-			continue
-		var cells: PackedVector2Array = eligible.get(method, PackedVector2Array())
-		var here: Vector2i = Vector2i(entry["cell"])
-		var choices: Array[Vector2i] = []
-		for delta: Vector2i in [Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT]:
-			var next: Vector2i = here + delta
-			if next != player_cell and cells.has(next) \
-					and not occupied.has(Vector2(next)) and not _standing_at(next):
-				choices.append(next)
-		if choices.is_empty():
-			continue
-		var pick: int = (index + 1 + _frame / MOVE_FRAMES) % choices.size()
-		entry["cell"] = choices[pick]
-		entry["facing"] = _facing(choices[pick] - here)
+	var cells: PackedVector2Array = (_context.get("eligible", {}) as Dictionary) \
+		.get(method, PackedVector2Array())
+	var here: Vector2i = Vector2i(entry["cell"])
+	var choices: Array[Vector2i] = []
+	for delta: Vector2i in [Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT]:
+		var next: Vector2i = here + delta
+		if next != player_cell and cells.has(next) \
+				and not occupied.has(Vector2(next)) and not taken.has(next):
+			choices.append(next)
+	if choices.is_empty():
+		return NOWHERE
+	return choices[(index + 1 + _frame / MOVE_FRAMES) % choices.size()]
 
 
-func _standing_at(cell: Vector2i) -> bool:
+## Every cell the population holds: the one each wild stands on, and the one each
+## walker is on its way to.
+func _taken() -> Dictionary:
+	var out: Dictionary = {}
 	for entry: Dictionary in _entries:
-		if Vector2i(entry["cell"]) == cell:
-			return true
-	return false
+		out[Vector2i(entry["cell"])] = true
+		if entry.has(WALKING):
+			out[Vector2i(entry[WALKING])] = true
+	return out
 
 
 func _facing(delta: Vector2i) -> int:
