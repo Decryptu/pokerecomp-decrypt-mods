@@ -11,9 +11,13 @@ follower steps into it. Both steps are drawn at the same fraction, which keeps
 the pair exactly one cell apart at rest and never more than one cell apart
 mid-step. It counts no frames of its own and cannot drift.
 
-A warp, a Fly and the first frame of a session put it back under you, and it
-walks out from there rather than crossing the new map. A ledge hop, and any
-script that commits a whole path at once, is taken at once.
+Walking off the edge of one map into the next renumbers every cell behind you,
+so the follower is carried into the new map's numbering and keeps walking: it
+crosses a town boundary a cell behind you, standing on the strip of the map you
+just left, rather than being put back under you and walking out again. A warp, a
+Fly and the first frame of a session do put it back under you, and it walks out
+from there. A ledge hop, and any script that commits a whole path at once, is
+taken at once.
 
 It is presentation only. It occupies no cell, blocks nothing, cannot be talked
 to and is not seen by trainers.
@@ -82,6 +86,12 @@ same state. It lasts for the session only.
 
 Some Pokemon stay in the ball whatever the settings say: an empty slot, an egg, a
 fainted Pokemon, and any species the cartridge has no icon for.
+
+It also goes back in its ball for the frames the party is not physically with
+you: over a healing machine, at the Hall of Fame's, over either Day Care counter
+and in the trade cable. The host answers which of those has it, so the follower
+is put away for exactly those frames and is out again on the frame the scene
+ends, standing where it was rather than under you.
 
 ## How it is drawn
 

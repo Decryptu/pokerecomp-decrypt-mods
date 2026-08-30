@@ -5,7 +5,7 @@ extends SceneTree
 ## climbing happen over time and over height, and a still says neither.
 ##
 ##   -- <game> <group> <number> <out dir> path=Sdrrruu [cell=x,y]
-##      [view=voxel3d] [window=WxH] [hold=] [every=]
+##      [view=voxel3d] [window=WxH] [hold=] [every=] [party=155,...]
 ##
 ## A PATH is one letter a step: `u d l r` walk, and a capital uses a field move
 ## where the player stands, `F` Flash, `S` Surf, `W` Waterfall, `P` Whirlpool,
@@ -38,7 +38,7 @@ func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.size() < 4:
 		print("usage: -- <game> <group> <number> <out dir> path=Sdrrruu [cell=x,y]"
-			+ " [view=] [window=WxH] [hold=] [every=]")
+			+ " [view=] [window=WxH] [hold=] [every=] [party=155,...]")
 		quit(2)
 		return
 	_out = args[3]
@@ -77,6 +77,11 @@ func _stage(data: GameData, group: int, number: int) -> void:
 	_screen.start_cell = _cell()
 	_screen.encounter_seed = 1
 	_screen.set_data(data)
+	var save: Gen2SaveData = Staging.party_save(
+		data, String(_named.get("party", ""))
+	)
+	if save != null:
+		_screen.set_save(save)
 	root.add_child(_screen)
 	current_scene = _screen
 

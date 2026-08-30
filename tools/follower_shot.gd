@@ -61,23 +61,12 @@ func _initialize() -> void:
 	_screen.map_number = int(args[2])
 	_screen.encounter_seed = 1
 	_screen.set_data(data)
-	_screen.set_save(_save(data, species))
+	_screen.set_save(load(
+		"%s/staging.gd" % (get_script() as Script).resource_path.get_base_dir()
+	).party_save(data, str(species)))
 	root.add_child(_screen)
 	current_scene = _screen
 	_screen.set_process(false)
-
-
-func _save(data: GameData, species: int) -> Gen2SaveData:
-	var mon := Gen2SaveMon.new()
-	mon.species = species
-	mon.level = 5
-	mon.hp = 20
-	mon.nickname = String(data.species(species).get("name", ""))
-	var save := Gen2SaveData.new()
-	save.game_id = data.id
-	save.player_name = "PROBE"
-	save.party = [mon]
-	return save
 
 
 func _process(_delta: float) -> bool:

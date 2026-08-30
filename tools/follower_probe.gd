@@ -11,6 +11,12 @@ const AWAY: Vector2i = Vector2i(24, 4)
 const ROUTE: Array = ["right", "right", "down", "down", "left", "warp", "down"]
 const OTHER_ROUTE: Array = ["down", "left", "left", "up", "right", "right"]
 
+## Walking west out of HOME into WEST, whose cells are numbered from an origin
+## ten cells to the west of HOME's own.
+const WEST: Vector2i = Vector2i(24, 5)
+const WEST_SHIFT: Vector2i = Vector2i(10, 0)
+const CROSSING: Array = ["left", "left", "cross", "left", "left"]
+
 const DIRECTIONS: Dictionary = {
 	"up": Vector2i.UP, "down": Vector2i.DOWN,
 	"left": Vector2i.LEFT, "right": Vector2i.RIGHT,
@@ -21,6 +27,10 @@ const FACINGS: Dictionary = {
 }
 
 const PARTY: Array[int] = [155, 172, 25, 249]
+
+## The cable club counter, which takes the party out of the player's hands.
+const TRADE_MAP := Vector2i(1, 3)
+const TRADE_CELL := Vector2i(2, 5)
 
 
 func _initialize() -> void:
@@ -63,9 +73,11 @@ func _initialize() -> void:
 	failures += 0 if _report("one route twice is one walk", walked == again) else 1
 	failures += 0 if _report("two routes are two walks", walked != elsewhere) else 1
 	failures += _rules(trail_script)
+	failures += _crossing(trail_script)
 	failures += _petting(trail_script)
 	failures += _finding(finder)
 	failures += _picking_up(actor_script, options, data)
+	failures += _in_the_ball(actor_script, options, data)
 	quit(int(failures > 0))
 
 
@@ -152,6 +164,16 @@ func _observations(route: Array) -> Array:
 			cell = Vector2i(2, 8)
 			out.append(_observation(map, cell, facing, Vector2.ZERO))
 			continue
+		if command == "cross":
+			map = WEST
+			cell += WEST_SHIFT + Vector2i.LEFT
+			facing = Gen2WorldSprite.FACING_LEFT
+			for frame: int in STEP_FRAMES:
+				var left_of: float = float(STEP_FRAMES - 1 - frame) / float(STEP_FRAMES)
+				out.append(_observation(
+					map, cell, facing, Vector2.RIGHT * left_of, WEST_SHIFT
+				))
+			continue
 		var direction: Vector2i = DIRECTIONS[command]
 		facing = int(FACINGS[command])
 		cell += direction
@@ -161,8 +183,65 @@ func _observations(route: Array) -> Array:
 	return out
 
 
-func _observation(map: Vector2i, cell: Vector2i, facing: int, offset: Vector2) -> Dictionary:
-	return {"map": map, "cell": cell, "facing": facing, "offset": offset, "allowed": true}
+func _observation(
+	map: Vector2i, cell: Vector2i, facing: int, offset: Vector2,
+	shift: Vector2i = Vector2i.MAX
+) -> Dictionary:
+	return {
+		"map": map, "cell": cell, "facing": facing, "offset": offset,
+		"shift": shift, "allowed": true,
+	}
+
+
+## Walking out of one map into the next must not move the follower on the ground
+## it stands on: its cell in the new numbering is the one it had in the old.
+func _crossing(trail_script: GDScript) -> int:
+	var walked: Dictionary = _cross(trail_script)
+	var failures: int = 0
+	for check: Array in [
+		["crossing a connection moves the follower no more than a step",
+			not bool(walked["jumped"])],
+		["it is still out on the frame it crosses on", not bool(walked["vanished"])],
+		["it walks one cell behind on the map it crossed into", bool(walked["behind"])],
+	]:
+		if not _report(String(check[0]), bool(check[1])):
+			failures += 1
+	var warped: RefCounted = trail_script.new()
+	var landed: Dictionary = {}
+	for observation: Dictionary in _observations(["left", "left", "warp"]):
+		landed = warped.observe(observation)
+	failures += 0 if _report(
+		"a warp still puts it back under the player", not bool(landed["out"])
+	) else 1
+	return failures
+
+
+## The crossing walked, in the follower's own terms: whether it ever moved more
+## than a step, ever went in its ball, and ever stood anywhere but one cell
+## behind. Cells either side of the boundary are compared in the new numbering.
+func _cross(trail_script: GDScript) -> Dictionary:
+	var trail: RefCounted = trail_script.new()
+	var out: Dictionary = {"jumped": false, "vanished": false, "behind": true}
+	var previous_cell := Vector2i.MAX
+	var previous_map := Vector2i(-1, -1)
+	for observation: Dictionary in _observations(CROSSING):
+		var map: Vector2i = observation["map"]
+		var pose: Dictionary = trail.observe(observation)
+		var cell: Vector2i = pose["cell"]
+		if map != previous_map and previous_map.x >= 0:
+			previous_cell += WEST_SHIFT
+			out["vanished"] = not bool(pose["out"])
+		if previous_cell != Vector2i.MAX and _apart(cell, previous_cell) > 1:
+			out["jumped"] = true
+		if bool(pose["out"]) and _apart(cell, observation["cell"]) != 1:
+			out["behind"] = false
+		previous_cell = cell
+		previous_map = map
+	return out
+
+
+func _apart(one: Vector2i, other: Vector2i) -> int:
+	return absi(one.x - other.x) + absi(one.y - other.y)
 
 
 func _rules(trail_script: GDScript) -> int:
@@ -354,6 +433,58 @@ func _picking_up(actor_script: GDScript, options: GDScript, data: GameData) -> i
 		"a taken site is not offered again", _is_taken(world.hidden_items(), cell)
 	) else 1
 	return failures
+
+
+## The one thing a follower cannot infer: the party is not physically with the
+## player. The cable club on map 1,3 takes it, so the follower is in its ball for
+## those frames and out again on the frame the host answers.
+func _in_the_ball(actor_script: GDScript, options: GDScript, data: GameData) -> int:
+	var map: Gen2WorldMap = data.world_map(TRADE_MAP.x, TRADE_MAP.y)
+	if map == null:
+		_report("map %s is in the cartridge" % str(TRADE_MAP), false)
+		return 1
+	var world := Gen2WorldAPI.new(
+		data, map, data.world_tileset(map.tileset), TRADE_CELL
+	)
+	world.set_party_summary(
+		1, false, PARTY.slice(0, 1), [], ["CYNDA"], [false], {}, [false]
+	)
+	var host: Gen2ModHost = Gen2ModHost.instance()
+	options.register(host, options.MOD_ID)
+	var actor: RefCounted = actor_script.new()
+	actor.configure(host, options.MOD_ID)
+	actor.set_world(world)
+	actor.advance_frame()
+	_step(actor, world, Vector2i.UP)
+	var failures: int = 0
+	failures += 0 if _report(
+		"before the counter it is out", not actor.sprites().is_empty()
+	) else 1
+	world.interact()
+	actor.advance_frame()
+	failures += 0 if _report(
+		"the host says who has the party (%s)" % String(world.party_holder()),
+		not world.party_with_player()
+	) else 1
+	failures += 0 if _report(
+		"handed over, it is in its ball", actor.sprites().is_empty()
+	) else 1
+	world.complete_runtime_request({})
+	actor.advance_frame()
+	failures += 0 if _report(
+		"answered, it is out again on the same frame", not actor.sprites().is_empty()
+	) else 1
+	return failures
+
+
+func _step(actor: RefCounted, world: Gen2WorldAPI, direction: Vector2i) -> void:
+	if not world.can_walk_to(world.player_cell + direction, direction):
+		return
+	world.move(direction)
+	while world.player_step_in_progress():
+		world.advance_player_step_pass()
+		actor.advance_frame()
+	actor.advance_frame()
 
 
 func _walk_onto(
