@@ -81,6 +81,54 @@ func restore() -> void:
 			host.set_option(_restore_id, key, _restore[key])
 
 
+## `mods=all|none|<id>,...`. A run under `-s` loads none at boot, so it says which.
+static func load_mods(host: Gen2ModHost, spec: String) -> Array:
+	if spec == "none":
+		return []
+	host.discover()
+	if spec == "all":
+		return host.load_discovered()
+	var wanted: Dictionary = {}
+	for raw: String in spec.split(",", false):
+		wanted[StringName(raw.strip_edges())] = true
+	var loaded: Array = []
+	for manifest: Gen2ModManifest in host.manifests():
+		if wanted.has(manifest.id) \
+				and bool(host.load_mod(manifest).get("ok", false)):
+			loaded.append(String(manifest.id))
+	loaded.sort()
+	return loaded
+
+
+## `off=tufts,models,...`, the layers a run takes away. See `diorama.gd:LAYERS`.
+static func hide_layers(stage: RefCounted, spec: String) -> Array:
+	var taken: Array = []
+	for raw: String in spec.split(",", false):
+		var layer := StringName(raw.strip_edges())
+		if stage.set_layer_visible(layer, false):
+			taken.append(String(layer))
+		else:
+			print("no layer named %s, one of %s" % [String(layer), str(stage.LAYERS)])
+	return taken
+
+
+## Marks every trainer of this map beaten, so no sighting stops a staged walk in
+## a text box. `Gen2WorldObject.trainer_flag_active` is the reading this feeds.
+static func mark_trainers_beaten(map: Gen2WorldMap, state: Gen2WorldState) -> int:
+	var rows: Array = map.events.get("objects", [])
+	var marked: int = 0
+	for index: int in rows.size():
+		if rows[index] is not Dictionary:
+			continue
+		var object: Gen2WorldObject = Gen2WorldObject.from_event(index, rows[index])
+		var flag: int = int(object.trainer_data.get("event_flag", -1))
+		if object.object_type != Gen2WorldObject.OBJECTTYPE_TRAINER or flag < 0:
+			continue
+		state.set_event_flag(flag, true)
+		marked += 1
+	return marked
+
+
 ## `party=155,172,...`, the species a staged run walks around with, which is
 ## what a mod reading the party needs before it will draw anything. Empty text
 ## answers null and the screen keeps whatever save it was given.

@@ -36,6 +36,14 @@ const HAZE_END: float = 5200.0
 const HAZE_CURVE: float = 2.0
 const HAZE_DENSITY: float = 0.85
 
+## The drawn layers, named once. The four meshed ones hang off a root apiece so
+## a rebuild never has to know which are switched off.
+const MESH_LAYERS: Array[StringName] = [&"terrain", &"water", &"tufts", &"models"]
+const LAYERS: Array[StringName] = [
+	&"terrain", &"water", &"tufts", &"models", &"far", &"actors", &"motes",
+	&"shadows", &"pass",
+]
+
 var container: SubViewportContainer = null
 var viewport: SubViewport = null
 var _pass_viewport: SubViewport = null
@@ -59,6 +67,8 @@ var _motes: RefCounted = null
 var _motes_node: MultiMeshInstance3D = null
 var _far: RefCounted = null
 var _reach: float = FAR_DEFAULT
+var _roots: Dictionary = {}
+var _hidden: Dictionary = {}
 
 
 func _init() -> void:
@@ -84,6 +94,38 @@ func _init() -> void:
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_pass_screen.add_child(viewport)
 
+	_build_environment()
+
+	_material = StandardMaterial3D.new()
+	_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	_material.vertex_color_use_as_albedo = true
+	_material.roughness = 1.0
+	_material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+
+	_water_shader = Water3D.new()
+	_wind = Wind3D.new()
+	_frame = Frame3D.new()
+	_pass_screen.material = _frame.material
+
+	actors = Node3D.new()
+	viewport.add_child(actors)
+
+	_far = FarField3D.new()
+	_far.set_foliage_material_maker(foliage_material)
+	viewport.add_child(_far.root)
+
+	_motes = Motes3D.new()
+	_motes_node = MultiMeshInstance3D.new()
+	_motes_node.multimesh = _motes.mesh
+	_motes_node.material_override = _motes.material
+	_motes_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	viewport.add_child(_motes_node)
+
+	_build_layers()
+	set_time_of_day(_time_of_day)
+
+
+func _build_environment() -> void:
 	var holder := WorldEnvironment.new()
 	_environment = Environment.new()
 	_sky = Sky3D.new()
@@ -113,32 +155,47 @@ func _init() -> void:
 	camera.far = FAR_DEFAULT
 	viewport.add_child(camera)
 
-	_material = StandardMaterial3D.new()
-	_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	_material.vertex_color_use_as_albedo = true
-	_material.roughness = 1.0
-	_material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 
-	_water_shader = Water3D.new()
-	_wind = Wind3D.new()
-	_frame = Frame3D.new()
-	_pass_screen.material = _frame.material
+func _build_layers() -> void:
+	for layer: StringName in MESH_LAYERS:
+		var root := Node3D.new()
+		_roots[layer] = root
+		viewport.add_child(root)
+	_roots[&"far"] = _far.root
+	_roots[&"actors"] = actors
 
-	actors = Node3D.new()
-	viewport.add_child(actors)
 
-	_far = FarField3D.new()
-	_far.set_foliage_material_maker(foliage_material)
-	viewport.add_child(_far.root)
+## Takes one drawn layer away and gives it back, which is how a layer is priced
+## and how a device too weak to draw it refuses it.
+func set_layer_visible(layer: StringName, shown: bool) -> bool:
+	if not LAYERS.has(layer):
+		return false
+	if shown:
+		_hidden.erase(layer)
+	else:
+		_hidden[layer] = true
+	match layer:
+		&"shadows":
+			_light.shadow_enabled = shown
+		&"pass":
+			_pass_screen.material = _frame.material if shown else null
+		&"motes":
+			_show_motes()
+		_:
+			(_roots[layer] as Node3D).visible = shown
+	return true
 
-	_motes = Motes3D.new()
-	_motes_node = MultiMeshInstance3D.new()
-	_motes_node.multimesh = _motes.mesh
-	_motes_node.material_override = _motes.material
-	_motes_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	viewport.add_child(_motes_node)
 
-	set_time_of_day(_time_of_day)
+func set_wind_still(still: bool) -> void:
+	_wind.set_still(still)
+
+
+func layer_visible(layer: StringName) -> bool:
+	return not _hidden.has(layer)
+
+
+func _show_motes() -> void:
+	_motes_node.visible = _motes.drifting() and layer_visible(&"motes")
 
 
 func set_time_of_day(row: int) -> void:
@@ -153,7 +210,7 @@ func set_time_of_day(row: int) -> void:
 	)
 	_environment.ambient_light_color = DAY_AMBIENT[_time_of_day]
 	_motes.set_time_of_day(_time_of_day)
-	_motes_node.visible = _motes.drifting()
+	_show_motes()
 	_frame.set_time_of_day(_time_of_day)
 
 
@@ -239,7 +296,7 @@ func set_terrain(meshes: Array) -> void:
 		if index >= _terrain.size():
 			var instance := MeshInstance3D.new()
 			instance.material_override = _material
-			viewport.add_child(instance)
+			(_roots[&"terrain"] as Node3D).add_child(instance)
 			_terrain.append(instance)
 		_terrain[index].mesh = meshes[index]
 		_terrain[index].visible = true
@@ -252,7 +309,7 @@ func set_models(models: Array) -> void:
 	for index: int in models.size():
 		if index >= _models.size():
 			var instance := MultiMeshInstance3D.new()
-			viewport.add_child(instance)
+			(_roots[&"models"] as Node3D).add_child(instance)
 			_models.append(instance)
 		var cutout: Texture2D = models[index][3] as Texture2D \
 			if models[index].size() > 3 else null
@@ -291,7 +348,7 @@ func set_water(meshes: Array) -> void:
 			var instance := MeshInstance3D.new()
 			instance.material_override = _water_shader.material
 			instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			viewport.add_child(instance)
+			(_roots[&"water"] as Node3D).add_child(instance)
 			_water.append(instance)
 		_water[index].mesh = meshes[index]
 		_water[index].visible = true
@@ -305,7 +362,7 @@ func set_tufts(meshes: Array) -> void:
 		if index >= _tufts.size():
 			var instance := MeshInstance3D.new()
 			instance.material_override = _wind.grass
-			viewport.add_child(instance)
+			(_roots[&"tufts"] as Node3D).add_child(instance)
 			_tufts.append(instance)
 		_tufts[index].mesh = meshes[index]
 		_tufts[index].visible = true
@@ -337,7 +394,7 @@ func set_background(
 	if _far != null:
 		_far.set_sky(_sky.horizon, Water3D.REFLECT_MOST if outside else 0.0)
 	_motes.set_outside(outside)
-	_motes_node.visible = _motes.drifting()
+	_show_motes()
 
 
 func _on_pass_resized() -> void:

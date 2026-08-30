@@ -4,6 +4,8 @@ extends RefCounted
 
 const WIND: Vector2 = Vector2(0.92, 0.39)
 const SWAY_PERIOD: float = 2.9
+## Long enough that `TIME / period` is nothing, which is what stills a sway.
+const STILL_PERIOD: float = 1.0e9
 const GUST_LENGTH: float = 260.0
 const CLUMP_JITTER: float = 0.22
 
@@ -111,6 +113,7 @@ void fragment() {
 var grass: ShaderMaterial = null
 var foliage: ShaderMaterial = null
 var _sprites: Dictionary = {}
+var _period: float = SWAY_PERIOD
 
 
 func _init() -> void:
@@ -125,11 +128,20 @@ func _material(code: String, reach: float) -> ShaderMaterial:
 	var made := ShaderMaterial.new()
 	made.shader = shader
 	made.set_shader_parameter("wind", WIND)
-	made.set_shader_parameter("period", SWAY_PERIOD)
+	made.set_shader_parameter("period", _period)
 	made.set_shader_parameter("gust_length", GUST_LENGTH)
 	made.set_shader_parameter("jitter", CLUMP_JITTER)
 	made.set_shader_parameter("reach", reach)
 	return made
+
+
+## Holds every sway still, so a picture taken twice is the same picture. The
+## per-cutout materials are made as models arrive, so the choice is kept and a
+## later one is made still too.
+func set_still(still: bool) -> void:
+	_period = STILL_PERIOD if still else SWAY_PERIOD
+	for material: ShaderMaterial in ([grass, foliage] + _sprites.values()):
+		material.set_shader_parameter("period", _period)
 
 
 func sprite_material(cutout: Texture2D) -> ShaderMaterial:

@@ -8,6 +8,7 @@ const TILE: float = 8.0
 const WINDOW_DEFAULT := Vector2i(2560, 1440)
 const WARMUP_FRAMES: int = 120
 const WALK_PIXELS_PER_SECOND: float = 16.0 * 60.0 / 16.0
+const Staging: GDScript = preload("staging.gd")
 const LEG_PIXELS: float = 16.0 * 12.0
 
 var _stage: RefCounted = null
@@ -31,8 +32,8 @@ func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.size() < 3:
 		print("usage: -- <cache> <group> <number> [seconds=] [cell=x,y] [window=WxH]"
-			+ " [distance=] [scale=] [pitch=] [dof=] [shadows=] [water=] [motes=]"
-			+ " [pass=] [shot=]")
+			+ " [distance=] [scale=] [pitch=] [dof=] [splits=] [shadow_far=]"
+			+ " [wind=] [off=layer,...] [ring=] [walk=] [shot=]")
 		quit(2)
 		return
 	var data: GameData = GameData.open_argument(args[0])
@@ -99,7 +100,7 @@ func _initialize() -> void:
 			_stage.set_background(atlas.void_color(), false)
 	_mesher.resolve(source, shape)
 	_origin = Vector3((float(cell.x) + 0.5) * CELL, 0.0, (float(cell.y) + 0.5) * CELL)
-	_mesher.set_detail_ring(_origin, 35.0 * CELL)
+	_mesher.set_detail_ring(_origin, _ring(named) * CELL)
 	var window_tiles: Rect2i = _window_of(cell, distance)
 	if distance > 0:
 		_stage.set_view_distance(float(distance) * CELL, true)
@@ -134,8 +135,6 @@ func _apply(named: Dictionary) -> void:
 	_stage.set_render_scale(int(named.get("scale", "1")))
 	var dof: int = int(named.get("dof", "1"))
 	_stage.set_depth_of_field(dof, 4.0, 900.0, 2600.0)
-	if int(named.get("shadows", "1")) == 0:
-		_stage._light.shadow_enabled = false
 	match int(named.get("splits", "0")):
 		1:
 			_stage._light.directional_shadow_mode = \
@@ -148,21 +147,14 @@ func _apply(named: Dictionary) -> void:
 				DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	if float(named.get("shadow_far", "0")) > 0.0:
 		_stage._light.directional_shadow_max_distance = float(named["shadow_far"])
-	if int(named.get("water", "1")) == 0:
-		_stage.set_water([])
-	if int(named.get("motes", "1")) == 0:
-		_stage._motes_node.visible = false
-	if int(named.get("wind", "1")) == 0:
-		for material: ShaderMaterial in [_stage._wind.grass, _stage._wind.foliage]:
-			material.set_shader_parameter("period", 3600.0)
-	if int(named.get("pass", "1")) == 0:
-		_stage.set_pass_enabled(false)
-	print("stage      scale %s, dof %d, shadows %s (%s splits, %.0f px), water %s,"
-			% [
-		named.get("scale", "1"), dof, named.get("shadows", "1"),
-		_splits_taken(), _stage._light.directional_shadow_max_distance,
-		named.get("water", "1"),
-	] + " motes %s, pass %s" % [named.get("motes", "1"), named.get("pass", "1")])
+	_stage.set_wind_still(int(named.get("wind", "1")) == 0)
+	print("stage      scale %s, dof %d, shadows %s splits over %.0f px, wind %s" % [
+		named.get("scale", "1"), dof, _splits_taken(),
+		_stage._light.directional_shadow_max_distance, named.get("wind", "1"),
+	])
+	print("off        %s" % str(
+		Staging.hide_layers(_stage, String(named.get("off", "")))
+	))
 
 
 func _splits_taken() -> String:
@@ -172,6 +164,14 @@ func _splits_taken() -> String:
 		DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS:
 			return "2"
 	return "4"
+
+
+## How far a model keeps its solid mesh before it wears its impostor. The
+## renderer owns the number; a run says `ring=` to price another one.
+static func _ring(named: Dictionary) -> float:
+	var script: GDScript = load(Staging.RENDERER)
+	var fallback: float = script.solid_cells if script != null else 0.0
+	return float(named.get("ring", str(fallback)))
 
 
 func _window_of(cell: Vector2i, distance: int) -> Rect2i:
