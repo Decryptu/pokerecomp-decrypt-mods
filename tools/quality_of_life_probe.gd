@@ -5,12 +5,14 @@ extends SceneTree
 
 const MOD_ID: StringName = &"quality_of_life"
 const KEYS: Array[StringName] = [
-	&"field_moves", &"auto_repel", &"catch_exp", &"pc_access",
+	&"field_moves", &"auto_repel", &"catch_exp", &"pc_access", &"run_shoes",
 	&"move_guide", &"stat_stages", &"weather",
 ]
+const EXP_SCALE: StringName = &"exp_scale"
 
 var _host: Gen2ModHost
 var _original: Dictionary = {}
+var _original_scale: Variant = null
 var _ok: bool = true
 
 
@@ -31,29 +33,36 @@ func _initialize() -> void:
 	for key: StringName in KEYS:
 		_original[key] = _host.option(MOD_ID, key)
 		_switch(key, false)
+	_original_scale = _host.option(MOD_ID, EXP_SCALE)
+	_scale(1.0)
 
 	_registration()
 	_field_moves()
 	_repel()
 	_catch_experience()
 	_pc()
+	_run_shoes()
+	_experience_scale()
 	_move_guide()
 	_stages()
 	_weather()
 
 	for key: StringName in KEYS:
 		_host.set_option(MOD_ID, key, _original[key])
+	_host.set_option(MOD_ID, EXP_SCALE, _original_scale)
 	print("%s: %s" % [game, "ok" if _ok else "FAILED"])
 	quit(0 if _ok else 1)
 
 
 func _registration() -> void:
 	_expect(_host.failures().is_empty(), "the host reports no registration failures")
-	_expect(_host.options(MOD_ID).size() == KEYS.size(),
-		"%d options registered" % KEYS.size())
+	_expect(_host.options(MOD_ID).size() == KEYS.size() + 1,
+		"%d switches and the EXP rate registered" % KEYS.size())
 	_expect(_host.field_move_source_ids().has(MOD_ID), "field-move source registered")
 	_expect(_host.repel_renewal_ids().has(MOD_ID), "Repel renewal registered")
 	_expect(_host.catch_experience_ids().has(MOD_ID), "catch EXP policy registered")
+	_expect(_host.run_button_ids().has(MOD_ID), "run button registered")
+	_expect(_host.experience_scale_ids().has(MOD_ID), "experience scale registered")
 	_expect(_host.battle_info_ids().has(MOD_ID), "battle information registered")
 
 
@@ -82,6 +91,30 @@ func _catch_experience() -> void:
 	_switch(&"catch_exp", true)
 	_expect(Gen2ModHost.awards_catch_experience(), "catch EXP is ON")
 	_switch(&"catch_exp", false)
+
+
+## `run_button_held` asks the provider only once B is down, so the button is held
+## rather than the policy being read on its own. A script run installs no input
+## map of its own, so the cartridge's eight are installed here first.
+func _run_shoes() -> void:
+	Gen2InputActions.install(Gen2InputActions.defaults())
+	Input.action_press(&"gen2_b")
+	_expect(not Gen2ModHost.run_button_held(), "running is OFF with B held")
+	_switch(&"run_shoes", true)
+	_expect(Gen2ModHost.run_button_held(), "running is ON with B held")
+	Input.action_release(&"gen2_b")
+	_expect(not Gen2ModHost.run_button_held(), "running is OFF with B up")
+	_switch(&"run_shoes", false)
+
+
+func _experience_scale() -> void:
+	_expect(is_equal_approx(Gen2ModHost.experience_scale(), 1.0),
+		"the EXP rate ships at x1")
+	for rung: float in [0.5, 1.5, 2.0, 4.0]:
+		_scale(rung)
+		_expect(is_equal_approx(Gen2ModHost.experience_scale(), rung),
+			"the EXP rate reaches x%s" % rung)
+	_scale(1.0)
 
 
 func _pc() -> void:
@@ -202,6 +235,11 @@ func _pc_row(party_count: int) -> bool:
 func _switch(key: StringName, enabled: bool) -> void:
 	var result: Dictionary = _host.set_option(MOD_ID, key, int(enabled))
 	_expect(bool(result.get("ok", false)), "%s can be switched" % key)
+
+
+func _scale(rung: float) -> void:
+	var result: Dictionary = _host.set_option(MOD_ID, EXP_SCALE, rung)
+	_expect(bool(result.get("ok", false)), "the EXP rate can be set to x%s" % rung)
 
 
 func _expect(condition: bool, message: String) -> void:

@@ -1,6 +1,6 @@
 extends RefCounted
 
-## Seven switches, four host-owned gameplay policies, one host-owned start-menu
+## Nine switches, six host-owned gameplay policies, one host-owned start-menu
 ## action and one cartridge-grid battle annotation provider.
 
 const Options := preload("options.gd")
@@ -18,6 +18,12 @@ func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
 	)
 	host.register_catch_experience(
 		manifest, Policies.CatchExperience.new(host)
+	)
+	host.register_run_button(
+		manifest.id, Policies.RunShoes.new(host)
+	)
+	host.register_experience_scale(
+		manifest, Policies.ExperienceScale.new(host)
 	)
 	host.register_battle_info(manifest.id, BattleInfo.new(host))
 	host.register_menu_entry(Gen2ModHost.MENU_START, manifest.id, {

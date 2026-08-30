@@ -8,9 +8,11 @@ const FIELD_MOVES: StringName = &"field_moves"
 const AUTO_REPEL: StringName = &"auto_repel"
 const CATCH_EXP: StringName = &"catch_exp"
 const PC_ACCESS: StringName = &"pc_access"
+const RUN_SHOES: StringName = &"run_shoes"
 const MOVE_GUIDE: StringName = &"move_guide"
 const STAT_STAGES: StringName = &"stat_stages"
 const WEATHER: StringName = &"weather"
+const EXP_SCALE: StringName = &"exp_scale"
 
 const OFF_ON: Array = [0, 1]
 const LABELS: Dictionary = {
@@ -18,6 +20,7 @@ const LABELS: Dictionary = {
 	AUTO_REPEL: "AUTO REPEL",
 	CATCH_EXP: "CATCH EXP",
 	PC_ACCESS: "PC ACCESS",
+	RUN_SHOES: "RUN SHOES",
 	MOVE_GUIDE: "MOVE GUIDE",
 	STAT_STAGES: "STAT STAGES",
 	WEATHER: "WEATHER",
@@ -27,10 +30,17 @@ const KEYS: Array[StringName] = [
 	AUTO_REPEL,
 	CATCH_EXP,
 	PC_ACCESS,
+	RUN_SHOES,
 	MOVE_GUIDE,
 	STAT_STAGES,
 	WEATHER,
 ]
+
+## The host holds a product between MIN_EXPERIENCE_SCALE and MAX_EXPERIENCE_SCALE,
+## so these rungs are inside its range and matched back with is_equal_approx.
+const NO_SCALE: float = 1.0
+const SCALES: Array = [0.5, NO_SCALE, 1.5, 2.0, 4.0]
+const SCALE_LABELS: Array = ["x0.5", "x1", "x1.5", "x2", "x4"]
 
 
 static func register(host: Gen2ModHost, id: StringName) -> void:
@@ -42,6 +52,13 @@ static func register(host: Gen2ModHost, id: StringName) -> void:
 			"labels": ["OFF", "ON"],
 			"default": 0,
 		})
+	host.register_option(id, {
+		"key": EXP_SCALE,
+		"label": "EXP RATE",
+		"values": SCALES,
+		"labels": SCALE_LABELS,
+		"default": NO_SCALE,
+	})
 
 
 static func enabled(host: Gen2ModHost, key: StringName) -> bool:
@@ -51,8 +68,8 @@ static func enabled(host: Gen2ModHost, key: StringName) -> bool:
 	return value != null and int(value) != 0
 
 
-static func settings(host: Gen2ModHost) -> Dictionary:
-	var chosen: Dictionary = {}
-	for key: StringName in KEYS:
-		chosen[key] = enabled(host, key)
-	return chosen
+static func scale(host: Gen2ModHost) -> float:
+	if host == null:
+		return NO_SCALE
+	var value: Variant = host.option(MOD_ID, EXP_SCALE)
+	return NO_SCALE if value == null else float(value)

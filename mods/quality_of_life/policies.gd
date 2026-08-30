@@ -49,3 +49,27 @@ class CatchExperience:
 
 	func awards_catch_experience() -> bool:
 		return Options.enabled(_host, Options.CATCH_EXP)
+
+
+class RunShoes:
+	extends RefCounted
+
+	var _host: Gen2ModHost
+
+	func _init(host: Gen2ModHost) -> void:
+		_host = host
+
+	func runs_while_held() -> bool:
+		return Options.enabled(_host, Options.RUN_SHOES)
+
+
+class ExperienceScale:
+	extends RefCounted
+
+	var _host: Gen2ModHost
+
+	func _init(host: Gen2ModHost) -> void:
+		_host = host
+
+	func experience_scale() -> float:
+		return Options.scale(_host)
