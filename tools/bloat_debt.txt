@@ -58,11 +58,9 @@ mods/voxel3d/shape/mesher.gd:begin_emit
 mods/voxel3d/shape/mesher.gd:emit_step
 mods/voxel3d/shape/mesher.gd:far_card_for
 mods/voxel3d/shape/model.gd:_bands
-mods/voxel3d/shape/model.gd:_faces
 mods/voxel3d/shape/model.gd:_tones
 mods/voxel3d/shape/model.gd:_wraps
 mods/voxel3d/shape/model.gd:impostor
-mods/voxel3d/world/diorama.gd:_init
 mods/voxel3d/world/far_field.gd:advance
 mods/voxel3d/world/far_foliage.gd:_border_ring
 mods/voxel3d/world/far_houses.gd:_box

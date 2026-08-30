@@ -9,10 +9,12 @@ const KEYS: Array[StringName] = [
 	&"move_guide", &"stat_stages", &"weather",
 ]
 const EXP_SCALE: StringName = &"exp_scale"
+const MULTI_EXP: StringName = &"multi_exp"
 
 var _host: Gen2ModHost
 var _original: Dictionary = {}
 var _original_scale: Variant = null
+var _original_share: Variant = null
 var _ok: bool = true
 
 
@@ -35,6 +37,8 @@ func _initialize() -> void:
 		_switch(key, false)
 	_original_scale = _host.option(MOD_ID, EXP_SCALE)
 	_scale(1.0)
+	_original_share = _host.option(MOD_ID, MULTI_EXP)
+	_share(0.0)
 
 	_registration()
 	_field_moves()
@@ -43,6 +47,7 @@ func _initialize() -> void:
 	_pc()
 	_run_shoes()
 	_experience_scale()
+	_multi_exp()
 	_move_guide()
 	_stages()
 	_weather()
@@ -50,19 +55,21 @@ func _initialize() -> void:
 	for key: StringName in KEYS:
 		_host.set_option(MOD_ID, key, _original[key])
 	_host.set_option(MOD_ID, EXP_SCALE, _original_scale)
+	_host.set_option(MOD_ID, MULTI_EXP, _original_share)
 	print("%s: %s" % [game, "ok" if _ok else "FAILED"])
 	quit(0 if _ok else 1)
 
 
 func _registration() -> void:
 	_expect(_host.failures().is_empty(), "the host reports no registration failures")
-	_expect(_host.options(MOD_ID).size() == KEYS.size() + 1,
-		"%d switches and the EXP rate registered" % KEYS.size())
+	_expect(_host.options(MOD_ID).size() == KEYS.size() + 2,
+		"%d switches, the EXP rate and MULTI EXP registered" % KEYS.size())
 	_expect(_host.field_move_source_ids().has(MOD_ID), "field-move source registered")
 	_expect(_host.repel_renewal_ids().has(MOD_ID), "Repel renewal registered")
 	_expect(_host.catch_experience_ids().has(MOD_ID), "catch EXP policy registered")
 	_expect(_host.run_button_ids().has(MOD_ID), "run button registered")
 	_expect(_host.experience_scale_ids().has(MOD_ID), "experience scale registered")
+	_expect(_host.experience_bystander_ids().has(MOD_ID), "bystander share registered")
 	_expect(_host.battle_info_ids().has(MOD_ID), "battle information registered")
 
 
@@ -115,6 +122,27 @@ func _experience_scale() -> void:
 		_expect(is_equal_approx(Gen2ModHost.experience_scale(), rung),
 			"the EXP rate reaches x%s" % rung)
 	_scale(1.0)
+
+
+## The item is the gate, so every rung answers the cartridge with no living
+## holder and its own fraction with one.
+func _multi_exp() -> void:
+	for rung: float in [0.0, 0.5, 1.0]:
+		_share(rung)
+		_expect(is_equal_approx(_bystander_share([]), 0.0),
+			"MULTI EXP %s pays nothing without an EXP. SHARE" % rung)
+		_expect(is_equal_approx(_bystander_share([2]), rung),
+			"MULTI EXP reaches %s with a holder in the party" % rung)
+	_share(0.0)
+
+
+func _bystander_share(holders: Array) -> float:
+	return Gen2ModHost.experience_bystander_share({
+		"participants": [0],
+		"exp_share_holders": holders,
+		"living": [0, 1, 2],
+		"is_trainer_battle": false,
+	})
 
 
 func _pc() -> void:
@@ -240,6 +268,11 @@ func _switch(key: StringName, enabled: bool) -> void:
 func _scale(rung: float) -> void:
 	var result: Dictionary = _host.set_option(MOD_ID, EXP_SCALE, rung)
 	_expect(bool(result.get("ok", false)), "the EXP rate can be set to x%s" % rung)
+
+
+func _share(rung: float) -> void:
+	var result: Dictionary = _host.set_option(MOD_ID, MULTI_EXP, rung)
+	_expect(bool(result.get("ok", false)), "MULTI EXP can be set to %s" % rung)
 
 
 func _expect(condition: bool, message: String) -> void:

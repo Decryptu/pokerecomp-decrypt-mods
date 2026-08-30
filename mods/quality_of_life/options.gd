@@ -13,6 +13,7 @@ const MOVE_GUIDE: StringName = &"move_guide"
 const STAT_STAGES: StringName = &"stat_stages"
 const WEATHER: StringName = &"weather"
 const EXP_SCALE: StringName = &"exp_scale"
+const MULTI_EXP: StringName = &"multi_exp"
 
 const OFF_ON: Array = [0, 1]
 const LABELS: Dictionary = {
@@ -42,6 +43,12 @@ const NO_SCALE: float = 1.0
 const SCALES: Array = [0.5, NO_SCALE, 1.5, 2.0, 4.0]
 const SCALE_LABELS: Array = ["x0.5", "x1", "x1.5", "x2", "x4"]
 
+## What a party member who did not fight is paid, as a fraction of a fighter's
+## own award. The three rungs are the cartridge, Gen 6's Exp. Share and Gen 8's.
+const NO_SHARE: float = 0.0
+const SHARES: Array = [NO_SHARE, 0.5, 1.0]
+const SHARE_LABELS: Array = ["OFF", "HALF", "FULL"]
+
 
 static func register(host: Gen2ModHost, id: StringName) -> void:
 	for key: StringName in KEYS:
@@ -59,6 +66,13 @@ static func register(host: Gen2ModHost, id: StringName) -> void:
 		"labels": SCALE_LABELS,
 		"default": NO_SCALE,
 	})
+	host.register_option(id, {
+		"key": MULTI_EXP,
+		"label": "MULTI EXP",
+		"values": SHARES,
+		"labels": SHARE_LABELS,
+		"default": NO_SHARE,
+	})
 
 
 static func enabled(host: Gen2ModHost, key: StringName) -> bool:
@@ -73,3 +87,10 @@ static func scale(host: Gen2ModHost) -> float:
 		return NO_SCALE
 	var value: Variant = host.option(MOD_ID, EXP_SCALE)
 	return NO_SCALE if value == null else float(value)
+
+
+static func bystander_share(host: Gen2ModHost) -> float:
+	if host == null:
+		return NO_SHARE
+	var value: Variant = host.option(MOD_ID, MULTI_EXP)
+	return NO_SHARE if value == null else float(value)

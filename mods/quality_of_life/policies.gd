@@ -73,3 +73,20 @@ class ExperienceScale:
 
 	func experience_scale() -> float:
 		return Options.scale(_host)
+
+
+class BystanderShare:
+	extends RefCounted
+
+	var _host: Gen2ModHost
+
+	func _init(host: Gen2ModHost) -> void:
+		_host = host
+
+	## A living Exp. Share holder anywhere in the party is what turns this on, so
+	## the item stays the object behind the setting rather than the setting alone.
+	func experience_bystander_share(context: Dictionary) -> float:
+		var holders: Array = context.get("exp_share_holders", [])
+		if holders.is_empty():
+			return Options.NO_SHARE
+		return Options.bystander_share(_host)
