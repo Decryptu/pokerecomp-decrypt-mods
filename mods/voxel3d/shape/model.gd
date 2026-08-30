@@ -521,23 +521,153 @@ func _leaf_fill(
 
 ## One layer of colour per voxel row, then a face wherever a solid voxel meets
 ## air.
+## One quad per exposed voxel face is 649 of them on a route tree; the same
+## faces merged into runs of a single colour are 454, and no pixel moves.
 func _shell(solid: PackedByteArray, measured: Measure, frame: Frame) -> void:
+	var faces: Dictionary = _exposed(solid, measured, frame)
+	for side: Vector3i in SIDES:
+		var axes: Array = _plane_axes(side)
+		var planes: Dictionary = faces[side]
+		for plane: int in planes:
+			for run: Array in _merge(planes[plane]):
+				_emit_run(run, plane, side, axes, frame)
+
+
+func _exposed(
+	solid: PackedByteArray, measured: Measure, frame: Frame
+) -> Dictionary:
+	var out: Dictionary = {}
+	for side: Vector3i in SIDES:
+		out[side] = {}
 	for vy: int in frame.tall:
-		var up: int = vy - frame.pot_high - frame.trunk_high
-		_band = _band_at(measured, up, frame.crown_high)
-		_wrap = _wrap_at(measured, up, frame.crown_high)
-		if vy < frame.pot_high and not measured.pot_bands.is_empty():
-			_band = measured.pot_bands[clampi(
-				measured.pot_bands.size() - 1 - int(float(vy) * _voxel),
-				0, measured.pot_bands.size() - 1
-			)]
+		_bands_at(measured, frame, vy)
 		for vz: int in frame.wide:
 			for vx: int in frame.wide:
 				if solid[(vy * frame.wide + vz) * frame.wide + vx] != EMPTY:
-					_faces(
-						solid, frame.wide, frame.tall, vx, vy, vz, frame.reach,
-						measured
-					)
+					_expose(out, solid, measured, frame, Vector3i(vx, vy, vz))
+	return out
+
+
+func _expose(
+	out: Dictionary, solid: PackedByteArray, measured: Measure, frame: Frame,
+	at: Vector3i
+) -> void:
+	var fill: int = solid[(at.y * frame.wide + at.z) * frame.wide + at.x]
+	var light: Array = []
+	for side: Vector3i in SIDES:
+		if not _open(solid, frame, at + side) or (side.y < 0 and at.y == 0):
+			continue
+		if light.is_empty():
+			light = _light_at(solid, frame, at)
+		var axes: Array = _plane_axes(side)
+		var planes: Dictionary = out[side]
+		var plane: int = _dot(at, side)
+		if not planes.has(plane):
+			planes[plane] = {}
+		(planes[plane] as Dictionary)[Vector2i(
+			_dot(at, axes[0]), _dot(at, axes[1])
+		)] = _tone(
+			measured, fill, side, light[0], light[1], float(at.x - frame.reach)
+		)
+
+
+static func _open(
+	solid: PackedByteArray, frame: Frame, at: Vector3i
+) -> bool:
+	if at.x < 0 or at.x >= frame.wide or at.z < 0 or at.z >= frame.wide \
+			or at.y < 0 or at.y >= frame.tall:
+		return true
+	return solid[(at.y * frame.wide + at.z) * frame.wide + at.x] == EMPTY
+
+
+## How much of the sky this voxel stands under and how crowded it is, which is
+## every shade `_tone` reads. Measured once for the voxel, not once per face.
+static func _light_at(
+	solid: PackedByteArray, frame: Frame, at: Vector3i
+) -> Array:
+	var sky: int = 0
+	for above: int in range(at.y + 1, frame.tall):
+		if solid[(above * frame.wide + at.z) * frame.wide + at.x] != EMPTY:
+			sky += 1
+	var near: int = -1
+	for dy: int in range(maxi(at.y - 1, 0), mini(at.y + 2, frame.tall)):
+		for dz: int in range(maxi(at.z - 1, 0), mini(at.z + 2, frame.wide)):
+			for dx: int in range(maxi(at.x - 1, 0), mini(at.x + 2, frame.wide)):
+				if solid[(dy * frame.wide + dz) * frame.wide + dx] != EMPTY:
+					near += 1
+	return [sky, near]
+
+
+func _bands_at(measured: Measure, frame: Frame, vy: int) -> void:
+	var up: int = vy - frame.pot_high - frame.trunk_high
+	_band = _band_at(measured, up, frame.crown_high)
+	_wrap = _wrap_at(measured, up, frame.crown_high)
+	if vy < frame.pot_high and not measured.pot_bands.is_empty():
+		_band = measured.pot_bands[clampi(
+			measured.pot_bands.size() - 1 - int(float(vy) * _voxel),
+			0, measured.pot_bands.size() - 1
+		)]
+
+
+## The face's own two axes, taken the way `_quad_span` takes them so a cell's
+## index and the rectangle drawn over it cannot disagree.
+static func _plane_axes(side: Vector3i) -> Array:
+	var normal := Vector3(side)
+	var along := Vector3(0.0, 0.0, 1.0) if absf(normal.y) > 0.5 \
+		else Vector3(0.0, 1.0, 0.0)
+	var right: Vector3 = along.cross(normal).normalized()
+	return [
+		Vector3i(right.round()), Vector3i(normal.cross(right).normalized().round()),
+	]
+
+
+static func _dot(at: Vector3i, axis: Vector3i) -> int:
+	return at.x * axis.x + at.y * axis.y + at.z * axis.z
+
+
+## Greedy rectangles over one plane of same-coloured faces: widest run first,
+## then as many whole rows below it as match.
+static func _merge(cells: Dictionary) -> Array:
+	var todo: Dictionary = cells.duplicate()
+	var order: Array = cells.keys()
+	order.sort()
+	var out: Array = []
+	for key: Vector2i in order:
+		if not todo.has(key):
+			continue
+		var tone: Color = todo[key]
+		var wide: int = 1
+		while todo.get(key + Vector2i(wide, 0)) == tone:
+			wide += 1
+		var high: int = 1
+		while _row_alike(todo, key, wide, high, tone):
+			high += 1
+		for across: int in wide:
+			for down: int in high:
+				todo.erase(key + Vector2i(across, down))
+		out.append([key, wide, high, tone])
+	return out
+
+
+static func _row_alike(
+	todo: Dictionary, key: Vector2i, wide: int, row: int, tone: Color
+) -> bool:
+	for across: int in wide:
+		if todo.get(key + Vector2i(across, row)) != tone:
+			return false
+	return true
+
+
+func _emit_run(
+	run: Array, plane: int, side: Vector3i, axes: Array, frame: Frame
+) -> void:
+	var cell: Vector2i = run[0]
+	var at: Vector3i = (axes[0] as Vector3i) * cell.x \
+		+ (axes[1] as Vector3i) * cell.y + side * plane
+	_quad_span(Vector3(
+		float(at.x - frame.reach) * _voxel, float(at.y) * _voxel,
+		float(at.z - frame.reach) * _voxel
+	), side, run[3], run[1], run[2])
 
 
 func _tree_mesh() -> ArrayMesh:
@@ -618,40 +748,6 @@ const SIDES: Array[Vector3i] = [
 ]
 
 
-func _faces(
-	solid: PackedByteArray, wide: int, tall: int,
-	vx: int, vy: int, vz: int, reach: int, measured: Measure
-) -> void:
-	var fill: int = solid[(vy * wide + vz) * wide + vx]
-	var sky: int = 0
-	var near: int = 0
-	var counted: bool = false
-	for side: Vector3i in SIDES:
-		var nx: int = vx + side.x
-		var ny: int = vy + side.y
-		var nz: int = vz + side.z
-		if nx >= 0 and nx < wide and nz >= 0 and nz < wide and ny >= 0 and ny < tall:
-			if solid[(ny * wide + nz) * wide + nx] != EMPTY:
-				continue
-		if side.y < 0 and vy == 0:
-			continue
-		if not counted:
-			counted = true
-			for above: int in range(vy + 1, tall):
-				if solid[(above * wide + vz) * wide + vx] != EMPTY:
-					sky += 1
-			near = -1
-			for dy: int in range(maxi(vy - 1, 0), mini(vy + 2, tall)):
-				for dz: int in range(maxi(vz - 1, 0), mini(vz + 2, wide)):
-					for dx: int in range(maxi(vx - 1, 0), mini(vx + 2, wide)):
-						if solid[(dy * wide + dz) * wide + dx] != EMPTY:
-							near += 1
-		var origin := Vector3(
-			float(vx - reach) * _voxel, float(vy) * _voxel, float(vz - reach) * _voxel
-		)
-		_quad(origin, side, _tone(measured, fill, side, sky, near, float(vx - reach)))
-
-
 func _tone(
 	measured: Measure, fill: int, side: Vector3i, sky: int, near: int,
 	across: float
@@ -724,17 +820,24 @@ func _sway_at(height: float) -> float:
 	return clampf((height - _sway_foot) / _sway_span, 0.0, 1.0)
 
 
-func _quad(origin: Vector3, side: Vector3i, color: Color) -> void:
+## A rectangle [param wide] by [param high] voxels over the face of the voxel at
+## [param origin], which is the one lowest on both of the plane's own axes.
+func _quad_span(
+	origin: Vector3, side: Vector3i, color: Color, wide: int, high: int
+) -> void:
 	var normal := Vector3(float(side.x), float(side.y), float(side.z))
 	var along := Vector3(0.0, 0.0, 1.0) if absf(normal.y) > 0.5 else Vector3(0.0, 1.0, 0.0)
 	var right: Vector3 = along.cross(normal).normalized() * _voxel
 	var up: Vector3 = normal.cross(right.normalized()).normalized() * _voxel
 	var centre: Vector3 = origin + Vector3(_voxel, _voxel, _voxel) * 0.5 \
-		+ normal * (_voxel * 0.5)
-	var a: Vector3 = centre - right * 0.5 - up * 0.5
-	var b: Vector3 = centre + right * 0.5 - up * 0.5
-	var c: Vector3 = centre + right * 0.5 + up * 0.5
-	var d: Vector3 = centre - right * 0.5 + up * 0.5
+		+ normal * (_voxel * 0.5) \
+		+ right * (float(wide - 1) * 0.5) + up * (float(high - 1) * 0.5)
+	var across: Vector3 = right * (float(wide) * 0.5)
+	var rise: Vector3 = up * (float(high) * 0.5)
+	var a: Vector3 = centre - across - rise
+	var b: Vector3 = centre + across - rise
+	var c: Vector3 = centre + across + rise
+	var d: Vector3 = centre - across + rise
 	for vertex: Vector3 in [a, c, b, a, d, c]:
 		_vertices.push_back(vertex)
 		_normals.push_back(normal)

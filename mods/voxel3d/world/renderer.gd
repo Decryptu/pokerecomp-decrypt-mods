@@ -80,6 +80,11 @@ func _init() -> void:
 	Options.listen_actions(_on_action_changed)
 
 
+## The 3D stage this view draws on, for a bench pricing one of its layers.
+func stage() -> RefCounted:
+	return _stage
+
+
 func uses_hardware_viewport() -> bool:
 	return false
 

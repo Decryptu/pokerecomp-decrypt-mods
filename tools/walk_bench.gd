@@ -26,13 +26,16 @@ var _time_refresh: bool = false
 var _viewports: Array[Viewport] = []
 var _map: Gen2WorldMap = null
 var _start := Vector2i.ZERO
+var _hidden: String = ""
+var _stalled: bool = false
 
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.size() < 3:
 		print("usage: -- <game> <group> <map> [seconds=] [view=] [cell=x,y] [span=]"
-			+ " [window=WxH] [out=] [encounters=1] [refresh=1] [set=key:value,...]")
+			+ " [window=WxH] [out=] [encounters=1] [refresh=1] [set=key:value,...]"
+			+ " [mods=all|none|<id>,...] [off=layer,...]")
 		quit(2)
 		return
 	var named: Dictionary = Staging.named(args)
@@ -76,18 +79,8 @@ func _initialize() -> void:
 		group, number, str(start), str(wanted), str(window),
 	])
 
-	var host: Gen2ModHost = Gen2ModHost.instance()
-	if host.world_actors().is_empty():
-		host.discover()
-		host.load_discovered()
-	var view := StringName(named.get("view", "gen2"))
-	print("view       %s %s" % [String(view), str(host.select_view(view))])
-	if named.has("static"):
-		Staging.apply_statics(String(named["static"]))
-	if named.has("set"):
-		_staging.apply_options(host, view, String(named["set"]))
-	if not host.failures().is_empty():
-		print("failures   %s" % str(host.failures()))
+	_hidden = String(named.get("off", ""))
+	_stage_mods(named)
 
 	root.set_content_scale_size(window)
 	root.size = window
@@ -98,7 +91,7 @@ func _initialize() -> void:
 	_screen.start_cell = start
 	_screen.encounter_seed = 1
 	_screen.set_data(data)
-	_screen.set_save(_save(data, group, number, start, named.has("encounters")))
+	_screen.set_save(_save(map, data, group, start, named.has("encounters")))
 	root.add_child(_screen)
 	current_scene = _screen
 	_screen.set_process(false)
@@ -108,8 +101,21 @@ func _finalize() -> void:
 	_staging.restore()
 
 
+func _stage_mods(named: Dictionary) -> void:
+	var host: Gen2ModHost = Gen2ModHost.instance()
+	print("mods       %s" % str(Staging.load_mods(host, String(named.get("mods", "all")))))
+	var view := StringName(named.get("view", "gen2"))
+	print("view       %s %s" % [String(view), str(host.select_view(view))])
+	if named.has("static"):
+		Staging.apply_statics(String(named["static"]))
+	if named.has("set"):
+		_staging.apply_options(host, view, String(named["set"]))
+	if not host.failures().is_empty():
+		print("failures   %s" % str(host.failures()))
+
+
 func _save(
-	data: GameData, group: int, number: int, cell: Vector2i, encounters: bool
+	map: Gen2WorldMap, data: GameData, group: int, cell: Vector2i, encounters: bool
 ) -> Gen2SaveData:
 	var mon := Gen2SaveMon.new()
 	mon.species = 155
@@ -121,42 +127,74 @@ func _save(
 	save.player_name = "BENCH"
 	save.party = [mon]
 	var snapshot := Gen2WorldSnapshot.new()
-	snapshot.map_id = Vector2i(group, number)
+	snapshot.map_id = Vector2i(group, map.number)
 	snapshot.player_cell = cell
 	snapshot.world_state.set_wild_encounters_off(not encounters)
+	print("trainers   %d marked beaten" % Staging.mark_trainers_beaten(
+		map, snapshot.world_state
+	))
 	save.world = snapshot
 	return save
 
 const STEP_FRAMES: int = 16
+const LEG_SLACK_FRAMES: int = 32
+const MIN_LEG_CELLS: int = 3
+const WALK_MIN_CELLS: int = 8
+const CHURN_FRAMES_PER_LEG: int = 40
 const HEADINGS: Array[int] = [Gen2Button.DOWN, Gen2Button.RIGHT, Gen2Button.UP, Gen2Button.LEFT]
 
 var _turns: int = 0
+var _heading: int = 0
+var _leg_from := Vector2i.ZERO
+var _leg_target := Vector2i.MAX
 
 
-func _plan(map: Gen2WorldMap, from: Vector2i, frames: int) -> void:
+## One leg of the walk, anchored on where the player ACTUALLY is. A plan that
+## models the position instead drifts the first time a step costs a frame it did
+## not count -- a turn in place, a ledge, an object in the way -- and the walker
+## then shuffles in a pocket while the plan believes it is crossing the map. The
+## world spends its frames on a 60 Hz clock of its own, so a leg is timed in
+## seconds and not in the drawn frames an uncapped run spends seven of per one.
+func _plan_leg() -> void:
+	var at: Vector2i = _screen.world_snapshot().get("player_cell", _start)
+	var cells: int = _choose_heading(at)
 	var entries: Array = []
-	var at: Vector2i = from
-	var heading: int = 0
-	var leg: int = 0
-	var frame: int = SETTLE_FRAMES + 1
-	while frame < frames:
-		var step: Vector2i = Gen2Button.vector(HEADINGS[heading])
-		if leg >= _span or not Staging.walkable(map, at + step):
-			for turn: int in HEADINGS.size():
-				heading = (heading + 1) % HEADINGS.size()
-				if Staging.walkable(map, at + Gen2Button.vector(HEADINGS[heading])):
-					break
-			_turns += 1
-			leg = 0
-			continue
-		at += step
-		leg += 1
-		for spent: int in STEP_FRAMES:
-			entries.append({
-				"frame": frame, "kind": "hold", "button": HEADINGS[heading],
-			})
-			frame += 1
+	var frame: int = _world_frame() + 1
+	for spent: int in cells * STEP_FRAMES + LEG_SLACK_FRAMES:
+		entries.append({"frame": frame, "kind": "hold", "button": HEADINGS[_heading]})
+		frame += 1
+	_leg_from = at
+	_leg_target = Vector2i.MAX if cells == 0 \
+		else at + Gen2Button.vector(HEADINGS[_heading]) * cells
 	_screen.replay_input(entries)
+
+
+## The next heading with room to walk, and how many cells of it. Never the one
+## just walked, so a walk that meets a wall turns rather than pressing into it.
+## A leg of no cells would be over on the frame it was planned, and the replan
+## it asks for costs a whole world snapshot, so a walk with nowhere left to go
+## stands rather than spending the run planning.
+func _choose_heading(at: Vector2i) -> int:
+	for wanted: int in [MIN_LEG_CELLS, 1]:
+		for turn: int in HEADINGS.size():
+			_heading = (_heading + 1) % HEADINGS.size()
+			var cells: int = _room_ahead(at, Gen2Button.vector(HEADINGS[_heading]))
+			if cells >= wanted:
+				_turns += 1
+				return cells
+	return 0
+
+
+func _room_ahead(at: Vector2i, step: Vector2i) -> int:
+	var cells: int = 0
+	while cells < _span and Staging.walkable(_map, at + step * (cells + 1)):
+		cells += 1
+	return cells
+
+
+func _world_frame() -> int:
+	var snapshot: Gen2WorldSnapshot = _screen.world_save_snapshot()
+	return snapshot.frame_number if snapshot != null else 0
 
 
 func _process(delta: float) -> bool:
@@ -166,30 +204,70 @@ func _process(delta: float) -> bool:
 	if _frames == 1:
 		return false
 	if _frames == 2:
-		if Vector2i(_screen.world_snapshot().get("map", Vector2i(-1, -1))) == Vector2i(-1, -1):
-			print("no world: is the starting cell inside the map?")
-			quit(1)
-			return true
-		_screen.advance_frames(SETTLE_FRAMES)
-		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
-		Engine.max_fps = 0
-		_measure_viewports(root)
-		_plan(_map, _start, int((_seconds + WARMUP_SECONDS + 20.0) * 60.0))
-		_screen.set_process(true)
-		return false
+		return _begin()
+	var snapshot: Dictionary = _screen.world_snapshot()
+	if _leg_done(Vector2i(snapshot.get("player_cell", _leg_target))):
+		_plan_leg()
 	if _warmup_usec == 0:
 		_warmup_usec = Time.get_ticks_usec()
 	if float(Time.get_ticks_usec() - _warmup_usec) / 1000000.0 < WARMUP_SECONDS:
 		return false
 	if _started_usec == 0:
 		_started_usec = Time.get_ticks_usec()
-	_sample(delta)
+	_sample(delta, snapshot)
 	if float(Time.get_ticks_usec() - _started_usec) / 1000000.0 < _seconds:
 		return false
 	_capture()
 	_report()
-	quit(0)
+	quit(1 if _stalled else 0)
 	return true
+
+
+func _begin() -> bool:
+	if Vector2i(_screen.world_snapshot().get("map", Vector2i(-1, -1))) == Vector2i(-1, -1):
+		print("no world: is the starting cell inside the map?")
+		quit(1)
+		return true
+	_screen.advance_frames(SETTLE_FRAMES)
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = 0
+	_measure_viewports(root)
+	_plan_leg()
+	_hide_layers()
+	_screen.set_process(true)
+	return false
+
+
+func _hide_layers() -> void:
+	if _hidden.is_empty():
+		return
+	_renderer = Staging.find_renderer(_screen)
+	if _renderer == null or not _renderer.has_method("stage"):
+		print("no stage to take a layer from; is the view a 3D one?")
+		return
+	print("off        %s" % str(Staging.hide_layers(_renderer.stage(), _hidden)))
+
+
+## A walk that stops walking is measuring a text box rather than a map, which is
+## what a trainer's sighting does to it. `_save` marks them beaten for that; a
+## step trigger or a warp can still do it, so the run says so rather than
+## reporting the average of thousands of standing frames.
+## A leg is dozens of cells long, so a run planning one every few frames is not
+## walking: it is paying for a world snapshot a frame and measuring that.
+func _refuse_churn() -> void:
+	if _turns <= _samples.size() / CHURN_FRAMES_PER_LEG:
+		return
+	_stalled = true
+	print("CHURNED    %d legs over %d frames: the walk had nowhere to go and"
+		% [_turns, _samples.size()] + " these figures are the planner's.")
+
+
+func _refuse_stall(visited: int) -> void:
+	if visited >= WALK_MIN_CELLS:
+		return
+	_stalled = true
+	print("STALLED    %d cells over %d frames: the walk was interrupted and"
+		% [visited, _samples.size()] + " these figures are not a walk's.")
 
 
 func _capture() -> void:
@@ -202,7 +280,18 @@ func _capture() -> void:
 	print("shot       %s" % _shot)
 
 
-func _sample(delta: float) -> void:
+## The leg ends where the player reaches it, not after a stretch of real time,
+## so two runs of the same map walk the same cells and can be compared.
+func _leg_done(at: Vector2i) -> bool:
+	if _leg_target == Vector2i.MAX:
+		return false
+	if at == _leg_target:
+		return true
+	var span: Rect2i = Rect2i(_leg_from, Vector2i.ZERO).expand(_leg_target)
+	return not span.grow(1).has_point(at)
+
+
+func _sample(delta: float, snapshot: Dictionary) -> void:
 	if _renderer == null:
 		_renderer = Staging.find_renderer(_screen)
 	var refresh_ms: float = 0.0
@@ -211,7 +300,6 @@ func _sample(delta: float) -> void:
 			var at: int = Time.get_ticks_usec()
 			_renderer.refresh()
 			refresh_ms = float(Time.get_ticks_usec() - at) / 1000.0
-	var snapshot: Dictionary = _screen.world_snapshot()
 	var map: Vector2i = snapshot.get("map", Vector2i(-1, -1))
 	if bool(snapshot.get("battle_active", false)):
 		_battle_frames += 1
@@ -250,8 +338,10 @@ func _report() -> void:
 		low = low.min(cell)
 		high = high.max(cell)
 	print("turns      %d planned" % _turns)
+	_refuse_churn()
 	print("battles    %d frames of %d" % [_battle_frames, count])
 	print("cells      %d visited, %s to %s" % [visited.size(), str(low), str(high)])
+	_refuse_stall(visited.size())
 	print("vsync      %s" % (
 		"DISABLED" if DisplayServer.window_get_vsync_mode() == DisplayServer.VSYNC_DISABLED
 		else "ON, every figure below is the monitor's"
