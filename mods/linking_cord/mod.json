@@ -1,9 +1,13 @@
 {
-	"id": "linking_cord",
-	"name": "Linking Cord",
-	"version": "0.1.1",
-	"api_version": 9,
-	"entry": "mod.gd",
-	"games": ["gold", "silver", "crystal"],
-	"description": "An item that evolves trade-only Pokemon without trading. Sold on the second floor of Goldenrod Dept Store."
+  "id": "linking_cord",
+  "name": "Linking Cord",
+  "version": "0.1.2",
+  "api_version": 9,
+  "entry": "mod.gd",
+  "games": [
+    "gold",
+    "silver",
+    "crystal"
+  ],
+  "description": "An item that evolves trade-only Pokemon without trading. Sold on the second floor of Goldenrod Dept Store."
 }

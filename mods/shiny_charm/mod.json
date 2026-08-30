@@ -1,9 +1,13 @@
 {
-	"id": "shiny_charm",
-	"name": "Shiny Charm",
-	"version": "0.1.1",
-	"api_version": 16,
-	"entry": "mod.gd",
-	"games": ["gold", "silver", "crystal"],
-	"description": "Complete the Pokedex, get your diploma from the GAME designer in Celadon, and he hands you a Shiny Charm. While it is in your bag, wild Pokemon are three times more likely to be shiny."
+  "id": "shiny_charm",
+  "name": "Shiny Charm",
+  "version": "0.1.2",
+  "api_version": 16,
+  "entry": "mod.gd",
+  "games": [
+    "gold",
+    "silver",
+    "crystal"
+  ],
+  "description": "Complete the Pokedex, get your diploma from the GAME designer in Celadon, and he hands you a Shiny Charm. While it is in your bag, wild Pokemon are three times more likely to be shiny."
 }

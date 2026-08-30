@@ -1,9 +1,13 @@
 {
-	"id": "quality_of_life",
-	"name": "Quality of Life",
-	"version": "0.1.3",
-	"api_version": 14,
-	"entry": "mod.gd",
-	"games": ["gold", "silver", "crystal"],
-	"description": "Seven conveniences, each with its own switch and all off by default: field moves without a Pokemon that knows them, Repel renewal, EXP from catches, PC in the start menu, type effectiveness hints, stat stages and a weather indicator."
+  "id": "quality_of_life",
+  "name": "Quality of Life",
+  "version": "0.1.4",
+  "api_version": 14,
+  "entry": "mod.gd",
+  "games": [
+    "gold",
+    "silver",
+    "crystal"
+  ],
+  "description": "Seven conveniences, each with its own switch and all off by default: field moves without a Pokemon that knows them, Repel renewal, EXP from catches, PC in the start menu, type effectiveness hints, stat stages and a weather indicator."
 }

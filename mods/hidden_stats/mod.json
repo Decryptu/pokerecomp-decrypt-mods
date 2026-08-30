@@ -1,9 +1,13 @@
 {
-	"id": "hidden_stats",
-	"name": "Hidden Stats",
-	"version": "0.1.1",
-	"api_version": 8,
-	"entry": "mod.gd",
-	"games": ["gold", "silver", "crystal"],
-	"description": "Adds a fourth page to a Pokemon's stats screen showing its DVs and the stat experience each stat has trained."
+  "id": "hidden_stats",
+  "name": "Hidden Stats",
+  "version": "0.1.2",
+  "api_version": 8,
+  "entry": "mod.gd",
+  "games": [
+    "gold",
+    "silver",
+    "crystal"
+  ],
+  "description": "Adds a fourth page to a Pokemon's stats screen showing its DVs and the stat experience each stat has trained."
 }
