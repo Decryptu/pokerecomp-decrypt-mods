@@ -360,25 +360,49 @@ func _sliding(trail_script: GDScript) -> int:
 ## draws off the kind. Being put down on the landing is the failure.
 func _hopping(trail_script: GDScript) -> int:
 	var trail: RefCounted = trail_script.new()
-	var hopped: bool = false
-	var carried: bool = true
+	var walk: Dictionary = {
+		"hopped": false, "carried": true, "lifted": 0.0, "landed": true,
+	}
 	var before := Vector2(FAR, FAR)
 	for observation: Dictionary in _observations(LEDGE):
 		var pose: Dictionary = trail.observe(observation)
-		var span: Dictionary = pose["span"]
-		hopped = hopped or (not span.is_empty() \
-			and StringName(span["kind"]) == HOP_KIND \
-			and _apart(span["from"], span["to"]) == 2)
 		var here: Vector2 = Vector2(pose["cell"] as Vector2i) + (pose["offset"] as Vector2)
-		if before.x > FAR and here.distance_to(before) > 2.0 / float(STEP_FRAMES) + 0.001:
-			carried = false
+		_read_hop(walk, pose["span"], here, before)
 		before = here
 	var failures: int = 0
-	failures += 0 if _report("the follower hops the ledge itself", hopped) else 1
-	failures += 0 if _report(
-		"it is never put down between two frames", carried
-	) else 1
+	for check: Array in [
+		["the follower hops the ledge itself", walk["hopped"]],
+		["it is never put down between two frames", walk["carried"]],
+		["the arc the host draws it on rises %.0f pixels" % walk["lifted"],
+			float(walk["lifted"]) > 0.0],
+		["and puts it down on the cell it lands on", walk["landed"]],
+	]:
+		if not _report(String(check[0]), bool(check[1])):
+			failures += 1
 	return failures
+
+
+## One frame of that walk folded into what the whole of it has to hold.
+func _read_hop(
+	walk: Dictionary, span: Dictionary, here: Vector2, before: Vector2
+) -> void:
+	if not span.is_empty() and StringName(span["kind"]) == HOP_KIND \
+			and _apart(span["from"], span["to"]) == 2:
+		walk["hopped"] = true
+	var lift: float = _lift(span)
+	walk["lifted"] = maxf(float(walk["lifted"]), lift)
+	if lift > 0.0 and float(span["progress"]) >= 1.0:
+		walk["landed"] = false
+	if before.x > FAR and here.distance_to(before) > 2.0 / float(STEP_FRAMES) + 0.001:
+		walk["carried"] = false
+
+
+## What the host lifts a pose by, which is the whole of what a mod owns here: it
+## names the kind in the span and `Gen2WorldActors` reads the table off it.
+static func _lift(span: Dictionary) -> float:
+	if span.is_empty() or not Gen2WorldAPI.JUMP_STEP_KINDS.has(span["kind"]):
+		return 0.0
+	return float(-Gen2WorldAPI.jump_offset_for(float(span["progress"])))
 
 
 func _map_text(map: Vector2i) -> String:

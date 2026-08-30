@@ -562,7 +562,8 @@ func _rebuild_actors() -> void:
 				entry["sprite"], 0, int(entry["facing"]), int(entry["frame"]),
 				_ground(entry["position_cells"], entry["span"]),
 				entry.get("colors", PackedColorArray()),
-				0.0, int(entry.get("emote", Gen2WorldActors.EMOTE_NONE))
+				float(entry["height_offset_pixels"]),
+				int(entry.get("emote", Gen2WorldActors.EMOTE_NONE))
 			)
 	if _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
 		_add_connected_actors()

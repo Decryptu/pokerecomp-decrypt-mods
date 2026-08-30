@@ -19,10 +19,11 @@ Fly and the first frame of a session do put it back under you, and it walks out
 from there. A script that commits a whole path at once is taken at once.
 
 A ledge is not. It is one move of two cells, so the follower takes the ledge
-itself a move behind you: it walks up to the edge while you sail over, then
-crosses it when you walk on. What it is doing is drawn as the two cells it runs
-between, so a view that stands the world up in 3D takes the ledge through its
-own geometry rather than reading a fractional cell across the drop.
+itself a move behind you: it walks up to the edge while you sail over, then hops
+it when you walk on, on the cartridge's own arc. What it is doing is drawn as
+the two cells it runs between and the movement it is, so a view that stands the
+world up in 3D takes the ledge through its own geometry rather than reading a
+fractional cell across the drop.
 
 It is presentation only. It occupies no cell, blocks nothing, cannot be talked
 to and is not seen by trainers.
