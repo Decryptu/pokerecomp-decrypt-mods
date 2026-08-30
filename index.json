@@ -5,10 +5,10 @@
 		{
 			"id": "voxel3d",
 			"name": "Voxel 3D",
-			"version": "0.7.0",
+			"version": "0.7.2",
 			"games": ["gold", "silver", "crystal"],
 			"description": "Draws the overworld in 3D, built from the cartridge's own tiles. Sky colours follow the clock, water is animated, and you can move the camera. Battles happen on the map you were standing on, while menus stay 2D and pixel-perfect.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.7.0/voxel3d-0.7.0.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.7.2/voxel3d-0.7.2.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/thumbnail.webp"
 		},
@@ -25,10 +25,10 @@
 		{
 			"id": "follower",
 			"name": "Follower",
-			"version": "0.4.0",
+			"version": "0.4.1",
 			"games": ["gold", "silver", "crystal"],
 			"description": "One of your Pokemon walks behind you, drawn with its own party icon. Pick which one from its party menu, choose whether it stays out on a bike or on water, and put it away with one key. Face it and press A to pet it. It can also pick up hidden items.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.4.0/follower-0.4.0.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.4.1/follower-0.4.1.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/follower/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/follower/thumbnail.webp"
 		},
@@ -65,10 +65,10 @@
 		{
 			"id": "quality_of_life",
 			"name": "Quality of Life",
-			"version": "0.1.4",
+			"version": "0.1.5",
 			"games": ["gold", "silver", "crystal"],
-			"description": "Seven conveniences, each with its own switch and all off by default: field moves without a Pokemon that knows them, Repel renewal, EXP from catches, PC in the start menu, type effectiveness hints, stat stages and a weather indicator.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/quality_of_life-0.1.4/quality_of_life-0.1.4.zip",
+			"description": "Nine conveniences, each with its own setting and none on until you turn it on: field moves without a Pokemon that knows them, Repel renewal, EXP from catches, PC in the start menu, running at bike speed while B is held, an EXP rate from x0.5 to x4, type effectiveness hints, stat stages and a weather indicator.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/quality_of_life-0.1.5/quality_of_life-0.1.5.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/quality_of_life/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/quality_of_life/thumbnail.webp"
 		},
