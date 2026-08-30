@@ -130,9 +130,8 @@ func _save(
 	snapshot.map_id = Vector2i(group, map.number)
 	snapshot.player_cell = cell
 	snapshot.world_state.set_wild_encounters_off(not encounters)
-	print("trainers   %d marked beaten" % Staging.mark_trainers_beaten(
-		map, snapshot.world_state
-	))
+	## A sighting stops the walk and every frame after it measures a text box.
+	snapshot.world_state.set_trainer_sightings_off(true)
 	save.world = snapshot
 	return save
 

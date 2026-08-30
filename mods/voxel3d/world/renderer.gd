@@ -538,13 +538,15 @@ func _rebuild_actors() -> void:
 		_stage.end_cards()
 		_stage.end_shadow_casters()
 		return
+	var moved: float = _world.pass_fraction
 	for object: Gen2WorldObject in _world.visible_objects():
 		if not _drawn_in_transition(object.index):
 			continue
 		_add_actor(
 			object.sprite, object.palette, object.drawn_facing(), object.frame,
 			_ground(
-				Vector2(object.cell) + object.step_offset_cells(), object.step_span()
+				Vector2(object.cell) + object.step_offset_cells(moved),
+				object.step_span(moved)
 			), PackedColorArray(), object.height_offset_pixels(),
 			object.emote_id if object.emote_visible else Gen2WorldActors.EMOTE_NONE
 		)
@@ -558,7 +560,7 @@ func _rebuild_actors() -> void:
 		for entry: Dictionary in _mod_actors.sprites():
 			_add_actor(
 				entry["sprite"], 0, int(entry["facing"]), int(entry["frame"]),
-				_ground(entry["position_cells"]),
+				_ground(entry["position_cells"], entry["span"]),
 				entry.get("colors", PackedColorArray()),
 				0.0, int(entry.get("emote", Gen2WorldActors.EMOTE_NONE))
 			)
@@ -582,16 +584,17 @@ func _add_connected_actors() -> void:
 			or not _world.has_method(&"connected_map_objects"):
 		return
 	var here: Vector2 = _world.player_position_cells() * CELL
+	var moved: float = _world.pass_fraction
 	for entry: Dictionary in _world.connected_map_objects():
 		var object: Gen2WorldObject = entry["object"]
 		var shift := Vector2(entry["offset"] as Vector2i)
-		var cells: Vector2 = Vector2(object.cell) + object.step_offset_cells()
+		var cells: Vector2 = Vector2(object.cell) + object.step_offset_cells(moved)
 		if here.distance_squared_to((cells + shift) * CELL) \
 				> CONNECTED_REACH * CONNECTED_REACH:
 			continue
 		_add_actor(
 			object.sprite, object.palette, object.drawn_facing(), object.frame,
-			_ground(cells, object.step_span(), shift), PackedColorArray(),
+			_ground(cells, object.step_span(moved), shift), PackedColorArray(),
 			object.height_offset_pixels()
 		)
 

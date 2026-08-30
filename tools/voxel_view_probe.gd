@@ -120,7 +120,7 @@ func _walking() -> void:
 	var before: float = -1.0
 	for _spent: int in STEP_PASSES:
 		for fraction: float in DRAWN_FRACTIONS:
-			var span: Dictionary = object.step_span()
+			var span: Dictionary = object.step_span(fraction)
 			var walked: float = lerpf(
 				float((span["from"] as Vector2i).x),
 				float((span["to"] as Vector2i).x), float(span["progress"])
