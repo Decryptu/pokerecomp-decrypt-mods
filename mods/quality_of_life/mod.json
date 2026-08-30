@@ -1,13 +1,13 @@
 {
   "id": "quality_of_life",
   "name": "Quality of Life",
-  "version": "0.1.4",
-  "api_version": 14,
+  "version": "0.1.5",
+  "api_version": 26,
   "entry": "mod.gd",
   "games": [
     "gold",
     "silver",
     "crystal"
   ],
-  "description": "Seven conveniences, each with its own switch and all off by default: field moves without a Pokemon that knows them, Repel renewal, EXP from catches, PC in the start menu, type effectiveness hints, stat stages and a weather indicator."
+  "description": "Nine conveniences, each with its own setting and none on until you turn it on: field moves without a Pokemon that knows them, Repel renewal, EXP from catches, PC in the start menu, running at bike speed while B is held, an EXP rate from x0.5 to x4, type effectiveness hints, stat stages and a weather indicator."
 }
