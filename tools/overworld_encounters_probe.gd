@@ -6,6 +6,7 @@ extends SceneTree
 const DEFAULT_SEED: int = 1234
 const OTHER_SEED: int = 5678
 const ROAM_STEPS: int = 40
+const WALK_FRAMES: int = 400
 const SPREAD_RUNS: int = 200
 const SPREAD_OCTILES: int = 8
 const SPREAD_RATIO: float = 1.5
@@ -79,6 +80,11 @@ func _initialize() -> void:
 		taken.size(), "yes" if clear_spawn else "NO",
 		ROAM_STEPS, "yes" if clear_roam else "NO",
 	])
+	var walks: Dictionary = _walks(provider_script, busy)
+	print("%d steps asked for over %d frames, %d landed where they said: %s" % [
+		int(walks["asked"]), WALK_FRAMES, int(walks["landed"]),
+		"yes" if bool(walks["sound"]) else "NO",
+	])
 	var turnover: Dictionary = _turnover(plan, provider_script, context)
 	print("turnover over %d frames: %d left, %d arrived, cap held %s" % [
 		int(turnover["frames"]), int(turnover["left"]), int(turnover["arrived"]),
@@ -129,6 +135,61 @@ func _initialize() -> void:
 		and bool(turnover["timers"]) \
 		and bool(turnover["battle_refills"]) and int(turnover["left"]) > 0 \
 		and int(turnover["arrived"]) > 0 else 1)
+
+
+## What a walking population answers, frame by frame. A step is one cardinal
+## cell, its target is one the host would accept, and the frame after asking the
+## wild stands there: the host holds the walk from the moment it is asked for and
+## keeps the wild on its target until this row names that cell, so a row naming
+## anything else would put the wild somewhere it never walked.
+func _walks(provider_script: GDScript, context: Dictionary) -> Dictionary:
+	var provider: RefCounted = provider_script.new()
+	provider.set_context(context)
+	var player_cell := Vector2i((context.get("player", {}) as Dictionary).get(
+		"cell", Vector2i(-1, -1)
+	))
+	var occupied: PackedVector2Array = context.get("occupied", PackedVector2Array())
+	var eligible: Dictionary = context.get("eligible", {})
+	var out: Dictionary = {"asked": 0, "landed": 0, "sound": true}
+	var pending: Dictionary = {}
+	for _frame: int in WALK_FRAMES:
+		provider.advance_frame()
+		var now: Dictionary = {}
+		var held: Dictionary = {}
+		for entry: Dictionary in provider.encounters():
+			now[StringName(entry["id"])] = entry
+			held[Vector2i(entry["cell"])] = true
+		for id: Variant in pending:
+			if not now.has(id):
+				continue
+			out["landed"] = int(out["landed"]) + 1
+			if Vector2i((now[id] as Dictionary)["cell"]) != Vector2i(pending[id]):
+				out["sound"] = false
+		pending = {}
+		for id: Variant in now:
+			var entry: Dictionary = now[id]
+			if not entry.has("step"):
+				continue
+			out["asked"] = int(out["asked"]) + 1
+			var to: Vector2i = Vector2i(entry["cell"]) + Vector2i(entry["step"])
+			pending[id] = to
+			if not _step_sound(entry, to, player_cell, occupied, eligible, held):
+				out["sound"] = false
+	return out
+
+
+func _step_sound(
+	entry: Dictionary, to: Vector2i, player_cell: Vector2i,
+	occupied: PackedVector2Array, eligible: Dictionary, held: Dictionary
+) -> bool:
+	var step := Vector2i(entry["step"])
+	if absi(step.x) + absi(step.y) != 1:
+		return false
+	var cells: PackedVector2Array = eligible.get(
+		StringName(entry.get("method", &"")), PackedVector2Array()
+	)
+	return to != player_cell and cells.has(to) \
+		and not occupied.has(Vector2(to)) and not held.has(to)
 
 
 func _turnover(
