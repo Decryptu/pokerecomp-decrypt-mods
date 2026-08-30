@@ -11,6 +11,11 @@ const AWAY: Vector2i = Vector2i(24, 4)
 const ROUTE: Array = ["right", "right", "down", "down", "left", "warp", "down"]
 const OTHER_ROUTE: Array = ["down", "left", "left", "up", "right", "right"]
 
+## `hop` is the ledge: one move of two cells, which the follower takes a move
+## later. The host's own name for it, since a view draws the arc off the kind.
+const LEDGE: Array = ["down", "hop down", "down", "down"]
+const HOP_KIND: StringName = &"jump_step"
+
 ## Walking west out of HOME into WEST, whose cells are numbered from an origin
 ## ten cells to the west of HOME's own.
 const WEST: Vector2i = Vector2i(24, 5)
@@ -27,6 +32,9 @@ const FACINGS: Dictionary = {
 }
 
 const PARTY: Array[int] = [155, 172, 25, 249]
+
+## Further than a walk reaches, for a first sample with nothing before it.
+const FAR: float = -1000.0
 
 ## The cable club counter, which takes the party out of the player's hands.
 const TRADE_MAP := Vector2i(1, 3)
@@ -74,6 +82,7 @@ func _initialize() -> void:
 	failures += 0 if _report("two routes are two walks", walked != elsewhere) else 1
 	failures += _rules(trail_script)
 	failures += _sliding(trail_script)
+	failures += _hopping(trail_script)
 	failures += _crossing(trail_script)
 	failures += _petting(trail_script)
 	failures += _finding(finder)
@@ -143,7 +152,8 @@ func _walk(trail_script: GDScript, route: Array, verbose: bool) -> String:
 		var pose: Dictionary = trail.observe(observation)
 		var line: String = "%s player %s%s  follower %s" % [
 			_map_text(observation["map"]),
-			_at(observation["cell"], observation["offset"]),
+			_at(observation["cell"],
+				_player_at(observation) - Vector2(observation["cell"] as Vector2i)),
 			"" if bool(pose["out"]) else "  (in its ball)",
 			_at(pose["cell"], pose["offset"]),
 		]
@@ -158,38 +168,60 @@ func _observations(route: Array) -> Array:
 	var map: Vector2i = HOME
 	var cell: Vector2i = Vector2i(5, 5)
 	var facing: int = Gen2WorldSprite.FACING_DOWN
-	out.append(_observation(map, cell, facing, Vector2.ZERO))
+	out.append(_observation(map, cell, facing, {}))
 	for command: String in route:
 		if command == "warp":
 			map = AWAY if map == HOME else HOME
 			cell = Vector2i(2, 8)
-			out.append(_observation(map, cell, facing, Vector2.ZERO))
+			out.append(_observation(map, cell, facing, {}))
 			continue
 		if command == "cross":
 			map = WEST
 			cell += WEST_SHIFT + Vector2i.LEFT
 			facing = Gen2WorldSprite.FACING_LEFT
 			for frame: int in STEP_FRAMES:
-				var left_of: float = float(STEP_FRAMES - 1 - frame) / float(STEP_FRAMES)
 				out.append(_observation(
-					map, cell, facing, Vector2.RIGHT * left_of, WEST_SHIFT
+					map, cell, facing, _span(cell, Vector2i.LEFT, _part(frame)), WEST_SHIFT
 				))
 			continue
-		var direction: Vector2i = DIRECTIONS[command]
-		facing = int(FACINGS[command])
-		cell += direction
+		var hop: bool = command.begins_with("hop ")
+		var way: Vector2i = DIRECTIONS[command.substr(4) if hop else command]
+		facing = int(FACINGS[command.substr(4) if hop else command])
+		var reach: Vector2i = way * (2 if hop else 1)
+		cell += reach
 		for frame: int in STEP_FRAMES:
-			var left: float = float(STEP_FRAMES - 1 - frame) / float(STEP_FRAMES)
-			out.append(_observation(map, cell, facing, -Vector2(direction) * left))
+			out.append(_observation(map, cell, facing, _span(cell, reach, _part(frame))))
 	return out
 
 
+static func _part(frame: int) -> float:
+	return float(frame + 1) / float(STEP_FRAMES)
+
+
+## The player's step as the host answers it: the two cells it runs between and
+## how far across them the frame stands. Two cells of one direction is a ledge.
+static func _span(cell: Vector2i, reach: Vector2i, progress: float) -> Dictionary:
+	return {
+		"from": cell - reach, "to": cell, "progress": progress,
+		"kind": HOP_KIND if absi(reach.x) + absi(reach.y) > 1 else &"step",
+	}
+
+
+static func _player_at(observation: Dictionary) -> Vector2:
+	var span: Dictionary = observation["span"]
+	if span.is_empty():
+		return Vector2(observation["cell"] as Vector2i)
+	return Vector2(span["from"] as Vector2i).lerp(
+		Vector2(span["to"] as Vector2i), float(span["progress"])
+	)
+
+
 func _observation(
-	map: Vector2i, cell: Vector2i, facing: int, offset: Vector2,
+	map: Vector2i, cell: Vector2i, facing: int, span: Dictionary,
 	shift: Vector2i = Vector2i.MAX
 ) -> Dictionary:
 	return {
-		"map": map, "cell": cell, "facing": facing, "offset": offset,
+		"map": map, "cell": cell, "facing": facing, "span": span,
 		"shift": shift, "allowed": true,
 	}
 
@@ -275,8 +307,7 @@ func _rules(trail_script: GDScript) -> int:
 				if same_map and cell != player_before:
 					behind = false
 				var distance: float = (
-					Vector2(player) + (observation["offset"] as Vector2)
-					- Vector2(cell) - (pose["offset"] as Vector2)
+					_player_at(observation) - Vector2(cell) - (pose["offset"] as Vector2)
 				).length()
 				if distance > 1.0001:
 					close = false
@@ -301,14 +332,14 @@ func _sliding(trail_script: GDScript) -> int:
 	var trail: RefCounted = trail_script.new()
 	var facing: int = Gen2WorldSprite.FACING_RIGHT
 	for cell: Vector2i in [Vector2i(5, 5), Vector2i(6, 5), Vector2i(7, 5)]:
-		trail.observe(_observation(HOME, cell, facing, Vector2(-1.0, 0.0)))
+		trail.observe(_observation(
+			HOME, cell, facing, _span(cell, Vector2i.RIGHT, _part(0))
+		))
 	var agrees: bool = true
 	var nearer: bool = true
 	var before: float = -2.0
 	for part: int in STEP_FRAMES * 4:
-		var pose: Dictionary = trail.drawn(
-			Vector2(-1.0 + float(part) / float(STEP_FRAMES * 4), 0.0)
-		)
+		var pose: Dictionary = trail.drawn(float(part) / float(STEP_FRAMES * 4))
 		var span: Dictionary = pose["span"]
 		var here: Vector2 = Vector2(pose["cell"] as Vector2i) + (pose["offset"] as Vector2)
 		agrees = agrees and here.is_equal_approx(
@@ -322,6 +353,56 @@ func _sliding(trail_script: GDScript) -> int:
 	failures += 0 if _report("the span says where the position says", agrees) else 1
 	failures += 0 if _report("a finer offset draws a nearer pose", nearer) else 1
 	return failures
+
+
+## A ledge is one player move of two cells, so the follower takes the ledge
+## itself a move later: it walks to the edge, then hops down with the arc a view
+## draws off the kind. Being put down on the landing is the failure.
+func _hopping(trail_script: GDScript) -> int:
+	var trail: RefCounted = trail_script.new()
+	var walk: Dictionary = {
+		"hopped": false, "carried": true, "lifted": 0.0, "landed": true,
+	}
+	var before := Vector2(FAR, FAR)
+	for observation: Dictionary in _observations(LEDGE):
+		var pose: Dictionary = trail.observe(observation)
+		var here: Vector2 = Vector2(pose["cell"] as Vector2i) + (pose["offset"] as Vector2)
+		_read_hop(walk, pose["span"], here, before)
+		before = here
+	var failures: int = 0
+	for check: Array in [
+		["the follower hops the ledge itself", walk["hopped"]],
+		["it is never put down between two frames", walk["carried"]],
+		["the arc the host draws it on rises %.0f pixels" % walk["lifted"],
+			float(walk["lifted"]) > 0.0],
+		["and puts it down on the cell it lands on", walk["landed"]],
+	]:
+		if not _report(String(check[0]), bool(check[1])):
+			failures += 1
+	return failures
+
+
+## One frame of that walk folded into what the whole of it has to hold.
+func _read_hop(
+	walk: Dictionary, span: Dictionary, here: Vector2, before: Vector2
+) -> void:
+	if not span.is_empty() and StringName(span["kind"]) == HOP_KIND \
+			and _apart(span["from"], span["to"]) == 2:
+		walk["hopped"] = true
+	var lift: float = _lift(span)
+	walk["lifted"] = maxf(float(walk["lifted"]), lift)
+	if lift > 0.0 and float(span["progress"]) >= 1.0:
+		walk["landed"] = false
+	if before.x > FAR and here.distance_to(before) > 2.0 / float(STEP_FRAMES) + 0.001:
+		walk["carried"] = false
+
+
+## What the host lifts a pose by, which is the whole of what a mod owns here: it
+## names the kind in the span and `Gen2WorldActors` reads the table off it.
+static func _lift(span: Dictionary) -> float:
+	if span.is_empty() or not Gen2WorldAPI.JUMP_STEP_KINDS.has(span["kind"]):
+		return 0.0
+	return float(-Gen2WorldAPI.jump_offset_for(float(span["progress"])))
 
 
 func _map_text(map: Vector2i) -> String:
@@ -357,7 +438,7 @@ func _petting(trail_script: GDScript) -> int:
 			failures += 1
 		var after: Dictionary = trail.observe(_observation(
 			HOME, (before["cell"] as Vector2i) + Vector2i.RIGHT,
-			Gen2WorldSprite.FACING_RIGHT, Vector2.ZERO
+			Gen2WorldSprite.FACING_RIGHT, {}
 		))
 		if not _report(
 			"petting moves nothing but the facing (%s)" % pair[0],

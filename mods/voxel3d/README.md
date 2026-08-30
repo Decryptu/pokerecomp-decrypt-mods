@@ -742,6 +742,10 @@ the same follower is behind the player in both views and `V` swaps between them
 without losing it. The host resolves the art, the palette, the hour and, for a
 party icon, its own two frames.
 
+A step it is taking comes with the two cells it runs between, so a follower
+crossing a ledge or a fold is put through the same geometry the player is, and
+a hop is stood on the arc the host reads off the movement's own name.
+
 Visible wild Pokemon use the same path. Their host-resolved four colours override
 the ordinary icon row so shininess stays visible, and the optional encounter
 handle stands each tile of the cartridge's shiny sparkle around the Pokemon.
