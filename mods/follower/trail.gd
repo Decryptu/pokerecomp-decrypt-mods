@@ -41,14 +41,29 @@ func observe(observation: Dictionary) -> Dictionary:
 		_direction = Vector2i.ZERO
 	_player_cell = player_cell
 
-	var drawn: Vector2 = Vector2.ZERO
-	if _direction != Vector2i.ZERO:
-		drawn = -Vector2(_direction) * offset.length()
+	var pose: Dictionary = drawn(offset)
+	pose["out"] = bool(observation.get("allowed", true)) and _cell != player_cell
+	return pose
+
+
+## Where the follower is DRAWN for a player offset. SMOOTH SCROLL moves that
+## offset between one hardware frame and the next, so this is a read the host
+## asks again on every drawn frame rather than a pose held from [method observe].
+## The span is the same move said as the two cells it runs between, for a view
+## that folds plan into height and cannot read a fractional cell across a fold.
+func drawn(offset: Vector2) -> Dictionary:
+	if _direction == Vector2i.ZERO:
+		return {"cell": _cell, "offset": Vector2.ZERO, "span": {}}
+	var behind: float = offset.length()
 	return {
-		"out": bool(observation.get("allowed", true)) and _cell != player_cell,
 		"cell": _cell,
-		"offset": drawn,
-		"facing": _facing,
+		"offset": -Vector2(_direction) * behind,
+		"span": {
+			"from": _cell - _direction,
+			"to": _cell,
+			"progress": 1.0 - behind,
+			"kind": &"step",
+		},
 	}
 
 

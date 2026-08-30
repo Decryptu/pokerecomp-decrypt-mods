@@ -73,6 +73,7 @@ func _initialize() -> void:
 	failures += 0 if _report("one route twice is one walk", walked == again) else 1
 	failures += 0 if _report("two routes are two walks", walked != elsewhere) else 1
 	failures += _rules(trail_script)
+	failures += _sliding(trail_script)
 	failures += _crossing(trail_script)
 	failures += _petting(trail_script)
 	failures += _finding(finder)
@@ -289,6 +290,37 @@ func _rules(trail_script: GDScript) -> int:
 		]:
 			if not _report("%s (%s)" % [check[0], ", ".join(route)], bool(check[1])):
 				failures += 1
+	return failures
+
+
+## One pose said two ways, since a grid view moves to the position and a view
+## that folds plan into height moves between the span's two cells. SMOOTH SCROLL
+## asks for either between two hardware frames, so both are read at a finer
+## offset than a pass and have to answer the same place.
+func _sliding(trail_script: GDScript) -> int:
+	var trail: RefCounted = trail_script.new()
+	var facing: int = Gen2WorldSprite.FACING_RIGHT
+	for cell: Vector2i in [Vector2i(5, 5), Vector2i(6, 5), Vector2i(7, 5)]:
+		trail.observe(_observation(HOME, cell, facing, Vector2(-1.0, 0.0)))
+	var agrees: bool = true
+	var nearer: bool = true
+	var before: float = -2.0
+	for part: int in STEP_FRAMES * 4:
+		var pose: Dictionary = trail.drawn(
+			Vector2(-1.0 + float(part) / float(STEP_FRAMES * 4), 0.0)
+		)
+		var span: Dictionary = pose["span"]
+		var here: Vector2 = Vector2(pose["cell"] as Vector2i) + (pose["offset"] as Vector2)
+		agrees = agrees and here.is_equal_approx(
+			Vector2(span["from"] as Vector2i).lerp(
+				Vector2(span["to"] as Vector2i), float(span["progress"])
+			)
+		)
+		nearer = nearer and here.x > before
+		before = here.x
+	var failures: int = 0
+	failures += 0 if _report("the span says where the position says", agrees) else 1
+	failures += 0 if _report("a finer offset draws a nearer pose", nearer) else 1
 	return failures
 
 

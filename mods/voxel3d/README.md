@@ -763,10 +763,23 @@ pixel surface that step is a sixth of a cartridge pixel, so the smoothing is kep
 and the phase is not. Terrain needs nothing of its own: it does not move, so a
 camera on the grid is enough for it.
 
+Every walker rides the same option. The player's step is asked for as its two
+cells and a progress across them, which the host spends the world's own fraction
+on; an object's takes that fraction as an argument, and a sprite another mod
+puts in the world carries a span of its own. Walking New Bark Town at 120 Hz,
+500 drawn frames of where the camera stood:
+
+| Scrolling | Frames that moved the picture not at all | The rest |
+| --- | --- | --- |
+| Hardware pixels | 374 of 500 | 2 world pixels at a time |
+| SMOOTH | 0 of 500 | half a world pixel a frame |
+
 `tools/voxel_view_probe.gd` checks the arithmetic with no display: that two
 positions inside one surface pixel are the same drawn frame, that every snapped
-point stands a whole number of steps from every other, and that both hold at
-every pitch and bearing the view can be steered to.
+point stands a whole number of steps from every other, that both hold at every
+pitch and bearing the view can be steered to, and that a step moves on every
+drawn frame. `tools/motion_bench.gd` is the table above, measured through the
+game.
 
 ## Surveying a tileset
 

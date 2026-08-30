@@ -16,6 +16,7 @@ tools/bloat.py        the size gate: complexity and length per function, and
                       comment ratio per file
 tools/walk_bench.gd   what a frame costs while the player walks, in the game
 tools/stage_bench.gd  the same for the diorama alone, with each part priceable
+tools/motion_bench.gd how far a 3D view's camera moves per drawn frame, walking
 tools/horizon_shot.gd photographs the horizon through the game's own screen
 tools/far_drawings.gd checks the horizon's drawings and cards against a resolve
 tools/mod_icons.sh    repaints every icon from one cartridge; see icon_art.gd

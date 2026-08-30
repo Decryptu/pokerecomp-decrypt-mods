@@ -76,10 +76,12 @@ func sprites() -> Array:
 	var member: Dictionary = _member()
 	if not bool(member.get("out", false)):
 		return []
+	var pose: Dictionary = _trail.drawn(_world.player_step_offset_cells())
 	var entry: Dictionary = {
 		"icon": int(member["icon"]),
-		"facing": int(_pose["facing"]),
-		"position_cells": Vector2(_pose["cell"] as Vector2i) + (_pose["offset"] as Vector2),
+		"facing": _trail.facing(),
+		"position_cells": Vector2(pose["cell"] as Vector2i) + (pose["offset"] as Vector2),
+		"span": pose["span"],
 	}
 	if _heart > 0:
 		entry["emote"] = Gen2WorldActors.EMOTE_HEART
@@ -95,7 +97,6 @@ func interact(cell: Vector2i, facing: int) -> bool:
 	if not bool(member.get("out", false)):
 		return false
 	_trail.face_back(facing)
-	_pose["facing"] = int(_trail.facing())
 	_heart = HEART_FRAMES
 	_outbox.append({
 		"kind": Gen2WorldActors.REQUEST_CRY, "species": int(member["species"]),
