@@ -13,10 +13,15 @@ const STEPS: Dictionary = {
 ## nothing: a warp, a Fly, the first frame of a session.
 const NO_CARRY: Vector2i = Vector2i.MAX
 
+## The host's own names for the two moves a follower makes; a hop covers two.
+const KIND_STEP: StringName = &"step"
+const KIND_HOP: StringName = &"jump_step"
+
 var _map: Vector2i = Vector2i(-1, -1)
 var _cell: Vector2i = Vector2i.ZERO
 var _facing: int = Gen2WorldSprite.FACING_DOWN
 var _direction: Vector2i = Vector2i.ZERO
+var _kind: StringName = KIND_STEP
 var _player_cell: Vector2i = Vector2i.ZERO
 var _placed: bool = false
 
@@ -25,7 +30,7 @@ func observe(observation: Dictionary) -> Dictionary:
 	var map: Vector2i = observation.get("map", Vector2i.ZERO)
 	var player_cell: Vector2i = observation.get("cell", Vector2i.ZERO)
 	var player_facing: int = int(observation.get("facing", Gen2WorldSprite.FACING_DOWN))
-	var offset: Vector2 = observation.get("offset", Vector2.ZERO)
+	var span: Dictionary = observation.get("span", {})
 
 	if map != _map:
 		_map = map
@@ -37,42 +42,43 @@ func observe(observation: Dictionary) -> Dictionary:
 		_placed = true
 	elif player_cell != _player_cell:
 		_step_toward(_player_cell, player_facing)
-	if offset == Vector2.ZERO:
+	if span.is_empty():
 		_direction = Vector2i.ZERO
 	_player_cell = player_cell
 
-	var pose: Dictionary = drawn(offset)
+	var pose: Dictionary = drawn(progress_of(span))
 	pose["out"] = bool(observation.get("allowed", true)) and _cell != player_cell
 	return pose
 
 
-## Where the follower is DRAWN for a player offset. SMOOTH SCROLL moves that
-## offset between one hardware frame and the next, so this is a read the host
-## asks again on every drawn frame rather than a pose held from [method observe].
-## The span is the same move said as the two cells it runs between, for a view
-## that folds plan into height and cannot read a fractional cell across a fold.
-func drawn(offset: Vector2) -> Dictionary:
+## The follower's progress is the player's, so it arrives when they do whatever
+## either step cost. A distance cannot say this: a hop covers two cells.
+static func progress_of(span: Dictionary) -> float:
+	return 1.0 if span.is_empty() else float(span["progress"])
+
+
+## SMOOTH SCROLL moves this between two hardware frames, so it is a read the
+## host asks again every drawn frame rather than a pose held from [method
+## observe]. The span is the same move for a view that folds plan into height.
+func drawn(progress: float) -> Dictionary:
 	if _direction == Vector2i.ZERO:
 		return {"cell": _cell, "offset": Vector2.ZERO, "span": {}}
-	var behind: float = offset.length()
 	return {
 		"cell": _cell,
-		"offset": -Vector2(_direction) * behind,
+		"offset": -Vector2(_direction) * (1.0 - progress),
 		"span": {
 			"from": _cell - _direction,
 			"to": _cell,
-			"progress": 1.0 - behind,
-			"kind": &"step",
+			"progress": progress,
+			"kind": _kind,
 		},
 	}
 
 
 ## Crossing a connection renumbers every cell of the map left behind, so the
-## follower is carried into the new numbering and keeps walking. A map change
-## that is not a crossing carries nothing, and a warp between two maps the graph
-## does join is told from a crossing by the step: the player walks over a
-## connection one cell at a time, so the cell they came from is beside the one
-## they are on. Both put the follower back under them.
+## follower is carried into the new numbering and keeps walking. A crossing is
+## told from a warp by the step: the player walks over a connection one cell at
+## a time, so the cell they came from is beside the one they are on.
 func _carry(shift: Vector2i, player_cell: Vector2i) -> void:
 	if not _placed or shift == NO_CARRY:
 		_placed = false
@@ -83,6 +89,8 @@ func _carry(shift: Vector2i, player_cell: Vector2i) -> void:
 		_placed = false
 
 
+## The player's last move, replayed a move behind them. Two cells of one
+## direction is a ledge, so the follower takes it rather than being put down.
 func _step_toward(target: Vector2i, player_facing: int) -> void:
 	var delta: Vector2i = target - _cell
 	if delta == Vector2i.ZERO:
@@ -90,9 +98,11 @@ func _step_toward(target: Vector2i, player_facing: int) -> void:
 		_direction = Vector2i.ZERO
 		return
 	_cell = target
-	if STEPS.has(delta):
-		_facing = int(STEPS[delta])
+	var way := Vector2i(signi(delta.x), signi(delta.y))
+	if STEPS.has(way) and (delta == way or delta == way * 2):
+		_facing = int(STEPS[way])
 		_direction = delta
+		_kind = KIND_STEP if delta == way else KIND_HOP
 		return
 	_direction = Vector2i.ZERO
 

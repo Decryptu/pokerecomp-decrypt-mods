@@ -48,7 +48,7 @@ func advance_frame() -> void:
 		"shift": _carry_shift(map),
 		"cell": _world.player_cell,
 		"facing": _world.player_facing,
-		"offset": _world.player_step_offset_cells(),
+		"span": _world.player_step_span(),
 		"allowed": _allowed(),
 	})
 	_map = map
@@ -76,7 +76,7 @@ func sprites() -> Array:
 	var member: Dictionary = _member()
 	if not bool(member.get("out", false)):
 		return []
-	var pose: Dictionary = _trail.drawn(_world.player_step_offset_cells())
+	var pose: Dictionary = _trail.drawn(Trail.progress_of(_world.player_step_span()))
 	var entry: Dictionary = {
 		"icon": int(member["icon"]),
 		"facing": _trail.facing(),
