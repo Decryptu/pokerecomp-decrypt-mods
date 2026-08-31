@@ -228,7 +228,7 @@ const POTTED: Dictionary = {
 const STRETCH: Dictionary = {
 	&"stool": 0.6,
 	&"sea_rock": 0.5,
-	&"sapling": 1.0,
+	&"sapling": 1.35,
 	&"post": 0.71,
 }
 
@@ -1371,6 +1371,7 @@ const TILESETS: Dictionary = {
 	},
 	1: {
 		&"ground": [154],
+		&"sapling": [19, 21, 29, 69],
 		&"wall": [70, 71, 86, 87],
 		&"fence": [74, 89, 90],
 		&"flower": [3],
@@ -1410,6 +1411,7 @@ const TILESETS: Dictionary = {
 		&"statue_pillar": [72, 73, 88, 89, 74, 75, 90, 91, 16, 1],
 	},
 	31: {
+		&"sapling": [40, 56, 57, 58],
 		&"canopy": [
 			12, 13, 14, 15, 28, 29, 30, 31, 44, 45, 46, 47, 60, 61, 62, 63,
 		],
