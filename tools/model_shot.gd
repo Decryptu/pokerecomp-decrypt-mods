@@ -1,7 +1,7 @@
 extends SceneTree
 
 ## Photographs the AUTHORED models, several drawings side by side on a plain
-## floor, with each drawing's own 2D art above it.
+## floor.
 
 const MOD := "user://mods/voxel3d"
 const VIEW := Vector2i(1200, 460)

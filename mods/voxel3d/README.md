@@ -661,10 +661,11 @@ plates or a black hedge.
 
 So `shape/model.gd` builds a voxel trunk and crown from three authored
 proportions, and everything else comes off the cartridge: how big the thing is
-and what colours to paint it, taken from the drawing's own palette with the dark
-outline left out. An outline is how a drawing separates itself from a flat
-background; a solid in a real light does not need one, and reusing it is what
-painted every carved attempt black. One mesh is built per distinct tree and
+and what colours to paint it. The drawing's tones make a ladder, lightest first,
+and a face is shaded a rung down it by which way it lies and how buried it is.
+The dark outline is the ladder's last rung and never its first: an outline is how
+a drawing separates itself from a flat background, and filling a solid with it is
+what painted every carved attempt black. One mesh is built per distinct tree and
 stamped wherever that tree stands, so a forest of two hundred is one tree of
 geometry drawn two hundred times.
 
@@ -675,13 +676,19 @@ does it is a fact about a direction rather than a voxel: rolled per voxel it
 draws a speckle with the ground visible through it, while rolled per direction
 there is one radius per ray and the silhouette is as ragged as before. It only
 ever cuts in, since a crown wider than its own cell is a hedge standing on the
-road.
+road, and its amplitude is a share of the crown rather than a count of voxels,
+since what frays a route tree shreds a sapling a third of its width.
 
 Bushes, saplings and boulders go the same way, and the differences are the
 interesting part. A bush is not a small tree: a tree's sprite is foreshortened
 and its trunk is drawn behind its crown, so reading a bush that way stands it on
 a stalk. The small tree that can be Cut needs both corrections taken off, since
-it draws its own stem and its own height. A boulder is not a plant at all: one
+it draws its own stem and its own height. It is one drawing that three tilesets
+each hold at their own tile numbers, so all three pin the same class and build
+one mesh. Its stem is the same green as its leaves: bark prefers a colour the
+crown does not wear and keeps a shared one rather than borrow a leaf's shade,
+which is what made it black. Its crown is drawn as two packs, and is carved as
+the packs each row shows, closing back to one where the drawing closes. A boulder is not a plant at all: one
 world pixel per voxel rather than two, because a 16px stone six voxels across is
 a pillow; it does not sway; and its colour is read in horizontal bands, since a
 stone is drawn pale where the sky reaches it and dark underneath. A round stool

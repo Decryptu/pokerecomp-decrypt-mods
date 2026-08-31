@@ -8,6 +8,8 @@ const POT_STALK: float = 5.0
 const LEAF_FLANK: float = 0.9
 
 const LEAF_NOISE: float = 0.22
+const RAGGED_FULL: float = 6.0
+const RAGGED_LEAST: float = 0.3
 const ROCK_NOISE: float = 0.08
 const ROOT_REACH: float = 1.6
 const ROOT_RISE: float = 0.45
@@ -16,6 +18,9 @@ const CROWN_STRETCH: float = 1.3
 const TRUNK_MIN: float = 0.5
 const TRUNK_THICKNESS: float = 0.22
 const TONE_SHARE: int = 8
+const CROWN_LEAST: int = 4
+const SPECK_RUN: int = 2
+const LOBE_SHARE: float = 0.36
 
 var _vertices := PackedVector3Array()
 var _normals := PackedVector3Array()
@@ -46,6 +51,7 @@ class Measure extends RefCounted:
 	var bark: PackedColorArray = PackedColorArray()
 	var bands: PackedColorArray = PackedColorArray()
 	var cap := Color(0.5, 0.5, 0.5)
+	var lobes := PackedFloat32Array()
 	var cap_rows: int = 0
 	var side_bands: PackedColorArray = PackedColorArray()
 	var wraps: Array = []
@@ -102,6 +108,15 @@ static func _crown_bottom(rows: Rows) -> int:
 	return at
 
 
+## The first row of the crown wide enough to be a body. The ragged tips above it
+## are a pixel or two across, and a pixel revolved is a spike, not a leaf.
+static func _crown_top(rows: Rows, crown_bottom: int) -> int:
+	var at: int = rows.first
+	while at < crown_bottom - 1 and rows.width[at] < CROWN_LEAST:
+		at += 1
+	return at
+
+
 static func _trunk_bottom(rows: Rows, crown_bottom: int) -> int:
 	var narrow: int = maxi(rows.widest / 2, 1)
 	var at: int = crown_bottom
@@ -122,16 +137,26 @@ static func _pot_top(rows: Rows, crown_bottom: int) -> int:
 	return at
 
 
-## The bark colours, which are the trunk's own colours less the leaf ones and
-## less anything lighter than the lightest leaf.
+## The trunk's colours less the ground's. The mask is grown by an outline the
+## drawing does not own, so the row the trunk stands in reaches into grass, and
+## grass is lighter than any leaf.
 static func _wood(bark: PackedColorArray, tones: PackedColorArray) -> PackedColorArray:
 	var lightest: float = 0.0
 	for leaf: Color in tones:
 		lightest = maxf(lightest, leaf.get_luminance())
 	var out := PackedColorArray()
 	for colour: Color in bark:
-		if colour.get_luminance() > lightest:
-			continue
+		if colour.get_luminance() <= lightest:
+			out.append(colour)
+	return out
+
+
+## Of those, the ones the crown does not also wear.
+static func _unshared(
+	wood: PackedColorArray, tones: PackedColorArray
+) -> PackedColorArray:
+	var out := PackedColorArray()
+	for colour: Color in wood:
 		var claimed: bool = false
 		for leaf: Color in tones:
 			claimed = claimed or leaf.is_equal_approx(colour)
@@ -169,7 +194,7 @@ static func measure(
 	var trunk: int = 0
 	for py: int in range(crown_bottom, trunk_bottom):
 		trunk = maxi(trunk, rows.width[py])
-	for py: int in range(rows.first, crown_bottom):
+	for py: int in range(_crown_top(rows, crown_bottom), crown_bottom):
 		out.profile.append(float(rows.width[py]) * 0.5)
 	if out.profile.is_empty():
 		out.profile.append(float(rows.widest) * 0.5)
@@ -207,7 +232,9 @@ static func _measure_crown(
 	var top: int = rows.first
 	var end: int = crown_bottom - 1
 	out.tones = _tones(mask, span, tiles, across, atlas, top, end)
-	out.shades = _tones(mask, span, tiles, across, atlas, top, end, false)
+	out.shades = _rungs(
+		out.tones, _tones(mask, span, tiles, across, atlas, top, end, false)
+	)
 	out.bands = _bands(mask, span, tiles, across, atlas, top, end)
 	out.cap = _cap(out.bands)
 	out.cap_rows = _cap_rows(out.bands, out.cap)
@@ -218,16 +245,71 @@ static func _measure_crown(
 	out.wraps = _wraps(
 		mask, span, tiles, across, atlas, top + out.cap_rows, end
 	)
+	out.lobes = _lobes(mask, span, top, end)
 
 
-## The trunk keeps its own colours where it has any of its own, and borrows the
-## darkest leaf shade where every colour on it is also a leaf's.
+## Half the span between the outer packs of leaves, a row at a time. A crown
+## drawn as one mass answers zero on that row and is carved as one.
+static func _lobes(
+	mask: PackedByteArray, span: Vector2i, from_row: int, to_row: int
+) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	for py: int in range(maxi(from_row, 0), mini(to_row + 1, span.y)):
+		var islands: Array = _islands(mask, span, py)
+		out.append(0.0 if islands.size() < 2 else
+			(float(islands[islands.size() - 1]) - float(islands[0])) * 0.5)
+	return out
+
+
+## The centre of every run of solid pixels on one row, less the specks: a single
+## ragged pixel off the edge of the leaves is not a pack of them.
+static func _islands(mask: PackedByteArray, span: Vector2i, py: int) -> Array:
+	var out: Array = []
+	var first: int = -1
+	for px: int in span.x + 1:
+		var solid: bool = px < span.x and mask[py * span.x + px] == 1
+		if solid and first < 0:
+			first = px
+		elif not solid and first >= 0:
+			if px - first >= SPECK_RUN:
+				out.append(float(first + px - 1) * 0.5)
+			first = -1
+	return out
+
+
+## The trunk prefers a colour of its own and keeps the shared ones where it has
+## none: a light trunk under dark leaves is drawn in the one green both wear,
+## and a shape whose every colour is a leaf's is not therefore made of leaves.
 static func _measure_bark(out: Measure) -> void:
 	var wood: PackedColorArray = _wood(out.bark, out.tones)
-	if wood.is_empty() and not out.bark.is_empty() and not out.shades.is_empty():
-		wood.append(out.shades[out.shades.size() - 1])
-	if not wood.is_empty():
+	var own: PackedColorArray = _unshared(wood, out.tones)
+	if not own.is_empty():
+		out.bark = own
+	elif not wood.is_empty():
 		out.bark = wood
+
+
+## The crown's ladder: every tone it is drawn in, lightest first, so a face is
+## shaded a rung at a time. Counting the dark mass alone buries the lit tone
+## under the share a run of it needs, and leaves nothing to shade against.
+static func _rungs(
+	tones: PackedColorArray, shaded: PackedColorArray
+) -> PackedColorArray:
+	var kept: Array = []
+	for colour: Color in tones:
+		kept.append(colour)
+	for colour: Color in shaded:
+		var seen: bool = false
+		for taken: Color in kept:
+			seen = seen or taken.is_equal_approx(colour)
+		if not seen:
+			kept.append(colour)
+	kept.sort_custom(func(a: Color, b: Color) -> bool:
+		return _luminance(a) > _luminance(b))
+	var out := PackedColorArray()
+	for colour: Color in kept:
+		out.append(colour)
+	return out
 
 static func _tones(
 	mask: PackedByteArray, span: Vector2i, tiles: Array, across: Vector2i,
@@ -516,11 +598,37 @@ func _leaf_fill(
 	var ragged: float = 0.0
 	if not measured.column:
 		ragged = ROCK_NOISE if measured.rock else LEAF_NOISE
-	return LEAF if plan <= radius * _wobble(x, z, plan, vy, ragged) else EMPTY
+		ragged *= clampf(radius / RAGGED_FULL, RAGGED_LEAST, 1.0)
+	var reach: float = _reach(
+		measured, radius, vy - frame.pot_high - frame.trunk_high, frame.crown_high,
+		Vector2(x, z)
+	)
+	return LEAF if reach <= radius * _wobble(x, z, plan, vy, ragged) else EMPTY
+
+
+## How far a voxel sits from the leaves, which is its distance from the nearest
+## pack rather than from the trunk on a row drawn as more than one. The packs
+## are widened to meet, so the crown still spans the width it is drawn, and the
+## gap is held well under the row so the split is a dip and never a hole.
+func _reach(
+	measured: Measure, radius: float, up: int, crown_high: int, at: Vector2
+) -> float:
+	var plan: float = at.length()
+	if measured.lobes.is_empty():
+		return plan
+	var gap: float = minf(
+		_row_of(measured.lobes, up, crown_high) / _voxel, radius * LOBE_SHARE
+	)
+	if gap <= 0.0:
+		return plan
+	var lobe: float = radius - gap
+	var near: float = minf(absf(at.x - gap), absf(at.x + gap))
+	return sqrt(near * near + at.y * at.y) * radius / lobe
 
 
 ## One layer of colour per voxel row, then a face wherever a solid voxel meets
-## air.
+## air. Raggedness is a share of the crown, not a count of voxels: the same
+## amplitude that frays a route tree shreds a sapling a third its width.
 ## One quad per exposed voxel face is 649 of them on a route tree; the same
 ## faces merged into runs of a single colour are 454, and no pixel moves.
 func _shell(solid: PackedByteArray, measured: Measure, frame: Frame) -> void:
@@ -710,16 +818,25 @@ func _radius(measured: Measure, up: int, crown_high: int) -> float:
 	return measured.profile[at] / _voxel
 
 
-func _wrap_at(measured: Measure, up: int, crown_high: int) -> PackedColorArray:
-	if measured.wraps.is_empty():
-		return PackedColorArray()
-	var rows: int = measured.wraps.size()
-	var at: int = clampi(
+## The drawn row a voxel layer stands for, counting down from the top of both.
+static func _row_at(rows: int, up: int, crown_high: int) -> int:
+	return clampi(
 		int(round(float(crown_high - 1 - up) * float(rows - 1)
 			/ float(maxi(crown_high - 1, 1)))),
 		0, rows - 1
 	)
-	return measured.wraps[at]
+
+
+static func _row_of(rows: PackedFloat32Array, up: int, crown_high: int) -> float:
+	if rows.is_empty():
+		return 0.0
+	return rows[_row_at(rows.size(), up, crown_high)]
+
+
+func _wrap_at(measured: Measure, up: int, crown_high: int) -> PackedColorArray:
+	if measured.wraps.is_empty():
+		return PackedColorArray()
+	return measured.wraps[_row_at(measured.wraps.size(), up, crown_high)]
 
 
 func _band_at(measured: Measure, up: int, crown_high: int) -> Color:
@@ -728,13 +845,7 @@ func _band_at(measured: Measure, up: int, crown_high: int) -> Color:
 		bands = measured.side_bands
 	if bands.is_empty():
 		return Color(0.5, 0.5, 0.5)
-	var rows: int = bands.size()
-	var at: int = clampi(
-		int(round(float(crown_high - 1 - up) * float(rows - 1)
-			/ float(maxi(crown_high - 1, 1)))),
-		0, rows - 1
-	)
-	return bands[at]
+	return bands[_row_at(bands.size(), up, crown_high)]
 
 
 func _hash(x: int, y: int, z: int) -> float:
@@ -759,14 +870,25 @@ func _tone(
 		return Color(0.3, 0.5, 0.25)
 	if measured.rock:
 		return _rock_tone(measured, palette, side, across)
-	if fill == LEAF and not measured.pot.is_empty():
+	return _leaf_tone(measured, palette, fill, side, sky, near)
+
+
+func _leaf_tone(
+	measured: Measure, palette: PackedColorArray, fill: int, side: Vector3i,
+	sky: int, near: int
+) -> Color:
+	if fill == BARK:
+		return _lit(palette, side, 0, 0, false)
+	if not measured.pot.is_empty():
 		var flank: float = -LEAF_FLANK if side.x < 0 or side.z < 0 else LEAF_FLANK
 		return _lit(palette, side, sky, near, false, flank)
-	return _lit(palette, side, sky, near, measured.shrub and not measured.rock)
+	return _lit(palette, side, sky, near, measured.shrub)
 
 
 ## Bark for the trunk, and for leaves the shaded copy where there is one: a rock
-## has no shading of its own to take.
+## has no shading of its own to take. A trunk stands under its own crown, so
+## counting that shadow darkens every trunk there is; it is shaded by the way
+## its faces lie instead, which is what the drawing shows.
 func _palette_for(measured: Measure, fill: int) -> PackedColorArray:
 	if fill == BARK:
 		return measured.bark
