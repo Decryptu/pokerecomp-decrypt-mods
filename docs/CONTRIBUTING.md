@@ -20,7 +20,7 @@ tools/motion_bench.gd how far a 3D view's camera moves per drawn frame, walking
 tools/horizon_shot.gd photographs the horizon through the game's own screen
 tools/far_drawings.gd checks the horizon's drawings and cards against a resolve
 tools/mod_icons.sh    repaints every icon from one cartridge; see icon_art.gd
-docs/icons/<id>.png   the same icon at 4x, for the README table only
+docs/icons_4x/<id>.png  the same icon at 4x, for the README table only
 .github/workflows/    announce.yml posts a published release to Discord
 ```
 
@@ -45,7 +45,7 @@ and drawn without stretching; past that it is ignored.
 `tools/mod_icons.sh` paints this repository's icons out of the cartridge's own
 frame, font and sprites. It is one way to make one, not a requirement.
 
-`docs/icons/` holds each icon again at 4x, drawn at 64 in the README table.
+`docs/icons_4x/` holds each icon again at 4x, drawn at 64 in the README table.
 GitHub honours an `<img>` width but strips the `image-rendering` that would stop
 a browser smoothing the upscale, so the sharp copy is a file rather than a style.
 They live outside `mods/` so they stay out of the archives.
