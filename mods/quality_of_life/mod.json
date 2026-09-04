@@ -1,8 +1,8 @@
 {
   "id": "quality_of_life",
   "name": "Quality of Life",
-  "version": "0.1.6",
-  "api_version": 29,
+  "version": "0.1.7",
+  "api_version": 30,
   "entry": "mod.gd",
   "games": [
     "gold",

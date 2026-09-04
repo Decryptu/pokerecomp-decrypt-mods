@@ -1,8 +1,8 @@
 {
   "id": "follower",
   "name": "Follower",
-  "version": "0.4.1",
-  "api_version": 25,
+  "version": "0.4.2",
+  "api_version": 30,
   "entry": "mod.gd",
   "games": [
     "gold",

@@ -1,8 +1,8 @@
 {
   "id": "catch_combo",
   "name": "Catch Combo",
-  "version": "0.1.1",
-  "api_version": 20,
+  "version": "0.1.2",
+  "api_version": 30,
   "entry": "mod.gd",
   "games": [
     "gold",
