@@ -1,8 +1,8 @@
 {
   "id": "achievements",
   "name": "Achievements",
-  "version": "0.2.0",
-  "api_version": 21,
+  "version": "0.2.1",
+  "api_version": 30,
   "entry": "mod.gd",
   "games": [
     "gold",

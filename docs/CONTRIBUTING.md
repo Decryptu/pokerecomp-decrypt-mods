@@ -137,8 +137,10 @@ in the game repository first. It is the contract, and it is enforced.
   interpreted GDScript. No GDExtension, no compiled anything.
 - `api_version` is the oldest host a mod works against, not a number to keep
   current. The host accepts `PokeModManifest.MIN_API_VERSION` to `API_VERSION`,
-  1 to 29 today, and refuses a mod asking for more than it provides. Raise it
-  when the mod starts using something newer, not with every release.
+  30 to 30 today, and refuses anything outside that. Raise it when the mod
+  starts using something newer, not with every release. Version 30 renamed the
+  classes both generations reach, so it moved the floor as well as the ceiling:
+  a mod below it names a class the host no longer declares.
 - `games` may name `red`, `blue` and `yellow`, but those cartridges import their
   data tables and are not played, so a mod that hooks the world or a battle
   names only `gold`, `silver` and `crystal`.
