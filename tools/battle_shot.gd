@@ -29,7 +29,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_out = args[5]
-	if Gen2ToolPath.refuses(_out):
+	if PokeToolPath.refuses(_out):
 		quit(2)
 		return
 
@@ -92,8 +92,8 @@ func _initialize() -> void:
 
 	var form: int = clampi(int(args[18]) if args.size() > 18 else 0, 0, 26)
 	if form > 0:
-		_view["enemy_species"] = RomLayout.UNOWN_SPECIES
-		_view["player_species"] = RomLayout.UNOWN_SPECIES
+		_view["enemy_species"] = Gen2Layout.UNOWN_SPECIES
+		_view["player_species"] = Gen2Layout.UNOWN_SPECIES
 		_view["enemy_name"] = "UNOWN"
 		_view["player_name"] = "UNOWN"
 	_view["enemy_unown_form"] = form
@@ -210,7 +210,7 @@ func _battlers(moment: String, data: GameData) -> Dictionary:
 			}
 		"faint":
 			mon["offset_pixels"] = Vector2(
-				0.0, float(Gen2BattleScreenMap.FAINT_ROWS * Gen2Tiles.TILE_WIDTH) * 0.5
+				0.0, float(Gen2BattleScreenMap.FAINT_ROWS * PokeTiles.TILE_WIDTH) * 0.5
 			)
 			return {"player": _mon_side(int(_view["player_species"])), "enemy": mon}
 		"gone":
@@ -223,7 +223,7 @@ func _battlers(moment: String, data: GameData) -> Dictionary:
 			return {"player": shrinking, "enemy": mon}
 		"walkoff":
 			trainer["offset_pixels"] = Vector2(
-				-float(Gen2Tiles.TILE_WIDTH * 4), 0.0
+				-float(PokeTiles.TILE_WIDTH * 4), 0.0
 			)
 			return {"player": trainer, "enemy": mon}
 	return {}

@@ -53,7 +53,7 @@ func _initialize() -> void:
 	_shot = String(named.get("shot", ""))
 	_out = String(named.get("out", ""))
 	for path: String in [_shot, _out]:
-		if not path.is_empty() and Gen2ToolPath.refuses(path):
+		if not path.is_empty() and PokeToolPath.refuses(path):
 			quit(2)
 			return
 	_pitch = float(named.get("pitch", "50"))
@@ -179,8 +179,8 @@ func _window_of(cell: Vector2i, distance: int) -> Rect2i:
 		return Rect2i()
 	var span: int = distance * 2 + 1
 	return Rect2i(
-		(cell - Vector2i(distance, distance)) * RomLayout.MAP_BLOCK_CELL_WIDTH,
-		Vector2i(span, span) * RomLayout.MAP_BLOCK_CELL_WIDTH
+		(cell - Vector2i(distance, distance)) * Gen2Layout.MAP_BLOCK_CELL_WIDTH,
+		Vector2i(span, span) * Gen2Layout.MAP_BLOCK_CELL_WIDTH
 	)
 
 

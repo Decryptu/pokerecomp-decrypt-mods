@@ -10,8 +10,8 @@ const SCALE: int = 3
 const COLUMNS: int = 4
 const CAPTURE_ON: int = 8
 const BATTLER_CENTRE := Vector2(
-	(Gen2BattleScreenMap.ENEMY_AT.x + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * Gen2Tiles.TILE_WIDTH,
-	(Gen2BattleScreenMap.ENEMY_AT.y + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * Gen2Tiles.TILE_HEIGHT
+	(Gen2BattleScreenMap.ENEMY_AT.x + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * PokeTiles.TILE_WIDTH,
+	(Gen2BattleScreenMap.ENEMY_AT.y + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * PokeTiles.TILE_HEIGHT
 )
 const EMOTE_CANDIDATES: Array[int] = [
 	Gen2WorldActors.EMOTE_BOLT,
@@ -50,7 +50,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_output_path = args[1]
-	if Gen2ToolPath.refuses(_output_path):
+	if PokeToolPath.refuses(_output_path):
 		quit(2)
 		return
 	var species: int = int(args[2]) if args.size() > 2 else 21
@@ -302,7 +302,7 @@ class Sheet extends Node2D:
 			var plate: Image = _plate(false)
 			_blit_emote(plate, emote)
 			out.append({
-				"name": "EMOTE %s" % RomLayout.EMOTE_NAMES[emote].to_upper(),
+				"name": "EMOTE %s" % Gen2Layout.EMOTE_NAMES[emote].to_upper(),
 				"image": plate,
 			})
 		for at: int in LOOP_FRAMES:
@@ -354,7 +354,7 @@ class Sheet extends Node2D:
 		return Vector2i((PLATE - 16) / 2, (PLATE - 16) / 2)
 
 	func _blit_emote(plate: Image, emote: int) -> void:
-		var sheet: Dictionary = data.overworld_effect(RomLayout.EMOTE_NAMES[emote])
+		var sheet: Dictionary = data.overworld_effect(Gen2Layout.EMOTE_NAMES[emote])
 		if sheet.is_empty():
 			return
 		var palette: PackedColorArray = data.overworld_sprite_palette(
@@ -415,17 +415,17 @@ class Sheet extends Node2D:
 	func _anim_tile(gfx: int, tile: int, attributes: int, pair: Array) -> Image:
 		var strip: PackedByteArray = data.battle_anim_gfx_indices(gfx)
 		@warning_ignore("integer_division")
-		var width: int = strip.size() / Gen2Tiles.TILE_HEIGHT
-		if width <= 0 or (tile + 1) * Gen2Tiles.TILE_WIDTH > width:
+		var width: int = strip.size() / PokeTiles.TILE_HEIGHT
+		if width <= 0 or (tile + 1) * PokeTiles.TILE_WIDTH > width:
 			return null
 		var pixels := PackedByteArray()
-		pixels.resize(Gen2Tiles.TILE_PIXELS)
-		for row: int in Gen2Tiles.TILE_HEIGHT:
-			var from: int = row * width + tile * Gen2Tiles.TILE_WIDTH
-			for column: int in Gen2Tiles.TILE_WIDTH:
-				pixels[row * Gen2Tiles.TILE_WIDTH + column] = strip[from + column]
+		pixels.resize(PokeTiles.TILE_PIXELS)
+		for row: int in PokeTiles.TILE_HEIGHT:
+			var from: int = row * width + tile * PokeTiles.TILE_WIDTH
+			for column: int in PokeTiles.TILE_WIDTH:
+				pixels[row * PokeTiles.TILE_WIDTH + column] = strip[from + column]
 		var image: Image = Gen2PicImage.from_indices(
-			pixels, Gen2Tiles.TILE_WIDTH, Gen2Tiles.TILE_HEIGHT,
+			pixels, PokeTiles.TILE_WIDTH, PokeTiles.TILE_HEIGHT,
 			data.battle_object_palette(
 				attributes & Gen2BattleAnimObject.OAM_PALETTE, pair
 			),
@@ -440,15 +440,15 @@ class Sheet extends Node2D:
 	func _sheet_tile(sheet: Dictionary, tile: int, palette: PackedColorArray) -> Image:
 		var indices: PackedByteArray = sheet["indices"]
 		var tiles: int = int(sheet["tiles"])
-		if tile < 0 or tile >= tiles or indices.size() < tiles * Gen2Tiles.TILE_PIXELS:
+		if tile < 0 or tile >= tiles or indices.size() < tiles * PokeTiles.TILE_PIXELS:
 			return null
 		var image := Image.create(
-			Gen2Tiles.TILE_WIDTH, Gen2Tiles.TILE_HEIGHT, false, Image.FORMAT_RGBA8
+			PokeTiles.TILE_WIDTH, PokeTiles.TILE_HEIGHT, false, Image.FORMAT_RGBA8
 		)
-		var width: int = tiles * Gen2Tiles.TILE_WIDTH
-		for y: int in Gen2Tiles.TILE_HEIGHT:
-			for x: int in Gen2Tiles.TILE_WIDTH:
-				var index: int = int(indices[y * width + tile * Gen2Tiles.TILE_WIDTH + x])
+		var width: int = tiles * PokeTiles.TILE_WIDTH
+		for y: int in PokeTiles.TILE_HEIGHT:
+			for x: int in PokeTiles.TILE_WIDTH:
+				var index: int = int(indices[y * width + tile * PokeTiles.TILE_WIDTH + x])
 				var color: Color = palette[index] if index < palette.size() else Color.MAGENTA
 				if index == 0:
 					color.a = 0.0

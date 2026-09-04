@@ -79,8 +79,8 @@ func _emit(
 ) -> Dictionary:
 	var span: int = draw_cells * 2 + 1
 	var window := Rect2i(
-		(centre - Vector2i(draw_cells, draw_cells)) * RomLayout.MAP_BLOCK_CELL_WIDTH,
-		Vector2i(span, span) * RomLayout.MAP_BLOCK_CELL_WIDTH
+		(centre - Vector2i(draw_cells, draw_cells)) * Gen2Layout.MAP_BLOCK_CELL_WIDTH,
+		Vector2i(span, span) * Gen2Layout.MAP_BLOCK_CELL_WIDTH
 	)
 	mesher.set_detail_ring(
 		Vector3(float(centre.x * CELL), 0.0, float(centre.y * CELL)),

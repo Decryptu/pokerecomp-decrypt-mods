@@ -14,13 +14,13 @@ const SUMMARY_ICON: Dictionary = {"badge": Catalogue.BADGE_ZEPHYR}
 const SOUND_NONE: StringName = &"none"
 
 var _host: Gen2ModHost = null
-var _manifest: Gen2ModManifest = null
+var _manifest: PokeModManifest = null
 var _id: StringName = &""
 var _ledger: Ledger = Ledger.new()
 var _save: Gen2SaveData = null
 
 
-func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
+func register(host: Gen2ModHost, manifest: PokeModManifest) -> void:
 	_host = host
 	_manifest = manifest
 	_id = manifest.id

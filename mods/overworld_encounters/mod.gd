@@ -8,7 +8,7 @@ const Provider := preload("provider.gd")
 var _provider: RefCounted = null
 
 
-func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
+func register(host: Gen2ModHost, manifest: PokeModManifest) -> void:
 	Options.register(host, manifest.id)
 	_provider = Provider.new()
 	_provider.configure(host, manifest.id)

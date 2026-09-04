@@ -31,7 +31,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_output_path = args[3]
-	if Gen2ToolPath.refuses(_output_path):
+	if PokeToolPath.refuses(_output_path):
 		quit(2)
 		return
 	var species: int = int(args[4]) if args.size() > 4 else 155

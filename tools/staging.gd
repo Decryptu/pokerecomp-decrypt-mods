@@ -92,7 +92,7 @@ static func load_mods(host: Gen2ModHost, spec: String) -> Array:
 	for raw: String in spec.split(",", false):
 		wanted[StringName(raw.strip_edges())] = true
 	var loaded: Array = []
-	for manifest: Gen2ModManifest in host.manifests():
+	for manifest: PokeModManifest in host.manifests():
 		if wanted.has(manifest.id) \
 				and bool(host.load_mod(manifest).get("ok", false)):
 			loaded.append(String(manifest.id))

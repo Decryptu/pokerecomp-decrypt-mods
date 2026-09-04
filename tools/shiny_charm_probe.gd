@@ -47,7 +47,7 @@ func _initialize() -> void:
 func _loaded(host: Gen2ModHost) -> bool:
 	for failure: Dictionary in host.failures():
 		print("mod refused: %s" % str(failure))
-	for manifest: Gen2ModManifest in host.manifests():
+	for manifest: PokeModManifest in host.manifests():
 		if manifest.id == MOD_ID:
 			return host.failures().is_empty()
 	print("%s did not load" % MOD_ID)

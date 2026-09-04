@@ -31,8 +31,8 @@ func _initialize() -> void:
 		var shape: RefCounted = shape_script.new(profile, map.tileset)
 		var source: RefCounted = source_script.new(null, map, tileset)
 		var size := Vector2i(
-			map.width_blocks * RomLayout.MAP_BLOCK_CELL_WIDTH * 2,
-			map.height_blocks * RomLayout.MAP_BLOCK_CELL_WIDTH * 2
+			map.width_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH * 2,
+			map.height_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH * 2
 		)
 		var covered: PackedByteArray = _covered(shape, source, size)
 		for ty: int in size.y:

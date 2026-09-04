@@ -10,7 +10,7 @@ var _policy: Policy = null
 var _host: Gen2ModHost = null
 
 
-func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
+func register(host: Gen2ModHost, manifest: PokeModManifest) -> void:
 	_host = host
 	host.register_content(Gen2ContentOverlay.KIND_ITEM, manifest.id, Charm.NUMBER, {
 		"name": "SHINY CHARM",

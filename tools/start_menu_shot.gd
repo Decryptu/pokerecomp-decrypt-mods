@@ -8,7 +8,7 @@ const NEW_BARK_MAP: int = 7
 const ENGINE_POKEGEAR: int = 4
 const ENGINE_POKEDEX: int = 11
 
-const BUTTONS: Dictionary = {"u": Gen2Button.UP, "d": Gen2Button.DOWN}
+const BUTTONS: Dictionary = {"u": PokeButton.UP, "d": PokeButton.DOWN}
 
 
 func _process(_delta: float) -> bool:
@@ -22,7 +22,7 @@ func _capture() -> void:
 		print("usage: -- <game> <out.png> [presses] [scale]")
 		quit(2)
 		return
-	if Gen2ToolPath.refuses(args[1]):
+	if PokeToolPath.refuses(args[1]):
 		quit(2)
 		return
 	Gen2ModHost.reset()

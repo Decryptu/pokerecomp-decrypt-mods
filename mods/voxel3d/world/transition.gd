@@ -4,7 +4,7 @@ extends RefCounted
 
 const COLUMNS: int = Gen2BattleTransition.COLUMNS
 const ROWS: int = Gen2BattleTransition.ROWS
-const TILE: int = Gen2Tiles.TILE_WIDTH
+const TILE: int = PokeTiles.TILE_WIDTH
 
 const CLOSED := Color(0.0, 0.0, 0.0, 1.0)
 

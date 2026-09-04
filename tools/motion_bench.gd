@@ -126,7 +126,7 @@ func _begin() -> bool:
 	_screen.advance_frames(SETTLE_FRAMES)
 	var entries: Array = []
 	for spent: int in _wanted:
-		entries.append({"frame": spent, "kind": "hold", "button": Gen2Button.RIGHT})
+		entries.append({"frame": spent, "kind": "hold", "button": PokeButton.RIGHT})
 	_screen.replay_input(entries)
 	return false
 

@@ -29,7 +29,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_out = args[1].trim_suffix("/")
-	if Gen2ToolPath.refuses(_out):
+	if PokeToolPath.refuses(_out):
 		quit(2)
 		return
 	DirAccess.make_dir_recursive_absolute(_out)

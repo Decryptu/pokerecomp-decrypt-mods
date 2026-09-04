@@ -46,7 +46,7 @@ func _loaded(host: Gen2ModHost) -> bool:
 	for failure: Dictionary in host.failures():
 		print("mod refused: %s" % str(failure))
 	var ok: bool = false
-	for manifest: Gen2ModManifest in host.manifests():
+	for manifest: PokeModManifest in host.manifests():
 		if manifest.id == MOD_ID:
 			ok = true
 			print("  loaded       %s %s, api %d" % [

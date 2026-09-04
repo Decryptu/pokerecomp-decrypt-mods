@@ -5,7 +5,7 @@ extends SceneTree
 
 const MOD := "user://mods/voxel3d"
 const TILE: int = 8
-const BLOCK_TILES: int = RomLayout.MAP_BLOCK_CELL_WIDTH * 2
+const BLOCK_TILES: int = Gen2Layout.MAP_BLOCK_CELL_WIDTH * 2
 
 const WINDOW: int = 20
 const RING_OUTER := Color(1.0, 0.0, 1.0)
@@ -32,7 +32,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var out: String = args[1]
-	if Gen2ToolPath.refuses(out):
+	if PokeToolPath.refuses(out):
 		quit(2)
 		return
 	var only: int = int(args[2]) if args.size() > 2 else -1

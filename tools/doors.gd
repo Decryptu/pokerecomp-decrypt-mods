@@ -28,8 +28,8 @@ func _initialize() -> void:
 		var shape: RefCounted = shape_script.new(profile, map.tileset)
 		var source: RefCounted = source_script.new(null, map, tileset)
 		var cells: Vector2i = Vector2i(
-			map.width_blocks * RomLayout.MAP_BLOCK_CELL_WIDTH,
-			map.height_blocks * RomLayout.MAP_BLOCK_CELL_WIDTH
+			map.width_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH,
+			map.height_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH
 		)
 		for event: Dictionary in map.events.get("warps", []) as Array:
 			warps += 1

@@ -3,7 +3,7 @@ extends RefCounted
 ## Registers the two renderers and returns.
 
 
-func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
+func register(host: Gen2ModHost, manifest: PokeModManifest) -> void:
 	host.register_world_renderer(
 		manifest.id, load("%s/world/renderer.gd" % manifest.directory), "Voxel 3D"
 	)

@@ -65,7 +65,7 @@ func _initialize() -> void:
 func _loaded(host: Gen2ModHost) -> bool:
 	for failure: Dictionary in host.failures():
 		print("mod refused: %s" % str(failure))
-	for manifest: Gen2ModManifest in host.manifests():
+	for manifest: PokeModManifest in host.manifests():
 		if manifest.id == MOD_ID:
 			return host.failures().is_empty()
 	print("%s did not load" % MOD_ID)
@@ -88,7 +88,7 @@ func _item(data: GameData) -> bool:
 	if int(row.get("field_menu", 0)) != Gen2WorldPack.ITEMMENU_PARTY:
 		print("field menu is not ITEMMENU_PARTY, so USE would not open the party list")
 		ok = false
-	if int(row.get("evolution", {}).get("method", 0)) != RomLayout.EVOLVE_TRADE:
+	if int(row.get("evolution", {}).get("method", 0)) != Gen2Layout.EVOLVE_TRADE:
 		print("the row does not name the trade method")
 		ok = false
 	return ok
@@ -144,9 +144,9 @@ func _evolves(data: GameData) -> bool:
 	for case: Dictionary in NAME_CASES:
 		ok = _names(data, case) and ok
 	var trade_evolutions: Array[String] = []
-	for species: int in range(1, RomLayout.SPECIES_COUNT + 1):
+	for species: int in range(1, Gen2Layout.SPECIES_COUNT + 1):
 		for row: Dictionary in data.evolutions(species):
-			if int(row.get("method", 0)) != RomLayout.EVOLVE_TRADE:
+			if int(row.get("method", 0)) != Gen2Layout.EVOLVE_TRADE:
 				continue
 			var held: int = int(row.get("parameter", Gen2Evolution.TRADE_NO_ITEM))
 			trade_evolutions.append("%s -> %s%s" % [

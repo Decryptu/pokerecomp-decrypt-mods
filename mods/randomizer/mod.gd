@@ -16,12 +16,12 @@ const NUMBERED_KINDS: Array[StringName] = [
 
 var _host: Gen2ModHost = null
 var _id: StringName = &""
-var _manifest: Gen2ModManifest = null
+var _manifest: PokeModManifest = null
 var _world: Dictionary = {}
 var _data: GameData = null
 
 
-func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
+func register(host: Gen2ModHost, manifest: PokeModManifest) -> void:
 	_host = host
 	_id = manifest.id
 	_manifest = manifest

@@ -19,7 +19,7 @@ func _initialize() -> void:
 		return
 	var ring: int = RING_BLOCKS
 	if args.size() > 1:
-		ring = maxi(1, ceili(float(int(args[1])) / float(RomLayout.MAP_BLOCK_TILE_WIDTH)))
+		ring = maxi(1, ceili(float(int(args[1])) / float(Gen2Layout.MAP_BLOCK_TILE_WIDTH)))
 	var worst_count: int = int(args[2]) if args.size() > 2 else WORST
 
 	var maps: int = 0

@@ -44,7 +44,7 @@ func _initialize() -> void:
 		return
 
 	var out: String = args[rest]
-	if Gen2ToolPath.refuses(out):
+	if PokeToolPath.refuses(out):
 		quit(2)
 		return
 	var repeat: int = int(args[rest + 1]) if args.size() > rest + 1 else 4

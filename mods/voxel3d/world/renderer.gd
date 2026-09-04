@@ -380,8 +380,8 @@ func _recentre_window() -> void:
 	var span: int = _draw_cells * 2 + 1
 	_stage.set_view_distance(float(_draw_cells) * CELL, true)
 	_begin_terrain(Rect2i(
-		(at - Vector2i(_draw_cells, _draw_cells)) * RomLayout.MAP_BLOCK_CELL_WIDTH,
-		Vector2i(span, span) * RomLayout.MAP_BLOCK_CELL_WIDTH
+		(at - Vector2i(_draw_cells, _draw_cells)) * Gen2Layout.MAP_BLOCK_CELL_WIDTH,
+		Vector2i(span, span) * Gen2Layout.MAP_BLOCK_CELL_WIDTH
 	))
 
 static var solid_cells: float = 35.0
@@ -612,7 +612,7 @@ func _add_actor(
 		_stage.add_shadow_caster(texture, _snapped(ground), 1.0)
 		_add_emote(emote, stood)
 
-const EMOTE_SIDE: int = 2 * Gen2Tiles.TILE_WIDTH
+const EMOTE_SIDE: int = 2 * PokeTiles.TILE_WIDTH
 const EMOTE_CENTRE: float = 1.5 * EMOTE_SIDE
 
 
@@ -627,17 +627,17 @@ func _add_emote(emote: int, stood: Vector3) -> void:
 
 func _emote_texture(emote: int) -> Texture2D:
 	if _world == null or _world.data == null \
-			or emote < 0 or emote >= RomLayout.EMOTE_NAMES.size():
+			or emote < 0 or emote >= Gen2Layout.EMOTE_NAMES.size():
 		return null
 	var key: String = "e%d:%d" % [emote, _time_of_day]
 	if _actor_textures.has(key):
 		return _actor_textures[key]
-	var sheet: Dictionary = _world.data.overworld_effect(RomLayout.EMOTE_NAMES[emote])
+	var sheet: Dictionary = _world.data.overworld_effect(Gen2Layout.EMOTE_NAMES[emote])
 	if sheet.is_empty():
 		return null
 	var tiles: int = int(sheet.get("tiles", 0))
 	var indices: PackedByteArray = sheet.get("indices", PackedByteArray())
-	if tiles < 4 or indices.size() < tiles * Gen2Tiles.TILE_PIXELS:
+	if tiles < 4 or indices.size() < tiles * PokeTiles.TILE_PIXELS:
 		return null
 	var palette: PackedColorArray = sheet.get("colors", PackedColorArray())
 	if palette.is_empty():
@@ -645,13 +645,13 @@ func _emote_texture(emote: int) -> Texture2D:
 			Gen2WorldEffects.PAL_OW_EMOTE, _time_of_day
 		)
 	var image := Image.create_empty(EMOTE_SIDE, EMOTE_SIDE, false, Image.FORMAT_RGBA8)
-	var width: int = tiles * Gen2Tiles.TILE_WIDTH
+	var width: int = tiles * PokeTiles.TILE_WIDTH
 	for tile: int in 4:
-		var left: int = (tile & 1) * Gen2Tiles.TILE_WIDTH
-		var top: int = (tile >> 1) * Gen2Tiles.TILE_HEIGHT
-		for y: int in Gen2Tiles.TILE_HEIGHT:
-			for x: int in Gen2Tiles.TILE_WIDTH:
-				var index: int = int(indices[y * width + tile * Gen2Tiles.TILE_WIDTH + x])
+		var left: int = (tile & 1) * PokeTiles.TILE_WIDTH
+		var top: int = (tile >> 1) * PokeTiles.TILE_HEIGHT
+		for y: int in PokeTiles.TILE_HEIGHT:
+			for x: int in PokeTiles.TILE_WIDTH:
+				var index: int = int(indices[y * width + tile * PokeTiles.TILE_WIDTH + x])
 				if index == 0:
 					continue
 				image.set_pixel(
@@ -694,8 +694,8 @@ func _actor_texture(
 	return texture
 
 const BATTLER_CENTRE := Vector2(
-	(Gen2BattleScreenMap.ENEMY_AT.x + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * Gen2Tiles.TILE_WIDTH,
-	(Gen2BattleScreenMap.ENEMY_AT.y + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * Gen2Tiles.TILE_HEIGHT
+	(Gen2BattleScreenMap.ENEMY_AT.x + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * PokeTiles.TILE_WIDTH,
+	(Gen2BattleScreenMap.ENEMY_AT.y + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * PokeTiles.TILE_HEIGHT
 )
 
 
@@ -742,17 +742,17 @@ func _pulse_texture(
 		return _pulse_textures[key]
 	var strip: PackedByteArray = _world.data.battle_anim_gfx_indices(gfx)
 	@warning_ignore("integer_division")
-	var width: int = strip.size() / Gen2Tiles.TILE_HEIGHT
-	if width <= 0 or (tile + 1) * Gen2Tiles.TILE_WIDTH > width:
+	var width: int = strip.size() / PokeTiles.TILE_HEIGHT
+	if width <= 0 or (tile + 1) * PokeTiles.TILE_WIDTH > width:
 		return null
 	var pixels := PackedByteArray()
-	pixels.resize(Gen2Tiles.TILE_PIXELS)
-	for row: int in Gen2Tiles.TILE_HEIGHT:
-		var from: int = row * width + tile * Gen2Tiles.TILE_WIDTH
-		for column: int in Gen2Tiles.TILE_WIDTH:
-			pixels[row * Gen2Tiles.TILE_WIDTH + column] = strip[from + column]
+	pixels.resize(PokeTiles.TILE_PIXELS)
+	for row: int in PokeTiles.TILE_HEIGHT:
+		var from: int = row * width + tile * PokeTiles.TILE_WIDTH
+		for column: int in PokeTiles.TILE_WIDTH:
+			pixels[row * PokeTiles.TILE_WIDTH + column] = strip[from + column]
 	var image: Image = Gen2PicImage.from_indices(
-		pixels, Gen2Tiles.TILE_WIDTH, Gen2Tiles.TILE_HEIGHT,
+		pixels, PokeTiles.TILE_WIDTH, PokeTiles.TILE_HEIGHT,
 		_world.data.battle_object_palette(
 			attributes & Gen2BattleAnimObject.OAM_PALETTE, pair
 		), true

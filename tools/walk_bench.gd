@@ -56,7 +56,7 @@ func _initialize() -> void:
 	_out = String(named.get("out", ""))
 	_shot = String(named.get("shot", ""))
 	for path: String in [_out, _shot]:
-		if not path.is_empty() and Gen2ToolPath.refuses(path):
+		if not path.is_empty() and PokeToolPath.refuses(path):
 			quit(2)
 			return
 	_span = int(named.get("span", str(SPAN_CELLS_DEFAULT)))
@@ -140,7 +140,7 @@ const LEG_SLACK_FRAMES: int = 32
 const MIN_LEG_CELLS: int = 3
 const WALK_MIN_CELLS: int = 8
 const CHURN_FRAMES_PER_LEG: int = 40
-const HEADINGS: Array[int] = [Gen2Button.DOWN, Gen2Button.RIGHT, Gen2Button.UP, Gen2Button.LEFT]
+const HEADINGS: Array[int] = [PokeButton.DOWN, PokeButton.RIGHT, PokeButton.UP, PokeButton.LEFT]
 
 var _turns: int = 0
 var _heading: int = 0
@@ -164,7 +164,7 @@ func _plan_leg() -> void:
 		frame += 1
 	_leg_from = at
 	_leg_target = Vector2i.MAX if cells == 0 \
-		else at + Gen2Button.vector(HEADINGS[_heading]) * cells
+		else at + PokeButton.vector(HEADINGS[_heading]) * cells
 	_screen.replay_input(entries)
 
 
@@ -177,7 +177,7 @@ func _choose_heading(at: Vector2i) -> int:
 	for wanted: int in [MIN_LEG_CELLS, 1]:
 		for turn: int in HEADINGS.size():
 			_heading = (_heading + 1) % HEADINGS.size()
-			var cells: int = _room_ahead(at, Gen2Button.vector(HEADINGS[_heading]))
+			var cells: int = _room_ahead(at, PokeButton.vector(HEADINGS[_heading]))
 			if cells >= wanted:
 				_turns += 1
 				return cells
