@@ -13,7 +13,7 @@ var _host: Gen2ModHost = null
 var _id: StringName = &""
 
 
-func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
+func register(host: Gen2ModHost, manifest: PokeModManifest) -> void:
 	_host = host
 	_id = manifest.id
 	_combo = Combo.new()

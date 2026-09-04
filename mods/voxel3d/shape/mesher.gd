@@ -23,7 +23,7 @@ const PATCH_TILES: int = 16
 
 ## Volume height cap in walk cells, so nothing measured wrong becomes a tower.
 const MAX_CELLS: int = 3
-const CELL_TILES: int = RomLayout.MAP_BLOCK_CELL_WIDTH
+const CELL_TILES: int = Gen2Layout.MAP_BLOCK_CELL_WIDTH
 
 ## Per-face brightness into the sampled texel. South is the artwork itself and
 ## draws untouched; a volume's top darkens so the plateau behind reads as depth.
@@ -896,7 +896,7 @@ func _forget() -> void:
 func _size_grid(source: RefCounted, shape: RefCounted) -> void:
 	var ring: int = _ring_depth(source, shape) if _outside \
 		else (ROOM_RING if not _room_wall.is_empty() else 0)
-	_map_size = source.size_cells() * RomLayout.MAP_BLOCK_CELL_WIDTH
+	_map_size = source.size_cells() * Gen2Layout.MAP_BLOCK_CELL_WIDTH
 	_margin = Vector2i(
 		_ring_side(source, shape, ring, Vector2i(-1, 0)),
 		_ring_side(source, shape, ring, Vector2i(0, -1))
@@ -7719,8 +7719,8 @@ var _room_wall: Array = []
 
 
 func _ring_depth(source: RefCounted, shape: RefCounted) -> int:
-	for row: int in RomLayout.MAP_BLOCK_TILE_WIDTH:
-		for column: int in RomLayout.MAP_BLOCK_TILE_WIDTH:
+	for row: int in Gen2Layout.MAP_BLOCK_TILE_WIDTH:
+		for column: int in Gen2Layout.MAP_BLOCK_TILE_WIDTH:
 			var tile: int = source.tile_at(column - RING_TILES, row - RING_TILES)
 			if tile < 0:
 				continue

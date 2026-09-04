@@ -56,7 +56,7 @@ func _initialize() -> void:
 	if scale > 1:
 		_image.resize(side * scale, side * scale, Image.INTERPOLATE_NEAREST)
 	var out: String = String(args[1])
-	if Gen2ToolPath.refuses(out):
+	if PokeToolPath.refuses(out):
 		quit(2)
 		return
 	if _image.save_png(out) != OK:

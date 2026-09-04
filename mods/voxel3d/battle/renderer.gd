@@ -237,8 +237,8 @@ func _window(cell: Vector2i) -> Rect2i:
 		return Rect2i()
 	var span: int = _draw_cells * 2 + 1
 	return Rect2i(
-		(cell - Vector2i(_draw_cells, _draw_cells)) * RomLayout.MAP_BLOCK_CELL_WIDTH,
-		Vector2i(span, span) * RomLayout.MAP_BLOCK_CELL_WIDTH
+		(cell - Vector2i(_draw_cells, _draw_cells)) * Gen2Layout.MAP_BLOCK_CELL_WIDTH,
+		Vector2i(span, span) * Gen2Layout.MAP_BLOCK_CELL_WIDTH
 	)
 
 
@@ -363,7 +363,7 @@ func _pin(
 		_stage.add_shadow_caster(texture, ground, _caster_scale(ground, texture.get_height()))
 	return slot + 1
 
-const SHADOW_OFFSET_LIMIT: float = float(Gen2Tiles.TILE_WIDTH)
+const SHADOW_OFFSET_LIMIT: float = float(PokeTiles.TILE_WIDTH)
 
 
 func _stands_on_its_square(offset: Vector2, picture_scale: Vector2) -> bool:
@@ -434,7 +434,7 @@ func _pic(species: int, back: bool) -> Texture2D:
 		return null
 	var form: int = int(_view.get("player_unown_form" if back else "enemy_unown_form", 0))
 	var dmg: int = _palette_map(PAL_BG_PLAYER if back else PAL_BG_ENEMY)
-	var unown: bool = species == RomLayout.UNOWN_SPECIES and form > 0
+	var unown: bool = species == Gen2Layout.UNOWN_SPECIES and form > 0
 	var shiny: bool = _shiny(back)
 	return _texture(
 		"%d:%d:%d:%d:%d:%d" % [
@@ -616,7 +616,7 @@ func _draw_hud() -> void:
 	var enemy_max_hp: int = int(_view.get("enemy_max_hp", 0))
 	var player_hp: int = int(_view.get("player_hp", 0))
 	var player_max_hp: int = int(_view.get("player_max_hp", 0))
-	var ink: PackedColorArray = Gen2Palette.pic_palette(
+	var ink: PackedColorArray = PokePalette.pic_palette(
 		PackedColorArray([Color.WHITE, Color.BLACK])
 	)
 

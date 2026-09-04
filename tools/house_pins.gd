@@ -149,8 +149,8 @@ func _count(data: GameData, tileset_number: int, tiles: Array) -> int:
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		if tileset == null:
 			continue
-		var w: int = map.width_blocks * RomLayout.MAP_BLOCK_CELL_WIDTH * 2
-		var h: int = map.height_blocks * RomLayout.MAP_BLOCK_CELL_WIDTH * 2
+		var w: int = map.width_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH * 2
+		var h: int = map.height_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH * 2
 		var ids := PackedInt32Array()
 		ids.resize(w * h)
 		for ty: int in h:

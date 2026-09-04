@@ -104,7 +104,7 @@ func _catch_experience() -> void:
 ## rather than the policy being read on its own. A script run installs no input
 ## map of its own, so the cartridge's eight are installed here first.
 func _run_shoes() -> void:
-	Gen2InputActions.install(Gen2InputActions.defaults())
+	PokeInputActions.install(PokeInputActions.defaults())
 	Input.action_press(&"gen2_b")
 	_expect(not Gen2ModHost.run_button_held(), "running is OFF with B held")
 	_switch(&"run_shoes", true)

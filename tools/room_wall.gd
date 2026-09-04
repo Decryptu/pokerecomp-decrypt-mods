@@ -20,7 +20,7 @@ func _initialize() -> void:
 		print("usage: <cache> <tileset> [out.png]")
 		quit(1)
 		return
-	if args.size() > 2 and Gen2ToolPath.refuses(args[2]):
+	if args.size() > 2 and PokeToolPath.refuses(args[2]):
 		quit(2)
 		return
 	var data: GameData = GameData.open_argument(args[0])

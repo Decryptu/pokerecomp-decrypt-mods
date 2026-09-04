@@ -34,7 +34,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_out = args[1]
-	if Gen2ToolPath.refuses(_out):
+	if PokeToolPath.refuses(_out):
 		quit(2)
 		return
 	if args.size() > 2 and not args[2].is_empty():

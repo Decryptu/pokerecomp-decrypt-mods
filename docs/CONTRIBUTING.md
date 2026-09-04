@@ -113,7 +113,7 @@ written into that checkout.
 Every tool that takes an output path checks it before doing any work:
 
 ```gdscript
-if Gen2ToolPath.refuses(_out):
+if PokeToolPath.refuses(_out):
 	quit(2)
 	return
 ```
@@ -136,9 +136,12 @@ in the game repository first. It is the contract, and it is enforced.
 - iOS forbids JIT and loading native code at runtime, so a distributed mod is
   interpreted GDScript. No GDExtension, no compiled anything.
 - `api_version` is the oldest host a mod works against, not a number to keep
-  current. The host accepts `Gen2ModManifest.MIN_API_VERSION` to `API_VERSION`,
-  1 to 21 today, and refuses a mod asking for more than it provides. Raise it
+  current. The host accepts `PokeModManifest.MIN_API_VERSION` to `API_VERSION`,
+  1 to 29 today, and refuses a mod asking for more than it provides. Raise it
   when the mod starts using something newer, not with every release.
+- `games` may name `red`, `blue` and `yellow`, but those cartridges import their
+  data tables and are not played, so a mod that hooks the world or a battle
+  names only `gold`, `silver` and `crystal`.
 
 ## Writing rules
 

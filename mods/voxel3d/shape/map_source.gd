@@ -43,22 +43,22 @@ func size_cells() -> Vector2i:
 		return _world.map_size_cells()
 	if _map == null:
 		return Vector2i.ZERO
-	return Vector2i(_map.width_blocks, _map.height_blocks) * RomLayout.MAP_BLOCK_CELL_WIDTH
+	return Vector2i(_map.width_blocks, _map.height_blocks) * Gen2Layout.MAP_BLOCK_CELL_WIDTH
 
 
 func tile_at(tile_x: int, tile_y: int) -> int:
 	if _map == null or _tileset == null:
 		return -1
 	var block: int = _block_at(
-		floori(float(tile_x) / float(RomLayout.MAP_BLOCK_TILE_WIDTH)),
-		floori(float(tile_y) / float(RomLayout.MAP_BLOCK_TILE_WIDTH))
+		floori(float(tile_x) / float(Gen2Layout.MAP_BLOCK_TILE_WIDTH)),
+		floori(float(tile_y) / float(Gen2Layout.MAP_BLOCK_TILE_WIDTH))
 	)
 	if block < 0:
 		return -1
 	return _tileset.tile_index(
 		block,
-		posmod(tile_y, RomLayout.MAP_BLOCK_TILE_WIDTH) * RomLayout.MAP_BLOCK_TILE_WIDTH
-			+ posmod(tile_x, RomLayout.MAP_BLOCK_TILE_WIDTH),
+		posmod(tile_y, Gen2Layout.MAP_BLOCK_TILE_WIDTH) * Gen2Layout.MAP_BLOCK_TILE_WIDTH
+			+ posmod(tile_x, Gen2Layout.MAP_BLOCK_TILE_WIDTH),
 	)
 
 
@@ -150,17 +150,17 @@ func code_at(cell: Vector2i) -> int:
 	if _map == null:
 		return -1
 	if cell.x < 0 or cell.y < 0 \
-			or cell.x >= _map.width_blocks * RomLayout.MAP_BLOCK_CELL_WIDTH \
-			or cell.y >= _map.height_blocks * RomLayout.MAP_BLOCK_CELL_WIDTH:
+			or cell.x >= _map.width_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH \
+			or cell.y >= _map.height_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH:
 		if _tileset == null:
 			return -1
 		return _tileset.collision_index(
 			_block_at(
-				floori(float(cell.x) / float(RomLayout.MAP_BLOCK_CELL_WIDTH)),
-				floori(float(cell.y) / float(RomLayout.MAP_BLOCK_CELL_WIDTH))
+				floori(float(cell.x) / float(Gen2Layout.MAP_BLOCK_CELL_WIDTH)),
+				floori(float(cell.y) / float(Gen2Layout.MAP_BLOCK_CELL_WIDTH))
 			),
-			posmod(cell.x, RomLayout.MAP_BLOCK_CELL_WIDTH),
-			posmod(cell.y, RomLayout.MAP_BLOCK_CELL_WIDTH)
+			posmod(cell.x, Gen2Layout.MAP_BLOCK_CELL_WIDTH),
+			posmod(cell.y, Gen2Layout.MAP_BLOCK_CELL_WIDTH)
 		)
 	if _world != null:
 		return _world.collision_code_at(cell)

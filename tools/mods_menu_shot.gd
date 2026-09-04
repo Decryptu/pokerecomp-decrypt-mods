@@ -7,9 +7,9 @@ const NEW_BARK_GROUP: int = 24
 const NEW_BARK_MAP: int = 7
 
 const BUTTONS: Dictionary = {
-	"u": Gen2Button.UP, "d": Gen2Button.DOWN,
-	"l": Gen2Button.LEFT, "r": Gen2Button.RIGHT,
-	"a": Gen2Button.A, "b": Gen2Button.B,
+	"u": PokeButton.UP, "d": PokeButton.DOWN,
+	"l": PokeButton.LEFT, "r": PokeButton.RIGHT,
+	"a": PokeButton.A, "b": PokeButton.B,
 }
 
 
@@ -24,7 +24,7 @@ func _capture() -> void:
 		print("usage: -- <game> <out.png> [presses] [scale]")
 		quit(2)
 		return
-	if Gen2ToolPath.refuses(args[1]):
+	if PokeToolPath.refuses(args[1]):
 		quit(2)
 		return
 	Gen2ModHost.reset()
@@ -71,8 +71,8 @@ func _capture() -> void:
 		quit(1)
 		return
 	for _step: int in at - menu.cursor:
-		screen.handle_button(Gen2Button.DOWN)
-	screen.handle_button(Gen2Button.A)
+		screen.handle_button(PokeButton.DOWN)
+	screen.handle_button(PokeButton.A)
 	for token: String in (args[2] if args.size() > 2 else "").split(",", false):
 		var key: String = token.strip_edges().to_lower()
 		if BUTTONS.has(key):

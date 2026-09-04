@@ -25,8 +25,8 @@ func _initialize() -> void:
 		var shape: RefCounted = shape_script.new(profile, map.tileset)
 		var source: RefCounted = source_script.new(null, map, tileset)
 		var here: Dictionary = {}
-		for ty: int in map.height_blocks * RomLayout.MAP_BLOCK_CELL_WIDTH * 2:
-			for tx: int in map.width_blocks * RomLayout.MAP_BLOCK_CELL_WIDTH * 2:
+		for ty: int in map.height_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH * 2:
+			for tx: int in map.width_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH * 2:
 				var tile: int = source.tile_at(tx, ty)
 				if tile < 0:
 					continue

@@ -8,7 +8,7 @@ const Policies := preload("policies.gd")
 const BattleInfo := preload("battle_info.gd")
 
 
-func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
+func register(host: Gen2ModHost, manifest: PokeModManifest) -> void:
 	Options.register(host, manifest.id)
 	host.register_field_move_source(
 		manifest.id, Policies.FieldMoveSource.new(host)

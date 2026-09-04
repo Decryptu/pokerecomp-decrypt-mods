@@ -9,9 +9,9 @@ const NEW_BARK_GROUP: int = 24
 const NEW_BARK_MAP: int = 7
 
 const BUTTONS: Dictionary = {
-	"u": Gen2Button.UP, "d": Gen2Button.DOWN,
-	"l": Gen2Button.LEFT, "r": Gen2Button.RIGHT,
-	"a": Gen2Button.A, "b": Gen2Button.B,
+	"u": PokeButton.UP, "d": PokeButton.DOWN,
+	"l": PokeButton.LEFT, "r": PokeButton.RIGHT,
+	"a": PokeButton.A, "b": PokeButton.B,
 }
 
 const ITEMS: Dictionary = {17: 3, 18: 2, 19: 1, 20: 5, LINKING_CORD: 1}
@@ -54,7 +54,7 @@ func _capture() -> void:
 		push_error("Usage: linking_cord_shot.gd -- <game> <output.png> [list|menu|party] [presses]")
 		quit(1)
 		return
-	if Gen2ToolPath.refuses(args[1]):
+	if PokeToolPath.refuses(args[1]):
 		quit(2)
 		return
 	Gen2ModHost.reset()
@@ -102,9 +102,9 @@ func _capture() -> void:
 		if StringName((rows[index] as Dictionary).get("kind", &"")) \
 			== Gen2WorldStartMenu.ITEM_PACK:
 			for _step: int in index - menu.cursor:
-				screen.handle_button(Gen2Button.DOWN)
+				screen.handle_button(PokeButton.DOWN)
 			break
-	screen.handle_button(Gen2Button.A)
+	screen.handle_button(PokeButton.A)
 	for token: String in tokens.split(",", false):
 		var key: String = token.strip_edges().to_lower()
 		if BUTTONS.has(key):

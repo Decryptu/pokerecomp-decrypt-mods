@@ -42,7 +42,7 @@ func _initialize() -> void:
 		quit(2)
 		return
 	_out = args[3]
-	if Gen2ToolPath.refuses(_out):
+	if PokeToolPath.refuses(_out):
 		quit(2)
 		return
 	var data: GameData = GameData.open_argument(args[0])
@@ -174,7 +174,7 @@ func _keep(what: String) -> void:
 		_kept, what, str(snapshot.get("player_cell")),
 		str(snapshot.get("movement_mode")), int(snapshot.get("collision", -1)),
 	])
-	var image: Image = Gen2ToolPath.capture(root)
+	var image: Image = PokeToolPath.capture(root)
 	if image == null:
 		quit(1)
 		return

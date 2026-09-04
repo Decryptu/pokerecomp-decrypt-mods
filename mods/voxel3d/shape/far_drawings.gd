@@ -38,7 +38,7 @@ static func of_map(
 	if size.x <= 0 or size.y <= 0:
 		origin = Vector2i.ZERO
 		size = Vector2i(map.width_blocks, map.height_blocks) \
-			* RomLayout.MAP_BLOCK_TILE_WIDTH
+			* Gen2Layout.MAP_BLOCK_TILE_WIDTH
 	if size.x <= 0 or size.y <= 0:
 		return out
 

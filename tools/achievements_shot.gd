@@ -39,7 +39,7 @@ func _initialize() -> void:
 		quit(2)
 		return
 	_out = args[1]
-	if Gen2ToolPath.refuses(_out):
+	if PokeToolPath.refuses(_out):
 		quit(2)
 		return
 	_kind = StringName(args[2]) if args.size() > 2 else &"notice"
@@ -74,7 +74,7 @@ func _initialize() -> void:
 	host.discover()
 	host.load_discovered()
 	var loaded: bool = false
-	for manifest: Gen2ModManifest in host.manifests():
+	for manifest: PokeModManifest in host.manifests():
 		loaded = loaded or manifest.id == MOD_ID
 	if not loaded:
 		print("the mod is not installed")
@@ -114,7 +114,7 @@ func _process(_delta: float) -> bool:
 	_waited += 1
 	if _waited < SHUTTER_WAIT:
 		return false
-	var image: Image = Gen2ToolPath.capture(root)
+	var image: Image = PokeToolPath.capture(root)
 	if image == null:
 		quit(1)
 		return true

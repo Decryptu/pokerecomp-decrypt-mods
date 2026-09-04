@@ -9,7 +9,7 @@ const PRICE: int = 2100
 const DEPT_STORE_GADGETS: int = 6
 
 
-func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
+func register(host: Gen2ModHost, manifest: PokeModManifest) -> void:
 	host.register_content(Gen2ContentOverlay.KIND_ITEM, manifest.id, LINKING_CORD, {
 		"name": "LINKING CORD",
 		"description": "Evolves POKéMON\nthat need a trade.",
@@ -17,7 +17,7 @@ func register(host: Gen2ModHost, manifest: Gen2ModManifest) -> void:
 		"pocket": Gen2WorldPack.TYPE_ITEM,
 		"field_menu": Gen2WorldPack.ITEMMENU_PARTY,
 		"permissions": Gen2WorldPack.CANT_SELECT,
-		"evolution": {"method": RomLayout.EVOLVE_TRADE},
+		"evolution": {"method": Gen2Layout.EVOLVE_TRADE},
 	})
 	host.register_menu_entry(Gen2ModHost.MENU_MART, manifest.id, {
 		"label": "LINKING CORD",

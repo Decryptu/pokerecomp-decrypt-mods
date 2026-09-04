@@ -68,8 +68,8 @@ func _window(map: Gen2WorldMap, named: Dictionary) -> Rect2i:
 		return Rect2i()
 	var span: int = distance * 2 + 1
 	return Rect2i(
-		(cell - Vector2i(distance, distance)) * RomLayout.MAP_BLOCK_CELL_WIDTH,
-		Vector2i(span, span) * RomLayout.MAP_BLOCK_CELL_WIDTH
+		(cell - Vector2i(distance, distance)) * Gen2Layout.MAP_BLOCK_CELL_WIDTH,
+		Vector2i(span, span) * Gen2Layout.MAP_BLOCK_CELL_WIDTH
 	)
 
 

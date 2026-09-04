@@ -13,7 +13,7 @@ func _initialize() -> void:
 		print("usage: <cache> <out.json> [group] [number]")
 		quit(1)
 		return
-	if Gen2ToolPath.refuses(args[1]):
+	if PokeToolPath.refuses(args[1]):
 		quit(2)
 		return
 	var data: GameData = GameData.open_argument(args[0])

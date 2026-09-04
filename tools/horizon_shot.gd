@@ -43,7 +43,7 @@ func _initialize() -> void:
 		return
 
 	_out = String(named.get("out", "user://horizon.png"))
-	if Gen2ToolPath.refuses(_out):
+	if PokeToolPath.refuses(_out):
 		quit(2)
 		return
 	_label = String(named.get("label", ""))

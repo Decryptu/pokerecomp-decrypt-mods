@@ -16,7 +16,7 @@ func _initialize() -> void:
 		print("usage: <cache> <group> <number> <out.png> [scale]")
 		quit(1)
 		return
-	if Gen2ToolPath.refuses(args[3]):
+	if PokeToolPath.refuses(args[3]):
 		quit(2)
 		return
 	var data: GameData = GameData.open_argument(args[0])

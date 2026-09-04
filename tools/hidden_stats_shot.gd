@@ -6,8 +6,8 @@ const SCREEN := Vector2i(160, 144)
 const WINDOW_SCALE: int = 4
 
 const ROUTE: Array[int] = [
-	Gen2Button.A, Gen2Button.A,
-	Gen2Button.RIGHT, Gen2Button.RIGHT, Gen2Button.RIGHT,
+	PokeButton.A, PokeButton.A,
+	PokeButton.RIGHT, PokeButton.RIGHT, PokeButton.RIGHT,
 ]
 
 const CAPTURE_ON: int = 6
@@ -36,7 +36,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_out = args[1]
-	if Gen2ToolPath.refuses(_out):
+	if PokeToolPath.refuses(_out):
 		quit(2)
 		return
 	var species: int = int(args[2]) if args.size() > 2 else 155

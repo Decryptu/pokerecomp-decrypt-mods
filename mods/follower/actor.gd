@@ -67,7 +67,7 @@ func _carry_shift(map: Vector2i) -> Vector2i:
 	)
 	if placement.is_empty():
 		return Trail.NO_CARRY
-	return Vector2i(placement["origin"]) * RomLayout.MAP_BLOCK_CELL_WIDTH
+	return Vector2i(placement["origin"]) * Gen2Layout.MAP_BLOCK_CELL_WIDTH
 
 
 func sprites() -> Array:
