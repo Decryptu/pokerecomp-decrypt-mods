@@ -1,23 +1,35 @@
 extends SceneTree
 
 ## Checks the Linking Cord against a real cartridge cache, on whichever of the
-## three is named.
+## six is named.
+
+const Staging: GDScript = preload("staging.gd")
 
 const MOD_ID: StringName = &"linking_cord"
 const LINKING_CORD: int = 256
 const DEPT_STORE_GADGETS: int = 6
+const CELADON_STONE_COUNTER: Vector2i = Vector2i(125, 1)
+const GEN1_MAP_COUNT: int = 256
+const FACINGS: Array[int] = [
+	Gen2WorldSprite.FACING_DOWN, Gen2WorldSprite.FACING_UP,
+	Gen2WorldSprite.FACING_LEFT, Gen2WorldSprite.FACING_RIGHT,
+]
 const PRICE: int = 2100
-const NEW_BARK_GROUP: int = 24
-const NEW_BARK_MAP: int = 7
+const NEW_BARK: Vector2i = Vector2i(24, 7)
+const PALLET_TOWN: Vector2i = Vector2i(0, 0)
 const EVERSTONE: int = 70
 const KADABRA: int = 64
 const ALAKAZAM: int = 65
 
 const CASES: Array[Dictionary] = [
 	{"what": "KADABRA, holding nothing", "species": 64, "becomes": 65},
+	{"what": "HAUNTER, holding nothing", "species": 93, "becomes": 94},
+	{"what": "PIKACHU, no trade evolution", "species": 25},
+]
+## Held items arrive with Generation II, and so do the six that ask for one.
+const GEN2_CASES: Array[Dictionary] = [
 	{"what": "ONIX holding METAL COAT", "species": 95, "held": 0x8F, "becomes": 208},
 	{"what": "ONIX holding nothing", "species": 95},
-	{"what": "PIKACHU, no trade evolution", "species": 25},
 	{"what": "KADABRA holding EVERSTONE", "species": 64, "held": EVERSTONE},
 ]
 
@@ -50,26 +62,13 @@ func _initialize() -> void:
 		return
 	var game: StringName = data.id
 	var host: Gen2ModHost = Gen2ModHost.instance()
-	host.set_target_game(game)
-	host.discover()
-	host.load_discovered()
-	var ok: bool = _loaded(host)
+	var ok: bool = Staging.mod_loaded(host, data, MOD_ID)
 	ok = _item(data) and ok
 	ok = _shelf(host, data) and ok
 	ok = _pocket(data) and ok
 	ok = _evolves(data) and ok
 	print("%s: %s" % [game, "ok" if ok else "FAILED"])
 	quit(0 if ok else 1)
-
-
-func _loaded(host: Gen2ModHost) -> bool:
-	for failure: Dictionary in host.failures():
-		print("mod refused: %s" % str(failure))
-	for manifest: PokeModManifest in host.manifests():
-		if manifest.id == MOD_ID:
-			return host.failures().is_empty()
-	print("%s did not load" % MOD_ID)
-	return false
 
 
 func _item(data: GameData) -> bool:
@@ -95,7 +94,8 @@ func _item(data: GameData) -> bool:
 
 
 func _shelf(host: Gen2ModHost, data: GameData) -> bool:
-	var ok: bool = true
+	if data.generation == RomRegistry.GEN1:
+		return _gen1_shelf(host, data)
 	var sold_at: Array[int] = []
 	for row: Dictionary in data.catalog().rows(Gen2WorldCatalog.KIND_SHOP):
 		var mart: int = int(row.get("mart", -1))
@@ -110,8 +110,58 @@ func _shelf(host: Gen2ModHost, data: GameData) -> bool:
 	print("  sold at marts %s" % str(sold_at))
 	if sold_at != [DEPT_STORE_GADGETS]:
 		print("the cord is not on mart %d alone" % DEPT_STORE_GADGETS)
-		ok = false
-	return ok
+		return false
+	return true
+
+
+## Every Generation I counter is walked up to and asked, the way the game asks,
+## so the shelf is judged on the mart the host resolves and not on a guess at it.
+func _gen1_shelf(host: Gen2ModHost, data: GameData) -> bool:
+	var sold_at: Array[Vector2i] = []
+	var counters: int = 0
+	for number: int in GEN1_MAP_COUNT:
+		var map: Gen2WorldMap = data.world_map(0, number)
+		if map == null:
+			continue
+		for event: Dictionary in map.events.get("objects", []):
+			var text_id: int = int(event.get("text", 0))
+			if not map.text_at(text_id).has("items"):
+				continue
+			var mart: Dictionary = _counter_mart(data, number, event)
+			if mart.is_empty():
+				print("  no mart request at map 0,%d text %d" % [number, text_id])
+				return false
+			counters += 1
+			for entry: Dictionary in host.mart_entries(mart):
+				if int(entry.get("item", 0)) == LINKING_CORD:
+					sold_at.append(Vector2i(number, text_id))
+	print("  sold at %s of %d counters, as map number and text" % [str(sold_at), counters])
+	if sold_at != [CELADON_STONE_COUNTER]:
+		print("the cord is not on Celadon Dept Store 4F's counter alone")
+		return false
+	return true
+
+
+## The mart the clerk at [param event] resolves when faced across the counter,
+## or from the next cell where there is none, from whichever side answers.
+func _counter_mart(data: GameData, number: int, event: Dictionary) -> Dictionary:
+	var clerk := Vector2i(int(event.get("x", 0)), int(event.get("y", 0)))
+	for facing: int in FACINGS:
+		for distance: int in [2, 1]:
+			var cell: Vector2i = clerk - Gen2WorldAPI.SIGHT_STEPS[facing] * distance
+			var world: Gen2WorldAPI = Gen2WorldAPI.open(
+				data, 0, number, cell, Gen2WorldState.new({}, {}, {}, {})
+			)
+			if world == null:
+				return {}
+			world.player_facing = facing
+			world.interact()
+			var pending: Dictionary = world.pending_runtime_request()
+			if StringName(pending.get("kind", &"")) != &"mart_requested":
+				continue
+			var resolved: Dictionary = Gen2WorldHost.resolve_runtime_request(world, pending)
+			return resolved.get("data", {}).get("mart", {})
+	return {}
 
 
 func _pocket(data: GameData) -> bool:
@@ -139,12 +189,15 @@ func _pocket(data: GameData) -> bool:
 
 func _evolves(data: GameData) -> bool:
 	var ok: bool = true
-	for case: Dictionary in CASES:
+	var cases: Array[Dictionary] = CASES.duplicate()
+	if data.generation != RomRegistry.GEN1:
+		cases.append_array(GEN2_CASES)
+	for case: Dictionary in cases:
 		ok = _case(data, case) and ok
 	for case: Dictionary in NAME_CASES:
 		ok = _names(data, case) and ok
 	var trade_evolutions: Array[String] = []
-	for species: int in range(1, Gen2Layout.SPECIES_COUNT + 1):
+	for species: int in range(1, data.species_count() + 1):
 		for row: Dictionary in data.evolutions(species):
 			if int(row.get("method", 0)) != Gen2Layout.EVOLVE_TRADE:
 				continue
@@ -163,10 +216,7 @@ func _case(data: GameData, case: Dictionary) -> bool:
 	var species: int = int(case["species"])
 	var held: int = int(case.get("held", 0))
 	var becomes: int = int(case.get("becomes", 0))
-	var world: Gen2WorldAPI = Gen2WorldAPI.open(
-		data, NEW_BARK_GROUP, NEW_BARK_MAP, Vector2i.ZERO,
-		Gen2WorldState.new({}, {}, {LINKING_CORD: 1}, {})
-	)
+	var world: Gen2WorldAPI = _open(data)
 	var save: Gen2SaveData = Gen2SaveStore.create_development_save(data, 0)
 	if world == null or save == null:
 		print("  no world or save for %s" % String(case["what"]))
@@ -209,10 +259,7 @@ func _case(data: GameData, case: Dictionary) -> bool:
 
 
 func _names(data: GameData, case: Dictionary) -> bool:
-	var world: Gen2WorldAPI = Gen2WorldAPI.open(
-		data, NEW_BARK_GROUP, NEW_BARK_MAP, Vector2i.ZERO,
-		Gen2WorldState.new({}, {}, {LINKING_CORD: 1}, {})
-	)
+	var world: Gen2WorldAPI = _open(data)
 	var save: Gen2SaveData = Gen2SaveStore.create_development_save(data, 0)
 	if world == null or save == null:
 		print("  no world or save for %s" % String(case["what"]))
@@ -258,3 +305,10 @@ func _outcome(data: GameData, result: Dictionary, species: int) -> String:
 	if bool(result.get("ok", false)):
 		return "-> %s" % String(data.species(species).get("name", "?"))
 	return "refused (%s)" % String(result.get("reason", "?"))
+
+
+func _open(data: GameData) -> Gen2WorldAPI:
+	var home: Vector2i = PALLET_TOWN if data.generation == RomRegistry.GEN1 else NEW_BARK
+	return Gen2WorldAPI.open(
+		data, home.x, home.y, Vector2i.ZERO, Gen2WorldState.new({}, {}, {LINKING_CORD: 1}, {})
+	)

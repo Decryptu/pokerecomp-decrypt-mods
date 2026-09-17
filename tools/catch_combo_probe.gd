@@ -3,6 +3,8 @@ extends SceneTree
 ## Checks the Catch Combo against a real cartridge cache, through the host's
 ## own joins rather than through the mod's objects.
 
+const Staging: GDScript = preload("staging.gd")
+
 const MOD_ID: StringName = &"catch_combo"
 const CHARM_ID: StringName = &"shiny_charm"
 const SHINY_CHARM: int = 257
@@ -25,33 +27,14 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var host: Gen2ModHost = Gen2ModHost.instance()
-	host.set_target_game(data.id)
-	host.discover()
-	host.load_discovered()
+	var ok: bool = Staging.mod_loaded(host, data, MOD_ID)
 	host.set_inventory_source(func() -> Dictionary: return {})
-
-	var ok: bool = _loaded(host)
 	ok = _rungs(host) and ok
 	ok = _stacking(host) and ok
 	ok = _breaks(host) and ok
 	ok = _box(host) and ok
 	print("%s: %s" % [data.id, "ok" if ok else "FAILED"])
 	quit(0 if ok else 1)
-
-
-func _loaded(host: Gen2ModHost) -> bool:
-	for failure: Dictionary in host.failures():
-		print("mod refused: %s" % str(failure))
-	var found: bool = false
-	for manifest: PokeModManifest in host.manifests():
-		if manifest.id == MOD_ID:
-			found = true
-			print("  loaded       %s %s, api %d" % [
-				manifest.id, manifest.version, manifest.api_version,
-			])
-	if not found:
-		print("%s did not load" % MOD_ID)
-	return found and host.failures().is_empty()
 
 
 func _catch(species: int, times: int = 1) -> void:

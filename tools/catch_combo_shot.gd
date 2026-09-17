@@ -3,6 +3,9 @@ extends SceneTree
 ## Photographs the line a Catch Combo adds, in the place the mod adds it: the
 ## battle box, after `Gotcha!` and before the nickname prompt.
 
+const Staging: GDScript = preload("staging.gd")
+
+const MOD_ID: StringName = &"catch_combo"
 const THUMBNAIL_SIZE := Vector2i(1280, 720)
 const DEFAULT_SPECIES: int = 19
 const DEFAULT_LEVEL: int = 4
@@ -56,9 +59,9 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var host: Gen2ModHost = Gen2ModHost.instance()
-	host.set_target_game(data.id)
-	host.discover()
-	host.load_discovered()
+	if not Staging.mod_loaded(host, data, MOD_ID):
+		quit(1)
+		return
 	for _catch: int in CATCHES_BEFORE:
 		_publish_catch()
 

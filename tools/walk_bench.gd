@@ -80,7 +80,7 @@ func _initialize() -> void:
 	])
 
 	_hidden = String(named.get("off", ""))
-	_stage_mods(named)
+	_stage_mods(named, data)
 
 	root.set_content_scale_size(window)
 	root.size = window
@@ -101,17 +101,15 @@ func _finalize() -> void:
 	_staging.restore()
 
 
-func _stage_mods(named: Dictionary) -> void:
+func _stage_mods(named: Dictionary, data: GameData) -> void:
 	var host: Gen2ModHost = Gen2ModHost.instance()
-	print("mods       %s" % str(Staging.load_mods(host, String(named.get("mods", "all")))))
+	print("mods       %s" % str(Staging.load_mods(host, data, String(named.get("mods", "all")))))
 	var view := StringName(named.get("view", "gen2"))
 	print("view       %s %s" % [String(view), str(host.select_view(view))])
 	if named.has("static"):
 		Staging.apply_statics(String(named["static"]))
 	if named.has("set"):
 		_staging.apply_options(host, view, String(named["set"]))
-	if not host.failures().is_empty():
-		print("failures   %s" % str(host.failures()))
 
 
 func _save(

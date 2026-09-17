@@ -3,6 +3,8 @@ extends SceneTree
 ## Photographs the Achievements mod's two surfaces, through the real world
 ## screen, with the mod itself raising them.
 
+const Staging: GDScript = preload("staging.gd")
+
 const MOD_ID: StringName = &"achievements"
 const DEFAULT_WINDOW := Vector2i(800, 720)
 
@@ -70,20 +72,11 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var host: Gen2ModHost = Gen2ModHost.instance()
-	host.set_target_game(_data.id)
-	host.discover()
-	host.load_discovered()
-	var loaded: bool = false
-	for manifest: PokeModManifest in host.manifests():
-		loaded = loaded or manifest.id == MOD_ID
-	if not loaded:
-		print("the mod is not installed")
+	if not Staging.mod_loaded(host, _data, MOD_ID):
 		quit(1)
 		return
 	if not _view.is_empty():
 		print("view       ", String(_view), " ", str(host.select_view(_view)))
-	if not host.failures().is_empty():
-		print("failures   ", str(host.failures()))
 
 	if _framed:
 		Gen2OptionsStore.current().screen_fill = false

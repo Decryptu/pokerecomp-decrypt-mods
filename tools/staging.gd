@@ -82,12 +82,13 @@ func restore() -> void:
 
 
 ## `mods=all|none|<id>,...`. A run under `-s` loads none at boot, so it says which.
-static func load_mods(host: Gen2ModHost, spec: String) -> Array:
+static func load_mods(host: Gen2ModHost, data: GameData, spec: String) -> Array:
 	if spec == "none":
 		return []
-	host.discover()
 	if spec == "all":
-		return host.load_discovered()
+		return load_installed(host, data)
+	host.set_target_game(data.id)
+	host.discover()
 	var wanted: Dictionary = {}
 	for raw: String in spec.split(",", false):
 		wanted[StringName(raw.strip_edges())] = true
@@ -97,6 +98,38 @@ static func load_mods(host: Gen2ModHost, spec: String) -> Array:
 				and bool(host.load_mod(manifest).get("ok", false)):
 			loaded.append(String(manifest.id))
 	loaded.sort()
+	return loaded
+
+
+## Loads every installed mod the way the game does on the cartridge [param data]
+## was read from, and answers the ids that loaded. A mod refused for declaring
+## other cartridges is left out without comment; see [method refusals].
+static func load_installed(host: Gen2ModHost, data: GameData) -> Array:
+	host.set_target_game(data.id)
+	host.discover()
+	var loaded: Array = host.load_discovered()
+	for failure: Dictionary in refusals(host):
+		print("mod refused: %s" % str(failure))
+	return loaded
+
+
+## The refusals that say something is wrong: one for a mod that does not name
+## this cartridge is the game refusing it by design.
+static func refusals(host: Gen2ModHost) -> Array:
+	var out: Array = []
+	for failure: Dictionary in host.failures():
+		if StringName(failure.get("reason", &"")) != &"incompatible_game":
+			out.append(failure)
+	return out
+
+
+## [method load_installed], then whether [param id] loaded clean.
+static func mod_loaded(host: Gen2ModHost, data: GameData, id: StringName) -> bool:
+	var loaded: bool = load_installed(host, data).has(id)
+	for failure: Dictionary in host.failures():
+		loaded = loaded and StringName(failure.get("id", &"")) != id
+	if not loaded:
+		print("%s did not load on %s" % [String(id), String(data.id)])
 	return loaded
 
 

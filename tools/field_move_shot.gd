@@ -59,9 +59,7 @@ func _initialize() -> void:
 
 func _stage(data: GameData, group: int, number: int) -> void:
 	var host: Gen2ModHost = Gen2ModHost.instance()
-	host.set_target_game(data.id)
-	host.discover()
-	host.load_discovered()
+	print("mods       %s" % str(Staging.load_installed(host, data)))
 	print("view       %s" % str(host.select_view(
 		StringName(_named.get("view", "voxel3d"))
 	)))

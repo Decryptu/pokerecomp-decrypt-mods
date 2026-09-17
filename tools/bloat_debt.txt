@@ -67,7 +67,6 @@ mods/voxel3d/world/far_houses.gd:_box
 mods/voxel3d/world/renderer.gd:_add_encounter_pulse
 mods/voxel3d/world/renderer.gd:_emote_texture
 tools/achievements_probe.gd:_initialize
-tools/achievements_probe.gd:_loaded
 tools/achievements_probe.gd:_once
 tools/achievements_shot.gd:_initialize
 tools/aura_sheet.gd:_initialize

@@ -2,6 +2,9 @@ extends SceneTree
 
 ## Photographs the fourth stats page, through the real party screen.
 
+const Staging: GDScript = preload("staging.gd")
+
+const MOD_ID: StringName = &"hidden_stats"
 const SCREEN := Vector2i(160, 144)
 const WINDOW_SCALE: int = 4
 
@@ -30,6 +33,7 @@ func _initialize() -> void:
 		print("usage: -- <game> <out.png> [species] [level] [scale]")
 		quit(2)
 		return
+	Gen2ModHost.reset()
 	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache for %s" % args[0])
@@ -43,13 +47,7 @@ func _initialize() -> void:
 	var level: int = clampi(int(args[3]) if args.size() > 3 else 34, 1, 100)
 	_scale = maxi(int(args[4]) if args.size() > 4 else 1, 1)
 
-	Gen2ModHost.reset()
-	var host: Gen2ModHost = Gen2ModHost.instance()
-	host.set_target_game(StringName(args[0]))
-	host.discover()
-	host.load_discovered()
-	if not host.failures().is_empty():
-		print("mods refused: %s" % str(host.failures()))
+	if not Staging.mod_loaded(Gen2ModHost.instance(), data, MOD_ID):
 		quit(1)
 		return
 
