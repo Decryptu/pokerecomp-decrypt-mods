@@ -13,7 +13,13 @@ const KEYS: Array[StringName] = [
 const EXP_SCALE: StringName = &"exp_scale"
 const MULTI_EXP: StringName = &"multi_exp"
 
+## Where a world is opened to ask the host: Pallet Town, and New Bark Town.
+const FIRST_MAPS: Dictionary = {
+	RomRegistry.GEN1: Vector2i(0, 0), RomRegistry.GEN2: Vector2i(24, 4),
+}
+
 var _host: Gen2ModHost
+var _data: GameData = null
 var _original: Dictionary = {}
 var _original_scale: Variant = null
 var _original_share: Variant = null
@@ -30,6 +36,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var game: StringName = data.id
+	_data = data
 	_host = Gen2ModHost.instance()
 	_expect(Staging.mod_loaded(_host, data, MOD_ID), "the mod loaded on %s" % String(game))
 	for key: StringName in KEYS:
@@ -76,7 +83,37 @@ func _field_moves() -> void:
 	_expect(not Gen2ModHost.allows_item_field_move(57), "field moves are OFF")
 	_switch(&"field_moves", true)
 	_expect(Gen2ModHost.allows_item_field_move(57), "field moves are ON")
+	_hm_in_the_bag()
 	_switch(&"field_moves", false)
+
+
+## Through the host's own offer: HM01 in the bag, the badge Cut wants, and a
+## party that knows nothing, on the cartridge's first map.
+func _hm_in_the_bag() -> void:
+	var map: Gen2WorldMap = _data.world_map(FIRST_MAPS[_data.generation].x, FIRST_MAPS[_data.generation].y)
+	var world := Gen2WorldAPI.new(_data, map, _data.world_tileset(map.tileset))
+	world.set_party_summary(1, false, [1], [[0, 0, 0, 0]], ["BULBA"], [false], {}, [false])
+	var cut: int = Gen2WorldFieldMove.MOVE_CUT
+	var hm: int = Gen2WorldTMHM.item_for_number(_data, _data.tmhm_number_for_move(cut))
+	world.inventory.change_item_quantity(hm, 1)
+	world.state.set_engine_flag(_cut_badge_flag())
+	var offered: Array = []
+	for offer: Dictionary in world.item_field_move_offers():
+		offered.append(int(offer["move"]))
+	_expect(offered == [cut], "HM01 in the bag offers CUT and nothing else (%s)" % str(offered))
+	var source: Dictionary = world.field_move_source(cut)
+	_expect(int(source.get("item", 0)) == hm, "the source is the HM itself")
+
+
+func _cut_badge_flag() -> int:
+	if _data.generation == RomRegistry.GEN1:
+		return Gen2WorldState.gen1_badge_flag(
+			int(Gen1Layout.FIELD_MOVE_BADGES[Gen2WorldFieldMove.MOVE_CUT])
+		)
+	return Gen2WorldState.badge_flag(
+		Gen2WorldFieldMove.badge_for_move(Gen2WorldFieldMove.MOVE_CUT),
+		Gen2WorldState.is_crystal_profile(_data)
+	)
 
 
 func _repel() -> void:
@@ -183,8 +220,25 @@ func _stages() -> void:
 		"player stages reuse the command panel field")
 	snapshot["hud_visible"] = false
 	_expect(_placements(snapshot).is_empty(), "stages hide with the battle HUD")
+	_special_stage()
 	_full_stages()
 	_switch(&"stat_stages", false)
+
+
+## The host mirrors Generation I's one SPECIAL stage onto both keys.
+func _special_stage() -> void:
+	var snapshot: Dictionary = _snapshot()
+	snapshot["menu_stage"] = "main"
+	snapshot["player_stages"] = {&"sp_attack": 2, &"sp_defense": 2}
+	var texts: Array = []
+	for placement: Dictionary in _placements(snapshot):
+		texts.append(String(placement.get("text", "")))
+	_expect(texts == ["SP.A2", "SP.D2"], "Generation II names both halves (%s)" % str(texts))
+	snapshot["generation"] = RomRegistry.GEN1
+	texts = []
+	for placement: Dictionary in _placements(snapshot):
+		texts.append(String(placement.get("text", "")))
+	_expect(texts == ["SPC2"], "Generation I names SPECIAL once (%s)" % str(texts))
 
 
 func _full_stages() -> void:

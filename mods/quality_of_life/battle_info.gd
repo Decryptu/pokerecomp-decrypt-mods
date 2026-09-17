@@ -13,16 +13,22 @@ const WEATHER_RAIN: Array[int] = [0x00, 0x38, 0x7C, 0xFE, 0x7C, 0x00, 0x52, 0x24
 const WEATHER_SAND: Array[int] = [0x00, 0x7C, 0x02, 0x3C, 0x40, 0x3E, 0x00, 0x6A]
 const WEATHER_AT: Vector2i = Vector2i(0, 5)
 
-const STAGE_ORDER: Array[StringName] = [
-	&"attack", &"defense", &"speed", &"sp_attack", &"sp_defense",
-	&"accuracy", &"evasion",
-]
+## Generation I stages one SPECIAL, which the host mirrors onto both keys.
+const STAGE_ORDERS: Dictionary = {
+	RomRegistry.GEN1: [&"attack", &"defense", &"speed", &"sp_attack", &"accuracy", &"evasion"],
+	RomRegistry.GEN2: [
+		&"attack", &"defense", &"speed", &"sp_attack", &"sp_defense",
+		&"accuracy", &"evasion",
+	],
+}
 const STAGE_LABELS: Dictionary = {
+	RomRegistry.GEN1: {&"sp_attack": "SPC"},
+	RomRegistry.GEN2: {&"sp_attack": "SP.A", &"sp_defense": "SP.D"},
+}
+const SHARED_LABELS: Dictionary = {
 	&"attack": "ATK",
 	&"defense": "DEF",
 	&"speed": "SPD",
-	&"sp_attack": "SP.A",
-	&"sp_defense": "SP.D",
 	&"accuracy": "ACC",
 	&"evasion": "EVA",
 }
@@ -75,28 +81,30 @@ func _stages(snapshot: Dictionary) -> Array:
 		or String(snapshot.get("menu_stage", "")) != "main":
 		return []
 	var out: Array = []
+	var generation: int = int(snapshot.get("generation", RomRegistry.GEN2))
 	if bool(snapshot.get("enemy_hud_visible", false)):
 		out.append_array(_stage_side(
-			snapshot.get("enemy_stages", {}) as Dictionary, ENEMY_STAGES_AT, true
+			snapshot.get("enemy_stages", {}) as Dictionary, generation, ENEMY_STAGES_AT, true
 		))
 	if bool(snapshot.get("player_hud_visible", false)):
 		out.append_array(_stage_side(
-			snapshot.get("player_stages", {}) as Dictionary, PLAYER_STAGES_AT, false
+			snapshot.get("player_stages", {}) as Dictionary, generation, PLAYER_STAGES_AT, false
 		))
 	return out
 
 
-func _stage_side(stages: Dictionary, start: Vector2i, field: bool) -> Array:
+func _stage_side(stages: Dictionary, generation: int, start: Vector2i, field: bool) -> Array:
 	var out: Array = []
 	var at: Vector2i = start
-	for key: StringName in STAGE_ORDER:
+	var labels: Dictionary = STAGE_LABELS[generation]
+	for key: StringName in STAGE_ORDERS[generation]:
 		if at.y > LAST_ROW:
 			break
 		var stage: int = int(stages.get(key, stages.get(String(key), 0)))
 		if stage == 0:
 			continue
 		var placement: Dictionary = {
-			"text": "%s%d" % [String(STAGE_LABELS[key]), stage],
+			"text": "%s%d" % [String(labels.get(key, SHARED_LABELS.get(key, ""))), stage],
 			"at": at,
 		}
 		if field:
