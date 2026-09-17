@@ -6,10 +6,7 @@ extends SceneTree
 const Staging: GDScript = preload("staging.gd")
 
 const MOD_ID: StringName = &"quality_of_life"
-const KEYS: Array[StringName] = [
-	&"field_moves", &"auto_repel", &"catch_exp", &"pc_access", &"run_shoes",
-	&"move_guide", &"stat_stages", &"weather",
-]
+const Options: GDScript = preload("../mods/quality_of_life/options.gd")
 const EXP_SCALE: StringName = &"exp_scale"
 const MULTI_EXP: StringName = &"multi_exp"
 
@@ -20,6 +17,7 @@ const FIRST_MAPS: Dictionary = {
 
 var _host: Gen2ModHost
 var _data: GameData = null
+var _keys: Array[StringName] = []
 var _original: Dictionary = {}
 var _original_scale: Variant = null
 var _original_share: Variant = null
@@ -37,9 +35,10 @@ func _initialize() -> void:
 		return
 	var game: StringName = data.id
 	_data = data
+	_keys = Options.keys_for(data.generation)
 	_host = Gen2ModHost.instance()
 	_expect(Staging.mod_loaded(_host, data, MOD_ID), "the mod loaded on %s" % String(game))
-	for key: StringName in KEYS:
+	for key: StringName in _keys:
 		_original[key] = _host.option(MOD_ID, key)
 		_switch(key, false)
 	_original_scale = _host.option(MOD_ID, EXP_SCALE)
@@ -59,7 +58,7 @@ func _initialize() -> void:
 	_stages()
 	_weather()
 
-	for key: StringName in KEYS:
+	for key: StringName in _keys:
 		_host.set_option(MOD_ID, key, _original[key])
 	_host.set_option(MOD_ID, EXP_SCALE, _original_scale)
 	_host.set_option(MOD_ID, MULTI_EXP, _original_share)
@@ -68,8 +67,10 @@ func _initialize() -> void:
 
 
 func _registration() -> void:
-	_expect(_host.options(MOD_ID).size() == KEYS.size() + 2,
-		"%d switches, the EXP rate and MULTI EXP registered" % KEYS.size())
+	_expect(_host.options(MOD_ID).size() == _keys.size() + 2,
+		"%d switches, the EXP rate and MULTI EXP registered" % _keys.size())
+	_expect(_keys.has(&"weather") == (_data.generation != RomRegistry.GEN1),
+		"WEATHER is offered where the cartridge has weather")
 	_expect(_host.field_move_source_ids().has(MOD_ID), "field-move source registered")
 	_expect(_host.repel_renewal_ids().has(MOD_ID), "Repel renewal registered")
 	_expect(_host.catch_experience_ids().has(MOD_ID), "catch EXP policy registered")
@@ -116,16 +117,23 @@ func _cut_badge_flag() -> int:
 	)
 
 
+## The cartridge's own Repel table, weakest first, which is what the host hands
+## the provider.
 func _repel() -> void:
-	var bag: Dictionary = {0x14: 2, 0x2A: 2, 0x2B: 2}
-	_expect(_host.repel_renewal_item(bag) == 0, "Repel renewal is OFF")
+	var repels: Dictionary = Gen2WorldPartyHost.item_effects(_data)["repel"]
+	var weakest_first: Array = repels.keys()
+	weakest_first.sort_custom(func(a: int, b: int) -> bool: return repels[a] < repels[b])
+	_expect(weakest_first.size() == 3, "three Repels on the cartridge (%s)" % str(repels))
+	var bag: Dictionary = {}
+	for item: int in weakest_first:
+		bag[item] = 2
+	_expect(_host.repel_renewal_item(bag, repels) == 0, "Repel renewal is OFF")
 	_switch(&"auto_repel", true)
-	_expect(_host.repel_renewal_item(bag) == 0x14, "ordinary REPEL is first")
-	bag.erase(0x14)
-	_expect(_host.repel_renewal_item(bag) == 0x2A, "SUPER REPEL is second")
-	bag.erase(0x2A)
-	_expect(_host.repel_renewal_item(bag) == 0x2B, "MAX REPEL is last")
-	_expect(_host.repel_renewal_item({}) == 0, "an empty bag offers nothing")
+	for item: int in weakest_first:
+		_expect(_host.repel_renewal_item(bag, repels) == item,
+			"%s is next, at %d steps" % [_data.item_name(item), int(repels[item])])
+		bag.erase(item)
+	_expect(_host.repel_renewal_item({}, repels) == 0, "an empty bag offers nothing")
 	_switch(&"auto_repel", false)
 
 
@@ -265,6 +273,8 @@ func _full_stages() -> void:
 
 
 func _weather() -> void:
+	if not _keys.has(&"weather"):
+		return
 	var snapshot: Dictionary = _snapshot()
 	_switch(&"weather", true)
 	for weather: int in [Gen2Weather.RAIN, Gen2Weather.SUN, Gen2Weather.SANDSTORM]:

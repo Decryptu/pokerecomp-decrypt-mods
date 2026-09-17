@@ -20,23 +20,24 @@ class FieldMoveSource:
 class RepelRenewal:
 	extends RefCounted
 
-	const REPEL: int = 0x14
-	const SUPER_REPEL: int = 0x2A
-	const MAX_REPEL: int = 0x2B
-	const WEAKEST_FIRST: Array[int] = [REPEL, SUPER_REPEL, MAX_REPEL]
-
 	var _host: Gen2ModHost
 
 	func _init(host: Gen2ModHost) -> void:
 		_host = host
 
-	func repel_to_use(inventory: Dictionary) -> int:
+	## The fewest steps of the Repels the cartridge names and the bag holds.
+	func repel_to_use(context: Dictionary) -> int:
 		if not Options.enabled(_host, Options.AUTO_REPEL):
 			return 0
-		for item: int in WEAKEST_FIRST:
-			if int(inventory.get(item, 0)) > 0:
-				return item
-		return 0
+		var repels: Dictionary = context.get("repels", {})
+		var inventory: Dictionary = context.get("inventory", {})
+		var weakest: int = 0
+		for item: int in repels:
+			if int(inventory.get(item, 0)) <= 0:
+				continue
+			if weakest == 0 or int(repels[item]) < int(repels[weakest]):
+				weakest = item
+		return weakest
 
 
 class CatchExperience:
