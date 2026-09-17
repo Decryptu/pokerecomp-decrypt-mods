@@ -1,7 +1,8 @@
 # Follower
 
 One of your Pokemon out of its ball, walking one cell behind you. It is drawn
-with the cartridge's own party icon for its species, so the mod ships no art.
+with the cartridge's own party icon for its species, so the mod ships no art. It
+runs on all six cartridges.
 
 ## How it moves
 
@@ -31,7 +32,7 @@ to and is not seen by trainers.
 ## Petting it
 
 Turn to face it and press A. It looks back, shows the cartridge's own heart for a
-second and plays its cry.
+second and plays its cry. Red and Blue have no heart bubble, so it smiles there.
 
 The turn is the cartridge's own behaviour: the first press in a direction only
 turns you, so you end up facing each other. That branch is on the input path
@@ -57,7 +58,8 @@ It is off by default because the cartridge hides these to be looked for.
 
 The mod names a cell and never takes anything. The host writes the bag, the
 event flag and the save, and runs its own `verbosegiveitem` with the FOUND text,
-the fanfare and the pack-full branch.
+the fanfare and the pack-full branch; on Red, Blue and Yellow it runs the
+cartridge's own hidden-item routine the same way.
 
 It asks once each time the follower arrives somewhere, which is the cartridge's
 own unit: one attempt per step. So an item it found while the pack was full is
@@ -93,11 +95,23 @@ same state. It lasts for the session only.
 Some Pokemon stay in the ball whatever the settings say: an empty slot, an egg, a
 fainted Pokemon, and any species the cartridge has no icon for.
 
+Yellow walks its own PIKACHU, and while it does the follower stays in its ball
+whatever WHO says, so there is never a second Pokemon on the path. The moment
+the cartridge puts PIKACHU away, fainted or in a box, the chosen slot walks.
+
 It also goes back in its ball for the frames the party is not physically with
 you: over a healing machine, at the Hall of Fame's, over either Day Care counter
 and in the trade cable. The host answers which of those has it, so the follower
 is put away for exactly those frames and is out again on the frame the scene
 ends, standing where it was rather than under you.
+
+## What it needs
+
+A host that drives a registered actor, offers a row in the party submenu, answers
+where the party is and which hidden items a map holds, and takes a cell to pick
+one up. On Red, Blue and Yellow that is `api_version` 34, the first host whose
+Generation I party menu offers a registered row, whose hidden items answer there
+and which says when Yellow's own PIKACHU is out.
 
 ## How it is drawn
 
