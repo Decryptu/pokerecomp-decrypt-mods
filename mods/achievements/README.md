@@ -92,7 +92,7 @@ In the start menu's MODS entry, and on the mod's launcher page.
 
 ## What it needs
 
-`api_version` 21: the host answers what the run has achieved and says when a
+A host that answers what the run has achieved and says when a
 field of it moves, raises a mod's banner over the map, and keeps a mod's page
 behind a start-menu row. The mod draws none of that itself. It reads no world and
 no battle state, holds no scene node and composes no pixel.

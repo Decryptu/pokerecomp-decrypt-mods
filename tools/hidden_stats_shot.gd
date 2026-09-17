@@ -1,6 +1,7 @@
 extends SceneTree
 
-## Photographs the fourth stats page, through the real party screen.
+## Photographs the registered stats page, through the real party screen: the
+## fourth page on Generation II, the third on Generation I.
 
 const Staging: GDScript = preload("staging.gd")
 
@@ -8,10 +9,11 @@ const MOD_ID: StringName = &"hidden_stats"
 const SCREEN := Vector2i(160, 144)
 const WINDOW_SCALE: int = 4
 
-const ROUTE: Array[int] = [
-	PokeButton.A, PokeButton.A,
-	PokeButton.RIGHT, PokeButton.RIGHT, PokeButton.RIGHT,
-]
+const OPEN_STATS: Array[int] = [PokeButton.A, PokeButton.A]
+const GEN1_TURNS: Array[int] = [PokeButton.A, PokeButton.A]
+const GEN2_TURNS: Array[int] = [PokeButton.RIGHT, PokeButton.RIGHT, PokeButton.RIGHT]
+const GEN1_SPECIES: int = 25
+const GEN2_SPECIES: int = 155
 
 const CAPTURE_ON: int = 6
 
@@ -23,6 +25,7 @@ const STAT_EXP: Dictionary = {
 
 var _out: String = ""
 var _scale: int = 1
+var _route: Array[int] = []
 var _screen: Control = null
 var _frames: int = 0
 
@@ -43,26 +46,16 @@ func _initialize() -> void:
 	if PokeToolPath.refuses(_out):
 		quit(2)
 		return
-	var species: int = int(args[2]) if args.size() > 2 else 155
-	var level: int = clampi(int(args[3]) if args.size() > 3 else 34, 1, 100)
 	_scale = maxi(int(args[4]) if args.size() > 4 else 1, 1)
-
 	if not Staging.mod_loaded(Gen2ModHost.instance(), data, MOD_ID):
 		quit(1)
 		return
-
-	var save: Gen2SaveData = Gen2SaveStore.create_development_save(data, 0)
+	var save: Gen2SaveData = _save(data, args)
 	if save == null:
-		print("no development save for %s" % args[0])
 		quit(1)
 		return
-	var mon: Gen2SaveMon = _stage(data, species, level)
-	if mon == null:
-		print("no species %d on %s" % [species, args[0]])
-		quit(1)
-		return
-	save.party = [mon]
-
+	var one: bool = data.generation == RomRegistry.GEN1
+	_route = OPEN_STATS + (GEN1_TURNS if one else GEN2_TURNS)
 	DisplayServer.window_set_size(SCREEN * WINDOW_SCALE)
 	root.set_content_scale_size(SCREEN * WINDOW_SCALE)
 	root.size = SCREEN * WINDOW_SCALE
@@ -72,6 +65,25 @@ func _initialize() -> void:
 	root.add_child(_screen)
 	_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	current_scene = _screen
+
+
+## A development save whose party is the one staged mon, or null with a reason
+## printed.
+func _save(data: GameData, args: PackedStringArray) -> Gen2SaveData:
+	var one: bool = data.generation == RomRegistry.GEN1
+	var species: int = int(args[2]) if args.size() > 2 \
+		else (GEN1_SPECIES if one else GEN2_SPECIES)
+	var level: int = clampi(int(args[3]) if args.size() > 3 else 34, 1, 100)
+	var save: Gen2SaveData = Gen2SaveStore.create_development_save(data, 0)
+	if save == null:
+		print("no development save for %s" % data.id)
+		return null
+	var mon: Gen2SaveMon = _stage(data, species, level)
+	if mon == null:
+		print("no species %d on %s" % [species, data.id])
+		return null
+	save.party = [mon]
+	return save
 
 
 func _stage(data: GameData, species: int, level: int) -> Gen2SaveMon:
@@ -91,7 +103,7 @@ func _process(_delta: float) -> bool:
 	if _frames < CAPTURE_ON:
 		return false
 	if _frames == CAPTURE_ON:
-		for button: int in ROUTE:
+		for button: int in _route:
 			_screen.handle_button(button)
 		return false
 	RenderingServer.force_draw()

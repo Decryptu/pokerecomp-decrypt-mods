@@ -64,6 +64,6 @@ put the game down. Neither do the games this is from.
 
 ## What it needs
 
-`api_version` 20: the host reports a capture on the battle channel, lets a mod
+A host that reports a capture on the battle channel, lets a mod
 add a line to the battle's own message run, and adds a mod's extra shiny rolls
 to another mod's rather than taking the larger of the two.
