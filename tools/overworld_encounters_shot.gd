@@ -3,6 +3,8 @@ extends SceneTree
 ## Photographs the host's forced shiny visible encounter through either world
 ## renderer.
 
+const Staging: GDScript = preload("staging.gd")
+
 const WINDOW_SIZE := Vector2i(1152, 648)
 const SETTLE_FRAMES: int = 60
 const CAPTURE_ON: int = 120
@@ -33,8 +35,7 @@ func _initialize() -> void:
 		return
 	var host: Gen2ModHost = Gen2ModHost.instance()
 	if not host.world_renderer_ids().has(&"voxel3d"):
-		host.discover()
-		host.load_discovered()
+		Staging.load_installed(host, data)
 	var renderer: StringName = StringName(args[4]) if args.size() > 4 else &"gen2"
 	if renderer != &"gen2":
 		var selected: Dictionary = host.select_view(renderer)
@@ -42,7 +43,7 @@ func _initialize() -> void:
 			print("could not select renderer %s: %s" % [renderer, selected])
 			quit(1)
 			return
-	print("renderer %s, failures %s" % [renderer, host.failures()])
+	print("renderer %s" % renderer)
 	root.set_content_scale_size(WINDOW_SIZE)
 	root.size = WINDOW_SIZE
 	_screen = (load("res://game/world/world_screen.tscn") as PackedScene).instantiate()

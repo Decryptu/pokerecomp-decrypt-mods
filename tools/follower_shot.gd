@@ -2,6 +2,8 @@ extends SceneTree
 
 ## Photographs the follower on a real map, through the game's own world screen.
 
+const Staging: GDScript = preload("staging.gd")
+
 const WINDOW_SIZE := Vector2i(1152, 648)
 const STEP_FRAMES: int = 8
 const CAUGHT_AT: int = 4
@@ -46,11 +48,8 @@ func _initialize() -> void:
 
 	var host: Gen2ModHost = Gen2ModHost.instance()
 	if host.world_actors().is_empty():
-		host.discover()
-		host.load_discovered()
-	print("actors     %s, failures %s" % [
-		str(host.world_actor_ids()), str(host.failures())
-	])
+		Staging.load_installed(host, data)
+	print("actors     %s" % str(host.world_actor_ids()))
 	if args.size() > 6:
 		print("view       %s" % str(host.select_view(StringName(args[6]))))
 
@@ -61,9 +60,7 @@ func _initialize() -> void:
 	_screen.map_number = int(args[2])
 	_screen.encounter_seed = 1
 	_screen.set_data(data)
-	_screen.set_save(load(
-		"%s/staging.gd" % (get_script() as Script).resource_path.get_base_dir()
-	).party_save(data, str(species)))
+	_screen.set_save(Staging.party_save(data, str(species)))
 	root.add_child(_screen)
 	current_scene = _screen
 	_screen.set_process(false)

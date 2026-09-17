@@ -1,12 +1,15 @@
 extends SceneTree
 
-## Photographs the cord where a player meets it: the Items pocket that lists
-## it, the description box under it, its own submenu, and the party list USE
+## Photographs the cord where a player meets it: the bag row that lists it, its
+## own submenu, and the party list USE opens. The evolution scene runs on the
+## world screen; `evolution_shot.gd` photographs that.
+
+const Staging: GDScript = preload("staging.gd")
 
 const MOD_ID: StringName = &"linking_cord"
 const LINKING_CORD: int = 256
-const NEW_BARK_GROUP: int = 24
-const NEW_BARK_MAP: int = 7
+const NEW_BARK: Vector2i = Vector2i(24, 7)
+const PALLET_TOWN: Vector2i = Vector2i(0, 0)
 
 const BUTTONS: Dictionary = {
 	"u": PokeButton.UP, "d": PokeButton.DOWN,
@@ -14,14 +17,15 @@ const BUTTONS: Dictionary = {
 	"a": PokeButton.A, "b": PokeButton.B,
 }
 
+## Four cartridge items ahead of the cord, so the list scrolls to it: potions
+## and an antidote on Generation II, balls, potions and a rope on Generation I.
 const ITEMS: Dictionary = {17: 3, 18: 2, 19: 1, 20: 5, LINKING_CORD: 1}
+const GEN1_ITEMS: Dictionary = {4: 3, 19: 2, 20: 1, 29: 5, LINKING_CORD: 1}
 
 const ROUTES: Dictionary = {
 	"list": "d,d,d,d",
 	"menu": "d,d,d,d,a",
 	"party": "d,d,d,d,a,a",
-	"evolving": "d,d,d,d,a,a,a",
-	"evolved": "d,d,d,d,a,a,a,a",
 }
 
 
@@ -58,21 +62,12 @@ func _capture() -> void:
 		quit(2)
 		return
 	Gen2ModHost.reset()
-	var mods: Gen2ModHost = Gen2ModHost.instance()
-	mods.set_target_game(StringName(args[0]))
-	mods.discover()
-	mods.load_discovered()
-	if not mods.failures().is_empty():
-		push_error("mods refused: %s" % str(mods.failures()))
-		quit(1)
-		return
 	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		push_error("No cache for %s." % args[0])
 		quit(1)
 		return
-	if data.item(LINKING_CORD).is_empty():
-		push_error("%s is not loaded: item %d is undefined." % [MOD_ID, LINKING_CORD])
+	if not Staging.mod_loaded(Gen2ModHost.instance(), data, MOD_ID):
 		quit(1)
 		return
 
@@ -80,9 +75,11 @@ func _capture() -> void:
 	if args.size() > 3 and not args[3].is_empty():
 		tokens = "%s,%s" % [tokens, args[3]]
 
+	var gen1: bool = data.generation == RomRegistry.GEN1
+	var home: Vector2i = PALLET_TOWN if gen1 else NEW_BARK
 	var world: Gen2WorldAPI = Gen2WorldAPI.open(
-		data, NEW_BARK_GROUP, NEW_BARK_MAP, Vector2i.ZERO,
-		Gen2WorldState.new({}, {}, ITEMS, {})
+		data, home.x, home.y, Vector2i.ZERO,
+		Gen2WorldState.new({}, {}, GEN1_ITEMS if gen1 else ITEMS, {})
 	)
 	var screen := Gen2StartMenuScreen.new()
 	root.add_child(screen)

@@ -3,6 +3,8 @@ extends SceneTree
 ## Checks the Achievements mod against a real cartridge cache, through the
 ## host's own joins rather than through the mod's objects.
 
+const Staging: GDScript = preload("staging.gd")
+
 const MOD_ID: StringName = &"achievements"
 const MOD_ROOT: String = "user://mods/achievements"
 
@@ -29,11 +31,7 @@ func _initialize() -> void:
 		return
 
 	var host: Gen2ModHost = Gen2ModHost.instance()
-	host.set_target_game(data.id)
-	host.discover()
-	host.load_discovered()
-
-	var ok: bool = _loaded(host)
+	var ok: bool = Staging.mod_loaded(host, data, MOD_ID) and _registered(host)
 	ok = _table(data) and ok
 	ok = _announceable(host, data) and ok
 	ok = _edges() and ok
@@ -42,19 +40,8 @@ func _initialize() -> void:
 	quit(0 if ok else 1)
 
 
-func _loaded(host: Gen2ModHost) -> bool:
-	for failure: Dictionary in host.failures():
-		print("mod refused: %s" % str(failure))
-	var ok: bool = false
-	for manifest: PokeModManifest in host.manifests():
-		if manifest.id == MOD_ID:
-			ok = true
-			print("  loaded       %s %s, api %d" % [
-				manifest.id, manifest.version, manifest.api_version,
-			])
-	if not ok:
-		print("the mod did not load")
-		return false
+func _registered(host: Gen2ModHost) -> bool:
+	var ok: bool = true
 	if host.page(MOD_ID).is_empty():
 		print("no page is registered")
 		ok = false

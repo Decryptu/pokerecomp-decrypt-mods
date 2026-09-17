@@ -3,6 +3,8 @@ extends SceneTree
 ## Photographs the start menu's own list with the installed mods loaded, on a
 ## save that has unlocked every row the cartridge gates.
 
+const Staging: GDScript = preload("staging.gd")
+
 const NEW_BARK_GROUP: int = 24
 const NEW_BARK_MAP: int = 7
 const ENGINE_POKEGEAR: int = 4
@@ -26,17 +28,14 @@ func _capture() -> void:
 		quit(2)
 		return
 	Gen2ModHost.reset()
-	var mods: Gen2ModHost = Gen2ModHost.instance()
-	mods.set_target_game(StringName(args[0]))
-	mods.discover()
-	mods.load_discovered()
-	if not mods.failures().is_empty():
-		print("mods refused: %s" % str(mods.failures()))
-		quit(1)
-		return
 	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache for %s" % args[0])
+		quit(1)
+		return
+	var mods: Gen2ModHost = Gen2ModHost.instance()
+	print("mods %s" % str(Staging.load_installed(mods, data)))
+	if not Staging.refusals(mods).is_empty():
 		quit(1)
 		return
 	var scale: int = maxi(int(args[3]) if args.size() > 3 else 1, 1)

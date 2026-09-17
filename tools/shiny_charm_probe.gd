@@ -3,12 +3,16 @@ extends SceneTree
 ## Checks the Shiny Charm against a real cartridge cache, on whichever of the
 ## three is named.
 
+const Staging: GDScript = preload("staging.gd")
+
 const MOD_ID: StringName = &"shiny_charm"
 const SHINY_CHARM: int = 257
 const ROLLS: int = 3
 const VANILLA_ODDS: int = 8192
+## Thirty-odd plain shinies, enough to tell a ratio of 3 from 1; a quarter of
+## that read 1.06 once on the same seeds.
 const DEFAULT_WILDS: int = 240000
-const MINIMUM_ARM: int = VANILLA_ODDS * 8
+const MINIMUM_ARM: int = DEFAULT_WILDS
 const RATIO_BAND := Vector2(2.0, 4.0)
 const SPECIES: int = 16
 const LEVEL: int = 5
@@ -31,27 +35,13 @@ func _initialize() -> void:
 	var game: StringName = data.id
 	var wilds: int = int(args[1]) if args.size() > 1 else DEFAULT_WILDS
 	var host: Gen2ModHost = Gen2ModHost.instance()
-	host.set_target_game(game)
-	host.discover()
-	host.load_discovered()
-
-	var ok: bool = _loaded(host)
+	var ok: bool = Staging.mod_loaded(host, data, MOD_ID)
 	ok = _item(data) and ok
 	ok = _policy(host) and ok
 	ok = _population(data, host, wilds) and ok
 	ok = _diploma(data, host) and ok
 	print("%s: %s" % [game, "ok" if ok else "FAILED"])
 	quit(0 if ok else 1)
-
-
-func _loaded(host: Gen2ModHost) -> bool:
-	for failure: Dictionary in host.failures():
-		print("mod refused: %s" % str(failure))
-	for manifest: PokeModManifest in host.manifests():
-		if manifest.id == MOD_ID:
-			return host.failures().is_empty()
-	print("%s did not load" % MOD_ID)
-	return false
 
 
 func _item(data: GameData) -> bool:

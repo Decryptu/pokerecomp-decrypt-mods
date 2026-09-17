@@ -137,13 +137,16 @@ in the game repository first. It is the contract, and it is enforced.
   interpreted GDScript. No GDExtension, no compiled anything.
 - `api_version` is the oldest host a mod works against, not a number to keep
   current. The host accepts `PokeModManifest.MIN_API_VERSION` to `API_VERSION`,
-  30 to 30 today, and refuses anything outside that. Raise it when the mod
+  30 to 31 today, and refuses anything outside that. Raise it when the mod
   starts using something newer, not with every release. Version 30 renamed the
   classes both generations reach, so it moved the floor as well as the ceiling:
   a mod below it names a class the host no longer declares.
-- `games` may name `red`, `blue` and `yellow`, but those cartridges import their
-  data tables and are not played, so a mod that hooks the world or a battle
-  names only `gold`, `silver` and `crystal`.
+- `games` names the cartridges the mod is for, out of `red`, `blue`, `yellow`,
+  `gold`, `silver` and `crystal`. All six are played, on the same `Gen2*`
+  screens and seams, but a seam a Generation I screen does not reach is silent
+  there rather than refused: a stats page is never offered on Red, and a mart
+  reached on Red carries no `mart_id`. Name a cartridge only after each seam the
+  mod uses has been walked on it, with a probe and a picture.
 
 ## Writing rules
 

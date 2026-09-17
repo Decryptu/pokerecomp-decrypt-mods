@@ -70,16 +70,13 @@ func _initialize() -> void:
 
 	var host: Gen2ModHost = Gen2ModHost.instance()
 	if host.world_actors().is_empty():
-		host.discover()
-		host.load_discovered()
+		Staging.load_installed(host, data)
 	var view := StringName(named.get("view", "voxel3d"))
 	print("view       %s %s" % [String(view), str(host.select_view(view))])
 	if named.has("static"):
 		Staging.apply_statics(String(named["static"]))
 	if named.has("set"):
 		_staging.apply_options(host, view, String(named["set"]))
-	if not host.failures().is_empty():
-		print("failures   %s" % str(host.failures()))
 
 	root.set_content_scale_size(window)
 	root.size = window

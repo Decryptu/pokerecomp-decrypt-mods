@@ -3,6 +3,8 @@ extends SceneTree
 ## Exercises every decision the Quality of Life mod owns through the production
 ## host registration.
 
+const Staging: GDScript = preload("staging.gd")
+
 const MOD_ID: StringName = &"quality_of_life"
 const KEYS: Array[StringName] = [
 	&"field_moves", &"auto_repel", &"catch_exp", &"pc_access", &"run_shoes",
@@ -29,9 +31,7 @@ func _initialize() -> void:
 		return
 	var game: StringName = data.id
 	_host = Gen2ModHost.instance()
-	_host.set_target_game(game)
-	_host.discover()
-	_host.load_discovered()
+	_expect(Staging.mod_loaded(_host, data, MOD_ID), "the mod loaded on %s" % String(game))
 	for key: StringName in KEYS:
 		_original[key] = _host.option(MOD_ID, key)
 		_switch(key, false)
@@ -61,7 +61,6 @@ func _initialize() -> void:
 
 
 func _registration() -> void:
-	_expect(_host.failures().is_empty(), "the host reports no registration failures")
 	_expect(_host.options(MOD_ID).size() == KEYS.size() + 2,
 		"%d switches, the EXP rate and MULTI EXP registered" % KEYS.size())
 	_expect(_host.field_move_source_ids().has(MOD_ID), "field-move source registered")
@@ -206,7 +205,7 @@ func _full_stages() -> void:
 		inside = inside and at.y >= 0 and at.y < 18 and at.x >= 0 and at.x + wide <= 20
 	_expect(inside, "seven stages a side stay on the screen's own grid")
 	_expect(
-		_host.failures().is_empty(),
+		Staging.refusals(_host).is_empty(),
 		"the host refused none of this mod's annotations"
 	)
 

@@ -44,7 +44,7 @@ func _initialize() -> void:
 	var smooth: bool = not named.has("hardware")
 	Gen2OptionsStore.current().smooth_scroll = smooth
 	var host: Gen2ModHost = Gen2ModHost.instance()
-	print("mods       %s" % str(Staging.load_mods(host, String(named.get("mods", "all")))))
+	print("mods       %s" % str(Staging.load_mods(host, data, String(named.get("mods", "all")))))
 	var view := StringName(named.get("view", "voxel3d"))
 	print("view       %s %s" % [String(view), str(host.select_view(view))])
 	print("scrolling  %s" % ("SMOOTH" if smooth else "hardware pixels"))
