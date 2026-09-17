@@ -67,7 +67,7 @@ Pokedex already knows, and never reveal an unseen opponent.
 
 ## What it needs
 
-`api_version` 29. Every changed transaction stays in the host: field moves,
+Every changed transaction stays in the host: field moves,
 Repel use, catch experience, the step's own duration, the experience award and
 PC storage and the share a bystander is paid all run through the game's existing
 paths. The battle provider gets

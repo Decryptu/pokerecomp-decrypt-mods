@@ -56,7 +56,7 @@ cartridge's font, exactly like a MOON STONE.
 
 ## What it needs
 
-`api_version` 32: an item row that names an evolution method, and a mart that
+An item row that names an evolution method, and a mart that
 says which map its counter stands on, which is how the Kanto shelf is found. The mod draws nothing
 and writes nothing: it names the method, and the host runs the same check a
 trade would, so the species, the consumed held item, the EVERSTONE refusal, the

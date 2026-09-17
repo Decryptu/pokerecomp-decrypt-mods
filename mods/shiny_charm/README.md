@@ -49,6 +49,6 @@ in the cartridge's font, exactly like the SILVER WING.
 
 ## What it needs
 
-`api_version` 16: the host rolls each wild Pokemon's DVs, takes a roll count
+A host that rolls each wild Pokemon's DVs, takes a roll count
 from a mod, can hand an item to the player, and can be asked what is in the bag.
 The mod names an item number and a roll count and writes nothing itself.
