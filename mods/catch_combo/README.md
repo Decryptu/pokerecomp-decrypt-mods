@@ -2,7 +2,8 @@
 
 Catch the same species over and over and its wild Pokemon start being drawn with
 more DV words, so a shiny comes sooner. It is the Let's Go games' Catch Combo,
-on a cartridge that has fishing, trees and rocks for it to count.
+on a cartridge that has fishing, trees and rocks for it to count. It runs on all
+six cartridges.
 
 ## The combo
 
@@ -34,9 +35,11 @@ have, and a combo is never written into a save there either.
 | 21 to 30 | 8 | 1 in 1024 | 1 in 819 |
 | 31 or more | 12 | 1 in 683 | 1 in 585 |
 
-Shininess in Generation II is not a flag: it is the Pokemon's four DVs. The host
-draws that many DV words, keeps the first `CheckShininess` accepts and otherwise
-the last, and this mod only says how many to draw. Each column is what the same
+Shininess is not a flag: it is the Pokemon's four DVs. The host draws that many
+DV words, keeps the first `CheckShininess` accepts and otherwise the last, and
+this mod only says how many to draw. Red, Blue and Yellow roll the same DVs and
+never look at them; the host does, and draws a shiny there too, so the combo is
+worth the same on every cartridge. Each column is what the same
 combo is worth in the Let's Go games, roll for roll.
 
 The boost belongs to the chained species alone, exactly as it does there, so the
@@ -66,4 +69,5 @@ put the game down. Neither do the games this is from.
 
 A host that reports a capture on the battle channel, lets a mod
 add a line to the battle's own message run, and adds a mod's extra shiny rolls
-to another mod's rather than taking the larger of the two.
+to another mod's rather than taking the larger of the two. On Red, Blue and
+Yellow it needs the host that draws a shiny there, `api_version` 34.

@@ -9,6 +9,8 @@ const Trail := preload("trail.gd")
 const Finder := preload("finder.gd")
 
 const HEART_FRAMES: int = 60
+## Red and Blue carry no heart sheet, so a petted follower there smiles instead.
+const HEART_SHEET: String = "heart"
 
 var _host: Gen2ModHost = null
 var _id: StringName = &"follower"
@@ -18,6 +20,7 @@ var _settings: Dictionary = Options.settings(null)
 var _recalled: bool = false
 var _pose: Dictionary = {}
 var _heart: int = 0
+var _emote: int = Gen2WorldActors.EMOTE_HEART
 var _outbox: Array = []
 var _stood_at := Vector2i.MAX
 var _map := Vector2i(-1, -1)
@@ -36,6 +39,9 @@ func set_world(world: Gen2WorldAPI) -> void:
 	_pose = {}
 	_heart = 0
 	_stood_at = Vector2i.MAX
+	_emote = Gen2WorldActors.EMOTE_HEART \
+		if world == null or not world.data.overworld_effect(HEART_SHEET).is_empty() \
+		else Gen2WorldActors.EMOTE_HAPPY
 
 
 func advance_frame() -> void:
@@ -84,7 +90,7 @@ func sprites() -> Array:
 		"span": pose["span"],
 	}
 	if _heart > 0:
-		entry["emote"] = Gen2WorldActors.EMOTE_HEART
+		entry["emote"] = _emote
 	return [entry]
 
 
@@ -130,7 +136,7 @@ func _look_for_an_item() -> void:
 
 
 func _allowed() -> bool:
-	if _recalled or not _world.party_with_player():
+	if _recalled or not _world.party_with_player() or _world.cartridge_follower_out():
 		return false
 	var mode: StringName = _world.movement_mode
 	if mode == Gen2WorldAPI.MOVEMENT_BIKE and not bool(_settings[Options.CYCLING]):

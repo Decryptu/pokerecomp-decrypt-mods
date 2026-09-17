@@ -32,13 +32,32 @@ const FACINGS: Dictionary = {
 }
 
 const PARTY: Array[int] = [155, 172, 25, 249]
+## One the cartridge has an icon for, to walk a real map with.
+const WALKERS: Dictionary = {RomRegistry.GEN1: 25, RomRegistry.GEN2: 155}
 
 ## Further than a walk reaches, for a first sample with nothing before it.
 const FAR: float = -1000.0
 
-## The cable club counter, which takes the party out of the player's hands.
-const TRADE_MAP := Vector2i(1, 3)
-const TRADE_CELL := Vector2i(2, 5)
+## A counter that takes the party out of the player's hands, with the Pokemon it
+## wants in slot one: the KRABBY trader by the cable club on Gold, Silver and
+## Crystal, who asks which to hand over, and the Viridian nurse on Red, Blue and
+## Yellow, who asks YES first.
+const COUNTERS: Dictionary = {
+	RomRegistry.GEN1: {"map": Vector2i(0, 41), "cell": Vector2i(3, 4), "species": 25},
+	RomRegistry.GEN2: {"map": Vector2i(1, 3), "cell": Vector2i(2, 5), "species": 98},
+}
+## Pallet Town, on the path below the player's house.
+const YELLOW_MAP := Vector2i(0, 0)
+const YELLOW_CELL := Vector2i(8, 9)
+const COUNTER_STEPS: int = 8
+const YES: int = 0
+
+## Where a map is numbered: one group of 256 on Generation I, 26 of 40 on II,
+## as the first group, the count of groups, and the count of numbers.
+const MAP_GROUPS: Dictionary = {
+	RomRegistry.GEN1: Vector3i(0, 1, 256),
+	RomRegistry.GEN2: Vector3i(1, 26, 40),
+}
 
 
 func _initialize() -> void:
@@ -88,6 +107,7 @@ func _initialize() -> void:
 	failures += _finding(finder)
 	failures += _picking_up(actor_script, options, data)
 	failures += _in_the_ball(actor_script, options, data)
+	failures += _beside_the_cartridges_own(actor_script, options, data)
 	quit(int(failures > 0))
 
 
@@ -498,7 +518,11 @@ func _picking_up(actor_script: GDScript, options: GDScript, data: GameData) -> i
 
 	var host: Gen2ModHost = Gen2ModHost.instance()
 	options.register(host, options.MOD_ID)
-	world.set_party_summary(1, false, PARTY.slice(0, 1), [], ["CYNDA"], [false], {}, [false])
+	var walker: int = WALKERS[data.generation]
+	world.set_party_summary(
+		1, false, [walker], [], [String(data.species(walker).get("name", ""))],
+		[false], {}, [false]
+	)
 	var actor: RefCounted = actor_script.new()
 	actor.configure(host, options.MOD_ID)
 	actor.set_world(world)
@@ -537,7 +561,7 @@ func _picking_up(actor_script: GDScript, options: GDScript, data: GameData) -> i
 		"the host runs the map's own script", not results.is_empty()
 	) else 1
 	failures += 0 if _report(
-		"the site's flag is set", world.event_flag_active(int(site["flag"]))
+		"the site's flag is set", _flag_set(world, int(site["flag"]))
 	) else 1
 	failures += 0 if _report(
 		"the item is in the bag (%d -> %d)" % [before, after], after > before
@@ -552,15 +576,19 @@ func _picking_up(actor_script: GDScript, options: GDScript, data: GameData) -> i
 ## player. The cable club on map 1,3 takes it, so the follower is in its ball for
 ## those frames and out again on the frame the host answers.
 func _in_the_ball(actor_script: GDScript, options: GDScript, data: GameData) -> int:
-	var map: Gen2WorldMap = data.world_map(TRADE_MAP.x, TRADE_MAP.y)
+	var counter: Dictionary = COUNTERS[data.generation]
+	var at: Vector2i = counter["map"]
+	var map: Gen2WorldMap = data.world_map(at.x, at.y)
 	if map == null:
-		_report("map %s is in the cartridge" % str(TRADE_MAP), false)
+		_report("map %s is in the cartridge" % str(at), false)
 		return 1
 	var world := Gen2WorldAPI.new(
-		data, map, data.world_tileset(map.tileset), TRADE_CELL
+		data, map, data.world_tileset(map.tileset), counter["cell"] as Vector2i
 	)
+	var species: int = int(counter["species"])
 	world.set_party_summary(
-		1, false, PARTY.slice(0, 1), [], ["CYNDA"], [false], {}, [false]
+		1, false, [species], [], [String(data.species(species).get("name", ""))],
+		[false], {}, [false]
 	)
 	var host: Gen2ModHost = Gen2ModHost.instance()
 	options.register(host, options.MOD_ID)
@@ -574,6 +602,7 @@ func _in_the_ball(actor_script: GDScript, options: GDScript, data: GameData) -> 
 		"before the counter it is out", not actor.sprites().is_empty()
 	) else 1
 	world.interact()
+	_hand_the_party_over(world, species)
 	actor.advance_frame()
 	failures += 0 if _report(
 		"the host says who has the party (%s)" % String(world.party_holder()),
@@ -583,11 +612,80 @@ func _in_the_ball(actor_script: GDScript, options: GDScript, data: GameData) -> 
 		"handed over, it is in its ball", actor.sprites().is_empty()
 	) else 1
 	world.complete_runtime_request({})
+	_wait_for_the_party(world)
 	actor.advance_frame()
 	failures += 0 if _report(
 		"answered, it is out again on the same frame", not actor.sprites().is_empty()
 	) else 1
 	return failures
+
+
+## Yellow walks its own Pikachu, and the host says when. Slot fifteen's turn is
+## the screen's to spend, so the probe spends it the way a pass would.
+func _beside_the_cartridges_own(
+	actor_script: GDScript, options: GDScript, data: GameData
+) -> int:
+	if data.id != RomRegistry.YELLOW:
+		return 0
+	var map: Gen2WorldMap = data.world_map(YELLOW_MAP.x, YELLOW_MAP.y)
+	var world := Gen2WorldAPI.new(data, map, data.world_tileset(map.tileset), YELLOW_CELL)
+	var random := RandomNumberGenerator.new()
+	var host: Gen2ModHost = Gen2ModHost.instance()
+	options.register(host, options.MOD_ID)
+	var actor: RefCounted = actor_script.new()
+	actor.configure(host, options.MOD_ID)
+	actor.set_world(world)
+	var failures: int = 0
+	for starter_alive: bool in [true, false]:
+		world.set_party_summary(
+			1, false, [WALKERS[RomRegistry.GEN1]], [], ["PIKACHU"], [false],
+			{"starter_pikachu": {"alive": starter_alive}}, [false]
+		)
+		for _step: int in 2:
+			world.move(Vector2i.DOWN)
+			while world.player_step_in_progress():
+				world.advance_player_step_pass()
+				world.advance_gen1_pikachu_pass(random, false)
+				actor.advance_frame()
+			world.advance_gen1_pikachu_pass(random, false)
+			actor.advance_frame()
+		failures += 0 if _report(
+			"the cartridge's own Pikachu is %s" % ("out" if starter_alive else "in its ball"),
+			world.cartridge_follower_out() == starter_alive
+		) else 1
+		failures += 0 if _report(
+			"so the follower is %s" % ("in its ball" if starter_alive else "out"),
+			actor.sprites().is_empty() == starter_alive
+		) else 1
+	return failures
+
+
+## The nurse's machine still holds the party for its animation after the answer;
+## the trader hands it straight back.
+func _wait_for_the_party(world: Gen2WorldAPI) -> void:
+	for _step: int in COUNTER_STEPS:
+		if world.party_with_player() or not world.script_busy():
+			return
+		world.finish_script_waits()
+		world.run_event_queue(true)
+
+
+## Through the counter's own boxes: YES to a question, slot one to a party list,
+## until the party leaves the player's hands or the script runs out.
+func _hand_the_party_over(world: Gen2WorldAPI, species: int) -> void:
+	for _step: int in COUNTER_STEPS:
+		if not world.party_with_player() or not world.script_busy():
+			return
+		match String(world.pending_script_input().get("type", "")):
+			"choice":
+				world.choose_script_input(YES)
+			"runtime_request":
+				world.complete_runtime_request({
+					"ok": true, "party_index": 0, "species": species, "dvs": [0xFF, 0xFF],
+				})
+			_:
+				world.finish_script_waits()
+				world.run_event_queue(true)
 
 
 func _step(actor: RefCounted, world: Gen2WorldAPI, direction: Vector2i) -> void:
@@ -619,8 +717,9 @@ func _walk_onto(
 
 
 func _a_hidden_item(data: GameData) -> Dictionary:
-	for group: int in range(1, 27):
-		for number: int in range(1, 40):
+	var groups: Vector3i = MAP_GROUPS[data.generation]
+	for group: int in range(groups.x, groups.x + groups.y):
+		for number: int in range(groups.x, groups.x + groups.z):
 			var map: Gen2WorldMap = data.world_map(group, number)
 			if map == null:
 				continue
@@ -629,13 +728,29 @@ func _a_hidden_item(data: GameData) -> Dictionary:
 				continue
 			var world := Gen2WorldAPI.new(data, map, tileset)
 			for record: Dictionary in world.hidden_items():
-				if bool(record["taken"]):
+				if bool(record["taken"]) or not _standable(world, record["cell"]):
 					continue
 				return {
 					"world": world, "cell": record["cell"],
 					"item": record["item"], "flag": record["flag"],
 				}
 	return {}
+
+
+## A Generation I site's bit is an engine flag, a Generation II site's an event flag.
+func _flag_set(world: Gen2WorldAPI, flag: int) -> bool:
+	if world.data.generation == RomRegistry.GEN1:
+		return world.state.is_engine_flag_active(flag)
+	return world.event_flag_active(flag)
+
+
+## A site the follower can stand on: Generation I hides most of its items in
+## trees and rocks, which only the reach across a cell tests.
+func _standable(world: Gen2WorldAPI, cell: Vector2i) -> bool:
+	for direction: Vector2i in [Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT]:
+		if world.can_walk_to(cell, direction):
+			return true
+	return false
 
 
 func _is_taken(records: Array, cell: Vector2i) -> bool:

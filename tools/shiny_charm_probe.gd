@@ -17,9 +17,12 @@ const RATIO_BAND := Vector2(2.0, 4.0)
 const SPECIES: int = 16
 const LEVEL: int = 5
 
-const DESIGNER_MAP := Vector2i(21, 14)
-const DESIGNER_CELL := Vector2i(3, 6)
-const EVERY_SPECIES: int = 251
+## Where the game designer stands, what a full dex is there, and the line he
+## wants past before the diploma is handed over.
+const DESIGNERS: Dictionary = {
+	RomRegistry.GEN1: {"map": Vector2i(0, 130), "cell": Vector2i(2, 3), "species": 151, "wants": 150},
+	RomRegistry.GEN2: {"map": Vector2i(21, 14), "cell": Vector2i(3, 6), "species": 251, "wants": 248},
+}
 const MAX_STEPS: int = 64
 
 
@@ -134,23 +137,27 @@ func _shinies(data: GameData, party: Gen2Party, wilds: int, stream: int) -> int:
 
 
 func _diploma(data: GameData, host: Gen2ModHost) -> bool:
+	var designer: Dictionary = DESIGNERS[data.generation]
 	var caught: Dictionary = {}
-	for species: int in range(1, EVERY_SPECIES + 1):
+	for species: int in range(1, int(designer["species"]) + 1):
 		caught[species] = true
 	var state := Gen2WorldState.new(
 		{}, {}, {}, {}, 0, {}, 0, Vector2i(-1, -1), 0, [], false, 0, 0, 0, {}, {}, {}, caught
 	)
+	var map: Vector2i = designer["map"]
 	var world: Gen2WorldAPI = Gen2WorldAPI.open(
-		data, DESIGNER_MAP.x, DESIGNER_MAP.y, DESIGNER_CELL + Vector2i.DOWN, state
+		data, map.x, map.y, (designer["cell"] as Vector2i) + Vector2i.DOWN, state
 	)
 	if world == null:
-		print("no world on map %s" % str(DESIGNER_MAP))
+		print("no world on map %s" % str(map))
 		return false
 	world.player_facing = Gen2WorldSprite.FACING_UP
 	host.set_inventory_source(func() -> Dictionary: return world.state.items())
 	host.take_item_gift_requests()
 
-	print("  dex          %d caught, the designer wants over 248" % state.caught_count())
+	print("  dex          %d caught, the designer wants over %d" % [
+		state.caught_count(), int(designer["wants"]),
+	])
 	var found: bool = false
 	var boxes: int = 0
 	var results: Array = world.interact()
