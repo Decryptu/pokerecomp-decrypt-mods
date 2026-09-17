@@ -19,12 +19,13 @@ var _pet: bool = false
 var _clean: bool = false
 var _scale: int = 1
 var _frames: int = 0
+var _cell := Vector2i(4, 4)
 
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.size() < 4:
-		print("usage: -- <game> <group> <map> <out.png> [species] [steps]")
+		print("usage: -- <game> <group> <map> <out.png> [species] [steps] [view] [pet,clean,xN,at=x:y]")
 		quit(2)
 		return
 	var data: GameData = GameData.open_argument(args[0])
@@ -45,6 +46,9 @@ func _initialize() -> void:
 	for option: String in options:
 		if option.begins_with("x"):
 			_scale = maxi(int(option.substr(1)), 1)
+		elif option.begins_with("at="):
+			var pair: PackedStringArray = option.substr(3).split(":")
+			_cell = Vector2i(int(pair[0]), int(pair[1])) if pair.size() == 2 else _cell
 
 	var host: Gen2ModHost = Gen2ModHost.instance()
 	if host.world_actors().is_empty():
@@ -58,6 +62,7 @@ func _initialize() -> void:
 	_screen = (load("res://game/world/world_screen.tscn") as PackedScene).instantiate()
 	_screen.map_group = int(args[1])
 	_screen.map_number = int(args[2])
+	_screen.start_cell = _cell
 	_screen.encounter_seed = 1
 	_screen.set_data(data)
 	_screen.set_save(Staging.party_save(data, str(species)))

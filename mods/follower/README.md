@@ -119,8 +119,10 @@ asked for:
 
 ```bash
 Godot --path <pokerecomp> --mods -s tools/follower_shot.gd -- \
-	crystal 26 1 <out.png> [species] [steps] [view] [pet]
+	crystal 26 1 <out.png> [species] [steps] [view] [pet,clean,xN,at=x:y]
 ```
+
+`at` is the cell the player starts on, for a map whose 4,4 is a wall.
 
 `tools/follower_probe.gd` walks a route past the follower against a real
 cartridge cache with no game running:
