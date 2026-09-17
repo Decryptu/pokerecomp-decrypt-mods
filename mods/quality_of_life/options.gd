@@ -51,7 +51,7 @@ const SHARE_LABELS: Array = ["OFF", "HALF", "FULL"]
 
 
 static func register(host: Gen2ModHost, id: StringName) -> void:
-	for key: StringName in KEYS:
+	for key: StringName in keys_for(host.generation()):
 		host.register_option(id, {
 			"key": key,
 			"label": String(LABELS[key]),
@@ -73,6 +73,16 @@ static func register(host: Gen2ModHost, id: StringName) -> void:
 		"labels": SHARE_LABELS,
 		"default": NO_SHARE,
 	})
+
+
+## Generation I has no weather, so Red, Blue and Yellow are not offered a switch
+## with nothing behind it.
+static func keys_for(generation: int) -> Array[StringName]:
+	if generation != RomRegistry.GEN1:
+		return KEYS
+	var keys: Array[StringName] = KEYS.duplicate()
+	keys.erase(WEATHER)
+	return keys
 
 
 static func enabled(host: Gen2ModHost, key: StringName) -> bool:

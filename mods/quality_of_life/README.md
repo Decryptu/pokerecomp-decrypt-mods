@@ -1,6 +1,6 @@
 # Quality of Life
 
-Small conveniences from later Pokemon games, fitted to Gold, Silver and Crystal.
+Small conveniences from later Pokemon games, fitted to all six cartridges.
 Every feature has its own setting, and nothing is on until you turn it on.
 
 ## Features
@@ -15,7 +15,8 @@ Every feature has its own setting, and nothing is on until you turn it on.
   have seen the opponent.
 - `STAT STAGES` shows the active battle stat changes beside the Pokemon they
   affect.
-- `WEATHER` shows sun, rain or sandstorm in a corner of the battle screen.
+- `WEATHER` shows sun, rain or sandstorm in a corner of the battle screen. Red,
+  Blue and Yellow have no weather, so the setting is not offered there.
 - `MULTI EXP` pays every party member, not only the ones that fought: `HALF`
   is Generation VI's Exp. Share and `FULL` is Generation VIII's.
 - `EXP RATE` multiplies every experience award: `x0.5`, `x1`, `x1.5`, `x2` or
@@ -42,6 +43,11 @@ The holder itself is paid by the cartridge's own second pass rather than as a
 bystander, so at `HALF` it earns a fighter's full award while the rest of the
 bench earns half. Carrying the Share is what that pass is for.
 
+On Red, Blue and Yellow the item is the bag's EXP.ALL, which already pays the
+whole party, halved. With it in the bag every member is a holder, so `HALF` and
+`FULL` both do the one thing left to do: stop the halving, so the fighters keep
+their full award. Without it the setting changes nothing, as on Gold.
+
 `EXP RATE` scales the award itself, so the participant split, the Exp. Share
 halving, level ups, moves learned and evolutions all follow from it, and a
 capture with `CATCH EXP` on scales too. Stat experience is left alone, since it
@@ -50,7 +56,7 @@ is the cartridge's own hidden EV gain rather than a rate.
 The move guide uses the spare cell at the right of each move row. Stat stages use
 the empty lower-left command panel for the player and the space above the enemy
 picture for the opponent, and they hide while the move list's type box needs that
-panel. The player's panel holds five rows, so with more stat changes than that
+panel. Red, Blue and Yellow stage one SPECIAL, shown as `SPC`. The player's panel holds five rows, so with more stat changes than that
 active at once the last of them are not drawn. Enemy stages and weather get the
 same light background as the battle's name cards so they stay readable over a 3D
 arena.
@@ -61,9 +67,22 @@ The game already animates an EXP bar, records seen and caught Pokemon and shows
 map names, so those are left alone. EXP. SHARE keeps its cartridge behaviour
 until `MULTI EXP` is turned on, which is off by default.
 
-Field moves still require the badge and the HM. The PC row is hidden until you
-have your first Pokemon. Battle hints use the current battle state and what the
+Field moves still require the badge and the HM; on Red, Blue and Yellow that is
+Cut, Fly, Surf, Strength and Flash, the five the cartridge has HMs for. The PC
+row is hidden until you have your first Pokemon, and opens the cartridge's own
+storage on either generation. Battle hints use the current battle state and what the
 Pokedex already knows, and never reveal an unseen opponent.
+
+## Tools
+
+`tools/quality_of_life_probe.gd` walks every policy against a cartridge cache,
+and `tools/quality_of_life_shot.gd` photographs the battle marks at the main
+menu and the move list:
+
+```bash
+Godot --path <pokerecomp> -s tools/quality_of_life_shot.gd -- \
+	"user://rom_cache/<cache>" <out.png>
+```
 
 ## What it needs
 
@@ -72,4 +91,7 @@ Repel use, catch experience, the step's own duration, the experience award and
 PC storage and the share a bystander is paid all run through the game's existing
 paths. The battle provider gets
 read-only state and returns only text and 8x8 tiles on the cartridge grid, plus a
-host-owned background where black text would otherwise be unreadable.
+host-owned background where black text would otherwise be unreadable. The Repel
+provider is handed the cartridge's own Repel table, so the mod names no item. On
+Red, Blue and Yellow it needs `api_version` 35, the first host with an HM in the
+bag as a field-move source, Exp. All and the cartridge's own PC there.
