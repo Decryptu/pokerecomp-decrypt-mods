@@ -109,8 +109,6 @@ tools/mod_fixes_probe.gd:_ledge_corner
 tools/mod_fixes_probe.gd:_population
 tools/model_shot.gd:_initialize
 tools/mods_menu_shot.gd:_capture
-tools/overworld_encounters_probe.gd:_initialize
-tools/overworld_encounters_probe.gd:_turnover
 tools/overworld_encounters_shot.gd:_initialize
 tools/overworld_encounters_shot.gd:_process
 tools/randomizer_lifecycle_probe.gd:_initialize
