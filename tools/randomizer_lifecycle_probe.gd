@@ -1,23 +1,25 @@
 extends SceneTree
 
-## Exercises the randomizer through the real host save lifecycle.
+## Exercises the randomizer through the real host save lifecycle, on the game
+## named as the one argument, Crystal when none is.
+
+const Staging: GDScript = preload("staging.gd")
 
 const MOD_ID: StringName = &"randomizer"
+const DEFAULT_GAME: StringName = &"crystal"
 
 
 func _initialize() -> void:
+	var args: PackedStringArray = OS.get_cmdline_user_args()
 	Gen2ModHost.reset()
-	var host: Gen2ModHost = Gen2ModHost.instance()
-	host.set_target_game(&"crystal")
-	host.discover()
-	host.load_discovered()
-	if not host.save_lifecycle_ids().has(MOD_ID):
-		print("randomizer save lifecycle not registered: %s" % host.failures())
+	var data: GameData = GameData.open(StringName(args[0]) if args.size() > 0 else DEFAULT_GAME)
+	if data == null:
+		print("no cache for %s" % (args[0] if args.size() > 0 else String(DEFAULT_GAME)))
 		quit(1)
 		return
-	var data: GameData = GameData.open(&"crystal")
-	if data == null:
-		print("no Crystal cache")
+	var host: Gen2ModHost = Gen2ModHost.instance()
+	if not Staging.mod_loaded(host, data, MOD_ID) or not host.save_lifecycle_ids().has(MOD_ID):
+		print("randomizer save lifecycle not registered: %s" % str(host.failures()))
 		quit(1)
 		return
 	var vanilla: String = _fingerprint(data)
@@ -70,7 +72,16 @@ func _fingerprint(data: GameData) -> String:
 	var starters: Array = catalog.rows(Gen2WorldCatalog.KIND_STARTER)
 	return JSON.stringify({
 		"species": data.species(1),
-		"encounter": data.world_encounter(&"grass", 1, 12),
+		"encounter": _first_grass(data),
+		"fishing": data.world_fishing_group(1),
 		"treemon": data.treemon_set(1),
 		"starter": starters[0] if not starters.is_empty() else {},
 	})
+
+
+func _first_grass(data: GameData) -> Dictionary:
+	for map: Gen2WorldMap in data.world_maps():
+		var row: Dictionary = data.world_encounter(&"grass", map.group, map.number)
+		if not row.is_empty():
+			return row
+	return {}
