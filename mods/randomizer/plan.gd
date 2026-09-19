@@ -7,6 +7,11 @@ const Rng := preload("rng.gd")
 const STAT_KEYS: Array[String] = [
 	"hp", "attack", "defense", "speed", "sp_attack", "sp_defense",
 ]
+const GEN1_STAT_KEYS: Array[String] = ["hp", "attack", "defense", "speed", "special"]
+## The two Generation II halves the host mirrors a Generation I SPECIAL onto.
+const SPECIAL_TWINS: Array[String] = ["sp_attack", "sp_defense"]
+const STARTING_LEVEL: int = 1
+const FISHING_LISTS: Array[String] = ["rods", "slots"]
 
 const ENCOUNTER_METHODS: Array[StringName] = [
 	&"grass", &"surf", &"swarm_grass", &"swarm_water",
@@ -96,11 +101,13 @@ static func gather(data: GameData) -> Dictionary:
 	var species_numbers: Array[int] = _rows(data.species, data.species_count(), species)
 	var move_numbers: Array[int] = _rows(data.move, data.move_count(), moves)
 	var trainer_numbers: Array[int] = _rows(data.trainer, data.trainer_count(), trainers)
+	var stat_keys: Array[String] = GEN1_STAT_KEYS \
+		if data.generation == RomRegistry.GEN1 else STAT_KEYS
 
 	var totals: Dictionary = {}
 	var type_pool: Array[int] = []
 	for number: int in species_numbers:
-		totals[number] = _total(species[number])
+		totals[number] = _total(species[number], stat_keys)
 		for slot: Variant in (species[number].get("types", []) as Array):
 			var type_number: int = int(slot)
 			if not type_pool.has(type_number):
@@ -122,6 +129,7 @@ static func gather(data: GameData) -> Dictionary:
 		"species_numbers": species_numbers,
 		"move_numbers": move_numbers,
 		"trainer_numbers": trainer_numbers,
+		"stat_keys": stat_keys,
 		"totals": totals,
 		"type_pool": type_pool,
 		"by_total": by_total,
@@ -137,10 +145,10 @@ static func gather(data: GameData) -> Dictionary:
 	}
 
 
-static func _total(row: Dictionary) -> int:
+static func _total(row: Dictionary, keys: Array[String]) -> int:
 	var stats: Dictionary = row.get("stats", {})
 	var sum: int = 0
-	for key: String in STAT_KEYS:
+	for key: String in keys:
 		sum += int(stats.get(key, 0))
 	return sum
 
@@ -176,7 +184,7 @@ static func _encounters(data: GameData) -> Dictionary:
 
 static func _fishing(data: GameData) -> Dictionary:
 	var out: Dictionary = {}
-	for group: int in range(1, FISHING_GROUPS + 1):
+	for group: int in range(1, FISHING_GROUPS + 1) + GameData.GEN1_ROD_GROUPS.keys():
 		var row: Dictionary = data.world_fishing_group(group)
 		if not row.is_empty():
 			out[group] = row
@@ -242,19 +250,28 @@ static func _families(species: Dictionary, numbers: Array[int]) -> Dictionary:
 static func _randomize_stats(world: Dictionary, seed_value: int, out: Dictionary) -> void:
 	var species: Dictionary = world[Gen2ContentOverlay.KIND_SPECIES]
 	var family: Dictionary = world["families"]
+	var keys: Array[String] = world["stat_keys"]
 	var orders: Dictionary = {}
 	for number: int in (world["species_numbers"] as Array[int]):
 		var key: int = int(family.get(number, number))
 		if not orders.has(key):
 			var rng := Rng.new()
 			rng.begin(seed_value, "stats", key)
-			orders[key] = rng.shuffled(STAT_KEYS)
+			orders[key] = rng.shuffled(keys)
 		var order: Array = orders[key]
 		var stats: Dictionary = species[number].get("stats", {})
 		var shuffled: Dictionary = {}
-		for index: int in STAT_KEYS.size():
-			shuffled[STAT_KEYS[index]] = int(stats.get(String(order[index]), 0))
-		_field(out, number)["stats"] = shuffled
+		for index: int in keys.size():
+			shuffled[keys[index]] = int(stats.get(String(order[index]), 0))
+		_field(out, number)["stats"] = _with_special_twins(shuffled)
+
+
+static func _with_special_twins(stats: Dictionary) -> Dictionary:
+	if not stats.has("special"):
+		return stats
+	for twin: String in SPECIAL_TWINS:
+		stats[twin] = stats["special"]
+	return stats
 
 
 static func _randomize_types(world: Dictionary, seed_value: int, out: Dictionary) -> void:
@@ -286,7 +303,9 @@ static func _randomize_learnsets(world: Dictionary, seed_value: int, out: Dictio
 	for number: int in (world["species_numbers"] as Array[int]):
 		var rng := Rng.new()
 		rng.begin(seed_value, "learnset", number)
-		var learnset: Array = (species[number].get("learnset", []) as Array).duplicate(true)
+		var starting: Array = _starting_entries(species[number])
+		var learnset: Array = starting \
+			+ (species[number].get("learnset", []) as Array).duplicate(true)
 		var used: Array[int] = []
 		for index: int in learnset.size():
 			var entry: Dictionary = learnset[index]
@@ -301,8 +320,26 @@ static func _randomize_learnsets(world: Dictionary, seed_value: int, out: Dictio
 			var chosen: int = available[rng.below(available.size())]
 			entry["move"] = chosen
 			used.append(chosen)
-		if not learnset.is_empty():
-			_field(out, number)["learnset"] = learnset
+		if not starting.is_empty():
+			_field(out, number)["starting_moves"] = _moves_of(learnset.slice(0, starting.size()))
+		if learnset.size() > starting.size():
+			_field(out, number)["learnset"] = learnset.slice(starting.size())
+
+
+## A Generation I row's `starting_moves` are its level-1 moves, kept apart from
+## the learnset by the cartridge and drawn here as the opening entries they are.
+static func _starting_entries(row: Dictionary) -> Array:
+	var out: Array = []
+	for move: Variant in (row.get("starting_moves", []) as Array):
+		out.append({"level": STARTING_LEVEL, "move": int(move)})
+	return out
+
+
+static func _moves_of(entries: Array) -> Array[int]:
+	var out: Array[int] = []
+	for entry: Dictionary in entries:
+		out.append(int(entry["move"]))
+	return out
 
 
 static func _randomize_moves(world: Dictionary, seed_value: int, out: Dictionary) -> void:
@@ -387,11 +424,17 @@ static func _randomize_fishing(world: Dictionary, seed_value: int, out: Array) -
 	if (world["by_total"] as Array).is_empty():
 		return
 	for group: int in _sorted(groups):
-		var rods: Array = ((groups[group] as Dictionary).get("rods", []) as Array).duplicate(true)
+		var row: Dictionary = groups[group]
+		var fields: Dictionary = {}
 		var rng := Rng.new()
 		rng.begin(seed_value, "fishing", group)
-		_substitute(rods, world, rng)
-		out.append({"number": group, "fields": {"rods": rods}})
+		for key: String in FISHING_LISTS:
+			if not row.has(key):
+				continue
+			var list: Array = (row[key] as Array).duplicate(true)
+			_substitute(list, world, rng)
+			fields[key] = list
+		out.append({"number": group, "fields": fields})
 
 
 static func _randomize_indexed(
@@ -424,7 +467,7 @@ static func _randomize_checks(
 	for id: int in _sorted(rows):
 		var row: Dictionary = rows[id]
 		var kind: StringName = StringName(row.get("kind", &""))
-		if not kinds.has(kind):
+		if not kinds.has(kind) or not row.has("species"):
 			continue
 		var rng := Rng.new()
 		rng.begin(seed_value, "check_%s" % kind, id)

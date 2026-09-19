@@ -137,7 +137,7 @@ in the game repository first. It is the contract, and it is enforced.
   interpreted GDScript. No GDExtension, no compiled anything.
 - `api_version` is the oldest host a mod works against, not a number to keep
   current. The host accepts `PokeModManifest.MIN_API_VERSION` to `API_VERSION`,
-  30 to 36 today, and refuses anything outside that. Raise it when the mod
+  30 to 37 today, and refuses anything outside that. Raise it when the mod
   starts using something newer, not with every release. Version 30 renamed the
   classes both generations reach, so it moved the floor as well as the ceiling:
   a mod below it names a class the host no longer declares.

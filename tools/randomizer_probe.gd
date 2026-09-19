@@ -5,6 +5,8 @@ extends SceneTree
 
 const DEFAULT_SEED: int = 1234
 const OTHER_SEED: int = 5678
+const FISHING_LISTS: Array[String] = ["rods", "slots"]
+const SPECIAL_TWINS: Array[String] = ["sp_attack", "sp_defense"]
 
 
 func _initialize() -> void:
@@ -35,11 +37,12 @@ func _initialize() -> void:
 	settings["seed"] = seed_value
 
 	var world: Dictionary = plan.gather(data)
-	print("cartridge  %s: %d species, %d moves, %d trainer classes, %d types" % [
+	print("cartridge  %s: %d species, %d moves, %d trainer classes, %d types, %d sites" % [
 		data.id, (world["species_numbers"] as Array).size(),
 		(world["move_numbers"] as Array).size(),
 		(world["trainer_numbers"] as Array).size(),
 		(world["type_pool"] as Array).size(),
+		(world[&"check"] as Dictionary).size(),
 	])
 
 	var host: Gen2ModHost = Gen2ModHost.instance()
@@ -86,6 +89,7 @@ func _by_number(entries: Array) -> Dictionary:
 
 func _samples(world: Dictionary, patches: Dictionary, data: GameData) -> void:
 	var species: Dictionary = world[Gen2ContentOverlay.KIND_SPECIES]
+	var keys: Array[String] = world["stat_keys"]
 	var patched: Dictionary = _by_number(patches[Gen2ContentOverlay.KIND_SPECIES])
 	for number: int in [1, 4, 7, 25]:
 		if not patched.has(number):
@@ -94,14 +98,25 @@ func _samples(world: Dictionary, patches: Dictionary, data: GameData) -> void:
 		var now: Dictionary = patched[number]
 		print("%-12s types %s -> %s, stats %s -> %s" % [
 			String(was.get("name", "?")), _ints(was.get("types", [])), now.get("types", []),
-			_stat_line(was.get("stats", {})), _stat_line(now.get("stats", {})),
+			_stat_line(was.get("stats", {}), keys), _stat_line(now.get("stats", {}), keys),
 		])
-		var learnset: Array = now.get("learnset", [])
-		if not learnset.is_empty():
-			var opening: Dictionary = learnset[0]
+		var opening: Array = _opening(now)
+		if not opening.is_empty():
 			print("             opens with %s at level %d" % [
-				data.move(int(opening["move"])).get("name", "?"), int(opening["level"]),
+				data.move(int(opening[0])).get("name", "?"), int(opening[1]),
 			])
+
+
+## The first move a fresh one knows: a starting move on Generation I, else the
+## learnset's head. `[move, level]`, or empty.
+func _opening(fields: Dictionary) -> Array:
+	var starting: Array = fields.get("starting_moves", [])
+	if not starting.is_empty():
+		return [int(starting[0]), 1]
+	var learnset: Array = fields.get("learnset", [])
+	if learnset.is_empty():
+		return []
+	return [int((learnset[0] as Dictionary)["move"]), int((learnset[0] as Dictionary)["level"])]
 
 
 func _wild_sample(world: Dictionary, patches: Dictionary, data: GameData) -> void:
@@ -111,18 +126,18 @@ func _wild_sample(world: Dictionary, patches: Dictionary, data: GameData) -> voi
 			continue
 		var was: Dictionary = tables[int(entry["at"])]
 		print("map %d,%d grass  %s" % [
-			int(entry["group"]), int(entry["number"]),
-			_names(data, ((was["slots"] as Array)[0] as Array)),
+			int(entry["group"]), int(entry["number"]), _names(data, was["slots"]),
 		])
-		print("            ->  %s" % _names(
-			data, (((entry["fields"] as Dictionary)["slots"] as Array)[0] as Array)
-		))
+		print("            ->  %s" % _names(data, (entry["fields"] as Dictionary)["slots"]))
 		return
 
 
+## A Generation II table is one row per time of day and a Generation I table is
+## flat; either way the first row is what is named.
 func _names(data: GameData, slots: Array) -> String:
+	var row: Array = slots[0] if not slots.is_empty() and slots[0] is Array else slots
 	var out: PackedStringArray = PackedStringArray()
-	for slot: Dictionary in slots:
+	for slot: Dictionary in row:
 		out.append("%s %d" % [
 			data.species(int(slot["species"])).get("name", "?"), int(slot["level"]),
 		])
@@ -136,9 +151,9 @@ func _ints(values: Array) -> Array[int]:
 	return out
 
 
-func _stat_line(stats: Dictionary) -> String:
+func _stat_line(stats: Dictionary, keys: Array[String]) -> String:
 	var out: PackedStringArray = PackedStringArray()
-	for key: String in ["hp", "attack", "defense", "speed", "sp_attack", "sp_defense"]:
+	for key: String in keys:
 		out.append(str(int(stats.get(key, 0))))
 	return "/".join(out)
 
@@ -147,6 +162,7 @@ func _rules(world: Dictionary, patches: Dictionary, validator: Callable) -> int:
 	var species: Dictionary = world[Gen2ContentOverlay.KIND_SPECIES]
 	var moves: Dictionary = world[Gen2ContentOverlay.KIND_MOVE]
 	var totals: Dictionary = world["totals"]
+	var keys: Array[String] = world["stat_keys"]
 	var patched: Dictionary = _by_number(patches[Gen2ContentOverlay.KIND_SPECIES])
 	var numbers: Array[int] = []
 	for number: int in patched:
@@ -154,53 +170,111 @@ func _rules(world: Dictionary, patches: Dictionary, validator: Callable) -> int:
 	numbers.sort()
 
 	var kept_total: bool = true
+	var twinned: bool = true
 	var armed: bool = true
 	var climbs: bool = true
 	for number: int in numbers:
 		var row: Dictionary = patched[number]
 		var stats: Dictionary = row.get("stats", {})
-		if not stats.is_empty() and _sum(stats) != int(totals[number]):
+		if not stats.is_empty() and _sum(stats, keys) != int(totals[number]):
 			kept_total = false
-		for index: int in (row.get("learnset", []) as Array).size():
-			var entry: Dictionary = (row["learnset"] as Array)[index]
-			if index > 0 and int(entry.get("level", 1)) > 5:
-				continue
+		if stats.has("special") and not _special_twinned(stats):
+			twinned = false
+		for entry: Dictionary in _openings(row):
 			if int(moves[int(entry["move"])].get("power", 0)) <= 0:
 				armed = false
 		for evolution: Dictionary in (row.get("evolutions", []) as Array):
 			if int(totals[int(evolution["target"])]) < int(totals[number]):
 				climbs = false
 
-	var lines: bool = _lines_climb(species, patched)
-	var levels: bool = _wild_keeps_levels(world, patches)
-	var distinct_learnsets: bool = _learnsets_do_not_repeat(patched)
-	var changed_species: bool = _species_replacements_change(world, patches)
-	var extended_wild: bool = _indexed_wild_keeps_shape(world, patches)
-	var decoded_sites: bool = _checks_change_species(world, patches)
-	var placement_pool: bool = _placement_is_permutation(world, patches)
-	var placement_valid: bool = _placement_validates(patches, validator)
 	var failures: int = 0
 	for check: Array in [
 		["a species keeps its base stat total", kept_total],
+		["a Generation I SPECIAL is mirrored on both halves", twinned],
 		["nothing opens without a way to attack", armed],
 		["an evolution is never a downgrade", climbs],
-		["an evolution line's stats still climb", lines],
-		["a wild slot keeps its level and its place", levels],
-		["a learnset avoids repeat moves", distinct_learnsets],
-		["a species replacement is not a no-op", changed_species],
-		["extra wild sources keep every non-species field", extended_wild],
-		["decoded Pokemon sites change both trade halves", decoded_sites],
-		["items, badges and shop stock are permutations", placement_pool],
-		["the host accepts the critical placement", placement_valid],
+		["an evolution line's stats still climb", _lines_climb(species, patched, keys)],
+		["a wild slot keeps its level and its place", _wild_keeps_levels(world, patches)],
+		["a learnset avoids repeat moves", _learnsets_do_not_repeat(patched)],
+		["starting moves are redrawn wherever a row has them",
+			_starting_moves_redrawn(species, patched)],
+		["a species replacement is not a no-op", _species_replacements_change(world, patches)],
+		["extra wild sources keep every non-species field",
+			_indexed_wild_keeps_shape(world, patches)],
+	]:
+		if not _report(String(check[0]), bool(check[1])):
+			failures += 1
+	return failures + _site_rules(world, patches, validator)
+
+
+## The rules over the catalog's sites, which the host builds from Generation II
+## scripts alone: a cache with none is said so rather than failed, and the
+## checks run the day the host carries them.
+func _site_rules(world: Dictionary, patches: Dictionary, validator: Callable) -> int:
+	if (world[&"check"] as Dictionary).is_empty():
+		print("none  no catalog sites on this cache; gifts, starters, trades, items, badges and shops untested")
+		return 0
+	var failures: int = 0
+	for check: Array in [
+		["a site patch names only fields its row has", _patches_fit_rows(world, patches)],
+		["decoded Pokemon sites change both trade halves", _checks_change_species(world, patches)],
+		["items, badges and shop stock are permutations", _placement_is_permutation(world, patches)],
+		["the host accepts the critical placement", _placement_validates(patches, validator)],
 	]:
 		if not _report(String(check[0]), bool(check[1])):
 			failures += 1
 	return failures
 
 
+## The Game Corner's TM prizes are rows with an item and no species, and a
+## patch naming a species there would hand over one.
+func _patches_fit_rows(world: Dictionary, patches: Dictionary) -> bool:
+	var rows: Dictionary = world[&"check"]
+	for entry: Dictionary in (patches[&"check"] as Array):
+		var row: Dictionary = rows[int(entry["number"])]
+		for field: Variant in (entry["fields"] as Dictionary):
+			if not row.has(field):
+				return false
+	return true
+
+
+## The entries a fresh Pokemon may open with: every starting move, the
+## learnset's head, and anything at level 5 or below.
+func _openings(row: Dictionary) -> Array:
+	var out: Array = []
+	for move: Variant in (row.get("starting_moves", []) as Array):
+		out.append({"move": int(move), "level": 1})
+	var learnset: Array = row.get("learnset", [])
+	for index: int in learnset.size():
+		var entry: Dictionary = learnset[index]
+		if (index == 0 and out.is_empty()) or int(entry.get("level", 1)) <= 5:
+			out.append(entry)
+	return out
+
+
+func _special_twinned(stats: Dictionary) -> bool:
+	for twin: String in SPECIAL_TWINS:
+		if int(stats.get(twin, -1)) != int(stats["special"]):
+			return false
+	return true
+
+
+func _starting_moves_redrawn(species: Dictionary, patched: Dictionary) -> bool:
+	for number: int in patched:
+		var was: Array = (species[number] as Dictionary).get("starting_moves", [])
+		var now: Array = (patched[number] as Dictionary).get("starting_moves", [])
+		if was.size() != now.size():
+			return false
+		if not was.is_empty() and _ints(was) == _ints(now):
+			return false
+	return true
+
+
 func _learnsets_do_not_repeat(patched: Dictionary) -> bool:
 	for fields: Dictionary in patched.values():
-		var used: Array[int] = []
+		var used: Array[int] = _ints(fields.get("starting_moves", []))
+		if used.size() != _distinct(used).size():
+			return false
 		for entry: Dictionary in (fields.get("learnset", []) as Array):
 			var move: int = int(entry.get("move", 0))
 			if used.has(move):
@@ -209,13 +283,21 @@ func _learnsets_do_not_repeat(patched: Dictionary) -> bool:
 	return true
 
 
+func _distinct(values: Array[int]) -> Array[int]:
+	var out: Array[int] = []
+	for value: int in values:
+		if not out.has(value):
+			out.append(value)
+	return out
+
+
 func _species_replacements_change(world: Dictionary, patches: Dictionary) -> bool:
 	var trainer_patches: Dictionary = _by_number(patches[Gen2ContentOverlay.KIND_TRAINER])
 	for number: int in trainer_patches:
-		var before: Variant = (world[Gen2ContentOverlay.KIND_TRAINER] as Dictionary)[number] \
+		var before: Array = (world[Gen2ContentOverlay.KIND_TRAINER] as Dictionary)[number] \
 			.get("trainers", [])
-		var after: Variant = (trainer_patches[number] as Dictionary).get("trainers", [])
-		if not _species_changed(before, after):
+		var after: Array = (trainer_patches[number] as Dictionary).get("trainers", [])
+		if not _species_changed(_parties(before), _parties(after)):
 			return false
 	for entry: Dictionary in (patches[Gen2ContentOverlay.KIND_ENCOUNTER] as Array):
 		var before: Dictionary = (world[Gen2ContentOverlay.KIND_ENCOUNTER] as Dictionary)[
@@ -229,10 +311,11 @@ func _species_replacements_change(world: Dictionary, patches: Dictionary) -> boo
 		var before: Dictionary = (world[Gen2ContentOverlay.KIND_FISHING] as Dictionary)[
 			int(entry["number"])
 		]
-		if not _species_changed(
-			before.get("rods", []), (entry["fields"] as Dictionary).get("rods", [])
-		):
-			return false
+		for key: String in FISHING_LISTS:
+			if before.has(key) and not _species_changed(
+				before[key], (entry["fields"] as Dictionary).get(key, null)
+			):
+				return false
 	for kind: StringName in [&"treemon", &"fishing_time"]:
 		var rows: Dictionary = world[kind]
 		for entry: Dictionary in (patches[kind] as Array):
@@ -247,6 +330,15 @@ func _species_replacements_change(world: Dictionary, patches: Dictionary) -> boo
 					== int((entry["fields"] as Dictionary)["species"]):
 				return false
 	return true
+
+
+## A roster entry's `special_moves` on Generation I key on the rival's starter
+## rather than name a member, so only the parties are compared.
+func _parties(roster: Array) -> Array:
+	var out: Array = []
+	for trainer: Dictionary in roster:
+		out.append(trainer.get("party", []))
+	return out
 
 
 func _checks_change_species(world: Dictionary, patches: Dictionary) -> bool:
@@ -361,8 +453,9 @@ func _wild_keeps_levels(world: Dictionary, patches: Dictionary) -> bool:
 		var was: Dictionary = (world[Gen2ContentOverlay.KIND_FISHING] as Dictionary)[
 			int(entry["number"])
 		]
-		if not _same_shape(was.get("rods", []), (entry["fields"] as Dictionary)["rods"]):
-			return false
+		for key: String in FISHING_LISTS:
+			if was.has(key) and not _same_shape(was[key], (entry["fields"] as Dictionary).get(key, null)):
+				return false
 	return true
 
 
@@ -403,7 +496,7 @@ func _same_shape(was: Variant, now: Variant) -> bool:
 	return int(was) == int(now) if was is float or was is int else was == now
 
 
-func _lines_climb(species: Dictionary, patched: Dictionary) -> bool:
+func _lines_climb(species: Dictionary, patched: Dictionary, keys: Array[String]) -> bool:
 	var numbers: Array[int] = []
 	for number: int in patched:
 		numbers.append(number)
@@ -419,23 +512,23 @@ func _lines_climb(species: Dictionary, patched: Dictionary) -> bool:
 			var target_now: Dictionary = (patched[target] as Dictionary).get("stats", {})
 			if target_now.is_empty():
 				continue
-			if _gaps(species[number].get("stats", {}), species[target].get("stats", {})) \
-					!= _gaps(now, target_now):
+			if _gaps(species[number].get("stats", {}), species[target].get("stats", {}), keys) \
+					!= _gaps(now, target_now, keys):
 				return false
 	return true
 
 
-func _gaps(low: Dictionary, high: Dictionary) -> Array[int]:
+func _gaps(low: Dictionary, high: Dictionary, keys: Array[String]) -> Array[int]:
 	var out: Array[int] = []
-	for key: String in ["hp", "attack", "defense", "speed", "sp_attack", "sp_defense"]:
+	for key: String in keys:
 		out.append(int(high.get(key, 0)) - int(low.get(key, 0)))
 	out.sort()
 	return out
 
 
-func _sum(stats: Dictionary) -> int:
+func _sum(stats: Dictionary, keys: Array[String]) -> int:
 	var total: int = 0
-	for key: String in ["hp", "attack", "defense", "speed", "sp_attack", "sp_defense"]:
+	for key: String in keys:
 		total += int(stats.get(key, 0))
 	return total
 

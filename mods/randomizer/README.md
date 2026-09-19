@@ -15,9 +15,6 @@ Four digits, `0000` to `9999`, in the same MODS menu as everything else. You can
 type it in the launcher and step it in the game, so a run is shared by saying a
 number. Leading zeros count: `0042` is not `4200`.
 
-A host built before number settings existed shows the seed as four one-digit
-rows instead. Nothing else changes.
-
 The same seed and the same cartridge always produce the same game. It does not
 depend on dictionary ordering, the clock, the system's randomness, or the order
 settings were changed in. Randomness comes from one written-down generator in
@@ -26,8 +23,8 @@ means. Each decision opens its own stream, keyed by what is being decided and
 which row it is for, so turning one setting off does not move what another
 produced.
 
-A seed does not carry the cartridge. Gold, Silver and Crystal have different
-tables, so seed `1234` is three different runs.
+A seed does not carry the cartridge. Each of the six games has its own tables,
+so seed `1234` is six different runs.
 
 ## A run belongs to its save
 
@@ -72,7 +69,8 @@ the cartridge already said.
 
 **Base stats** are shuffled, not redrawn, so a species keeps its total: it does
 not get stronger or weaker, it gets strong at something else. Every species in an
-evolution line gets the same shuffle, so a line still climbs.
+evolution line gets the same shuffle, so a line still climbs. Red, Blue and
+Yellow have five stats, and the one SPECIAL stays one number.
 
 **Types** are drawn per line rather than per species, so a Pokemon does not change
 type by evolving. The pool is the set of types this cartridge's species actually
@@ -82,7 +80,8 @@ carry, which keeps unused type slots out of it.
 first entry, and every entry at level 5 or below, is drawn from moves that do
 damage, land four times in five and are not overwhelming, so a starter can always
 attack at level 5. A species does not repeat a move while an unused eligible one
-remains.
+remains. On Red, Blue and Yellow the moves a species is born with are its level 1
+entries and are drawn the same way.
 
 **Evolutions** keep their method and their parameter, so a stone evolution is
 still that stone at that level for that happiness, and only the target changes. A
@@ -103,13 +102,17 @@ Pokemon stands in it, drawn from the same strength band. So a route stays as eas
 or as dangerous as it was. Grass, surfing, both swarm tables, all three rods,
 day/night substitutions, Headbutt and Rock Smash sets, the Bug Contest and
 roaming Pokemon all go the same way, and their weights, thresholds, level bounds
-and live roaming positions are untouched.
+and live roaming positions are untouched. On Red, Blue and Yellow that is grass,
+surfing, every Super Rod table, the Old Rod's one slot and the Good Rod's two.
 
 **Gifts and static Pokemon** change species only. Levels, held items, prices,
-scripts and completion flags stay put.
+scripts and completion flags stay put. A Game Corner prize that is a TM has no
+species and is left alone; on Red, Blue and Yellow the fossil revival takes its
+species from the fossil and is not a site.
 
 **Starters** are distinct and strength-banded. The host changes the ball's
-picture and the Pokemon it gives as one transaction.
+picture and the Pokemon it gives as one transaction, and on Red and Blue the
+rival's pick still follows the table. Yellow's one starter is its Pikachu.
 
 **Trades** redraw both sides in the same strength bands, on the trade site the
 host owns, so a second script naming the same trade is not changed by accident.
@@ -143,9 +146,17 @@ Godot --headless --path <pokerecomp> -s tools/randomizer_probe.gd -- \
 	"user://rom_cache/<cache>"
 ```
 
-It exits non-zero on failure. `tools/randomizer_lifecycle_probe.gd` separately
-proves that saved settings reproduce the same run and that installation settings
-cannot reroll it.
+It exits non-zero on failure. `tools/randomizer_lifecycle_probe.gd <game>`
+separately proves, through the real host, that saved settings reproduce the same
+run and that installation settings cannot reroll it. `tools/randomizer_shot.gd
+<game> <out.png> <seed> [page]` photographs one party member's stats page under
+a seed, or vanilla for a seed below zero, and `tools/randomizer_shop_shot.gd
+<game> <out.png> <seed>` a shop's shelf through its counter, so a run can be
+seen as well as counted.
+
+On Red, Blue and Yellow the mod needs `api_version` 37, the first host that
+catalogues Kanto's sites, proves a placement over its map graph and offers the
+Old and Good Rod as fishing groups.
 
 ## Layout
 
