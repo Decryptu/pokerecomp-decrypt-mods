@@ -40,12 +40,8 @@ session.
 
 ## Settings
 
-Fourteen rows on Gold, Silver and Crystal, in the start menu's MODS entry and on
-the mod's page in the launcher, all from one registration in `options.gd`. Red,
-Blue and Yellow get the first eight: the host catalogues gifts, starters, trades,
-items, badges and shops by decoding Generation II scripts, and on a Generation I
-cartridge that catalogue is empty, so the six rows that read it are not offered
-there rather than shown with nothing behind them.
+Fourteen rows, in the start menu's MODS entry and on the mod's page in the
+launcher, all from one registration in `options.gd`.
 
 | Setting | Rungs | Does |
 | --- | --- | --- |
@@ -107,14 +103,16 @@ or as dangerous as it was. Grass, surfing, both swarm tables, all three rods,
 day/night substitutions, Headbutt and Rock Smash sets, the Bug Contest and
 roaming Pokemon all go the same way, and their weights, thresholds, level bounds
 and live roaming positions are untouched. On Red, Blue and Yellow that is grass,
-surfing and every Super Rod table; the Old Rod's MAGIKARP and the Good Rod's pair
-are the engine's own and stay.
+surfing, every Super Rod table, the Old Rod's one slot and the Good Rod's two.
 
 **Gifts and static Pokemon** change species only. Levels, held items, prices,
-scripts and completion flags stay put.
+scripts and completion flags stay put. A Game Corner prize that is a TM has no
+species and is left alone; on Red, Blue and Yellow the fossil revival takes its
+species from the fossil and is not a site.
 
 **Starters** are distinct and strength-banded. The host changes the ball's
-picture and the Pokemon it gives as one transaction.
+picture and the Pokemon it gives as one transaction, and on Red and Blue the
+rival's pick still follows the table. Yellow's one starter is its Pikachu.
 
 **Trades** redraw both sides in the same strength bands, on the trade site the
 host owns, so a second script naming the same trade is not changed by accident.
@@ -152,11 +150,13 @@ It exits non-zero on failure. `tools/randomizer_lifecycle_probe.gd <game>`
 separately proves, through the real host, that saved settings reproduce the same
 run and that installation settings cannot reroll it. `tools/randomizer_shot.gd
 <game> <out.png> <seed> [page]` photographs one party member's stats page under
-a seed, or vanilla for a seed below zero, so a run can be seen as well as
-counted.
+a seed, or vanilla for a seed below zero, and `tools/randomizer_shop_shot.gd
+<game> <out.png> <seed>` a shop's shelf through its counter, so a run can be
+seen as well as counted.
 
-On Red, Blue and Yellow the mod needs `api_version` 35, the first host that
-says which generation it is playing.
+On Red, Blue and Yellow the mod needs `api_version` 37, the first host that
+catalogues Kanto's sites, proves a placement over its map graph and offers the
+Old and Good Rod as fishing groups.
 
 ## Layout
 

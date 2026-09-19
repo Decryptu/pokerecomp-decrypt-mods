@@ -184,7 +184,7 @@ static func _encounters(data: GameData) -> Dictionary:
 
 static func _fishing(data: GameData) -> Dictionary:
 	var out: Dictionary = {}
-	for group: int in range(1, FISHING_GROUPS + 1):
+	for group: int in range(1, FISHING_GROUPS + 1) + GameData.GEN1_ROD_GROUPS.keys():
 		var row: Dictionary = data.world_fishing_group(group)
 		if not row.is_empty():
 			out[group] = row
@@ -467,7 +467,7 @@ static func _randomize_checks(
 	for id: int in _sorted(rows):
 		var row: Dictionary = rows[id]
 		var kind: StringName = StringName(row.get("kind", &""))
-		if not kinds.has(kind):
+		if not kinds.has(kind) or not row.has("species"):
 			continue
 		var rng := Rng.new()
 		rng.begin(seed_value, "check_%s" % kind, id)

@@ -216,6 +216,7 @@ func _site_rules(world: Dictionary, patches: Dictionary, validator: Callable) ->
 		return 0
 	var failures: int = 0
 	for check: Array in [
+		["a site patch names only fields its row has", _patches_fit_rows(world, patches)],
 		["decoded Pokemon sites change both trade halves", _checks_change_species(world, patches)],
 		["items, badges and shop stock are permutations", _placement_is_permutation(world, patches)],
 		["the host accepts the critical placement", _placement_validates(patches, validator)],
@@ -223,6 +224,18 @@ func _site_rules(world: Dictionary, patches: Dictionary, validator: Callable) ->
 		if not _report(String(check[0]), bool(check[1])):
 			failures += 1
 	return failures
+
+
+## The Game Corner's TM prizes are rows with an item and no species, and a
+## patch naming a species there would hand over one.
+func _patches_fit_rows(world: Dictionary, patches: Dictionary) -> bool:
+	var rows: Dictionary = world[&"check"]
+	for entry: Dictionary in (patches[&"check"] as Array):
+		var row: Dictionary = rows[int(entry["number"])]
+		for field: Variant in (entry["fields"] as Dictionary):
+			if not row.has(field):
+				return false
+	return true
 
 
 ## The entries a fresh Pokemon may open with: every starting move, the
