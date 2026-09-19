@@ -1,10 +1,10 @@
 # Achievements
 
-Thirty things a Johto run is remembered by, awarded as you reach them. A banner
-over the map says which one you just got, and a page in the start menu says which
-are left.
+The things a run is remembered by, awarded as you reach them: thirty on Gold,
+Silver and Crystal, nineteen on Red, Blue and Yellow. A banner over the map says
+which one you just got, and a page in the start menu says which are left.
 
-## The thirty
+## The thirty, on Johto
 
 Sixteen are badges, one for each gym in Johto and Kanto. The other fourteen are
 the rest of what a playthrough is.
@@ -30,9 +30,33 @@ the rest of what a playthrough is.
 
 Each wears cartridge art. A Johto badge wears its own drawing off the trainer
 card, which is the only place the game ever draws one. The Kanto eight have no
-drawing at all: the card's Kanto page is unreachable on the cartridge and reuses
-the Johto pictures, so those wear the gym's own type instead, and the rest wear a
+drawing on these cartridges: the card's Kanto page is unreachable and reuses the
+Johto pictures, so those wear the gym's own type instead, and the rest wear a
 Pokemon that belongs to what they are about.
+
+## The nineteen, on Kanto
+
+The same rules on the cartridge they were written for. Eight are the badges,
+BOULDERBADGE to EARTHBADGE, BROCK to GIOVANNI, and each wears its own drawing
+off the trainer card. The rest:
+
+| | |
+| --- | --- |
+| KANTO CLEARED | All eight badges |
+| CHAMPION | The ELITE FOUR and your rival |
+| FIRST CATCH | One POKéMON caught |
+| 100 CAUGHT | A hundred species |
+| POKéDEX | 150, which is the diploma |
+| FULL PARTY | Six carried at once |
+| LEVEL 100 | One raised the whole way |
+| SHINY | One owned |
+| RICH | A hundred thousand in cash |
+| HIGH ROLLER | A thousand Game Corner coins |
+| ONE DAY | Twenty-four hours played |
+
+There is no Johto to clear, no RED at the top of MT.SILVER and no UNOWN, so
+those eleven are not offered. A shiny is what the game draws as one: a Kanto
+Pokemon whose DVs are shiny the day it is traded to Gold.
 
 ## Every one is a state, not a moment
 
@@ -42,7 +66,7 @@ you have already played works. A state a run reached is still there to read; a
 moment is gone.
 
 So a save that was at the Elite Four before the mod existed is awarded everything
-it had earned under **one line**, not thirty. From then on each new one is
+it had earned under **one line**, not one each. From then on each new one is
 announced as you reach it.
 
 The set lives in the save rather than in the installation, so two slots are two
@@ -69,12 +93,12 @@ The banner waits for a moment it can be read in. A battle, a menu, a text box, a
 warp or a running script all hold it until they are done, so it never lands on
 top of something you were reading.
 
-Gold and Silver ship neither that sign nor its frame, so the notice wears the
-ordinary text box there.
+Gold, Silver, Red, Blue and Yellow ship neither that sign nor its frame, so the
+notice wears the ordinary text box there.
 
 ## The page
 
-**ACHIEVEMENTS** in the start menu. The count is the first row, then the thirty,
+**ACHIEVEMENTS** in the start menu. The count is the first row, then the rest,
 eight at a time, scrolled with the d-pad and left with B.
 
 Every row names itself and what it asks, earned or not, so the page can be read
@@ -93,6 +117,7 @@ In the start menu's MODS entry, and on the mod's launcher page.
 ## What it needs
 
 A host that answers what the run has achieved and says when a
-field of it moves, raises a mod's banner over the map, and keeps a mod's page
-behind a start-menu row. The mod draws none of that itself. It reads no world and
-no battle state, holds no scene node and composes no pixel.
+field of it moves, raises a mod's banner over the map, keeps a mod's page
+behind a start-menu row and says which generation is being played. The mod draws
+none of that itself. It reads no world and no battle state, holds no scene node
+and composes no pixel.
