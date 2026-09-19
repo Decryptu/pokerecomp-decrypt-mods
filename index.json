@@ -15,10 +15,10 @@
 		{
 			"id": "randomizer",
 			"name": "Randomizer",
-			"version": "0.3.3",
-			"games": ["gold", "silver", "crystal"],
-			"description": "Randomizes a playthrough from a four-digit seed: wild Pokemon, gifts, starters, trades, items, badges, shops, stats, types, movesets and trainer teams. The seed is saved with the game, and the mod checks that key items and badges stay reachable.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/randomizer-0.3.3/randomizer-0.3.3.zip",
+			"version": "0.4.0",
+			"games": ["red", "blue", "yellow", "gold", "silver", "crystal"],
+			"description": "Randomizes a playthrough from a four-digit seed: wild Pokemon, stats, types, movesets, evolutions, moves and trainer teams on all six games, plus gifts, starters, trades, items, badges and shops on Gold, Silver and Crystal. The seed is saved with the game, and the mod checks that key items and badges stay reachable.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/randomizer-0.4.0/randomizer-0.4.0.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/randomizer/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/randomizer/thumbnail.webp"
 		},
