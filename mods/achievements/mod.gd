@@ -10,13 +10,13 @@ const Options := preload("options.gd")
 const NOTICE_TITLE: String = "ACHIEVEMENT"
 const PAGE_TITLE: String = "ACHIEVEMENTS"
 const COUNT_LABEL: String = "UNLOCKED"
-const SUMMARY_ICON: Dictionary = {"badge": Catalogue.BADGE_ZEPHYR}
 const SOUND_NONE: StringName = &"none"
 
 var _host: Gen2ModHost = null
 var _manifest: PokeModManifest = null
 var _id: StringName = &""
-var _ledger: Ledger = Ledger.new()
+var _catalogue: Array[Dictionary] = []
+var _ledger: Ledger = null
 var _save: Gen2SaveData = null
 
 
@@ -24,6 +24,8 @@ func register(host: Gen2ModHost, manifest: PokeModManifest) -> void:
 	_host = host
 	_manifest = manifest
 	_id = manifest.id
+	_catalogue = Catalogue.rows(host.generation())
+	_ledger = Ledger.new(_catalogue)
 	Options.register(host, manifest.id)
 	host.register_page(manifest.id, {"title": PAGE_TITLE, "rows": _rows})
 	host.register_menu_entry(Gen2ModHost.MENU_START, manifest.id, {
@@ -38,7 +40,7 @@ func register(host: Gen2ModHost, manifest: PokeModManifest) -> void:
 func save_created(save: Gen2SaveData) -> void:
 	if save == null:
 		return
-	_host.write_save_data(_manifest, save, Ledger.new().stored())
+	_host.write_save_data(_manifest, save, Ledger.new(_catalogue).stored())
 
 
 func save_activated(save: Gen2SaveData) -> void:
@@ -69,10 +71,10 @@ func _scan(progress: Dictionary) -> void:
 	if not Options.notice(_host):
 		return
 	if bool(answer["quiet"]):
-		_announce(NOTICE_TITLE, "%d UNLOCKED" % fresh.size(), SUMMARY_ICON, "")
+		_announce(NOTICE_TITLE, "%d UNLOCKED" % fresh.size(), _catalogue[0]["icon"] as Dictionary, "")
 		return
 	for id: Variant in fresh:
-		var row: Dictionary = Catalogue.find(StringName(id))
+		var row: Dictionary = Catalogue.find(_catalogue, StringName(id))
 		if row.is_empty():
 			continue
 		_announce(
@@ -99,7 +101,7 @@ func _rows() -> Array:
 		"label": COUNT_LABEL,
 		"detail": "%d OF %d" % [counts.x, counts.y],
 	}]
-	for row: Dictionary in Catalogue.ROWS:
+	for row: Dictionary in _catalogue:
 		var line: Dictionary = {
 			"label": String(row["name"]),
 			"detail": String(row["detail"]),

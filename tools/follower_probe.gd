@@ -641,7 +641,7 @@ func _beside_the_cartridges_own(
 			1, false, [WALKERS[RomRegistry.GEN1]], [], ["PIKACHU"], [false],
 			{"starter_pikachu": {"alive": starter_alive}}, [false]
 		)
-		for _step: int in 2:
+		for _pass: int in 2:
 			world.move(Vector2i.DOWN)
 			while world.player_step_in_progress():
 				world.advance_player_step_pass()
@@ -663,7 +663,7 @@ func _beside_the_cartridges_own(
 ## The nurse's machine still holds the party for its animation after the answer;
 ## the trader hands it straight back.
 func _wait_for_the_party(world: Gen2WorldAPI) -> void:
-	for _step: int in COUNTER_STEPS:
+	for _pass: int in COUNTER_STEPS:
 		if world.party_with_player() or not world.script_busy():
 			return
 		world.finish_script_waits()
@@ -673,7 +673,7 @@ func _wait_for_the_party(world: Gen2WorldAPI) -> void:
 ## Through the counter's own boxes: YES to a question, slot one to a party list,
 ## until the party leaves the player's hands or the script runs out.
 func _hand_the_party_over(world: Gen2WorldAPI, species: int) -> void:
-	for _step: int in COUNTER_STEPS:
+	for _pass: int in COUNTER_STEPS:
 		if not world.party_with_player() or not world.script_busy():
 			return
 		match String(world.pending_script_input().get("type", "")):

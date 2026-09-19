@@ -84,7 +84,7 @@ func _stage() -> bool:
 	_screen.set_dex_context(true, false, true)
 	while _screen.intro_running():
 		_screen.advance_frame()
-	for _press: int in MENU_PRESSES:
+	for _pass: int in MENU_PRESSES:
 		if String(_screen.info_snapshot().get("menu_stage", "")) == "main":
 			break
 		_press(PokeButton.A)

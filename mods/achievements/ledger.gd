@@ -12,7 +12,12 @@ const QUIET_ABOVE: int = 3
 
 var unlocked: Dictionary = {}
 
+var _rows: Array[Dictionary] = []
 var _recorded: bool = false
+
+
+func _init(rows: Array[Dictionary]) -> void:
+	_rows = rows
 
 
 func restore(saved: Dictionary) -> void:
@@ -42,7 +47,7 @@ func closed() -> void:
 
 func scan(progress: Dictionary) -> Dictionary:
 	var fresh: Array[StringName] = []
-	for id: StringName in Catalogue.held(progress):
+	for id: StringName in Catalogue.held(_rows, progress):
 		if unlocked.has(id):
 			continue
 		unlocked[id] = true
@@ -54,10 +59,10 @@ func scan(progress: Dictionary) -> Dictionary:
 
 func progress_counts() -> Vector2i:
 	var held: int = 0
-	for row: Dictionary in Catalogue.ROWS:
+	for row: Dictionary in _rows:
 		if unlocked.has(StringName(row["id"])):
 			held += 1
-	return Vector2i(held, Catalogue.ROWS.size())
+	return Vector2i(held, _rows.size())
 
 
 func has(id: StringName) -> bool:

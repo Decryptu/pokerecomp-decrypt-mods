@@ -1,11 +1,17 @@
 extends RefCounted
 
-## Every achievement, and the one question each asks of a run.
+## Every achievement, and the one question each asks of a run. A row is Johto's;
+## `kanto` is the same achievement on Red, Blue and Yellow: absent, it is not
+## there, and otherwise the fields that differ.
 
-const BADGE_ZEPHYR: int = 0
+const KANTO: String = "kanto"
+
 const BADGE_RISING: int = 7
+const BADGE_EARTH: int = 15
 const BADGE_COUNT: int = 16
+const KANTO_BADGE_COUNT: int = 8
 const MASK_JOHTO: int = 0x00FF
+const MASK_KANTO: int = 0xFF00
 const MASK_ALL: int = 0xFFFF
 
 const RULE_BADGE: StringName = &"badge"
@@ -46,8 +52,12 @@ const GYARADOS: int = 130
 const MEOWTH: int = 52
 const PORYGON: int = 137
 const HOOTHOOT: int = 163
+const MEW: int = 151
+const MEWTWO: int = 150
+const SNORLAX: int = 143
 
 const DEX_COMPLETE: int = 251
+const DEX_DIPLOMA: int = 150
 
 const FULL_PARTY: int = 6
 
@@ -96,41 +106,49 @@ const ROWS: Array[Dictionary] = [
 		"id": &"boulder_badge", "name": "BOULDERBADGE", "detail": "BEAT BROCK",
 		"rule": RULE_BADGE, "at": 8,
 		"icon": {"species": GEODUDE}, "sound": SOUND_BADGE,
+		KANTO: {"icon": {"badge": 8}},
 	},
 	{
 		"id": &"cascade_badge", "name": "CASCADEBADGE", "detail": "BEAT MISTY",
 		"rule": RULE_BADGE, "at": 9,
 		"icon": {"species": STARYU}, "sound": SOUND_BADGE,
+		KANTO: {"icon": {"badge": 9}},
 	},
 	{
 		"id": &"thunder_badge", "name": "THUNDERBADGE", "detail": "BEAT LT.SURGE",
 		"rule": RULE_BADGE, "at": 10,
 		"icon": {"species": PIKACHU}, "sound": SOUND_BADGE,
+		KANTO: {"icon": {"badge": 10}},
 	},
 	{
 		"id": &"rainbow_badge", "name": "RAINBOWBADGE", "detail": "BEAT ERIKA",
 		"rule": RULE_BADGE, "at": 11,
 		"icon": {"species": BELLSPROUT}, "sound": SOUND_BADGE,
+		KANTO: {"icon": {"badge": 11}},
 	},
 	{
 		"id": &"soul_badge", "name": "SOULBADGE", "detail": "BEAT JANINE",
 		"rule": RULE_BADGE, "at": 12,
 		"icon": {"species": KOFFING}, "sound": SOUND_BADGE,
+		KANTO: {"detail": "BEAT KOGA", "icon": {"badge": 12}},
 	},
 	{
 		"id": &"marsh_badge", "name": "MARSHBADGE", "detail": "BEAT SABRINA",
 		"rule": RULE_BADGE, "at": 13,
 		"icon": {"species": ABRA}, "sound": SOUND_BADGE,
+		KANTO: {"icon": {"badge": 13}},
 	},
 	{
 		"id": &"volcano_badge", "name": "VOLCANOBADGE", "detail": "BEAT BLAINE",
 		"rule": RULE_BADGE, "at": 14,
 		"icon": {"species": MAGMAR}, "sound": SOUND_BADGE,
+		KANTO: {"icon": {"badge": 14}},
 	},
 	{
 		"id": &"earth_badge", "name": "EARTHBADGE", "detail": "BEAT BLUE",
 		"rule": RULE_BADGE, "at": 15,
 		"icon": {"species": RHYDON}, "sound": SOUND_BADGE,
+		KANTO: {"detail": "BEAT GIOVANNI", "icon": {"badge": BADGE_EARTH}},
 	},
 	{
 		"id": &"johto_cleared", "name": "JOHTO CLEARED", "detail": "EIGHT BADGES",
@@ -141,11 +159,15 @@ const ROWS: Array[Dictionary] = [
 		"id": &"champion", "name": "CHAMPION", "detail": "BEAT THE LEAGUE",
 		"rule": RULE_CHAMPION, "at": 0,
 		"icon": {"species": DRAGONITE}, "sound": SOUND_BADGE,
+		KANTO: {},
 	},
 	{
 		"id": &"kanto_cleared", "name": "KANTO CLEARED", "detail": "ALL 16 BADGES",
 		"rule": RULE_BADGE_SET, "at": MASK_ALL,
 		"icon": {"species": PIDGEOT}, "sound": SOUND_BADGE,
+		KANTO: {
+			"detail": "EIGHT BADGES", "at": MASK_KANTO, "icon": {"badge": BADGE_EARTH},
+		},
 	},
 	{
 		"id": &"mt_silver", "name": "MT.SILVER", "detail": "BEAT RED",
@@ -156,16 +178,19 @@ const ROWS: Array[Dictionary] = [
 		"id": &"first_catch", "name": "FIRST CATCH", "detail": "ONE CAUGHT",
 		"rule": RULE_CAUGHT, "at": 1,
 		"icon": {"species": RATTATA}, "sound": SOUND_ITEM,
+		KANTO: {},
 	},
 	{
 		"id": &"hundred_caught", "name": "100 CAUGHT", "detail": "100 SPECIES",
 		"rule": RULE_CAUGHT, "at": 100,
 		"icon": {"species": DITTO}, "sound": SOUND_ITEM,
+		KANTO: {},
 	},
 	{
 		"id": &"pokedex", "name": "POKéDEX", "detail": "ALL 251 CAUGHT",
 		"rule": RULE_CAUGHT, "at": DEX_COMPLETE,
 		"icon": {"species": CELEBI}, "sound": SOUND_KEY_ITEM,
+		KANTO: {"detail": "150 CAUGHT", "at": DEX_DIPLOMA, "icon": {"species": MEW}},
 	},
 	{
 		"id": &"unown", "name": "UNOWN", "detail": "ALL 26 LETTERS",
@@ -176,31 +201,37 @@ const ROWS: Array[Dictionary] = [
 		"id": &"full_party", "name": "FULL PARTY", "detail": "SIX AT ONCE",
 		"rule": RULE_PARTY, "at": FULL_PARTY,
 		"icon": {"species": CHANSEY}, "sound": SOUND_ITEM,
+		KANTO: {},
 	},
 	{
 		"id": &"level_100", "name": "LEVEL 100", "detail": "THE WHOLE WAY",
 		"rule": RULE_LEVEL, "at": 100,
 		"icon": {"species": TYRANITAR}, "sound": SOUND_ITEM,
+		KANTO: {"icon": {"species": MEWTWO}},
 	},
 	{
 		"id": &"shiny", "name": "SHINY", "detail": "ONE OWNED",
 		"rule": RULE_SHINY, "at": 1,
 		"icon": {"species": GYARADOS}, "sound": SOUND_ITEM,
+		KANTO: {},
 	},
 	{
 		"id": &"rich", "name": "RICH", "detail": "100000 IN CASH",
 		"rule": RULE_MONEY, "at": 100000,
 		"icon": {"species": MEOWTH}, "sound": SOUND_ITEM,
+		KANTO: {},
 	},
 	{
 		"id": &"high_roller", "name": "HIGH ROLLER", "detail": "1000 COINS",
 		"rule": RULE_COINS, "at": 1000,
 		"icon": {"species": PORYGON}, "sound": SOUND_ITEM,
+		KANTO: {},
 	},
 	{
 		"id": &"one_day", "name": "ONE DAY", "detail": "24 HOURS PLAYED",
 		"rule": RULE_HOURS, "at": 24,
 		"icon": {"species": HOOTHOOT}, "sound": SOUND_ITEM,
+		KANTO: {"icon": {"species": SNORLAX}},
 	},
 ]
 
@@ -235,16 +266,37 @@ static func holds(row: Dictionary, progress: Dictionary) -> bool:
 	return false
 
 
-static func held(progress: Dictionary) -> Array[StringName]:
-	var out: Array[StringName] = []
+static func rows(generation: int) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
 	for row: Dictionary in ROWS:
+		var built: Dictionary = _on(row, generation)
+		if not built.is_empty():
+			out.append(built)
+	return out
+
+
+static func _on(row: Dictionary, generation: int) -> Dictionary:
+	var built: Dictionary = row.duplicate()
+	var kanto: Variant = built.get(KANTO)
+	built.erase(KANTO)
+	if generation != RomRegistry.GEN1:
+		return built
+	if kanto == null:
+		return {}
+	built.merge(kanto as Dictionary, true)
+	return built
+
+
+static func held(table: Array[Dictionary], progress: Dictionary) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for row: Dictionary in table:
 		if holds(row, progress):
 			out.append(StringName(row["id"]))
 	return out
 
 
-static func find(id: StringName) -> Dictionary:
-	for candidate: Dictionary in ROWS:
+static func find(table: Array[Dictionary], id: StringName) -> Dictionary:
+	for candidate: Dictionary in table:
 		if StringName(candidate["id"]) == id:
 			return candidate
 	return {}

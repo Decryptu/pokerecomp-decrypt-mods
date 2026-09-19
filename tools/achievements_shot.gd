@@ -10,10 +10,12 @@ const DEFAULT_WINDOW := Vector2i(800, 720)
 
 const THUMBNAIL_SIZE := Vector2i(1280, 720)
 
-const DEFAULT_MAP := Vector2i(10, 7)
-const DEFAULT_CELL := Vector2i(5, 2)
+const JOHTO_MAP := Vector2i(10, 7)
+const JOHTO_CELL := Vector2i(5, 2)
+const KANTO_MAP := Vector2i(0, 54)
+const KANTO_CELL := Vector2i(4, 2)
 const DEFAULT_BADGES: int = 0
-const JOHTO_BADGES: int = 8
+const REGION_BADGES: int = 8
 
 const STAGE_ON: int = 6
 const SHUTTER_WAIT: int = 18
@@ -30,8 +32,10 @@ var _waited: int = 0
 var _staged: bool = false
 var _framed: bool = false
 var _view: StringName = &""
-var _cell := DEFAULT_CELL
+var _map := JOHTO_MAP
+var _cell := JOHTO_CELL
 var _data: GameData = null
+var _kanto: bool = false
 
 
 func _initialize() -> void:
@@ -49,9 +53,7 @@ func _initialize() -> void:
 		print("kind is notice or page, not ", _kind)
 		quit(2)
 		return
-	_badges = clampi(int(args[3]) if args.size() > 3 else DEFAULT_BADGES, 0, JOHTO_BADGES)
-	var map: Vector2i = _pair(args[4] if args.size() > 4 else "", DEFAULT_MAP)
-	_cell = _pair(args[5] if args.size() > 5 else "", DEFAULT_CELL)
+	_badges = clampi(int(args[3]) if args.size() > 3 else DEFAULT_BADGES, 0, REGION_BADGES)
 	for index: int in range(6, args.size()):
 		match String(args[index]):
 			"thumbnail":
@@ -66,6 +68,7 @@ func _initialize() -> void:
 				quit(2)
 				return
 
+	Gen2ModHost.reset()
 	_data = GameData.open_argument(args[0])
 	if _data == null:
 		print("no cache for ", args[0])
@@ -75,6 +78,9 @@ func _initialize() -> void:
 	if not Staging.mod_loaded(host, _data, MOD_ID):
 		quit(1)
 		return
+	_kanto = host.generation() == RomRegistry.GEN1
+	_map = _pair(args[4] if args.size() > 4 else "", KANTO_MAP if _kanto else JOHTO_MAP)
+	_cell = _pair(args[5] if args.size() > 5 else "", KANTO_CELL if _kanto else JOHTO_CELL)
 	if not _view.is_empty():
 		print("view       ", String(_view), " ", str(host.select_view(_view)))
 
@@ -85,8 +91,8 @@ func _initialize() -> void:
 	root.size = DEFAULT_WINDOW
 	var packed: PackedScene = load("res://game/world/world_screen.tscn")
 	_screen = packed.instantiate() as Gen2WorldScreen
-	_screen.map_group = map.x
-	_screen.map_number = map.y
+	_screen.map_group = _map.x
+	_screen.map_number = _map.y
 	_screen.start_cell = _cell
 	_screen.encounter_seed = 1
 	_screen.set_data(_data)
@@ -127,7 +133,7 @@ func _stage() -> void:
 		save = Gen2SaveStore.create_development_save(_data, 0)
 		_screen.set_save(save)
 	Gen2ModHost.instance().activate_save(save)
-	var world: Gen2WorldAPI = _screen.get("_world") as Gen2WorldAPI
+	var world: Gen2WorldAPI = _screen.world()
 	if world == null or world.state == null:
 		print("the screen opened no world")
 		quit(1)
@@ -135,9 +141,8 @@ func _stage() -> void:
 	if not _standable(world):
 		return
 	_face_the_leader()
-	var crystal: bool = Gen2WorldState.is_crystal_profile(_data)
 	for badge: int in _badges:
-		world.state.set_engine_flag(Gen2WorldState.badge_flag(badge, crystal))
+		world.state.set_engine_flag(_badge_flag(badge))
 	_spend_map_banner()
 	if _kind == &"page":
 		_screen.advance_frames(SETTLE_FRAMES)
@@ -145,10 +150,16 @@ func _stage() -> void:
 		_screen.advance_frame()
 		_staged = true
 		return
-	world.state.set_engine_flag(
-		Gen2WorldState.badge_flag(mini(_badges, JOHTO_BADGES - 1), crystal)
-	)
+	world.state.set_engine_flag(_badge_flag(mini(_badges, REGION_BADGES - 1)))
 	_staged = _raise_notice()
+
+
+## The region's badge [param index], 0 to 7, as the engine flag it is on this
+## cartridge.
+func _badge_flag(index: int) -> int:
+	if _kanto:
+		return Gen2WorldState.gen1_badge_flag(index)
+	return Gen2WorldState.badge_flag(index, Gen2WorldState.is_crystal_profile(_data))
 
 
 func _standable(world: Gen2WorldAPI) -> bool:
