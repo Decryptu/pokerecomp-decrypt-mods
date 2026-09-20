@@ -5,6 +5,32 @@ map, same collision, same palettes: geometry built out of what the game already
 decoded, textured with the cartridge's own tile art. No 3D assets ship with this
 mod, because everything it draws comes from the player's cartridge.
 
+## Red, Blue and Yellow
+
+The same renderers draw Kanto. Everything is read through the seams both
+generations share, and the three places a Generation I cartridge answers
+differently are answered in one place each:
+
+- **A cell.** Generation II keeps a permission byte per walk cell; Generation I
+  keeps the tile the cell draws and asks the tileset's own tables what it means.
+  `shape/map_source.gd` answers every cell question, walkable, water, grass, a
+  door, a ledge and which way it is hopped, on either cartridge, so the mesher
+  never sees a raw byte.
+- **A tile.** Tileset numbers overlap between the generations, so the pins live
+  under `shape/gen1/` and `shape/gen2/`, one profile, one generated pass and one
+  set of painted houses each, and `shape/profiles.gd` picks by cartridge.
+- **Colour.** A Generation I map is drawn in one four-colour row and every town
+  and route row puts the same blue at colour 2, so the sky is graded from that
+  blue and the water dithered from it. Objects wear the map's own four through
+  `rOBP0`, an indoor map takes the last town's row and Rock Tunnel is dark,
+  which the atlas reads from the world the way the cartridge does. A battle asks
+  the host's `Gen2BattleColors` what each square, panel, bar and sprite wears,
+  which on a Super Game Boy is the palette of the mon whose square it is.
+
+Yellow's Pikachu walks the diorama as the actor entry the host answers for it.
+The clock still lights the scene: the cartridge has no night, but the host runs
+a clock on it and the sky and the sun follow that clock as they do on Gold.
+
 ## Turning it on
 
 One switch, reachable three ways: the VIEW row in the start menu's MODS entry,
@@ -217,7 +243,8 @@ the drawing up is what turns a wall into a wall.
 **Where a shape comes from.** `shape/tile_shape.gd` resolves every tile in this
 order:
 
-1. a pin in `shape/profile.gd`, unless it is a building pin in a walkable cell:
+1. a pin in the generation's `shape/gen<n>/profile.gd`, unless it is a building
+   pin in a walkable cell:
    one plain tile draws both a house wall and the pavement in front of it
 2. the walk cell's collision says water, so the tile is water
 3. the walk cell's collision says walkable, so the tile is ground
@@ -298,10 +325,14 @@ Two readings refuse that: a roof deck standing on the run means the face-on band
 is that deck's fascia, and a column drawing roof more than once is a stack of
 storeys, like Ecruteak's seven-gallery dance hall.
 
-`shape/houses.gd` holds 103 drawings painted per pixel and matched by
+`shape/gen2/houses.gd` holds 103 drawings painted per pixel and matched by
 arrangement, produced with `tools/house_export.gd`, `house_page.py` and
 `house_pins.gd`. 92 of them reach the game: 246 placements on 64 maps, standing
-up 348 buildings. `tools/house_claim.gd` counts it.
+up 348 buildings. `tools/house_claim.gd` counts it. `shape/gen1/houses.gd` holds
+Kanto's 50, every one of them the pre-fill accepted as it came
+(`house_page.py --accept`): a Generation I building is a striped pitch drawn
+face-on over walls, with a hatched flat roof between the pitches on the big ones,
+and each of those is one tile class, so nothing needed painting by hand.
 
 ## Ledges, doors and two levels of ground
 
@@ -809,8 +840,8 @@ numbered, one sheet per tileset, about eight seconds for the whole game.
 
 1. Read the sheet. The cartridge's drawing is the authority for what a thing is.
 2. Write the failures as a list: `#4 bookcase, #6 planter, #22 bed`.
-3. Pin them in `shape/profile.gd` under the tileset's number, with the class
-   whose art mode matches what the drawing depicts.
+3. Pin them in the generation's `shape/gen<n>/profile.gd` under the tileset's
+   number, with the class whose art mode matches what the drawing depicts.
 4. Re-shoot the whole tileset, not just the blocks that were pinned: heights are
    measured per column, so a pin changes what its neighbours measure.
 5. Every map sharing that tileset inherits the pins.
@@ -819,14 +850,21 @@ A pin is presentational and can only ever be. Collision, warps, triggers and
 scripts read the same data they always did, and a fix that seems to need a
 collision change is the wrong fix.
 
-`shape/profile.gd` is hand-authored from measurements off the drawing.
-`shape/profile_pass.gd` is generated from a full pass over every tileset, where
+`shape/gen2/profile.gd` is hand-authored from measurements off the drawing.
+`shape/gen2/pass.gd` is generated from a full pass over every tileset, where
 the same ringed pictures are read tile by tile and the answers become pins. The
 hand table wins wherever both name a tile, and the generated one can be thrown
 away and rebuilt. All thirty-five tilesets are covered: 3618 tiles read, 2168
 pinned, the rest left to automatic resolution. Run blind against a tileset that
 had already been answered by hand, the pass agreed on 63 of the 67 settled tiles,
 and every miss was one it had marked short of sure.
+
+`shape/gen1/profile.gd` is Kanto's hand table, seeded from the pins the
+[DramaticShapeVoxelMod](https://github.com/DramaticShape/DramaticShapeVoxelMod)
+profile settled on and corrected against the survey sheets and the cartridge's
+own art, map by map. Its pass, `shape/gen1/pass.gd`, is empty: the twenty-five
+tilesets have not had the full tile-by-tile pass yet, and what the hand table
+does not name is left to the automatic resolution.
 
 ## Layout
 
@@ -854,10 +892,12 @@ battle/anim.gd       a move's own OAM layer, blitted the way the hardware drew i
 shape/atlas.gd       the tileset as a texture, palettes and tile animation
 shape/map_source.gd  the map, live from the world or read from its records
 shape/tile_shape.gd  tile -> shape class
-shape/profile.gd     hand-authored pins, the objects, the staircases, the classes
-shape/profile_pass.gd  the generated second table, one pin per tile of the game
+shape/classes.gd     the shape vocabulary: what each class stands, wears, measures
+shape/profiles.gd    which generation's profile a cartridge takes
+shape/gen1/, shape/gen2/  per generation: profile.gd, the hand-authored pins,
+                     the objects and the staircases; pass.gd, the generated
+                     second table; houses.gd, the houses painted per pixel
 shape/far_drawings.gd  what stands on a far map, read without resolving it
-shape/houses.gd      the houses painted per pixel
 shape/levels.gd      the ground levels a person painted, where one has
 shape/model.gd       a sprite turned into a model: trees, bushes, boulders
 shape/stems.gd       the flower's stem, drawn by hand because nothing draws one
@@ -870,4 +910,6 @@ The voxelization approach follows
 [DramaticShapeVoxelMod](https://github.com/DramaticShape/DramaticShapeVoxelMod),
 which worked out how to turn Generation I's flat tile art into geometry without
 authoring any. That mod is for a different game on a different engine; what is
-borrowed is the method, not the code.
+borrowed is the method, not the code, and on Red, Blue and Yellow the reading its
+profile settled on of which Kanto tiles are trees, signs, shelves and stairs,
+which seeded `shape/gen1/profile.gd` before the pictures corrected it.
