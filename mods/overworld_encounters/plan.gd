@@ -3,8 +3,6 @@ extends RefCounted
 ## Pure population planning from a host-resolved visible-encounter context.
 
 const Rng := preload("rng.gd")
-const GRASS_WEIGHTS: Array[int] = [30, 30, 20, 10, 5, 4, 1]
-const SURF_WEIGHTS: Array[int] = [60, 30, 10]
 const EXCELLENT_TOTAL: int = 50
 
 
@@ -52,8 +50,7 @@ static func _make(
 ) -> Dictionary:
 	var method: StringName = StringName(candidate["method"])
 	var table: Dictionary = (context.get("tables", {}) as Dictionary).get(method, {})
-	var slots: Array = table.get("slots", [])
-	var slot: Dictionary = _slot(slots, method, random)
+	var slot: Dictionary = _slot(table.get("slots", []), random)
 	if slot.is_empty():
 		return {}
 	var minimum: int = int(slot.get("min_level", 1))
@@ -109,19 +106,19 @@ static func _shuffle(values: Array, random: RefCounted) -> void:
 		values[other] = held
 
 
-static func _slot(slots: Array, method: StringName, random: RefCounted) -> Dictionary:
-	if slots.is_empty():
-		return {}
-	var weights: Array[int] = SURF_WEIGHTS if method == &"surf" else GRASS_WEIGHTS
+## The cartridge's own slot roll: each slot in its share of the table's `chance`.
+static func _slot(slots: Array, random: RefCounted) -> Dictionary:
 	var total: int = 0
-	for index: int in mini(slots.size(), weights.size()):
-		total += weights[index]
+	for slot: Dictionary in slots:
+		total += int(slot["chance"])
+	if total <= 0:
+		return {}
 	var roll: int = random.below(total)
-	for index: int in mini(slots.size(), weights.size()):
-		if roll < weights[index]:
-			return (slots[index] as Dictionary).duplicate(true)
-		roll -= weights[index]
-	return (slots[0] as Dictionary).duplicate(true)
+	for slot: Dictionary in slots:
+		roll -= int(slot["chance"])
+		if roll < 0:
+			return slot.duplicate(true)
+	return {}
 
 
 static func _dvs(

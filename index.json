@@ -35,10 +35,10 @@
 		{
 			"id": "overworld_encounters",
 			"name": "Overworld Encounters",
-			"version": "0.5.1",
-			"games": ["gold", "silver", "crystal"],
+			"version": "0.6.0",
+			"games": ["red", "blue", "yellow", "gold", "silver", "crystal"],
 			"description": "Wild Pokemon walk around on the map instead of appearing during random steps. Up to sixteen per map, taken from that map's own encounter table. Each one leaves after half a minute and another takes its place, so a route keeps rolling new Pokemon while you stand on it. Shinies never leave, and Pokemon with very high DVs glow gold.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.5.1/overworld_encounters-0.5.1.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/overworld_encounters-0.6.0/overworld_encounters-0.6.0.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/overworld_encounters/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/overworld_encounters/thumbnail.webp"
 		},
