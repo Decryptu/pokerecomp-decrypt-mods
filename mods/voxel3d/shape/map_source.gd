@@ -176,16 +176,16 @@ func _code_off_map(cell: Vector2i) -> int:
 
 ## The code one of a block's four cells carries, off the tileset alone.
 static func code_in_block(
-	data: GameData, tileset: Gen2WorldTileset, block: int, cell_x: int, cell_y: int
+	data: GameData, of: Gen2WorldTileset, block: int, cell_x: int, cell_y: int
 ) -> int:
 	if data != null and data.generation == RomRegistry.GEN1:
-		return tileset.tile_index(block, Gen1Layout.cell_tile_index(cell_x, cell_y))
-	return tileset.collision_index(block, cell_x, cell_y)
+		return of.tile_index(block, Gen1Layout.cell_tile_index(cell_x, cell_y))
+	return of.collision_index(block, cell_x, cell_y)
 
 
-static func permission_of(data: GameData, tileset: Gen2WorldTileset, code: int) -> int:
+static func permission_of(data: GameData, of: Gen2WorldTileset, code: int) -> int:
 	if data != null and data.generation == RomRegistry.GEN1:
-		return Gen2WorldCollision.gen1_permission(tileset, code)
+		return Gen2WorldCollision.gen1_permission(of, code)
 	return Gen2WorldCollision.permission_for(code)
 
 
