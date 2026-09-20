@@ -74,32 +74,23 @@ func block_at(block_x: int, block_y: int) -> int:
 
 
 func _block_at(block_x: int, block_y: int) -> int:
-	var drawn: int = _drawn_block(block_x, block_y)
-	if drawn >= 0:
-		var key: int = block_y * 4096 + block_x
-		if _carried_blocks.has(key):
-			return _carried_blocks[key]
-		var out: int = _carried(drawn, block_x, block_y)
-		_carried_blocks[key] = out
-		return out
-	if block_x >= 0 and block_y >= 0 \
-			and block_x < _map.width_blocks and block_y < _map.height_blocks:
-		var block: int = _map.block_at(block_x, block_y)
-		return _map.border_block if block == 0 else block
-	return _map.border_block
+	var key: int = block_y * 4096 + block_x
+	if _carried_blocks.has(key):
+		return _carried_blocks[key]
+	var out: int = _carried(_drawn_block(block_x, block_y), block_x, block_y)
+	_carried_blocks[key] = out
+	return out
 
 
+## The block a coordinate is drawn from, which is the host's answer inside the
+## hardware buffer and a placed neighbour's own past it, the way
+## `Gen2WorldAPI.expanded_block_at` walks, held to this map's tileset since the
+## atlas is one tileset.
 func _drawn_block(block_x: int, block_y: int) -> int:
-	if _map == null or _tileset == null:
-		return -1
 	if Gen2WorldAPI.in_hardware_buffer(_map, block_x, block_y):
 		if _world != null:
 			return _world.drawn_block_at(block_x, block_y)
-		if _data != null:
-			return Gen2WorldAPI.drawn_block_for(_data, _map, block_x, block_y)
-		return -1
-	if _world == null and _data == null:
-		return -1
+		return Gen2WorldAPI.drawn_block_for(_data, _map, block_x, block_y)
 	for placement: Dictionary in _placed().values():
 		var near: Gen2WorldMap = placement["map"]
 		if near.tileset != _tileset.number:
@@ -109,8 +100,7 @@ func _drawn_block(block_x: int, block_y: int) -> int:
 		if local.x < 0 or local.y < 0 \
 				or local.x >= near.width_blocks or local.y >= near.height_blocks:
 			continue
-		var block: int = near.block_at(local.x, local.y)
-		return near.border_block if block == 0 else block
+		return Gen2WorldAPI.drawn_block_for(_data, near, local.x, local.y)
 	return _map.border_block
 
 

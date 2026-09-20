@@ -49,7 +49,7 @@ func _initialize() -> void:
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		if tileset == null:
 			continue
-		_walk(map, tileset, profile, shape_script, source_script, drawings)
+		_walk(data, map, tileset, profile, shape_script, source_script, drawings)
 
 	var keys: Array = drawings.keys()
 	keys.sort_custom(func(a: String, b: String) -> bool:
@@ -98,12 +98,12 @@ func _initialize() -> void:
 
 
 func _walk(
-	map: Gen2WorldMap, tileset: Gen2WorldTileset,
+	data: GameData, map: Gen2WorldMap, tileset: Gen2WorldTileset,
 	profile: GDScript, shape_script: GDScript, source_script: GDScript,
 	drawings: Dictionary
 ) -> void:
 	var shape: RefCounted = shape_script.new(profile, map.tileset)
-	var source: RefCounted = source_script.new(null, map, tileset)
+	var source: RefCounted = source_script.new(null, map, tileset, data)
 	var w: int = map.width_blocks * BLOCK_TILES
 	var h: int = map.height_blocks * BLOCK_TILES
 	var warps: Dictionary = {}

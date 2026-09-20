@@ -255,7 +255,7 @@ func _build(number: int) -> bool:
 		_stage.set_texture(_atlas.texture)
 		_stage.set_background(Color(0.09, 0.09, 0.11))
 	var shape: RefCounted = _tile_shape.new(_profile, number)
-	_stage.set_terrain(_mesher.build(_map_source.new(null, map, tileset), shape, _atlas))
+	_stage.set_terrain(_mesher.build(_map_source.new(null, map, tileset, _data), shape, _atlas))
 	_stage.set_water(_mesher.take_water())
 	_stage.set_tufts(_mesher.take_tufts())
 	_stage.set_models(_mesher.take_models())

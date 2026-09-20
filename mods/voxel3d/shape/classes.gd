@@ -41,6 +41,7 @@ const HEIGHTS: Dictionary = {
 	&"stool": 0,
 	&"canopy": 0,
 	&"tree": 0,
+	&"tree_round": 0,
 	&"boulder": 0,
 	&"railing": 8,
 	&"surface": 16,
@@ -76,6 +77,7 @@ const STEMS: Dictionary = {
 }
 
 const ROUND: Dictionary = {
+	&"tree_round": true,
 	&"post": true,
 	&"bush": true,
 	&"sapling": true,
@@ -96,6 +98,7 @@ const ROUND: Dictionary = {
 const OUTLINE: Dictionary = {
 	&"canopy": 1,
 	&"tree": 1,
+	&"tree_round": 1,
 	&"bush": 1,
 	&"sapling": 1,
 	&"boulder": 1,
@@ -118,6 +121,7 @@ const SWAYS: Dictionary = {
 const MODEL: Dictionary = {
 	&"canopy": true,
 	&"tree": true,
+	&"tree_round": true,
 	&"bush": true,
 	&"sapling": true,
 	&"boulder": true,
@@ -250,6 +254,7 @@ const ART: Dictionary = {
 	&"railing": &"railing",
 	&"canopy": &"cutout",
 	&"tree": &"cutout",
+	&"tree_round": &"cutout",
 	&"surface": &"top",
 }
 
