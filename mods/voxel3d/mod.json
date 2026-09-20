@@ -5,6 +5,9 @@
   "api_version": 30,
   "entry": "mod.gd",
   "games": [
+    "red",
+    "blue",
+    "yellow",
     "gold",
     "silver",
     "crystal"

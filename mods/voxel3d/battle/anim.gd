@@ -7,13 +7,8 @@ const Arena: GDScript = preload("arena.gd")
 
 const TILE: int = 8
 
-const OAM_YFLIP: int = 1 << 6
-const OAM_XFLIP: int = 1 << 5
-const OAM_PALETTE: int = 0x07
-
-const PALETTE_IDENTITY: int = 0xE4
-
 var _data: GameData = null
+var _colors: Gen2BattleColors = null
 
 var _enemy_pixels := PackedByteArray()
 var _player_pixels := PackedByteArray()
@@ -21,8 +16,9 @@ var _enemy_species: int = -1
 var _player_species: int = -1
 
 
-func _init(data: GameData) -> void:
+func _init(data: GameData, colors: Gen2BattleColors) -> void:
 	_data = data
+	_colors = colors
 
 
 func image(
@@ -61,18 +57,9 @@ func _blit(
 	if pixels.is_empty():
 		return false
 	var attributes: int = int(sprite.get("attributes", 0))
-	var palette: PackedColorArray = _remap(
-		_object_palette(attributes & OAM_PALETTE, view),
-		_palette_map(view, attributes & OAM_PALETTE)
-	)
-	var lookup: Image = Gen2PicImage.from_indices(pixels, TILE, TILE, palette, true)
-	if (attributes & OAM_XFLIP) != 0:
-		lookup.flip_x()
-	if (attributes & OAM_YFLIP) != 0:
-		lookup.flip_y()
-
 	var left: int = int(sprite.get("x", 0)) - 8
 	var top: int = int(sprite.get("y", 0)) - 16
+	var lookup: Image = _colors.object_image(pixels, attributes, left, top)
 	var shift: Vector2 = player_off.lerp(
 		enemy_off, _between(Vector2(float(left) + 4.0, float(top) + 4.0))
 	).round()
@@ -119,105 +106,26 @@ func _tile(tile: int, view: Dictionary) -> PackedByteArray:
 	return out
 
 
+## One tile of a battler's box, numbered the way `PlaceGraphic` numbers it.
 func _battler_tile(vram: int) -> PackedByteArray:
 	var enemy: bool = vram < Gen2BattleScreenMap.PLAYER_BASE_TILE
 	var side: int = Gen2BattleScreenMap.ENEMY_SIDE if enemy \
-		else Gen2BattleScreenMap.PLAYER_SIDE
+		else Gen2BattleScreenMap.player_box_side(_data.generation)
 	var base: int = Gen2BattleScreenMap.ENEMY_BASE_TILE if enemy \
 		else Gen2BattleScreenMap.PLAYER_BASE_TILE
-	var pixels: PackedByteArray = _enemy_pixels if enemy else _player_pixels
-	var index: int = vram - base
-	var box: int = side * TILE
-	if index < 0 or index >= side * side or pixels.size() < box * box:
-		return PackedByteArray()
-
-	@warning_ignore("integer_division")
-	var left: int = (index / side) * TILE
-	var top: int = (index % side) * TILE
-	var out := PackedByteArray()
-	out.resize(TILE * TILE)
-	for row: int in TILE:
-		var from: int = (top + row) * box + left
-		for column: int in TILE:
-			out[row * TILE + column] = pixels[from + column]
-	return out
+	return Gen2BattleRenderer.pic_tile(
+		_enemy_pixels if enemy else _player_pixels, side, vram - base
+	)
 
 
 func _ensure_pixels(view: Dictionary) -> void:
 	var enemy: int = int(view.get("enemy_species", 0))
 	if enemy != _enemy_species:
-		_enemy_pixels = _padded(
-			_data.species_pic(enemy), Gen2BattleScreenMap.ENEMY_SIDE
+		_enemy_pixels = Gen2BattleRenderer.padded_pic(
+			_data, _data.species_pic(enemy), Gen2BattleScreenMap.ENEMY_SIDE
 		)
 		_enemy_species = enemy
 	var player: int = int(view.get("player_species", 0))
 	if player != _player_species:
-		_player_pixels = _padded(
-			_data.species_pic(player, true), Gen2BattleScreenMap.PLAYER_SIDE
-		)
+		_player_pixels = Gen2BattleRenderer.back_pixels(_data, _data.species_pic(player, true))
 		_player_species = player
-
-
-func _padded(pic: Dictionary, side: int) -> PackedByteArray:
-	var box: int = side * TILE
-	var out := PackedByteArray()
-	out.resize(box * box)
-	if pic.is_empty():
-		return out
-	var atlas: Dictionary = _data.atlas(String(pic["atlas"]))
-	var indices: PackedByteArray = _data.atlas_indices(String(pic["atlas"]))
-	var cell: int = int(atlas.get("cell", 0))
-	var columns: int = int(atlas.get("columns", 0))
-	var atlas_width: int = int(atlas.get("width", 0))
-	var slot: int = int(pic.get("slot", -1))
-	if cell <= 0 or columns <= 0 or atlas_width <= 0 or slot < 0:
-		return out
-
-	var width: int = mini(int(pic.get("width", cell)), mini(cell, box))
-	var height: int = mini(int(pic.get("height", cell)), mini(cell, box))
-	var left: int = (slot % columns) * cell
-	@warning_ignore("integer_division")
-	var top: int = (slot / columns) * cell
-	for y: int in height:
-		var from: int = (top + y) * atlas_width + left
-		if from + width > indices.size():
-			break
-		for x: int in width:
-			out[y * box + x] = indices[from + x]
-	return out
-
-
-func _object_palette(slot: int, view: Dictionary) -> PackedColorArray:
-	return _data.battle_object_palette(
-		slot,
-		_pair(int(view.get("enemy_species", 0))),
-		_pair(int(view.get("player_species", 0)))
-	)
-
-
-func _pair(species: int) -> Array:
-	var entry: Dictionary = _data.species(species)
-	if entry.is_empty():
-		return []
-	var stored: Variant = (entry.get("palette", {}) as Dictionary).get("normal", [])
-	return stored if stored is Array else []
-
-
-func _palette_map(view: Dictionary, slot: int) -> int:
-	var maps: Variant = view.get("ob_palette_maps", [])
-	if maps is PackedByteArray:
-		var bytes: PackedByteArray = maps
-		return bytes[slot] if slot < bytes.size() else PALETTE_IDENTITY
-	if maps is Array:
-		var list: Array = maps
-		return int(list[slot]) if slot < list.size() else PALETTE_IDENTITY
-	return PALETTE_IDENTITY
-
-
-static func _remap(palette: PackedColorArray, dmg: int) -> PackedColorArray:
-	if dmg == PALETTE_IDENTITY or palette.is_empty():
-		return palette
-	var out := PackedColorArray()
-	for index: int in palette.size():
-		out.append(palette[mini((dmg >> (index * 2)) & 3, palette.size() - 1)])
-	return out

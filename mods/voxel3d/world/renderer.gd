@@ -59,7 +59,7 @@ var _tufts: Array = []
 var _text_box := Rect2i()
 var _screen_rect := Rect2i()
 var _interface_masked: bool = false
-var _transition: RefCounted = null
+var _transition: Control = null
 var _transition_sprites: int = Gen2BattleTransition.SPRITES_ALL
 var _transition_opponent: int = -1
 var _fade_order: int = Gen2WorldPalette.FADE_IDENTITY
@@ -74,7 +74,7 @@ func _init() -> void:
 	_stage = DioramaScript.new()
 	add_child(_stage.container)
 	_transition = TransitionScript.new()
-	add_child(_transition.layer)
+	add_child(_transition)
 	_read_options()
 	Options.listen(_on_option_changed)
 	Options.listen_actions(_on_action_changed)
@@ -108,13 +108,15 @@ func set_screen_rect(rect: Rect2i) -> void:
 func set_transition(
 	cells: PackedByteArray, tiles: PackedByteArray, palette: PackedColorArray,
 	sprites: int = Gen2BattleTransition.SPRITES_ALL, opponent: int = -1,
-	order: int = Gen2BattleTransition.IDENTITY
+	order: int = Gen2BattleTransition.IDENTITY,
+	sources: PackedInt32Array = PackedInt32Array()
 ) -> void:
 	_transition_sprites = sprites
 	_transition_opponent = opponent
 	_transition.place(_screen_place())
 	_transition.set_frame(
-		cells, tiles, Gen2WorldPalette.fade_palette(palette, order)
+		cells, tiles, Gen2WorldPalette.fade_palette(palette, order), sources,
+		_stage.picture(), _stage.container.size
 	)
 	_transition_order = order
 	_apply_flash()
