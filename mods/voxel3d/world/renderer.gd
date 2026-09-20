@@ -40,7 +40,7 @@ var _actor_textures: Dictionary = {}
 var _pulse_textures: Dictionary = {}
 var _mod_actors: Gen2WorldActors = null
 var _encounters: Gen2WorldEncounters = null
-var _shape_tileset: int = -1
+var _shape_tileset: StringName = &""
 
 var _draw_cells: int = 0
 var _window_centre := Vector2i.MAX
@@ -327,7 +327,7 @@ func _rebuild() -> void:
 		_stage.set_tufts([])
 		_stage.far_field().configure(null, _time_of_day, true)
 		return
-	var tileset: int = _world.current_tileset.number
+	var tileset: StringName = _world.current_tileset.name
 	if _shape == null or tileset != _shape_tileset:
 		_shape = TileShapeScript.new(Profiles.of(_world.data), tileset)
 		_shape_tileset = tileset

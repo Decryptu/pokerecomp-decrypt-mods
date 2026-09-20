@@ -80,7 +80,7 @@ func _initialize() -> void:
 		animation.configure_tileset(data, tileset, 1)
 		if not atlas.build(data, map, tileset, 1, animation):
 			continue
-		var shape: RefCounted = shape_script.new(profile, map.tileset)
+		var shape: RefCounted = shape_script.new(profile, tileset.name)
 		var source: RefCounted = source_script.new(null, map, tileset, data)
 
 		var measured: Array = _resolve(mesher, source, shape)

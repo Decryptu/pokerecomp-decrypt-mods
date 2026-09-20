@@ -20,6 +20,7 @@ NOT pin:
 """
 
 import collections
+import json
 import pathlib
 import re
 import sys
@@ -104,6 +105,10 @@ def main():
     counts = collections.Counter()
     furniture = []
     doubts = 0
+    names = {}
+    for path in directory.glob("pass_ts*.json"):
+        sheet = json.loads(path.read_text())
+        names[int(sheet["tileset"])] = sheet["name"]
     for path in sorted(p for p in directory.glob("pass_ts*.txt")
                        if p.stem[7:].isdigit()):
         for line in path.read_text().splitlines():
@@ -127,7 +132,7 @@ def main():
     body = []
     total = 0
     for number in sorted(pins):
-        body.append("\t%d: {" % number)
+        body.append('\t&"%s": {' % names[number])
         for shape_class in sorted(pins[number]):
             tiles = sorted(set(pins[number][shape_class]))
             total += len(tiles)

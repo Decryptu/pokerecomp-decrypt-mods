@@ -228,7 +228,7 @@ func _resolved_for(
 	if _resolved.has(key):
 		return _resolved[key]
 	var mesher: RefCounted = MesherScript.new()
-	mesher.resolve(source, TileShapeScript.new(Profiles.of(_data), tileset.number))
+	mesher.resolve(source, TileShapeScript.new(Profiles.of(_data), tileset.name))
 	if _resolved.size() >= RESOLVED_KEPT:
 		_resolved.erase(_resolved.keys()[0])
 	_resolved[key] = mesher

@@ -54,7 +54,7 @@ func _initialize() -> void:
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		if tileset == null:
 			continue
-		var shape: RefCounted = shape_script.new(profile, map.tileset)
+		var shape: RefCounted = shape_script.new(profile, tileset.name)
 		var source: RefCounted = source_script.new(null, map, tileset, data)
 		var mesher: RefCounted = mesher_script.new()
 		mesher.resolve(source, shape)
@@ -135,7 +135,7 @@ func _has_stairs(
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 	if tileset == null:
 		return false
-	var shape: RefCounted = shape_script.new(profile, map.tileset)
+	var shape: RefCounted = shape_script.new(profile, tileset.name)
 	var source: RefCounted = source_script.new(null, map, tileset, data)
 	var width: int = map.width_blocks * 4
 	var height: int = map.height_blocks * 4

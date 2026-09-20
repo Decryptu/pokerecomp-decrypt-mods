@@ -102,7 +102,7 @@ func _walk(
 	profile: GDScript, shape_script: GDScript, source_script: GDScript,
 	drawings: Dictionary
 ) -> void:
-	var shape: RefCounted = shape_script.new(profile, map.tileset)
+	var shape: RefCounted = shape_script.new(profile, tileset.name)
 	var source: RefCounted = source_script.new(null, map, tileset, data)
 	var w: int = map.width_blocks * BLOCK_TILES
 	var h: int = map.height_blocks * BLOCK_TILES
@@ -156,10 +156,10 @@ func _walk(
 				rows.append(line)
 				paint.append(strokes)
 			_fill_falls(paint)
-			var key: String = "ts%d %s" % [map.tileset, str(rows)]
+			var key: String = "%s %s" % [tileset.name, str(rows)]
 			if not drawings.has(key):
 				drawings[key] = {
-						"tileset": map.tileset,
+						"tileset": String(tileset.name),
 					"tiles": rows,
 					"size": [box.size.x, box.size.y],
 					"cells": [box.size.x / 2.0, box.size.y / 2.0],

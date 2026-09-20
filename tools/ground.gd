@@ -26,7 +26,7 @@ func _initialize() -> void:
 	for map: Gen2WorldMap in data.world_maps():
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		var shape: RefCounted = (load("%s/shape/tile_shape.gd" % MOD) as GDScript).new(
-			profile, map.tileset
+			profile, tileset.name
 		)
 		var source: RefCounted = (load("%s/shape/map_source.gd" % MOD) as GDScript).new(
 			null, map, tileset, data
@@ -76,7 +76,7 @@ func _initialize() -> void:
 			continue
 		var classes: Array = counts.keys()
 		classes.sort()
-		print("\t%d: {" % tileset_number)
+		print("\t&\"%s\": {" % data.world_tileset(tileset_number).name)
 		for id: int in classes:
 			var shape_class: StringName = names.get(id, &"?")
 			var per: Dictionary = counts[id]

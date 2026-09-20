@@ -208,7 +208,7 @@ func _border_dressing(
 		_bordered.clear()
 	var cutter: RefCounted = MesherScript.new()
 	var profile: GDScript = Profiles.of(data)
-	var shape: RefCounted = TileShapeScript.new(profile, map.tileset)
+	var shape: RefCounted = TileShapeScript.new(profile, data.world_tileset(map.tileset).name)
 	var out: Dictionary = {}
 	var walked: Dictionary = FarDrawings.of_border(data, map, profile)
 	for drawing: String in walked:
@@ -257,7 +257,9 @@ func _dressing(
 	if _dressed.size() >= MAP_LIMIT:
 		_dressed.clear()
 	var cutter: RefCounted = MesherScript.new()
-	var shape: RefCounted = TileShapeScript.new(Profiles.of(data), map.tileset)
+	var shape: RefCounted = TileShapeScript.new(
+		Profiles.of(data), data.world_tileset(map.tileset).name
+	)
 	var out: Dictionary = {}
 	for drawing: String in drawings:
 		var found: Dictionary = drawings[drawing]

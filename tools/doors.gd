@@ -25,7 +25,7 @@ func _initialize() -> void:
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		if tileset == null:
 			continue
-		var shape: RefCounted = shape_script.new(profile, map.tileset)
+		var shape: RefCounted = shape_script.new(profile, tileset.name)
 		var source: RefCounted = source_script.new(null, map, tileset, data)
 		var cells: Vector2i = Vector2i(
 			map.width_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH,

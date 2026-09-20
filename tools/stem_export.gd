@@ -37,7 +37,7 @@ func _initialize() -> void:
 	atlas.build(data, map, tileset, 1)
 	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var shape: RefCounted = (load("%s/shape/tile_shape.gd" % MOD) as GDScript).new(
-		profile, map.tileset
+		profile, tileset.name
 	)
 	var source: RefCounted = (load("%s/shape/map_source.gd" % MOD) as GDScript).new(
 		null, map, tileset, data

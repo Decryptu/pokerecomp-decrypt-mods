@@ -16,9 +16,13 @@ differently are answered in one place each:
   `shape/map_source.gd` answers every cell question, walkable, water, grass, a
   door, a ledge and which way it is hopped, on either cartridge, so the mesher
   never sees a raw byte.
-- **A tile.** Tileset numbers overlap between the generations, so the pins live
-  under `shape/gen1/` and `shape/gen2/`, one profile, one generated pass and one
-  set of painted houses each, and `shape/profiles.gd` picks by cartridge.
+- **A tile.** Every table is keyed by the tileset's cartridge name,
+  `POKECENTER`, which the host stamps on each tileset: Gold and Silver number
+  their tilesets differently from Crystal past the third, and a table keyed by
+  number drew every pin on the wrong drawing there. The two generations name
+  different sets, so the pins live under `shape/gen1/` and `shape/gen2/`, one
+  profile, one generated pass and one set of painted houses each, and
+  `shape/profiles.gd` picks by cartridge.
 - **Colour.** A Generation I map is drawn in one four-colour row and every town
   and route row puts the same blue at colour 2, so the sky is graded from that
   blue and the water dithered from it. Objects wear the map's own four through
@@ -841,7 +845,7 @@ numbered, one sheet per tileset, about eight seconds for the whole game.
 1. Read the sheet. The cartridge's drawing is the authority for what a thing is.
 2. Write the failures as a list: `#4 bookcase, #6 planter, #22 bed`.
 3. Pin them in the generation's `shape/gen<n>/profile.gd` under the tileset's
-   number, with the class whose art mode matches what the drawing depicts.
+   name, with the class whose art mode matches what the drawing depicts.
 4. Re-shoot the whole tileset, not just the blocks that were pinned: heights are
    measured per column, so a pin changes what its neighbours measure.
 5. Every map sharing that tileset inherits the pins.

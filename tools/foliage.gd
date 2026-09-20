@@ -85,7 +85,7 @@ func _census(data: GameData, wanted: Dictionary) -> Array:
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		if tileset == null:
 			continue
-		var shape: RefCounted = shape_script.new(profile, map.tileset)
+		var shape: RefCounted = shape_script.new(profile, tileset.name)
 		var source: RefCounted = source_script.new(null, map, tileset, data)
 		var mesher: RefCounted = mesher_script.new()
 		mesher.resolve(source, shape)
@@ -203,7 +203,7 @@ func _stand_3d(
 		var mesher: RefCounted = mesher_script.new()
 		mesher.resolve(
 			source_script.new(null, map, tileset, data),
-			shape_script.new(profile, map.tileset)
+			shape_script.new(profile, tileset.name)
 		)
 		var across: Vector2i = record["across"]
 		var span := Vector2(across * TILE)

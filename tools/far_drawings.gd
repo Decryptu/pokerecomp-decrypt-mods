@@ -47,7 +47,7 @@ func _initialize() -> void:
 		var atlas: RefCounted = atlas_script.new()
 		if not atlas.build(data, map, tileset, 1):
 			continue
-		var shape: RefCounted = shape_script.new(profile, map.tileset)
+		var shape: RefCounted = shape_script.new(profile, tileset.name)
 		var mesher: RefCounted = mesher_script.new()
 		var cutter: RefCounted = mesher_script.new()
 		mesher.resolve(source, shape)

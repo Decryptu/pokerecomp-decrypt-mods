@@ -142,7 +142,8 @@ func _ask(number: int, profile: GDScript) -> void:
 		"%s/%s_ts%d.json" % [_out, "pass" if _every else "ask", number], FileAccess.WRITE
 	)
 	file.store_string(JSON.stringify({
-		"tileset": number, "window": WINDOW, "tile": TILE, "tiles": records
+		"tileset": number, "name": String(tileset.name), "window": WINDOW, "tile": TILE,
+		"tiles": records
 	}, "  "))
 	file.close()
 	print("tileset %d: %d tiles to ask about" % [number, records.size()])

@@ -31,7 +31,7 @@ static func of_map(
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 	if tileset == null:
 		return out
-	var shape: RefCounted = TileShapeScript.new(profile, map.tileset)
+	var shape: RefCounted = TileShapeScript.new(profile, tileset.name)
 	var source: RefCounted = MapSourceScript.new(null, map, tileset, data)
 	var origin: Vector2i = grid.position
 	var size: Vector2i = grid.size
@@ -164,7 +164,7 @@ static func of_border(
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 	if tileset == null:
 		return out
-	var shape: RefCounted = TileShapeScript.new(profile, map.tileset)
+	var shape: RefCounted = TileShapeScript.new(profile, tileset.name)
 	var size := Vector2i(BLOCK_TILES, BLOCK_TILES)
 	var tiles := PackedInt32Array()
 	var klass := PackedInt32Array()

@@ -58,7 +58,7 @@ def sheet(directory, number):
         BACK,
     )
     pen = ImageDraw.Draw(out)
-    pen.text((PAD, 6), "tileset %d  -  %d blocks  -  2D | 3D" % (number, len(blocks)), fill=INK)
+    pen.text((PAD, 6), "tileset %d %s  -  %d blocks  -  2D | 3D" % (number, meta.get("name", ""), len(blocks)), fill=INK)
 
     for index, block in enumerate(blocks):
         slot = block["slot"]

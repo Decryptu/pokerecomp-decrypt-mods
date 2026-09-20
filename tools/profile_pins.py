@@ -9,6 +9,8 @@ does not parse, so this parses it, changes it and writes it back the way
     tools/profile_pins.py <1|2> set <tileset> <class> [tile ...]   the whole list; none removes it
     tools/profile_pins.py <1|2> add <tileset> <class> <tile ...>
     tools/profile_pins.py <1|2> drop <tileset> <tile ...>          out of every class it is in
+
+A tileset is its cartridge name, `POKECENTER`, the same on every cache.
 """
 
 import pathlib
@@ -28,9 +30,9 @@ def parse(text):
     end = text.index("\n}\n", start) + 3
     table = {}
     tileset = None
-    for found in re.finditer(r'\n\t(\d+): \{|&"([a-z_0-9]+)": \[([^\]]*)\]', text[start:end]):
+    for found in re.finditer(r'\n\t&"([A-Z_0-9]+)": \{|&"([a-z_0-9]+)": \[([^\]]*)\]', text[start:end]):
         if found.group(1):
-            tileset = int(found.group(1))
+            tileset = found.group(1)
             table[tileset] = {}
         else:
             table[tileset][found.group(2)] = sorted(
@@ -45,7 +47,7 @@ def serialise(table):
         pins = {name: tiles for name, tiles in table[tileset].items() if tiles}
         if not pins:
             continue
-        lines.append("\t%d: {" % tileset)
+        lines.append('\t&"%s": {' % tileset)
         for name in sorted(pins):
             lines.extend(_list_lines(name, pins[name]))
         lines.append("\t},")
@@ -78,11 +80,11 @@ def main():
     command = sys.argv[2]
     if command == "show":
         for tileset in sorted(table):
-            if len(sys.argv) > 3 and tileset != int(sys.argv[3]):
+            if len(sys.argv) > 3 and tileset != sys.argv[3]:
                 continue
             print(tileset, table[tileset])
         return 0
-    tileset = int(sys.argv[3])
+    tileset = sys.argv[3]
     pins = table.setdefault(tileset, {})
     if command == "set":
         pins[sys.argv[4]] = sorted({int(t) for t in sys.argv[5:]})

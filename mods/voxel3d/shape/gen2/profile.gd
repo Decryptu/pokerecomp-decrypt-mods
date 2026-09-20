@@ -9,68 +9,68 @@ const PASS: GDScript = preload("pass.gd")
 const HOUSES: GDScript = preload("houses.gd")
 
 const GROUND: Dictionary = {
-	1: {
+	&"JOHTO": {
 		&"tree": 5,  # 4517 of 9920
 		&"boulder": 61,  # 16 of 80
 		&"bush": 5,  # 82 of 91
 	},
-	2: {
+	&"JOHTO_MODERN": {
 		&"tree": 6,  # 229 of 660
 		&"boulder": 76,  # 1 of 1
 		&"post": 6,  # 84 of 144
 	},
-	3: {
+	&"KANTO": {
 		&"sapling": 44,  # 122 of 146
 		&"bush": 44,  # 4751 of 7085
 		&"post": 44,  # 4285 of 7991
 	},
-	4: {
+	&"BATTLE_TOWER_OUTSIDE": {
 		&"tree": 5,  # 90 of 242
 	},
-	6: {
+	&"PLAYERS_HOUSE": {
 		&"post": 1,  # 6 of 10
 	},
-	9: {
+	&"PORT": {
 		&"boulder": 5,  # 88 of 132
 	},
-	14: {
+	&"GAME_CORNER": {
 		&"sapling": 17,  # 23 of 64
 		&"bush": 16,  # 31 of 116
 	},
-	15: {
+	&"ELITE_FOUR_ROOM": {
 		&"sapling": 31,  # 35 of 80
 		&"bush": 1,  # 12 of 14
 	},
-	17: {
+	&"TRAIN_STATION": {
 		&"bush": 86,  # 28 of 48
 	},
-	19: {
+	&"LIGHTHOUSE": {
 		&"boulder": 13,  # 11 of 26
 		&"stool": 13,  # 81 of 163
 	},
-	20: {
+	&"PLAYERS_ROOM": {
 		&"post": 1,  # 8 of 12
 	},
-	21: {
+	&"POKECOM_CENTER": {
 		&"post": 17,  # 5 of 6
 	},
-	23: {
+	&"TOWER": {
 		&"bush": 2,  # 434 of 490
 	},
-	24: {
+	&"CAVE": {
 		&"boulder": 1,  # 1247 of 1453
 	},
-	25: {
+	&"PARK": {
 		&"boulder": 0,  # 10 of 22
 		&"canopy": 1,  # 908 of 1128
 	},
-	27: {
+	&"RADIO_TOWER": {
 		&"stool": 1,  # 90 of 130
 	},
-	29: {
+	&"ICE_PATH": {
 		&"boulder": 25,  # 190 of 472
 	},
-	31: {
+	&"FOREST": {
 		&"sapling": 5,  # 392 of 396
 		&"bush": 5,  # 4 of 4
 		&"canopy": 5,  # 412 of 418
@@ -78,20 +78,20 @@ const GROUND: Dictionary = {
 }
 
 const MOUNDS: Dictionary = {
-	3: {
+	&"KANTO": {
 		&"door": [72, 73, 88, 89],
 		&"body": [1, 2, 17, 30, 36, 39, 52, 54, 55, 72, 73, 88, 89],
 	},
 }
 
 const GROUND_PINS: Dictionary = {
-	3: {
+	&"KANTO": {
 		&"post": 35,
 	},
 }
 
 const OBJECTS: Dictionary = {
-	13: [
+	&"MANSION": [
 		{
 			&"name": &"desk",
 			&"tiles": [[42, 43, 44, 45], [58, 59, 60, 61], [74, 75, 76, 77]],
@@ -109,7 +109,7 @@ const OBJECTS: Dictionary = {
 			&"height": 6,
 		},
 	],
-	9: [
+	&"PORT": [
 		{
 			&"name": &"ship",
 			&"tiles": [
@@ -128,7 +128,7 @@ const OBJECTS: Dictionary = {
 			&"height": 8,
 		},
 	],
-	14: [
+	&"GAME_CORNER": [
 		{
 			&"name": &"chair",
 			&"tiles": [[10, 11], [26, 27]],
@@ -138,7 +138,7 @@ const OBJECTS: Dictionary = {
 			&"height": 6,
 		},
 	],
-	24: [
+	&"CAVE": [
 		{
 			&"name": &"ladder",
 			&"tiles": [[40, 41], [56, 57]],
@@ -156,7 +156,7 @@ const OBJECTS: Dictionary = {
 			&"height": 16,
 		},
 	],
-	11: [
+	&"FACILITY": [
 		{
 			&"name": &"chair",
 			&"tiles": [[14, 15], [30, 31]],
@@ -166,7 +166,7 @@ const OBJECTS: Dictionary = {
 			&"height": 6,
 		},
 	],
-	8: [
+	&"GATE": [
 		{
 			&"name": &"chair",
 			&"tiles": [[84, 85], [86, 87]],
@@ -176,7 +176,7 @@ const OBJECTS: Dictionary = {
 			&"height": 6,
 		},
 	],
-	10: [
+	&"LAB": [
 		{
 			&"name": &"chair",
 			&"tiles": [[64, 65], [80, 81]],
@@ -239,7 +239,7 @@ const OBJECTS: Dictionary = {
 			&"foot": true,
 		},
 	],
-	17: [
+	&"TRAIN_STATION": [
 		{
 			&"name": &"ticket_gate",
 			&"tiles": [[53, 54], [55, 56], [57, 58], [59, 60]],
@@ -249,7 +249,7 @@ const OBJECTS: Dictionary = {
 			&"height": 8,
 		},
 	],
-	26: [
+	&"RUINS_OF_ALPH": [
 		{
 			&"name": &"vessel",
 			&"tiles": [[80, 81], [82, 83]],
@@ -268,7 +268,7 @@ const OBJECTS: Dictionary = {
 			&"height": 16,
 		},
 	],
-	23: [
+	&"TOWER": [
 		{
 			&"name": &"ridge",
 			&"tiles": [[80, 81]],
@@ -278,7 +278,7 @@ const OBJECTS: Dictionary = {
 			&"height": 8,
 		},
 	],
-	25: [
+	&"PARK": [
 		{
 			&"name": &"fountain",
 			&"tiles": [[76, 77, 78], [92, 93, 94]],
@@ -306,7 +306,7 @@ const OBJECTS: Dictionary = {
 			&"bin": true,
 		},
 	],
-	29: [
+	&"ICE_PATH": [
 		{
 			&"name": &"ladder",
 			&"tiles": [[10, 11], [26, 27]],
@@ -316,7 +316,7 @@ const OBJECTS: Dictionary = {
 			&"height": 16,
 		},
 	],
-	30: [
+	&"DARK_CAVE": [
 		{
 			&"name": &"ladder",
 			&"tiles": [[40, 41], [56, 57]],
@@ -334,7 +334,7 @@ const OBJECTS: Dictionary = {
 			&"height": 16,
 		},
 	],
-	18: [
+	&"CHAMPIONS_ROOM": [
 		{
 			&"name": &"bicycle",
 			&"tiles": [[12, 13, 14, -1], [28, 29, 30, 31]],
@@ -351,7 +351,7 @@ const OBJECTS: Dictionary = {
 			&"model": true,
 		},
 	],
-	22: [
+	&"BATTLE_TOWER_INSIDE": [
 		{
 			&"name": &"seat",
 			&"tiles": [[14, 15], [30, 31]],
@@ -361,7 +361,7 @@ const OBJECTS: Dictionary = {
 			&"height": 6,
 		},
 	],
-	1: [
+	&"JOHTO": [
 		{
 			&"name": &"bell_tower",
 			&"tiles": [
@@ -426,7 +426,7 @@ const OBJECTS: Dictionary = {
 			&"height": 80,
 		},
 	],
-	6: [
+	&"PLAYERS_HOUSE": [
 		{
 			&"name": &"table",
 			&"tiles": [
@@ -534,7 +534,7 @@ const OBJECTS: Dictionary = {
 			&"height": 12,
 		},
 	],
-	7: [
+	&"POKECENTER": [
 		{
 			&"name": &"counter",
 			&"tiles": [
@@ -617,7 +617,7 @@ const OBJECTS: Dictionary = {
 			&"wrap": true,
 		},
 	],
-	12: [
+	&"MART": [
 		{
 			&"name": &"shelf_glass",
 			&"tiles": [[12, 13], [86, 87], [88, 89], [90, 91]],
@@ -684,7 +684,7 @@ const OBJECTS: Dictionary = {
 			&"height": 8,
 		},
 	],
-	5: [
+	&"HOUSE": [
 		{
 			&"name": &"table",
 			&"tiles": [
@@ -732,7 +732,7 @@ const OBJECTS: Dictionary = {
 }
 
 const STAIRS: Dictionary = {
-	5: [
+	&"HOUSE": [
 		{
 			&"tiles": [[76, 77], [92, 93]],
 			&"down": true,
@@ -740,7 +740,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	6: [
+	&"PLAYERS_HOUSE": [
 		{
 			&"tiles": [[76, 77], [92, 93]],
 			&"down": false,
@@ -754,7 +754,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	7: [
+	&"POKECENTER": [
 		{
 			&"tiles": [[66, 67], [82, 83]],
 			&"down": true,
@@ -768,7 +768,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	8: [
+	&"GATE": [
 		{
 			&"tiles": [[88, 89], [90, 91]],
 			&"down": true,
@@ -782,7 +782,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	9: [
+	&"PORT": [
 		{
 			&"tiles": [[3, 4], [30, 31]],
 			&"down": true,
@@ -790,7 +790,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	11: [
+	&"FACILITY": [
 		{
 			&"tiles": [[16, 17], [32, 33]],
 			&"down": false,
@@ -810,7 +810,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	13: [
+	&"MANSION": [
 		{
 			&"tiles": [[10, 11], [26, 27]],
 			&"down": false,
@@ -830,7 +830,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	15: [
+	&"ELITE_FOUR_ROOM": [
 		{
 			&"tiles": [
 				[83, 84, 89, 83], [83, 84, 89, 83], [83, 84, 89, 83], [83, 84, 89, 83],
@@ -853,7 +853,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	16: [
+	&"TRADITIONAL_HOUSE": [
 		{
 			&"tiles": [[76, 77], [92, 93]],
 			&"down": true,
@@ -861,7 +861,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	18: [
+	&"CHAMPIONS_ROOM": [
 		{
 			&"tiles": [[136, 137], [136, 137]],
 			&"down": false,
@@ -905,7 +905,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	19: [
+	&"LIGHTHOUSE": [
 		{
 			&"tiles": [[39, 40], [55, 56]],
 			&"down": true,
@@ -919,7 +919,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	20: [
+	&"PLAYERS_ROOM": [
 		{
 			&"tiles": [[64, 65], [80, 81]],
 			&"down": true,
@@ -927,7 +927,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	23: [
+	&"TOWER": [
 		{
 			&"tiles": [[68, 69], [84, 85]],
 			&"down": true,
@@ -947,7 +947,7 @@ const STAIRS: Dictionary = {
 			&"steps": 3,
 		},
 	],
-	24: [
+	&"CAVE": [
 		{
 			&"tiles": [[32, 33], [48, 49]],
 			&"down": true,
@@ -967,7 +967,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	27: [
+	&"RADIO_TOWER": [
 		{
 			&"tiles": [[14, 15], [30, 31]],
 			&"down": true,
@@ -981,7 +981,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	28: [
+	&"UNDERGROUND": [
 		{
 			&"tiles": [[42, 43], [58, 59]],
 			&"down": false,
@@ -995,7 +995,7 @@ const STAIRS: Dictionary = {
 			&"steps": 3,
 		},
 	],
-	29: [
+	&"ICE_PATH": [
 		{
 			&"tiles": [[174, 175], [190, 191]],
 			&"down": false,
@@ -1003,7 +1003,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	30: [
+	&"DARK_CAVE": [
 		{
 			&"tiles": [[32, 33], [48, 49]],
 			&"down": true,
@@ -1023,7 +1023,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	35: [
+	&"OMANYTE_WORD_ROOM": [
 		{
 			&"tiles": [[84, 86], [88, 89]],
 			&"down": true,
@@ -1034,66 +1034,66 @@ const STAIRS: Dictionary = {
 }
 
 const CLIFFS: Dictionary = {
-	1: [76, 59, 61, 75, 77, 43, 45, 70, 71, 86, 87],
-	2: [76, 59, 61, 75, 77, 43, 45],
-	3: [55, 19, 53, 36, 39, 30, 2],
-	4: [44, 45, 60, 61, 75, 76, 77, 43, 59],
+	&"JOHTO": [76, 59, 61, 75, 77, 43, 45, 70, 71, 86, 87],
+	&"JOHTO_MODERN": [76, 59, 61, 75, 77, 43, 45],
+	&"KANTO": [55, 19, 53, 36, 39, 30, 2],
+	&"BATTLE_TOWER_OUTSIDE": [44, 45, 60, 61, 75, 76, 77, 43, 59],
 }
 
 const FRONTS: Dictionary = {
-	1: [76],
-	2: [76],
-	3: [55, 19, 53],
-	4: [44],
+	&"JOHTO": [76],
+	&"JOHTO_MODERN": [76],
+	&"KANTO": [55, 19, 53],
+	&"BATTLE_TOWER_OUTSIDE": [44],
 }
 
 const LIPS: Dictionary = {
-	3: [1],
-	1: [44],
-	2: [44],
+	&"KANTO": [1],
+	&"JOHTO": [44],
+	&"JOHTO_MODERN": [44],
 }
 
 const FENCES: Dictionary = {
-	1: [[90], [89]],
-	2: [[90], [89]],
-	4: [[90], [89]],
-	25: [[35, 36], [51, 52]],
+	&"JOHTO": [[90], [89]],
+	&"JOHTO_MODERN": [[90], [89]],
+	&"BATTLE_TOWER_OUTSIDE": [[90], [89]],
+	&"PARK": [[35, 36], [51, 52]],
 }
 
 const ROOM_WALL: Dictionary = {
-	10: [[1, 1]],
-	6: [[17]],
-	7: [[2]],
-	12: [[17]],
-	5: [[0]],
-	8: [[92, 93], [16, 16]],
-	23: [[17], [33]],
-	15: [[37, 39], [53, 55]],
-	16: [[17]],
-	28: [[4], [20]],
-	11: [[65], [77]],
-	14: [[2]],
-	30: [[38]],
-	24: [[38]],
-	19: [[94, 95], [74, 75]],
-	26: [[8, 9], [10, 11]],
-	13: [[138, 139], [154, 155]],
-	27: [[17], [16]],
-	29: [[132, 133], [148, 149]],
-	17: [[48]],
-	22: [[84, 85], [80, 81]],
-	18: [[70, 71], [86, 87]],
-	20: [[2]],
-	21: [[2]],
-	1: [[61]],
-	33: [[6]],
-	34: [[6]],
-	35: [[6]],
-	36: [[6]],
+	&"LAB": [[1, 1]],
+	&"PLAYERS_HOUSE": [[17]],
+	&"POKECENTER": [[2]],
+	&"MART": [[17]],
+	&"HOUSE": [[0]],
+	&"GATE": [[92, 93], [16, 16]],
+	&"TOWER": [[17], [33]],
+	&"ELITE_FOUR_ROOM": [[37, 39], [53, 55]],
+	&"TRADITIONAL_HOUSE": [[17]],
+	&"UNDERGROUND": [[4], [20]],
+	&"FACILITY": [[65], [77]],
+	&"GAME_CORNER": [[2]],
+	&"DARK_CAVE": [[38]],
+	&"CAVE": [[38]],
+	&"LIGHTHOUSE": [[94, 95], [74, 75]],
+	&"RUINS_OF_ALPH": [[8, 9], [10, 11]],
+	&"MANSION": [[138, 139], [154, 155]],
+	&"RADIO_TOWER": [[17], [16]],
+	&"ICE_PATH": [[132, 133], [148, 149]],
+	&"TRAIN_STATION": [[48]],
+	&"BATTLE_TOWER_INSIDE": [[84, 85], [80, 81]],
+	&"CHAMPIONS_ROOM": [[70, 71], [86, 87]],
+	&"PLAYERS_ROOM": [[2]],
+	&"POKECOM_CENTER": [[2]],
+	&"JOHTO": [[61]],
+	&"HO_OH_WORD_ROOM": [[6]],
+	&"KABUTO_WORD_ROOM": [[6]],
+	&"OMANYTE_WORD_ROOM": [[6]],
+	&"AERODACTYL_WORD_ROOM": [[6]],
 }
 
 const FACADE_MARGIN: Dictionary = {
-	3: {
+	&"KANTO": {
 		31: Vector2i(0, 5),
 		60: Vector2i(0, 5),
 		15: Vector2i(5, 0),
@@ -1102,12 +1102,12 @@ const FACADE_MARGIN: Dictionary = {
 }
 
 const FACADE_SLOPE: Dictionary = {
-	1: [49, 52, 54, 65, 68, 72, 81, 82, 83, 84],
-	4: [10, 11, 12, 13, 14, 15, 16, 17, 18],
+	&"JOHTO": [49, 52, 54, 65, 68, 72, 81, 82, 83, 84],
+	&"BATTLE_TOWER_OUTSIDE": [10, 11, 12, 13, 14, 15, 16, 17, 18],
 }
 
 const TILESETS: Dictionary = {
-	3: {
+	&"KANTO": {
 		&"post": [42, 43, 58, 59, 14, 85],
 		&"flower": [3],
 		&"sign_post": [70, 71, 86, 87],
@@ -1126,14 +1126,14 @@ const TILESETS: Dictionary = {
 		&"roof_edge": [6, 8, 22, 24, 38, 40, 56],
 		&"roof_corner": [5, 9, 21, 25, 37, 41],
 	},
-	5: {
+	&"HOUSE": {
 		&"table": [5, 21, 38, 39, 41, 47, 50, 51, 54, 57, 58, 59, 60, 70, 71, 86, 87],
 		&"bookcase": [14, 15, 48, 49],
 		&"tombstone": [40, 55, 56, 63, 78],
 		&"flowers": [42, 43, 94, 95, 84, 85],
 		&"planter": [8, 9, 10, 11, 24, 25, 26, 27],
 	},
-	1: {
+	&"JOHTO": {
 		&"ground": [154],
 		&"sapling": [19, 21, 29, 69],
 		&"wall": [70, 71, 86, 87],
@@ -1145,42 +1145,42 @@ const TILESETS: Dictionary = {
 		&"sea_rock": [88],
 		&"tree": [30, 31, 46, 47, 62, 63],
 	},
-	2: {
+	&"JOHTO_MODERN": {
 		&"ground": [91],
 		&"tall_grass": [4],
 		&"tree": [30, 31, 19, 21, 62, 63],
 		&"sea_rock": [88],
 		&"fence": [74, 89, 90],
 	},
-	4: {
+	&"BATTLE_TOWER_OUTSIDE": {
 		&"tree": [30, 31, 19, 21, 62, 63],
 		&"sign_post": [78, 79, 94, 95],
 		&"fence": [74, 89, 90],
 	},
-	9: {
+	&"PORT": {
 		&"sea_rock": [1, 2, 17, 18],
 		&"statue_pillar": [6, 7, 22, 23, 8, 9, 24, 25],
 	},
-	24: {
+	&"CAVE": {
 		&"boulder": [12, 13, 28, 29],
 	},
-	29: {
+	&"ICE_PATH": {
 		&"boulder": [196, 197, 212, 213],
 	},
-	30: {
+	&"DARK_CAVE": {
 		&"ground": [14, 15, 30, 31],
 	},
-	17: {
+	&"TRAIN_STATION": {
 		&"tall_grass": [87],
 		&"statue_pillar": [72, 73, 88, 89, 74, 75, 90, 91, 16, 1],
 	},
-	31: {
+	&"FOREST": {
 		&"sapling": [40, 56, 57, 58],
 		&"canopy": [
 			12, 13, 14, 15, 28, 29, 30, 31, 44, 45, 46, 47, 60, 61, 62, 63,
 		],
 	},
-	25: {
+	&"PARK": {
 		&"canopy": [
 			12, 13, 14, 15, 28, 29, 30, 31, 44, 45, 46, 47, 60, 61, 62, 63,
 		],
@@ -1190,98 +1190,98 @@ const TILESETS: Dictionary = {
 		&"kerb": [21, 55, 56, 57, 71, 73, 87, 88, 89],
 		&"notice_case": [69, 70, 85, 86],
 	},
-	14: {
+	&"GAME_CORNER": {
 		&"statue_pillar": [66, 67, 82, 83, 68, 69, 84, 85],
 	},
-	15: {
+	&"ELITE_FOUR_ROOM": {
 		&"statue_pillar": [32, 33, 48, 49, 34, 35, 50, 51],
 	},
-	23: {
+	&"TOWER": {
 		&"idol": [34, 35, 50, 51, 18, 19, 54, 55, 74, 75, 90, 91, 76, 92],
 	},
-	18: {
+	&"CHAMPIONS_ROOM": {
 		&"statue_pillar": [152, 153, 154, 155, 156, 157, 158, 159],
 	},
-	10: {
+	&"LAB": {
 		&"statue_pillar": [76, 77, 92, 93, 78, 79, 94, 95],
 	},
-	26: {
+	&"RUINS_OF_ALPH": {
 		&"idol": [14, 15, 30, 31, 46, 47, 62, 63],
 	},
-	13: {
+	&"MANSION": {
 		&"ground": [165, 181],
 		&"planter": [46, 47, 94, 95],
 	},
-	19: {
+	&"LIGHTHOUSE": {
 		&"stool": [7, 8, 23, 24],
 		&"boulder": [72, 73, 88, 89],
 	},
-	27: {
+	&"RADIO_TOWER": {
 		&"stool": [44, 45, 60, 61, 39, 40, 55, 56],
 	},
-	6: {
+	&"PLAYERS_HOUSE": {
 		&"stool": [2, 3, 18, 19],
 	},
-	16: {
+	&"TRADITIONAL_HOUSE": {
 		&"railing": [64, 65],
 		&"ground": [16],
 	},
-	11: {
+	&"FACILITY": {
 		&"planter": [44, 45, 60, 61, 46, 47, 62, 63],
 	},
-	28: {
+	&"UNDERGROUND": {
 		&"planter": [
 			30, 31, 46, 47, 62, 63,
 			69, 70, 85, 86, 7, 8, 23, 24, 9, 25, 48, 49,
 		],
 	},
-	12: {
+	&"MART": {
 		&"planter": [74, 75, 8, 9, 137, 138, 167, 168],
 	},
-	21: {
+	&"POKECOM_CENTER": {
 		&"palm": [174, 175, 190, 191, 206, 207, 222, 223],
 	},
 }
 
 const UNPINNED: Dictionary = {
-	13: [162],
-	17: [55, 56],
-	23: [80, 81],
+	&"MANSION": [162],
+	&"TRAIN_STATION": [55, 56],
+	&"TOWER": [80, 81],
 }
 
 
-static func pinned_class(tileset_number: int, tile: int) -> StringName:
-	var groups: Variant = TILESETS.get(tileset_number, null)
+static func pinned_class(tileset: StringName, tile: int) -> StringName:
+	var groups: Variant = TILESETS.get(tileset, null)
 	if groups is Dictionary:
 		for shape_class: StringName in (groups as Dictionary):
 			var tiles: Variant = (groups as Dictionary)[shape_class]
 			if tiles is Array and (tiles as Array).has(tile):
 				return shape_class
-	var taken: Variant = UNPINNED.get(tileset_number, null)
+	var taken: Variant = UNPINNED.get(tileset, null)
 	if taken is Array and (taken as Array).has(tile):
 		return &""
-	return PASS.pinned_class(tileset_number, tile)
+	return PASS.pinned_class(tileset, tile)
 
 
-static func fence_face(tileset_number: int) -> Array:
-	var tiles: Variant = FENCES.get(tileset_number, null)
+static func fence_face(tileset: StringName) -> Array:
+	var tiles: Variant = FENCES.get(tileset, null)
 	return tiles as Array if tiles is Array else []
 
 
-static func is_cliff(tileset_number: int, tile: int) -> bool:
-	var tiles: Variant = CLIFFS.get(tileset_number, null)
+static func is_cliff(tileset: StringName, tile: int) -> bool:
+	var tiles: Variant = CLIFFS.get(tileset, null)
 	return tiles is Array and (tiles as Array).has(tile)
 
 
-static func is_cliff_front(tileset_number: int, tile: int) -> bool:
-	var tiles: Variant = FRONTS.get(tileset_number, null)
+static func is_cliff_front(tileset: StringName, tile: int) -> bool:
+	var tiles: Variant = FRONTS.get(tileset, null)
 	return tiles is Array and (tiles as Array).has(tile)
 
 
-static func is_cliff_lip(tileset_number: int, tile: int) -> bool:
-	var tiles: Variant = LIPS.get(tileset_number, null)
+static func is_cliff_lip(tileset: StringName, tile: int) -> bool:
+	var tiles: Variant = LIPS.get(tileset, null)
 	return tiles is Array and (tiles as Array).has(tile)
 
 
-static func houses(tileset_number: int) -> Array:
-	return HOUSES.of_tileset(tileset_number)
+static func houses(tileset: StringName) -> Array:
+	return HOUSES.of_tileset(tileset)

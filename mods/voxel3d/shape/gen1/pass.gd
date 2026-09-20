@@ -9,8 +9,8 @@ extends RefCounted
 const TILESETS: Dictionary = {}
 
 
-static func pinned_class(tileset_number: int, tile: int) -> StringName:
-	var groups: Variant = TILESETS.get(tileset_number, null)
+static func pinned_class(tileset: StringName, tile: int) -> StringName:
+	var groups: Variant = TILESETS.get(tileset, null)
 	if not groups is Dictionary:
 		return &""
 	for shape_class: StringName in (groups as Dictionary):

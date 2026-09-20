@@ -46,7 +46,7 @@ func _initialize() -> void:
 		var paint: Array = record["paint"]
 		var guess: Array = record.get("guess", [])
 		var tiles: Array = record["tiles"]
-		var name: String = "#%d ts%d" % [int(record["id"]), int(record["tileset"])]
+		var name: String = "#%d %s" % [int(record["id"]), String(record["tileset"])]
 		var across: int = (tiles[0] as Array).size() * TILE
 		var down: int = (tiles as Array).size() * TILE
 		if paint.size() != down or String(paint[0]).length() != across:
@@ -57,7 +57,7 @@ func _initialize() -> void:
 		if guess.size() > 0 and _same(paint, guess):
 			unchanged += 1
 			continue
-		var found: int = _count(data, int(record["tileset"]), tiles)
+		var found: int = _count(data, StringName(String(record["tileset"])), tiles)
 		if found == 0:
 			complaints.append("%s: its arrangement is nowhere in the game any more"
 				% name)
@@ -141,14 +141,12 @@ func _cut(paint: Array) -> int:
 	return cut
 
 
-func _count(data: GameData, tileset_number: int, tiles: Array) -> int:
+func _count(data: GameData, tileset_name: StringName, tiles: Array) -> int:
 	var across := Vector2i((tiles[0] as Array).size(), tiles.size())
 	var found: int = 0
 	for map: Gen2WorldMap in data.world_maps():
-		if map.tileset != tileset_number:
-			continue
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
-		if tileset == null:
+		if tileset == null or tileset.name != tileset_name:
 			continue
 		var w: int = map.width_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH * 2
 		var h: int = map.height_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH * 2
@@ -183,7 +181,7 @@ func _entry(record: Dictionary) -> String:
 		(record["maps"] as Array).size(), record["where"]
 	])
 	lines.append("\t\t\"id\": %d," % int(record["id"]))
-	lines.append("\t\t\"tileset\": %d," % int(record["tileset"]))
+	lines.append("\t\t\"tileset\": &\"%s\"," % String(record["tileset"]))
 	lines.append("\t\t\"tiles\": [")
 	for row: Array in record["tiles"] as Array:
 		var ids: Array[String] = []
@@ -215,10 +213,10 @@ func _script(entries: Array[String]) -> String:
 const HOUSES: Array = [%s]
 
 
-static func of_tileset(number: int) -> Array:
+static func of_tileset(name: StringName) -> Array:
 	var out: Array = []
 	for house: Dictionary in HOUSES:
-		if int(house["tileset"]) == number:
+		if StringName(house["tileset"]) == name:
 			out.append(house)
 	return out
 """ % body

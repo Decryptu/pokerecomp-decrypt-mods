@@ -168,8 +168,8 @@ def main():
         groups = collections.defaultdict(list)
         for tile, name in claimed.items():
             groups[name].append(tile)
-        print("tileset %d: %d blocks read, %d tiles claimed" % (
-            number, len(said), len(claimed)))
+        print("tileset %d %s: %d blocks read, %d tiles claimed" % (
+            number, meta.get("name", ""), len(said), len(claimed)))
         for name, tiles in sorted(groups.items()):
             print("  %-10s %s" % (name, sorted(tiles)))
         print(" ", picture(directory, number, groups, tiles_of, slot_of,

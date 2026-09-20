@@ -7,13 +7,13 @@ const Classes: GDScript = preload("classes.gd")
 const Stems: GDScript = preload("stems.gd")
 
 var _profile: GDScript = null
-var _tileset_number: int = 0
+var _tileset: StringName = &""
 var _pinned: Dictionary = {}
 
 
-func _init(profile: GDScript, tileset_number: int) -> void:
+func _init(profile: GDScript, tileset: StringName) -> void:
 	_profile = profile
-	_tileset_number = tileset_number
+	_tileset = tileset
 
 
 func at(tile: int, permission: int) -> StringName:
@@ -35,19 +35,19 @@ func is_pinned(tile: int) -> bool:
 
 
 func is_cliff(tile: int) -> bool:
-	return _profile.is_cliff(_tileset_number, tile)
+	return _profile.is_cliff(_tileset, tile)
 
 
 func fence_face() -> Array:
-	return _profile.fence_face(_tileset_number)
+	return _profile.fence_face(_tileset)
 
 
 func is_cliff_front(tile: int) -> bool:
-	return _profile.is_cliff_front(_tileset_number, tile)
+	return _profile.is_cliff_front(_tileset, tile)
 
 
 func is_cliff_lip(tile: int) -> bool:
-	return _profile.is_cliff_lip(_tileset_number, tile)
+	return _profile.is_cliff_lip(_tileset, tile)
 
 
 func height(shape_class: StringName) -> int:
@@ -129,17 +129,17 @@ func roof_drop(shape_class: StringName) -> int:
 
 
 func facade_margin(tile: int) -> Vector2i:
-	var table: Dictionary = _profile.FACADE_MARGIN.get(_tileset_number, {})
+	var table: Dictionary = _profile.FACADE_MARGIN.get(_tileset, {})
 	return table.get(tile, Vector2i.ZERO)
 
 
 func is_facade_slope(tile: int) -> bool:
-	var tiles: Variant = _profile.FACADE_SLOPE.get(_tileset_number, null)
+	var tiles: Variant = _profile.FACADE_SLOPE.get(_tileset, null)
 	return tiles is Array and (tiles as Array).has(tile)
 
 
 func objects() -> Array:
-	return _profile.OBJECTS.get(_tileset_number, [])
+	return _profile.OBJECTS.get(_tileset, [])
 
 
 func object_outside() -> int:
@@ -147,30 +147,30 @@ func object_outside() -> int:
 
 
 func stairs() -> Array:
-	return _profile.STAIRS.get(_tileset_number, [])
+	return _profile.STAIRS.get(_tileset, [])
 
 
 func room_wall() -> Array:
-	return _profile.ROOM_WALL.get(_tileset_number, [])
+	return _profile.ROOM_WALL.get(_tileset, [])
 
 
 func houses() -> Array:
-	return _profile.houses(_tileset_number)
+	return _profile.houses(_tileset)
 
 
 func mound_tiles() -> Dictionary:
-	return _profile.MOUNDS.get(_tileset_number, {})
+	return _profile.MOUNDS.get(_tileset, {})
 
 
 func ground_table() -> Dictionary:
-	var table: Dictionary = (_profile.GROUND.get(_tileset_number, {}) as Dictionary).duplicate()
-	table.merge(_profile.GROUND_PINS.get(_tileset_number, {}) as Dictionary, true)
+	var table: Dictionary = (_profile.GROUND.get(_tileset, {}) as Dictionary).duplicate()
+	table.merge(_profile.GROUND_PINS.get(_tileset, {}) as Dictionary, true)
 	return table
 
 
 func _pin(tile: int) -> StringName:
 	if _pinned.has(tile):
 		return _pinned[tile]
-	var pinned: StringName = _profile.pinned_class(_tileset_number, tile)
+	var pinned: StringName = _profile.pinned_class(_tileset, tile)
 	_pinned[tile] = pinned
 	return pinned

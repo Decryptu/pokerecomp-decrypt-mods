@@ -40,7 +40,7 @@ func _initialize() -> void:
 		var atlas: RefCounted = atlas_script.new()
 		if not atlas.build(data, map, tileset, Gen2WorldPalette.TIME_DAY):
 			continue
-		var shape: RefCounted = shape_script.new(profile, map.tileset)
+		var shape: RefCounted = shape_script.new(profile, tileset.name)
 		var source: RefCounted = source_script.new(null, map, tileset, data)
 
 		var margin: int = maxi(4, draw_cells / 3) + 1

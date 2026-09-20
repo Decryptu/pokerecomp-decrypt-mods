@@ -77,7 +77,7 @@ func _report(data: GameData, map: Gen2WorldMap, named: Dictionary) -> void:
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 	var atlas: RefCounted = (load("%s/shape/atlas.gd" % MOD) as GDScript).new()
 	var shape: RefCounted = (load("%s/shape/tile_shape.gd" % MOD) as GDScript).new(
-		(load("%s/shape/profiles.gd" % MOD) as GDScript).of(data), map.tileset
+		(load("%s/shape/profiles.gd" % MOD) as GDScript).of(data), tileset.name
 	)
 	var source: RefCounted = (load("%s/shape/map_source.gd" % MOD) as GDScript).new(
 		null, map, tileset, data

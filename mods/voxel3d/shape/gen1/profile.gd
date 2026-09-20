@@ -1,8 +1,7 @@
 extends RefCounted
 
 ## The Generation I shape PROFILE: hand-authored pins over the automatic
-## resolution in `tile_shape.gd`, keyed by Red, Blue and Yellow's own tileset
-## numbers. `pass.gd` is the generated pass over every tileset, and this one wins
+## resolution in `tile_shape.gd`, keyed by the tileset's cartridge name. `pass.gd` is the generated pass over every tileset, and this one wins
 ## where the two disagree.
 
 const PASS: GDScript = preload("pass.gd")
@@ -17,7 +16,7 @@ const GROUND_PINS: Dictionary = {}
 const OBJECTS: Dictionary = {}
 
 const STAIRS: Dictionary = {
-	1: [
+	&"REDS_HOUSE_1": [
 		{
 			&"tiles": [[12, 13], [28, 29]],
 			&"down": false,
@@ -25,7 +24,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	4: [
+	&"REDS_HOUSE_2": [
 		{
 			&"tiles": [[10, 11], [26, 27]],
 			&"down": true,
@@ -33,7 +32,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	10: [
+	&"MUSEUM": [
 		{
 			&"tiles": [[12, 13], [28, 29]],
 			&"down": false,
@@ -47,7 +46,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	11: [
+	&"UNDERGROUND": [
 		{
 			&"tiles": [[3, 4], [19, 20]],
 			&"down": false,
@@ -55,7 +54,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	12: [
+	&"GATE": [
 		{
 			&"tiles": [[12, 13], [28, 29]],
 			&"down": false,
@@ -69,7 +68,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	13: [
+	&"SHIP": [
 		{
 			&"tiles": [[41, 42], [57, 58]],
 			&"down": false,
@@ -83,7 +82,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	15: [
+	&"CEMETERY": [
 		{
 			&"tiles": [[3, 4], [19, 20]],
 			&"down": false,
@@ -97,7 +96,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	19: [
+	&"MANSION": [
 		{
 			&"tiles": [[12, 13], [28, 29]],
 			&"down": false,
@@ -111,7 +110,7 @@ const STAIRS: Dictionary = {
 			&"steps": 4,
 		},
 	],
-	22: [
+	&"FACILITY": [
 		{
 			&"tiles": [[3, 4], [19, 78]],
 			&"down": false,
@@ -139,7 +138,7 @@ const FRONTS: Dictionary = {}
 const LIPS: Dictionary = {}
 
 const FENCES: Dictionary = {
-	0: [[14], [85]],
+	&"OVERWORLD": [[14], [85]],
 }
 
 const ROOM_WALL: Dictionary = {}
@@ -147,11 +146,11 @@ const ROOM_WALL: Dictionary = {}
 const FACADE_MARGIN: Dictionary = {}
 
 const FACADE_SLOPE: Dictionary = {
-	0: [5, 6, 7, 8, 9, 21, 22, 23, 24, 25],
+	&"OVERWORLD": [5, 6, 7, 8, 9, 21, 22, 23, 24, 25],
 }
 
 const TILESETS: Dictionary = {
-	0: {
+	&"OVERWORLD": {
 		&"bush": [64, 65, 80, 81],
 		&"facade": [
 			4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 21, 22, 23, 24, 25, 26, 27, 28, 31, 34,
@@ -164,7 +163,7 @@ const TILESETS: Dictionary = {
 		&"sign_post": [70, 71, 86, 87],
 		&"tree_round": [42, 43, 58, 59],
 	},
-	1: {
+	&"REDS_HOUSE_1": {
 		&"desk": [34, 35, 48, 49, 50, 51],
 		&"ground": [4, 20],
 		&"stand": [6, 7, 22, 23, 40, 54, 55, 56, 57],
@@ -172,7 +171,7 @@ const TILESETS: Dictionary = {
 		&"table": [38, 39, 41, 42, 43, 44, 58, 59, 60],
 		&"wall": [0, 36, 37, 52, 53],
 	},
-	2: {
+	&"MART": {
 		&"bookcase": [
 			23, 29, 40, 44, 45, 46, 47, 62, 63, 64, 65, 67, 68, 69, 71, 76, 77, 78, 79,
 			80, 81, 83, 84, 85, 87, 90, 91,
@@ -181,14 +180,14 @@ const TILESETS: Dictionary = {
 		&"stand": [32, 33, 34, 35, 48, 49, 50, 51],
 		&"void": [0],
 	},
-	3: {
+	&"FOREST": {
 		&"canopy": [4, 5, 6, 7, 21, 22, 23, 35, 36, 37, 38, 39, 53, 54],
 		&"ground": [0],
 		&"ledge": [46],
 		&"sign_post": [33, 34, 49, 50],
 		&"tree_round": [2, 3, 18, 19],
 	},
-	4: {
+	&"REDS_HOUSE_2": {
 		&"bed": [45, 46, 47, 61, 62, 63],
 		&"lie": [14, 15, 30, 31],
 		&"stand": [
@@ -199,12 +198,12 @@ const TILESETS: Dictionary = {
 		&"table": [38, 39, 41, 42, 43, 44, 50, 51, 58, 59, 60, 66, 67],
 		&"wall": [0, 36, 37, 52, 53],
 	},
-	5: {
+	&"DOJO": {
 		&"bookcase": [13, 14, 29, 30],
 		&"table": [41, 42, 57, 59, 78, 79],
 		&"void": [15],
 	},
-	6: {
+	&"POKECENTER": {
 		&"counter": [8, 10, 24, 25, 36, 37, 38, 39, 42, 43, 52, 53, 56, 90, 91],
 		&"planter": [32, 33, 34, 35, 48, 49, 50, 51],
 		&"stand": [7, 13, 58, 59, 66, 70, 72, 73, 74, 75, 82, 86],
@@ -213,7 +212,7 @@ const TILESETS: Dictionary = {
 			2, 3, 4, 5, 6, 16, 18, 19, 20, 21, 22, 40, 41, 76, 77, 92, 93, 94, 95,
 		],
 	},
-	7: {
+	&"GYM": {
 		&"boulder": [7, 8, 23, 24],
 		&"bush": [44, 45, 46, 47],
 		&"counter": [88, 89, 90],
@@ -225,7 +224,7 @@ const TILESETS: Dictionary = {
 			50, 51, 53, 62, 66, 68, 69, 70, 71, 84, 86, 87,
 		],
 	},
-	8: {
+	&"HOUSE": {
 		&"desk": [14, 15, 30, 31, 48, 49],
 		&"ground": [4, 20],
 		&"stand": [8, 9, 10, 11, 24, 25, 26, 27, 70, 71, 86, 87],
@@ -233,13 +232,13 @@ const TILESETS: Dictionary = {
 		&"table": [38, 39, 41, 47, 54, 57, 58, 59, 60, 80, 81, 82, 83],
 		&"wall": [0, 36, 45, 46, 52, 61, 62, 72, 73, 75, 88, 89, 90, 91],
 	},
-	9: {
+	&"FOREST_GATE": {
 		&"counter": [7, 8, 23, 24, 50, 51],
 		&"ground": [4, 20],
 		&"planter": [5, 6, 21, 22, 37, 38, 53, 54],
 		&"wall": [41, 43, 72, 74],
 	},
-	10: {
+	&"MUSEUM": {
 		&"bookcase": [
 			7, 8, 9, 25, 34, 35, 39, 40, 44, 46, 48, 49, 50, 51, 58, 60, 63, 64, 65,
 			66, 67, 68, 69, 70, 71, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91,
@@ -251,11 +250,11 @@ const TILESETS: Dictionary = {
 		&"stool": [2, 3, 18, 19],
 		&"wall": [72, 74, 78, 79],
 	},
-	11: {
+	&"UNDERGROUND": {
 		&"void": [16],
 		&"wall": [2, 6, 9, 22, 23],
 	},
-	12: {
+	&"GATE": {
 		&"counter": [7, 8, 9, 23, 24, 50, 51],
 		&"desk": [34, 35],
 		&"ground": [4, 20],
@@ -265,7 +264,7 @@ const TILESETS: Dictionary = {
 		&"void": [16],
 		&"wall": [0, 32, 33, 41, 43, 45, 58, 61, 62, 72, 74],
 	},
-	13: {
+	&"SHIP": {
 		&"bed": [70, 71, 86, 87],
 		&"bookcase": [43, 54],
 		&"stool": [7, 8, 23, 24, 66, 67, 72, 73, 88, 89],
@@ -276,7 +275,7 @@ const TILESETS: Dictionary = {
 			46, 47, 48, 49, 50, 51, 61, 62, 63, 84, 85,
 		],
 	},
-	14: {
+	&"SHIP_PORT": {
 		&"roof": [
 			0, 2, 3, 4, 5, 6, 7, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 24,
 			25, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 44, 45, 46, 47,
@@ -286,13 +285,13 @@ const TILESETS: Dictionary = {
 		&"stand": [60, 72, 73, 74, 75, 76, 88, 89],
 		&"wall": [1, 49, 80, 86, 87],
 	},
-	15: {
+	&"CEMETERY": {
 		&"counter": [2, 18, 29, 30],
 		&"post": [5, 6, 21, 22],
 		&"stand": [39, 47, 55, 61, 62, 63],
 		&"wall": [9, 10, 17, 25, 26, 32, 48],
 	},
-	16: {
+	&"INTERIOR": {
 		&"bookcase": [7, 8, 9, 10, 23, 24, 25, 26, 39, 40, 41, 42, 55, 56, 57, 58],
 		&"counter": [63, 64, 72, 73, 74, 75, 76, 77, 78, 81, 91, 92],
 		&"ground": [1, 2, 31, 79, 82],
@@ -305,7 +304,7 @@ const TILESETS: Dictionary = {
 			88, 89, 90, 93, 94,
 		],
 	},
-	17: {
+	&"CAVERN": {
 		&"ground": [8, 9, 10, 11, 20, 24, 25, 26, 27, 32, 33, 34, 42, 47],
 		&"ledge": [5, 21, 22, 41],
 		&"lie": [43, 44, 45, 46],
@@ -315,7 +314,7 @@ const TILESETS: Dictionary = {
 			37, 38, 39, 40, 49,
 		],
 	},
-	18: {
+	&"LOBBY": {
 		&"bookcase": [
 			34, 35, 42, 43, 44, 45, 50, 51, 58, 59, 60, 61, 64, 65, 66, 67, 80, 81, 82,
 			83,
@@ -330,7 +329,7 @@ const TILESETS: Dictionary = {
 			78, 79, 84, 88, 89, 91, 92, 93,
 		],
 	},
-	19: {
+	&"MANSION": {
 		&"bookcase": [21, 34, 35, 40, 45, 46, 47, 50, 51, 56, 61, 62, 63, 87],
 		&"ground": [4, 20],
 		&"stand": [8, 9, 24, 25, 68, 69, 70, 71],
@@ -342,7 +341,7 @@ const TILESETS: Dictionary = {
 			79, 80, 88, 89, 90, 91, 92, 93,
 		],
 	},
-	20: {
+	&"LAB": {
 		&"bookcase": [
 			10, 11, 26, 27, 40, 41, 59, 64, 65, 66, 69, 70, 74, 75, 85, 86, 90, 91,
 		],
@@ -356,7 +355,7 @@ const TILESETS: Dictionary = {
 			89,
 		],
 	},
-	21: {
+	&"CLUB": {
 		&"counter": [5, 7, 8, 16, 23, 24, 54, 71, 72, 73, 74],
 		&"desk": [55, 56, 57, 58, 59, 60, 61, 62, 64, 65],
 		&"ground": [30],
@@ -364,7 +363,7 @@ const TILESETS: Dictionary = {
 		&"stool": [38, 39, 42, 43],
 		&"wall": [1, 2, 3, 6, 17, 18, 19, 48, 49, 50, 51, 52, 63, 66, 67, 68, 69, 70],
 	},
-	22: {
+	&"FACILITY": {
 		&"bookcase": [40, 41, 56, 57],
 		&"bush": [38, 54, 83, 84],
 		&"counter": [2, 13, 14, 18, 29, 30, 53, 68, 69],
@@ -376,7 +375,7 @@ const TILESETS: Dictionary = {
 			75, 76, 77, 80, 81, 86, 87, 88, 89,
 		],
 	},
-	23: {
+	&"PLATEAU": {
 		&"bookcase": [5, 6, 14, 15],
 		&"boulder": [7, 8, 23, 24, 29, 34, 42, 43],
 		&"roof": [61, 62, 64, 65, 68],
@@ -384,7 +383,7 @@ const TILESETS: Dictionary = {
 		&"stand": [16, 18, 37, 38, 40, 41],
 		&"wall": [3, 13, 21, 22, 32, 33, 46, 47, 48, 49],
 	},
-	24: {
+	&"BEACH_HOUSE": {
 		&"counter": [50, 51, 66, 67],
 		&"ground": [1, 4, 17, 20],
 		&"stand": [32, 33, 64, 65],
@@ -397,38 +396,38 @@ const TILESETS: Dictionary = {
 const UNPINNED: Dictionary = {}
 
 
-static func pinned_class(tileset_number: int, tile: int) -> StringName:
-	var groups: Variant = TILESETS.get(tileset_number, null)
+static func pinned_class(tileset: StringName, tile: int) -> StringName:
+	var groups: Variant = TILESETS.get(tileset, null)
 	if groups is Dictionary:
 		for shape_class: StringName in (groups as Dictionary):
 			var tiles: Variant = (groups as Dictionary)[shape_class]
 			if tiles is Array and (tiles as Array).has(tile):
 				return shape_class
-	var taken: Variant = UNPINNED.get(tileset_number, null)
+	var taken: Variant = UNPINNED.get(tileset, null)
 	if taken is Array and (taken as Array).has(tile):
 		return &""
-	return PASS.pinned_class(tileset_number, tile)
+	return PASS.pinned_class(tileset, tile)
 
 
-static func fence_face(tileset_number: int) -> Array:
-	var tiles: Variant = FENCES.get(tileset_number, null)
+static func fence_face(tileset: StringName) -> Array:
+	var tiles: Variant = FENCES.get(tileset, null)
 	return tiles as Array if tiles is Array else []
 
 
-static func is_cliff(tileset_number: int, tile: int) -> bool:
-	var tiles: Variant = CLIFFS.get(tileset_number, null)
+static func is_cliff(tileset: StringName, tile: int) -> bool:
+	var tiles: Variant = CLIFFS.get(tileset, null)
 	return tiles is Array and (tiles as Array).has(tile)
 
 
-static func is_cliff_front(tileset_number: int, tile: int) -> bool:
-	var tiles: Variant = FRONTS.get(tileset_number, null)
+static func is_cliff_front(tileset: StringName, tile: int) -> bool:
+	var tiles: Variant = FRONTS.get(tileset, null)
 	return tiles is Array and (tiles as Array).has(tile)
 
 
-static func is_cliff_lip(tileset_number: int, tile: int) -> bool:
-	var tiles: Variant = LIPS.get(tileset_number, null)
+static func is_cliff_lip(tileset: StringName, tile: int) -> bool:
+	var tiles: Variant = LIPS.get(tileset, null)
 	return tiles is Array and (tiles as Array).has(tile)
 
 
-static func houses(tileset_number: int) -> Array:
-	return HOUSES.of_tileset(tileset_number)
+static func houses(tileset: StringName) -> Array:
+	return HOUSES.of_tileset(tileset)

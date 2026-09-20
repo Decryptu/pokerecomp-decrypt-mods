@@ -40,7 +40,7 @@ func _initialize() -> void:
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		if tileset == null:
 			continue
-		var shape: RefCounted = shape_script.new(profile, map.tileset)
+		var shape: RefCounted = shape_script.new(profile, tileset.name)
 		var source: RefCounted = source_script.new(null, map, tileset, data)
 		var mesher: RefCounted = mesher_script.new()
 		mesher.resolve(source, shape)
@@ -79,7 +79,7 @@ func _initialize() -> void:
 		if target.x < 0:
 			continue
 		print("every drawing whose rectangle holds tile %s:" % target)
-		for house: Dictionary in houses.of_tileset(map.tileset):
+		for house: Dictionary in houses.of_tileset(tileset.name):
 			var pattern: Array = house["tiles"]
 			var across := Vector2i((pattern[0] as Array).size(), pattern.size())
 			for ty: int in maxi(map.height_blocks * 4 - across.y + 1, 0):
