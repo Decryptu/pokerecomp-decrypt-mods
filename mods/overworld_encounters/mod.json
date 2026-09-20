@@ -2,7 +2,7 @@
   "id": "overworld_encounters",
   "name": "Overworld Encounters",
   "version": "0.6.0",
-  "api_version": 37,
+  "api_version": 38,
   "entry": "mod.gd",
   "games": [
     "red",
