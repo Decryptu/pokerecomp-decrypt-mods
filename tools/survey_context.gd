@@ -72,7 +72,9 @@ func _ask(number: int, profile: GDScript) -> void:
 	maps.sort_custom(func(a: Gen2WorldMap, b: Gen2WorldMap) -> bool:
 		return a.blocks.size() > b.blocks.size())
 
+	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
 	for map: Gen2WorldMap in maps:
+		var source: RefCounted = source_script.new(null, map, tileset, _data)
 		var tiles := Vector2i(map.width_blocks, map.height_blocks) * BLOCK_TILES
 		for ty: int in tiles.y:
 			for tx: int in tiles.x:
@@ -81,9 +83,7 @@ func _ask(number: int, profile: GDScript) -> void:
 				var tile: int = tileset.tile_index(
 					block, (ty & 3) * BLOCK_TILES + (tx & 3)
 				)
-				var permission: int = Gen2WorldCollision.permission_for(
-					map.collision_at(tx >> 1, ty >> 1)
-				)
+				var permission: int = source.permission_at(Vector2i(tx >> 1, ty >> 1))
 				if not _every:
 					if permission != Gen2WorldCollision.WALL_TILE:
 						continue

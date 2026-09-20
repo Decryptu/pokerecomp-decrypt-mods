@@ -1,11 +1,15 @@
 extends RefCounted
 
-## What the mesher reads a map through.
+## What the mesher reads a map through. Every question about a cell is answered
+## here on both generations: a Generation 2 cell holds a permission byte, and a
+## Generation 1 cell holds the tile it draws, which the tileset's own tables
+## answer for.
 
 var _world: Gen2WorldAPI = null
 var _map: Gen2WorldMap = null
 var _tileset: Gen2WorldTileset = null
 var _data: GameData = null
+var _gen1: bool = false
 var _carried_blocks: Dictionary = {}
 var _records_placements: Dictionary = {}
 
@@ -17,7 +21,8 @@ func _init(
 	data: GameData = null,
 ) -> void:
 	_world = world
-	_data = data
+	_data = world.data if world != null else data
+	_gen1 = _data != null and _data.generation == RomRegistry.GEN1
 	if world != null:
 		_map = world.current_map
 		_tileset = world.current_tileset
@@ -143,31 +148,100 @@ func _inside(block_x: int, block_y: int) -> bool:
 
 
 func outside() -> bool:
-	return _map != null and Gen2WorldPhoneHost.is_outside_environment(_map.environment)
+	if _map == null:
+		return false
+	if _gen1:
+		return Gen1Layout.is_outside_tileset(_map.tileset)
+	return Gen2WorldPhoneHost.is_outside_environment(_map.environment)
 
 
+## The raw byte the cartridge tests at a cell, off the map from the block drawn
+## there: a permission on Generation 2, the tile at the cell's foot on
+## Generation 1.
 func code_at(cell: Vector2i) -> int:
 	if _map == null:
 		return -1
 	if cell.x < 0 or cell.y < 0 \
 			or cell.x >= _map.width_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH \
 			or cell.y >= _map.height_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH:
-		if _tileset == null:
-			return -1
-		return _tileset.collision_index(
-			_block_at(
-				floori(float(cell.x) / float(Gen2Layout.MAP_BLOCK_CELL_WIDTH)),
-				floori(float(cell.y) / float(Gen2Layout.MAP_BLOCK_CELL_WIDTH))
-			),
-			posmod(cell.x, Gen2Layout.MAP_BLOCK_CELL_WIDTH),
-			posmod(cell.y, Gen2Layout.MAP_BLOCK_CELL_WIDTH)
-		)
+		return _code_off_map(cell)
 	if _world != null:
 		return _world.collision_code_at(cell)
 	return _map.collision_at(cell.x, cell.y)
 
 
+func _code_off_map(cell: Vector2i) -> int:
+	if _tileset == null:
+		return -1
+	return code_in_block(
+		_data, _tileset,
+		_block_at(
+			floori(float(cell.x) / float(Gen2Layout.MAP_BLOCK_CELL_WIDTH)),
+			floori(float(cell.y) / float(Gen2Layout.MAP_BLOCK_CELL_WIDTH))
+		),
+		posmod(cell.x, Gen2Layout.MAP_BLOCK_CELL_WIDTH),
+		posmod(cell.y, Gen2Layout.MAP_BLOCK_CELL_WIDTH)
+	)
+
+
+## The code one of a block's four cells carries, off the tileset alone.
+static func code_in_block(
+	data: GameData, tileset: Gen2WorldTileset, block: int, cell_x: int, cell_y: int
+) -> int:
+	if data != null and data.generation == RomRegistry.GEN1:
+		return tileset.tile_index(block, Gen1Layout.cell_tile_index(cell_x, cell_y))
+	return tileset.collision_index(block, cell_x, cell_y)
+
+
+static func permission_of(data: GameData, tileset: Gen2WorldTileset, code: int) -> int:
+	if data != null and data.generation == RomRegistry.GEN1:
+		return Gen2WorldCollision.gen1_permission(tileset, code)
+	return Gen2WorldCollision.permission_for(code)
+
+
 func permission_at(cell: Vector2i) -> int:
 	if _map == null:
 		return Gen2WorldCollision.WALL_TILE
-	return Gen2WorldCollision.permission_for(code_at(cell))
+	return permission_of(_data, _tileset, code_at(cell))
+
+
+## `Gen2WorldCollision.grass_kind` on Generation 2; on Generation 1 the
+## tileset's one grass tile under the cell, which is only ever tall.
+func grass_at(cell: Vector2i) -> int:
+	var code: int = code_at(cell)
+	if not _gen1:
+		return Gen2WorldCollision.grass_kind(code)
+	if _tileset == null or _tileset.grass_tile == Gen1Layout.TILESET_NO_TILE:
+		return Gen2WorldCollision.GRASS_NONE
+	return Gen2WorldCollision.GRASS_TALL if code == _tileset.grass_tile \
+		else Gen2WorldCollision.GRASS_NONE
+
+
+## A doorway in a wall: the cell is walked through and stands as tall as what
+## is around it. A warp carpet is a floor and is not one.
+func is_door_at(cell: Vector2i) -> bool:
+	var code: int = code_at(cell)
+	if _gen1:
+		return _tileset != null \
+			and Gen2WorldCollision.gen1_is_door_tile(_tileset.number, code)
+	return code == Gen2WorldCollision.COLL_DOOR \
+		or code == Gen2WorldCollision.COLL_DOOR_79 \
+		or code == Gen2WorldCollision.COLL_CAVE
+
+
+## The directions a ledge hop crosses this cell in, empty for a cell that is
+## not a ledge. Generation 2 says so on the ledge's own code; Generation 1 on
+## the pair of tiles stood on and faced, so the cell before is read as well.
+func ledge_steps_at(cell: Vector2i) -> Array:
+	var code: int = code_at(cell)
+	var out: Array = []
+	if not _gen1 and (code & 0xF0) != Gen2WorldCollision.HI_NYBBLE_LEDGES:
+		return out
+	for step: Vector2i in [Vector2i.DOWN, Vector2i.UP, Vector2i.RIGHT, Vector2i.LEFT]:
+		if _gen1:
+			if _tileset != null and Gen2WorldCollision.gen1_allows_hop(
+					_tileset.number, code_at(cell - step), code, step):
+				out.append(step)
+		elif Gen2WorldCollision.allows_hop(code, step):
+			out.append(step)
+	return out

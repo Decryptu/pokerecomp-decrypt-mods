@@ -302,7 +302,7 @@ func _build_atlas() -> bool:
 		return false
 	if not _atlas.build(
 		_world.data, _world.current_map, _world.current_tileset,
-		_time_of_day, _animation
+		_time_of_day, _animation, _world.gen1_last_map(), _world.gen1_map_pal_offset
 	):
 		return false
 	_apply_background()
@@ -556,20 +556,35 @@ func _rebuild_actors() -> void:
 		_walker(), PackedColorArray(),
 		_world.player_height_offset_pixels()
 	)
-	if _mod_actors != null and _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
-		for entry: Dictionary in _mod_actors.sprites():
-			_add_actor(
-				entry["sprite"], 0, int(entry["facing"]), int(entry["frame"]),
-				_ground(entry["position_cells"], entry["span"]),
-				entry.get("colors", PackedColorArray()),
-				float(entry["height_offset_pixels"]),
-				int(entry.get("emote", Gen2WorldActors.EMOTE_NONE))
-			)
 	if _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
+		if _mod_actors != null:
+			for entry: Dictionary in _mod_actors.sprites():
+				_add_actor_entry(entry)
+		_add_cartridge_follower()
 		_add_connected_actors()
 	_add_encounter_pulse()
 	_stage.end_cards()
 	_stage.end_shadow_casters()
+
+
+## An entry shaped as `Gen2WorldActors.sprites()` shapes one.
+func _add_actor_entry(entry: Dictionary) -> void:
+	_add_actor(
+		entry["sprite"], 0, int(entry["facing"]), int(entry["frame"]),
+		_ground(entry["position_cells"], entry.get("span", {})),
+		entry.get("colors", PackedColorArray()),
+		float(entry.get("height_offset_pixels", 0.0)),
+		int(entry.get("emote", Gen2WorldActors.EMOTE_NONE))
+	)
+
+
+## Yellow's own Pikachu, slot fifteen, which the host answers as an actor entry
+## and empty on every other cartridge.
+func _add_cartridge_follower() -> void:
+	var follower: Dictionary = _world.gen1_pikachu_sprite()
+	if follower.is_empty() or bool(follower.get("hidden", false)):
+		return
+	_add_actor_entry(follower)
 
 
 func _drawn_in_transition(index: int) -> bool:
@@ -641,9 +656,7 @@ func _emote_texture(emote: int) -> Texture2D:
 		return null
 	var palette: PackedColorArray = sheet.get("colors", PackedColorArray())
 	if palette.is_empty():
-		palette = _world.data.overworld_sprite_palette(
-			Gen2WorldEffects.PAL_OW_EMOTE, _time_of_day
-		)
+		palette = _sprite_colors(Gen2WorldEffects.PAL_OW_EMOTE)
 	var image := Image.create_empty(EMOTE_SIDE, EMOTE_SIDE, false, Image.FORMAT_RGBA8)
 	var width: int = tiles * PokeTiles.TILE_WIDTH
 	for tile: int in 4:
@@ -684,14 +697,20 @@ func _actor_texture(
 		_world.data.overworld_icon_indices(sprite.icon_number) \
 			if sprite.sprite_type == Gen2WorldSprite.TYPE_MON_ICON \
 			else _world.data.overworld_sprite_indices(sprite.number),
-		colors if colors.size() >= 4 \
-		else _world.data.overworld_sprite_palette(palette, _time_of_day),
+		colors if colors.size() >= 4 else _sprite_colors(palette),
 		facing,
 		frame,
 	)
 	var texture: Texture2D = ImageTexture.create_from_image(image)
 	_actor_textures[key] = texture
 	return texture
+
+
+func _sprite_colors(palette: int) -> PackedColorArray:
+	return AtlasScript.sprite_colors(
+		_world.data, _world.current_map, palette, _time_of_day,
+		_world.gen1_last_map(), _world.gen1_map_pal_offset
+	)
 
 const BATTLER_CENTRE := Vector2(
 	(Gen2BattleScreenMap.ENEMY_AT.x + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * PokeTiles.TILE_WIDTH,

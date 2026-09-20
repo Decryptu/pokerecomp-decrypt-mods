@@ -997,12 +997,12 @@ func _fill_row(source: RefCounted, shape: RefCounted, ty: int) -> void:
 		_front[at] = fact[FACT_FRONT]
 		_lip[at] = fact[FACT_LIP]
 		_heights[at] = fact[FACT_HEIGHT]
-		var grass: int = source.code_at(cell)
+		var grass: int = source.grass_at(cell)
 		_tufted[at] = int(
 			fact[FACT_TUFTED] == 1
-			or (Gen2WorldCollision.is_grass(grass) and not _is_water(at))
+			or (grass != Gen2WorldCollision.GRASS_NONE and not _is_water(at))
 		)
-		_long_grass[at] = int(Gen2WorldCollision.is_long_grass(grass))
+		_long_grass[at] = int(grass == Gen2WorldCollision.GRASS_LONG)
 
 
 func _blank_tile(at: int) -> void:
@@ -2338,13 +2338,10 @@ func _tallest_beside(at: int, source: RefCounted = null) -> int:
 func _is_collision_door(source: RefCounted, at: int) -> bool:
 	@warning_ignore("integer_division")
 	var tile := Vector2i(at % _size.x - _margin.x, at / _size.x - _margin.y)
-	var code: int = source.code_at(Vector2i(
+	return source.is_door_at(Vector2i(
 		floori(float(tile.x) / float(CELL_TILES)),
 		floori(float(tile.y) / float(CELL_TILES))
 	))
-	return code == Gen2WorldCollision.COLL_DOOR \
-		or code == Gen2WorldCollision.COLL_DOOR_79 \
-		or code == Gen2WorldCollision.COLL_CAVE
 
 
 func _measure_mouths() -> void:
@@ -3175,15 +3172,11 @@ func _measure_ledges(from: int, to: int, source: RefCounted) -> void:
 	var cells := Vector2i(_size.x / CELL_TILES, _size.y / CELL_TILES)
 	for cy: int in range(from, mini(to, cells.y)):
 		for cx: int in cells.x:
-			var code: int = source.code_at(Vector2i(cx, cy) - _margin_cells())
-			if (code & 0xF0) != Gen2WorldCollision.HI_NYBBLE_LEDGES:
+			var steps: Array = source.ledge_steps_at(Vector2i(cx, cy) - _margin_cells())
+			if steps.is_empty():
 				continue
 			var base: int = _cell_floor(cx, cy)
-			for step: Vector2i in [
-				Vector2i.DOWN, Vector2i.UP, Vector2i.RIGHT, Vector2i.LEFT
-			]:
-				if not Gen2WorldCollision.allows_hop(code, step):
-					continue
+			for step: Vector2i in steps:
 				var over := Vector2i(cx, cy) + step
 				if over.x < 0 or over.y < 0 or over.x >= cells.x or over.y >= cells.y:
 					continue
