@@ -15,7 +15,7 @@ func _initialize() -> void:
 		return
 	var want: String = args[1]
 	var only: int = int(args[2]) if args.size() > 2 else -1
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
 	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
 	var counts: Dictionary = {}

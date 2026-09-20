@@ -13,7 +13,7 @@ func _initialize() -> void:
 		print("no cache")
 		quit(1)
 		return
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
 	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
 	var tiles: Dictionary = {}

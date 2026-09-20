@@ -35,7 +35,7 @@ func _initialize() -> void:
 	_every = args.size() > 3 and args[3] == "all"
 	DirAccess.make_dir_recursive_absolute(_out)
 
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(_data)
 	var numbers: Array[int] = []
 	if args[1] == "all":
 		for map: Gen2WorldMap in _data.world_maps():

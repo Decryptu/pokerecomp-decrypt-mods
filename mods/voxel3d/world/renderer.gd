@@ -5,7 +5,7 @@ extends Control
 const Options: GDScript = preload("../options.gd")
 const Steering: GDScript = preload("../steering.gd")
 
-const Profile: GDScript = preload("../shape/profile.gd")
+const Profiles: GDScript = preload("../shape/profiles.gd")
 const TileShapeScript: GDScript = preload("../shape/tile_shape.gd")
 const MapSourceScript: GDScript = preload("../shape/map_source.gd")
 const AtlasScript: GDScript = preload("../shape/atlas.gd")
@@ -327,7 +327,7 @@ func _rebuild() -> void:
 		return
 	var tileset: int = _world.current_tileset.number
 	if _shape == null or tileset != _shape_tileset:
-		_shape = TileShapeScript.new(Profile, tileset)
+		_shape = TileShapeScript.new(Profiles.of(_world.data), tileset)
 		_shape_tileset = tileset
 	var source: RefCounted = MapSourceScript.new(_world)
 	_outside = source.outside()

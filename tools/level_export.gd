@@ -28,7 +28,7 @@ func _initialize() -> void:
 		return
 	DirAccess.make_dir_recursive_absolute(out)
 
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var mesher_script: GDScript = load("%s/shape/mesher.gd" % MOD)
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
 	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)

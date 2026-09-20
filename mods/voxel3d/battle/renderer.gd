@@ -8,7 +8,7 @@ const Steering: GDScript = preload("../steering.gd")
 const Frost: GDScript = preload("panel.gd")
 const Anim: GDScript = preload("anim.gd")
 
-const Profile: GDScript = preload("../shape/profile.gd")
+const Profiles: GDScript = preload("../shape/profiles.gd")
 const TileShapeScript: GDScript = preload("../shape/tile_shape.gd")
 const MapSourceScript: GDScript = preload("../shape/map_source.gd")
 const AtlasScript: GDScript = preload("../shape/atlas.gd")
@@ -225,7 +225,7 @@ func _resolved_for(
 	if _resolved.has(key):
 		return _resolved[key]
 	var mesher: RefCounted = MesherScript.new()
-	mesher.resolve(source, TileShapeScript.new(Profile, tileset.number))
+	mesher.resolve(source, TileShapeScript.new(Profiles.of(_data), tileset.number))
 	if _resolved.size() >= RESOLVED_KEPT:
 		_resolved.erase(_resolved.keys()[0])
 	_resolved[key] = mesher

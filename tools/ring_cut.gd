@@ -50,7 +50,7 @@ func _read_map(
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 	if tileset == null:
 		return 0
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var shape: RefCounted = (load("%s/shape/tile_shape.gd" % MOD) as GDScript) \
 		.new(profile, map.tileset)
 	var source: RefCounted = (load("%s/shape/map_source.gd" % MOD) as GDScript) \

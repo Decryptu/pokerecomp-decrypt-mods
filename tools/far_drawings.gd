@@ -22,7 +22,7 @@ func _initialize() -> void:
 		var parts: PackedStringArray = args[1].split(",")
 		only = Vector2i(int(parts[0]), int(parts[1]))
 
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var atlas_script: GDScript = load("%s/shape/atlas.gd" % MOD)
 	var mesher_script: GDScript = load("%s/shape/mesher.gd" % MOD)
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)

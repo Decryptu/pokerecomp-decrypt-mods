@@ -23,11 +23,11 @@ func _initialize() -> void:
 	if args.size() > 4:
 		target = Vector2i(int(args[3]), int(args[4]))
 
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var mesher_script: GDScript = load("%s/shape/mesher.gd" % MOD)
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
 	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
-	var houses: GDScript = load("%s/shape/houses.gd" % MOD)
+	var houses: GDScript = profile.HOUSES
 
 	var placements: int = 0
 	var buildings: int = 0

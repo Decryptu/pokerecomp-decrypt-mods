@@ -3,11 +3,11 @@
 
 `survey_pass.py` writes the brief, an agent reads every tile's picture and
 answers `ts<n> <tile> <word> <confidence> <words>`, and this turns those lines
-into pins. It writes `shape/profile_pass.gd`, which the profile falls back to:
-the hand table always wins, because it was authored from the reviewer's own
-measurements, and this one is replaceable by re-running the pass.
+into pins. It writes the generation's `shape/gen<n>/pass.gd`, which the profile
+falls back to: the hand table always wins, because it was authored from the
+reviewer's own measurements, and this one is replaceable by re-running the pass.
 
-    tools/pass_pins.py <pass dir> [--write]
+    tools/pass_pins.py <pass dir> <generation 1|2> [--write]
 
 Without `--write` it only reports what it would do. What it deliberately does
 NOT pin:
@@ -95,10 +95,11 @@ def classify(word, words):
 
 
 def main():
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 3 or sys.argv[2] not in ("1", "2"):
         print(__doc__)
         return 1
     directory = pathlib.Path(sys.argv[1])
+    generation = int(sys.argv[2])
     pins = {}
     counts = collections.Counter()
     furniture = []
@@ -151,11 +152,11 @@ def main():
     print("left to the human (unsure): %d" % doubts)
     print("standing on furniture: %d" % len(furniture))
     if "--write" not in sys.argv:
-        print("\n(dry run; pass --write to write profile_pass.gd)")
+        print("\n(dry run; pass --write to write pass.gd)")
         return 0
 
     out = pathlib.Path(__file__).resolve().parent.parent \
-        / "mods/voxel3d/shape/profile_pass.gd"
+        / ("mods/voxel3d/shape/gen%d/pass.gd" % generation)
     out.write_text(HEADER.format(body="\n".join(body) + "\n"))
     print(out)
     listing = directory / "furniture.txt"

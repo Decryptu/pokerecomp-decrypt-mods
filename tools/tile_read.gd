@@ -25,7 +25,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var shape: RefCounted = (load("%s/shape/tile_shape.gd" % MOD) as GDScript).new(
 		profile, map.tileset
 	)

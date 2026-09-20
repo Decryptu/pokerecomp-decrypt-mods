@@ -36,7 +36,7 @@ func _initialize() -> void:
 		return
 
 	var shape: RefCounted = (load("%s/shape/tile_shape.gd" % MOD) as GDScript).new(
-		load("%s/shape/profile.gd" % MOD), number
+		(load("%s/shape/profiles.gd" % MOD) as GDScript).of(data), number
 	)
 	var counts: Dictionary = {}
 	var homes: Dictionary = {}

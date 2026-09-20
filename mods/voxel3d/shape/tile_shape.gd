@@ -1,7 +1,9 @@
 extends RefCounted
 
-## Resolves every graphics tile of a map to an extrusion shape.
+## Resolves every graphics tile of a map to an extrusion shape: a generation's
+## profile says which tiles are pinned, `classes.gd` what each class is.
 
+const Classes: GDScript = preload("classes.gd")
 const Stems: GDScript = preload("stems.gd")
 
 var _profile: GDScript = null
@@ -49,81 +51,81 @@ func is_cliff_lip(tile: int) -> bool:
 
 
 func height(shape_class: StringName) -> int:
-	return _profile.height_of(shape_class)
+	return Classes.height_of(shape_class)
 
 
 func art(shape_class: StringName) -> StringName:
-	return _profile.art_of(shape_class)
+	return Classes.art_of(shape_class)
 
 
 func depth(shape_class: StringName) -> int:
-	return _profile.depth_of(shape_class)
+	return Classes.depth_of(shape_class)
 
 
 func is_round(shape_class: StringName) -> bool:
-	return bool(_profile.ROUND.get(shape_class, false))
+	return bool(Classes.ROUND.get(shape_class, false))
 
 
 func is_tufted(shape_class: StringName) -> bool:
-	return bool(_profile.TUFTS.get(shape_class, false))
+	return bool(Classes.TUFTS.get(shape_class, false))
 
 
 func is_swaying(shape_class: StringName) -> bool:
-	return bool(_profile.SWAYS.get(shape_class, false))
+	return bool(Classes.SWAYS.get(shape_class, false))
 
 
 func is_model(shape_class: StringName) -> bool:
-	return bool(_profile.MODEL.get(shape_class, false))
+	return bool(Classes.MODEL.get(shape_class, false))
 
 
 func outline_shades(shape_class: StringName) -> int:
-	return int(_profile.OUTLINE.get(shape_class, 0))
+	return int(Classes.OUTLINE.get(shape_class, 0))
 
 
 func is_shrub(shape_class: StringName) -> bool:
-	return bool(_profile.SHRUB.get(shape_class, false))
+	return bool(Classes.SHRUB.get(shape_class, false))
 
 
 func is_potted(shape_class: StringName) -> bool:
-	return bool(_profile.POTTED.get(shape_class, false))
+	return bool(Classes.POTTED.get(shape_class, false))
 
 
 func is_rock(shape_class: StringName) -> bool:
-	return bool(_profile.ROCK.get(shape_class, false))
+	return bool(Classes.ROCK.get(shape_class, false))
 
 
 func is_column(shape_class: StringName) -> bool:
-	return bool(_profile.COLUMN.get(shape_class, false))
+	return bool(Classes.COLUMN.get(shape_class, false))
 
 
 func model_stretch(shape_class: StringName) -> float:
-	return float(_profile.STRETCH.get(shape_class, 0.0))
+	return float(Classes.STRETCH.get(shape_class, 0.0))
 
 
 func span_cells(shape_class: StringName) -> Vector2i:
-	return _profile.SPANS.get(shape_class, Vector2i.ONE)
+	return Classes.SPANS.get(shape_class, Vector2i.ONE)
 
 
 func is_lying(shape_class: StringName) -> bool:
-	return bool(_profile.LYING.get(shape_class, false))
+	return bool(Classes.LYING.get(shape_class, false))
 
 
 func is_filled(shape_class: StringName) -> bool:
-	return bool(_profile.FILLED.get(shape_class, false))
+	return bool(Classes.FILLED.get(shape_class, false))
 
 
 func stem_rows(shape_class: StringName) -> Array:
-	if not bool(_profile.STEMS.get(shape_class, false)):
+	if not bool(Classes.STEMS.get(shape_class, false)):
 		return []
 	return Stems.of_class(shape_class)
 
 
 func building_part(shape_class: StringName) -> StringName:
-	return StringName(_profile.BUILDING.get(shape_class, &""))
+	return StringName(Classes.BUILDING.get(shape_class, &""))
 
 
 func roof_drop(shape_class: StringName) -> int:
-	return int(_profile.ROOF_DROP.get(shape_class, 0))
+	return int(Classes.ROOF_DROP.get(shape_class, 0))
 
 
 func facade_margin(tile: int) -> Vector2i:
@@ -141,7 +143,7 @@ func objects() -> Array:
 
 
 func object_outside() -> int:
-	return _profile.OUTSIDE
+	return Classes.OUTSIDE
 
 
 func stairs() -> Array:
@@ -150,6 +152,10 @@ func stairs() -> Array:
 
 func room_wall() -> Array:
 	return _profile.ROOM_WALL.get(_tileset_number, [])
+
+
+func houses() -> Array:
+	return _profile.houses(_tileset_number)
 
 
 func mound_tiles() -> Dictionary:

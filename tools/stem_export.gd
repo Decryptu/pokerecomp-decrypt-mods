@@ -35,7 +35,7 @@ func _initialize() -> void:
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 	var atlas: RefCounted = (load("%s/shape/atlas.gd" % MOD) as GDScript).new()
 	atlas.build(data, map, tileset, 1)
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var shape: RefCounted = (load("%s/shape/tile_shape.gd" % MOD) as GDScript).new(
 		profile, map.tileset
 	)

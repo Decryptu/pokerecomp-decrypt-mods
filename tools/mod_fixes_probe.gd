@@ -35,7 +35,7 @@ func _ledge_corner(data: GameData) -> bool:
 		return false
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 	var shape: RefCounted = (load(voxel.path_join("shape/tile_shape.gd")) as GDScript).new(
-		load(voxel.path_join("shape/profile.gd")), map.tileset
+		(load(voxel.path_join("shape/profiles.gd")) as GDScript).of(data), map.tileset
 	)
 	var source: RefCounted = (load(voxel.path_join("shape/map_source.gd")) as GDScript).new(
 		null, map, tileset, data

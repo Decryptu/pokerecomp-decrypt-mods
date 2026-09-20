@@ -55,7 +55,7 @@ func _initialize() -> void:
 	if args.size() > 1 and args[1] != "all":
 		only = int(args[1])
 
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var atlas_script: GDScript = load("%s/shape/atlas.gd" % MOD)
 	var mesher_script: GDScript = load("%s/shape/mesher.gd" % MOD)
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)

@@ -26,7 +26,7 @@ func _initialize() -> void:
 	var atlas_script: GDScript = load("%s/shape/atlas.gd" % MOD)
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
 	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 
 	var checked: int = 0
 	var bad: int = 0
