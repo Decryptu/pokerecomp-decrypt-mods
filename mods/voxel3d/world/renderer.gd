@@ -709,7 +709,7 @@ func _actor_texture(
 
 
 func _sprite_colors(palette: int) -> PackedColorArray:
-	return AtlasScript.sprite_colors(
+	return Gen2WorldPalette.overworld_sprite_colors(
 		_world.data, _world.current_map, palette, _time_of_day,
 		_world.gen1_last_map(), _world.gen1_map_pal_offset
 	)

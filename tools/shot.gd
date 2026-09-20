@@ -128,7 +128,7 @@ func _actors(
 			data.overworld_icon_indices(sprite.icon_number) \
 				if sprite.sprite_type == Gen2WorldSprite.TYPE_MON_ICON \
 				else data.overworld_sprite_indices(sprite.number),
-			(load("%s/shape/atlas.gd" % MOD) as GDScript).sprite_colors(
+			Gen2WorldPalette.overworld_sprite_colors(
 				data, map,
 				int(event.get("palette", 0)) if int(event.get("palette", 0)) != 0
 				else sprite.default_palette,

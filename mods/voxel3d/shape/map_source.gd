@@ -138,11 +138,7 @@ func _inside(block_x: int, block_y: int) -> bool:
 
 
 func outside() -> bool:
-	if _map == null:
-		return false
-	if _gen1:
-		return Gen1Layout.is_outside_tileset(_map.tileset)
-	return Gen2WorldPhoneHost.is_outside_environment(_map.environment)
+	return _map != null and _map.is_outside()
 
 
 ## The raw byte the cartridge tests at a cell, off the map from the block drawn
@@ -219,19 +215,27 @@ func is_door_at(cell: Vector2i) -> bool:
 		or code == Gen2WorldCollision.COLL_CAVE
 
 
+const STEP_FACINGS: Dictionary = {
+	Vector2i.DOWN: Gen2WorldSprite.FACING_DOWN, Vector2i.UP: Gen2WorldSprite.FACING_UP,
+	Vector2i.LEFT: Gen2WorldSprite.FACING_LEFT, Vector2i.RIGHT: Gen2WorldSprite.FACING_RIGHT,
+}
+
+
 ## The directions a ledge hop crosses this cell in, empty for a cell that is
-## not a ledge. Generation 2 says so on the ledge's own code; Generation 1 on
-## the pair of tiles stood on and faced, so the cell before is read as well.
+## not a ledge: Generation 2's code names them, Generation 1's tile names one.
 func ledge_steps_at(cell: Vector2i) -> Array:
 	var code: int = code_at(cell)
 	var out: Array = []
-	if not _gen1 and (code & 0xF0) != Gen2WorldCollision.HI_NYBBLE_LEDGES:
-		return out
-	for step: Vector2i in [Vector2i.DOWN, Vector2i.UP, Vector2i.RIGHT, Vector2i.LEFT]:
-		if _gen1:
-			if _tileset != null and Gen2WorldCollision.gen1_allows_hop(
-					_tileset.number, code_at(cell - step), code, step):
+	if _gen1:
+		var facing: int = -1 if _tileset == null \
+			else Gen2WorldCollision.gen1_ledge_direction(_tileset.number, code)
+		for step: Vector2i in STEP_FACINGS:
+			if STEP_FACINGS[step] == facing:
 				out.append(step)
-		elif Gen2WorldCollision.allows_hop(code, step):
+		return out
+	if (code & 0xF0) != Gen2WorldCollision.HI_NYBBLE_LEDGES:
+		return out
+	for step: Vector2i in STEP_FACINGS:
+		if Gen2WorldCollision.allows_hop(code, step):
 			out.append(step)
 	return out

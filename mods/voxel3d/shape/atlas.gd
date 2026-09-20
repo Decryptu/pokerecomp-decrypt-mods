@@ -240,20 +240,6 @@ func water_colors() -> PackedColorArray:
 const GEN1_SKY_COLOR: int = 2
 
 
-## What an overworld sprite is drawn in: its own palette slot at this hour on
-## Generation 2, and on Generation 1 the map's own four colours through
-## `rOBP0`, darkened with the map in Rock Tunnel.
-static func sprite_colors(
-	data: GameData, map: Gen2WorldMap, palette: int, time_of_day: int,
-	last_map: int = -1, map_pal_offset: int = 0
-) -> PackedColorArray:
-	if data.generation != RomRegistry.GEN1:
-		return data.overworld_sprite_palette(palette, time_of_day)
-	return Gen2WorldPalette.gen1_object_colors(
-		Gen2WorldPalette.gen1_map_colors(data, map, last_map), map_pal_offset
-	)
-
-
 func _read_shore_colors(
 	data: GameData, map: Gen2WorldMap, time_of_day: int
 ) -> PackedColorArray:
