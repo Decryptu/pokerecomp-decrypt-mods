@@ -7,9 +7,13 @@ are either looking DOWN onto or looking at from the FRONT. Nothing measurable
 tells them apart, so a person says which is which.
 
     tools/house_page.py <houses dir> [saved houses.json]
+    tools/house_page.py <houses dir> --accept
 
 The directory is what `tools/house_export.gd` wrote: one JSON, one picture of the
 drawing and one picture of it RINGED where the cartridge places it, per drawing.
+`--accept` writes `houses.json` from the pre-fill alone, with nothing painted
+over it, which is the whole answer where every tile of a building is one
+surface, as Generation I's are.
 
 THE UNIT IS THE PIXEL, NOT THE TILE, and that is the whole difference from the
 first version of this page. A hipped roof's end comes down as a DIAGONAL across
@@ -46,6 +50,37 @@ measurements, so asking for it again would be asking twice.
 SAVE writes `houses.json`: per drawing, one string per pixel row, ready for
 `tools/house_pins.gd`.
 """
+
+TILE = 8
+# The pre-fill, expanded from the tile reading the mod already has: the page's
+# own `guessOf`, for a session with no browser.
+PAINT_OF = {"D": "W", "P": "F", "W": "W", ".": "."}
+
+
+def guess_of(house):
+    rows = []
+    for y in range(house["size"][1] * TILE):
+        row = []
+        for x in range(house["size"][0] * TILE):
+            word = house["paint"][y // TILE][x // TILE]
+            row.append(PAINT_OF.get(word, "R"))
+        rows.append("".join(row))
+    return rows
+
+
+def accept(directory, houses):
+    out = {
+        "unit": "pixel",
+        "houses": [{
+            "id": h["id"], "tileset": h["tileset"], "size": h["size"],
+            "tiles": h["tiles"], "placements": h["placements"], "maps": h["maps"],
+            "where": h["where"], "guess": [], "paint": guess_of(h),
+        } for h in houses],
+    }
+    path = directory / "houses.json"
+    path.write_text(json.dumps(out))
+    print("%d drawings accepted as pre-filled into %s" % (len(houses), path))
+    return 0
 
 import base64
 import json
@@ -674,7 +709,7 @@ def main():
     # into the drawings nobody had reached. What the browser remembers still
     # wins over it, so a hand is never overruled by a file.
     seeds = {}
-    if len(sys.argv) > 2:
+    if len(sys.argv) > 2 and sys.argv[2] != "--accept":
         saved = json.loads(pathlib.Path(sys.argv[2]).read_text())
         seeds = {h["id"]: h["paint"] for h in saved["houses"]
                  if h["paint"] != h["guess"]}
@@ -688,6 +723,8 @@ def main():
         print("no house_*.json in %s: run tools/house_export.gd first" % directory)
         return 1
     houses.sort(key=lambda h: h["id"])
+    if len(sys.argv) > 2 and sys.argv[2] == "--accept":
+        return accept(directory, houses)
     missing = [h["art"] for h in houses if not (directory / h["art"]).exists()]
     missing += [h["context"] for h in houses if not (directory / h["context"]).exists()]
     if missing:

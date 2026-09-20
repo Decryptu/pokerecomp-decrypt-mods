@@ -1,17 +1,19 @@
 extends RefCounted
 
-## Resolves every graphics tile of a map to an extrusion shape.
+## Resolves every graphics tile of a map to an extrusion shape: a generation's
+## profile says which tiles are pinned, `classes.gd` what each class is.
 
+const Classes: GDScript = preload("classes.gd")
 const Stems: GDScript = preload("stems.gd")
 
 var _profile: GDScript = null
-var _tileset_number: int = 0
+var _tileset: StringName = &""
 var _pinned: Dictionary = {}
 
 
-func _init(profile: GDScript, tileset_number: int) -> void:
+func _init(profile: GDScript, tileset: StringName) -> void:
 	_profile = profile
-	_tileset_number = tileset_number
+	_tileset = tileset
 
 
 func at(tile: int, permission: int) -> StringName:
@@ -33,138 +35,142 @@ func is_pinned(tile: int) -> bool:
 
 
 func is_cliff(tile: int) -> bool:
-	return _profile.is_cliff(_tileset_number, tile)
+	return _profile.is_cliff(_tileset, tile)
 
 
 func fence_face() -> Array:
-	return _profile.fence_face(_tileset_number)
+	return _profile.fence_face(_tileset)
 
 
 func is_cliff_front(tile: int) -> bool:
-	return _profile.is_cliff_front(_tileset_number, tile)
+	return _profile.is_cliff_front(_tileset, tile)
 
 
 func is_cliff_lip(tile: int) -> bool:
-	return _profile.is_cliff_lip(_tileset_number, tile)
+	return _profile.is_cliff_lip(_tileset, tile)
 
 
 func height(shape_class: StringName) -> int:
-	return _profile.height_of(shape_class)
+	return Classes.height_of(shape_class)
 
 
 func art(shape_class: StringName) -> StringName:
-	return _profile.art_of(shape_class)
+	return Classes.art_of(shape_class)
 
 
 func depth(shape_class: StringName) -> int:
-	return _profile.depth_of(shape_class)
+	return Classes.depth_of(shape_class)
 
 
 func is_round(shape_class: StringName) -> bool:
-	return bool(_profile.ROUND.get(shape_class, false))
+	return bool(Classes.ROUND.get(shape_class, false))
 
 
 func is_tufted(shape_class: StringName) -> bool:
-	return bool(_profile.TUFTS.get(shape_class, false))
+	return bool(Classes.TUFTS.get(shape_class, false))
 
 
 func is_swaying(shape_class: StringName) -> bool:
-	return bool(_profile.SWAYS.get(shape_class, false))
+	return bool(Classes.SWAYS.get(shape_class, false))
 
 
 func is_model(shape_class: StringName) -> bool:
-	return bool(_profile.MODEL.get(shape_class, false))
+	return bool(Classes.MODEL.get(shape_class, false))
 
 
 func outline_shades(shape_class: StringName) -> int:
-	return int(_profile.OUTLINE.get(shape_class, 0))
+	return int(Classes.OUTLINE.get(shape_class, 0))
 
 
 func is_shrub(shape_class: StringName) -> bool:
-	return bool(_profile.SHRUB.get(shape_class, false))
+	return bool(Classes.SHRUB.get(shape_class, false))
 
 
 func is_potted(shape_class: StringName) -> bool:
-	return bool(_profile.POTTED.get(shape_class, false))
+	return bool(Classes.POTTED.get(shape_class, false))
 
 
 func is_rock(shape_class: StringName) -> bool:
-	return bool(_profile.ROCK.get(shape_class, false))
+	return bool(Classes.ROCK.get(shape_class, false))
 
 
 func is_column(shape_class: StringName) -> bool:
-	return bool(_profile.COLUMN.get(shape_class, false))
+	return bool(Classes.COLUMN.get(shape_class, false))
 
 
 func model_stretch(shape_class: StringName) -> float:
-	return float(_profile.STRETCH.get(shape_class, 0.0))
+	return float(Classes.STRETCH.get(shape_class, 0.0))
 
 
 func span_cells(shape_class: StringName) -> Vector2i:
-	return _profile.SPANS.get(shape_class, Vector2i.ONE)
+	return Classes.SPANS.get(shape_class, Vector2i.ONE)
 
 
 func is_lying(shape_class: StringName) -> bool:
-	return bool(_profile.LYING.get(shape_class, false))
+	return bool(Classes.LYING.get(shape_class, false))
 
 
 func is_filled(shape_class: StringName) -> bool:
-	return bool(_profile.FILLED.get(shape_class, false))
+	return bool(Classes.FILLED.get(shape_class, false))
 
 
 func stem_rows(shape_class: StringName) -> Array:
-	if not bool(_profile.STEMS.get(shape_class, false)):
+	if not bool(Classes.STEMS.get(shape_class, false)):
 		return []
 	return Stems.of_class(shape_class)
 
 
 func building_part(shape_class: StringName) -> StringName:
-	return StringName(_profile.BUILDING.get(shape_class, &""))
+	return StringName(Classes.BUILDING.get(shape_class, &""))
 
 
 func roof_drop(shape_class: StringName) -> int:
-	return int(_profile.ROOF_DROP.get(shape_class, 0))
+	return int(Classes.ROOF_DROP.get(shape_class, 0))
 
 
 func facade_margin(tile: int) -> Vector2i:
-	var table: Dictionary = _profile.FACADE_MARGIN.get(_tileset_number, {})
+	var table: Dictionary = _profile.FACADE_MARGIN.get(_tileset, {})
 	return table.get(tile, Vector2i.ZERO)
 
 
 func is_facade_slope(tile: int) -> bool:
-	var tiles: Variant = _profile.FACADE_SLOPE.get(_tileset_number, null)
+	var tiles: Variant = _profile.FACADE_SLOPE.get(_tileset, null)
 	return tiles is Array and (tiles as Array).has(tile)
 
 
 func objects() -> Array:
-	return _profile.OBJECTS.get(_tileset_number, [])
+	return _profile.OBJECTS.get(_tileset, [])
 
 
 func object_outside() -> int:
-	return _profile.OUTSIDE
+	return Classes.OUTSIDE
 
 
 func stairs() -> Array:
-	return _profile.STAIRS.get(_tileset_number, [])
+	return _profile.STAIRS.get(_tileset, [])
 
 
 func room_wall() -> Array:
-	return _profile.ROOM_WALL.get(_tileset_number, [])
+	return _profile.ROOM_WALL.get(_tileset, [])
+
+
+func houses() -> Array:
+	return _profile.houses(_tileset)
 
 
 func mound_tiles() -> Dictionary:
-	return _profile.MOUNDS.get(_tileset_number, {})
+	return _profile.MOUNDS.get(_tileset, {})
 
 
 func ground_table() -> Dictionary:
-	var table: Dictionary = (_profile.GROUND.get(_tileset_number, {}) as Dictionary).duplicate()
-	table.merge(_profile.GROUND_PINS.get(_tileset_number, {}) as Dictionary, true)
+	var table: Dictionary = (_profile.GROUND.get(_tileset, {}) as Dictionary).duplicate()
+	table.merge(_profile.GROUND_PINS.get(_tileset, {}) as Dictionary, true)
 	return table
 
 
 func _pin(tile: int) -> StringName:
 	if _pinned.has(tile):
 		return _pinned[tile]
-	var pinned: StringName = _profile.pinned_class(_tileset_number, tile)
+	var pinned: StringName = _profile.pinned_class(_tileset, tile)
 	_pinned[tile] = pinned
 	return pinned

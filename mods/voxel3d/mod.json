@@ -1,13 +1,16 @@
 {
   "id": "voxel3d",
   "name": "Voxel 3D",
-  "version": "0.7.4",
-  "api_version": 30,
+  "version": "0.8.0",
+  "api_version": 40,
   "entry": "mod.gd",
   "games": [
+    "red",
+    "blue",
+    "yellow",
     "gold",
     "silver",
     "crystal"
   ],
-  "description": "Draws the overworld in 3D, built from the cartridge's own tiles. Sky colours follow the clock, water is animated, and you can move the camera. Battles happen on the map you were standing on, while menus stay 2D and pixel-perfect."
+  "description": "Draws the overworld in 3D, built from the cartridge's own tiles, on Kanto and Johto alike. Sky colours follow the clock, water is animated, and you can move the camera. Battles happen on the map you were standing on, while menus stay 2D and pixel-perfect."
 }

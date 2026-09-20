@@ -36,16 +36,20 @@ func _initialize() -> void:
 		return
 
 	var shape: RefCounted = (load("%s/shape/tile_shape.gd" % MOD) as GDScript).new(
-		load("%s/shape/profile.gd" % MOD), number
+		(load("%s/shape/profiles.gd" % MOD) as GDScript).of(data), tileset.name
 	)
+	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
 	var counts: Dictionary = {}
 	var homes: Dictionary = {}
 	var maps: int = 0
 	for map: Gen2WorldMap in data.world_maps():
-		if map.tileset != number or _is_outside(map):
+		if map.tileset != number:
+			continue
+		var source: RefCounted = source_script.new(null, map, tileset, data)
+		if source.outside():
 			continue
 		maps += 1
-		_count_map(map, tileset, shape, counts, homes)
+		_count_map(map, source, shape, counts, homes)
 
 	var ranked: Array = counts.keys()
 	ranked.sort_custom(func(a: String, b: String) -> bool:
@@ -62,12 +66,8 @@ func _initialize() -> void:
 	quit()
 
 
-func _is_outside(map: Gen2WorldMap) -> bool:
-	return map.environment == 1 or map.environment == 2
-
-
 func _count_map(
-	map: Gen2WorldMap, tileset: Gen2WorldTileset, shape: RefCounted,
+	map: Gen2WorldMap, source: RefCounted, shape: RefCounted,
 	counts: Dictionary, homes: Dictionary
 ) -> void:
 	var here: Dictionary = {}
@@ -75,15 +75,15 @@ func _count_map(
 	var down: int = map.height_blocks * BLOCK_TILES
 	for ty: int in down - 1:
 		for tx: int in across - 1:
-			var under: StringName = _class_at(map, tileset, shape, tx, ty + 2)
+			var under: StringName = _class_at(source, shape, tx, ty + 2)
 			if under != &"wall":
 				continue
 			var quad: Array = []
 			var blank: bool = false
 			for row: int in 2:
 				for column: int in 2:
-					quad.append(_tile_at(map, tileset, tx + column, ty + row))
-					if _class_at(map, tileset, shape, tx + column, ty + row) == &"void":
+					quad.append(_tile_at(source, tx + column, ty + row))
+					if _class_at(source, shape, tx + column, ty + row) == &"void":
 						blank = true
 			if blank or quad.has(-1):
 				continue
@@ -94,29 +94,18 @@ func _count_map(
 				homes[key] = [map, int(here[key])]
 
 
-func _tile_at(
-	map: Gen2WorldMap, tileset: Gen2WorldTileset, tx: int, ty: int
-) -> int:
-	var across: int = map.width_blocks * BLOCK_TILES
-	var down: int = map.height_blocks * BLOCK_TILES
-	if tx < 0 or ty < 0 or tx >= across or ty >= down:
+func _tile_at(source: RefCounted, tx: int, ty: int) -> int:
+	var tiles: Vector2i = source.size_cells() * 2
+	if tx < 0 or ty < 0 or tx >= tiles.x or ty >= tiles.y:
 		return -1
-	@warning_ignore("integer_division")
-	var block: int = map.block_at(tx / BLOCK_TILES, ty / BLOCK_TILES)
-	return tileset.tile_index(block, (ty & 3) * BLOCK_TILES + (tx & 3))
+	return source.tile_at(tx, ty)
 
 
-func _class_at(
-	map: Gen2WorldMap, tileset: Gen2WorldTileset, shape: RefCounted,
-	tx: int, ty: int
-) -> StringName:
-	var tile: int = _tile_at(map, tileset, tx, ty)
+func _class_at(source: RefCounted, shape: RefCounted, tx: int, ty: int) -> StringName:
+	var tile: int = _tile_at(source, tx, ty)
 	if tile < 0:
 		return &""
-	return shape.at(
-		tile,
-		Gen2WorldCollision.permission_for(map.collision_at(tx >> 1, ty >> 1))
-	)
+	return shape.at(tile, source.permission_at(Vector2i(tx >> 1, ty >> 1)))
 
 
 func _sheet(

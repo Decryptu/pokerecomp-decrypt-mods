@@ -5,7 +5,7 @@ extends Control
 const Options: GDScript = preload("../options.gd")
 const Steering: GDScript = preload("../steering.gd")
 
-const Profile: GDScript = preload("../shape/profile.gd")
+const Profiles: GDScript = preload("../shape/profiles.gd")
 const TileShapeScript: GDScript = preload("../shape/tile_shape.gd")
 const MapSourceScript: GDScript = preload("../shape/map_source.gd")
 const AtlasScript: GDScript = preload("../shape/atlas.gd")
@@ -40,7 +40,7 @@ var _actor_textures: Dictionary = {}
 var _pulse_textures: Dictionary = {}
 var _mod_actors: Gen2WorldActors = null
 var _encounters: Gen2WorldEncounters = null
-var _shape_tileset: int = -1
+var _shape_tileset: StringName = &""
 
 var _draw_cells: int = 0
 var _window_centre := Vector2i.MAX
@@ -59,7 +59,7 @@ var _tufts: Array = []
 var _text_box := Rect2i()
 var _screen_rect := Rect2i()
 var _interface_masked: bool = false
-var _transition: RefCounted = null
+var _transition: Control = null
 var _transition_sprites: int = Gen2BattleTransition.SPRITES_ALL
 var _transition_opponent: int = -1
 var _fade_order: int = Gen2WorldPalette.FADE_IDENTITY
@@ -74,7 +74,7 @@ func _init() -> void:
 	_stage = DioramaScript.new()
 	add_child(_stage.container)
 	_transition = TransitionScript.new()
-	add_child(_transition.layer)
+	add_child(_transition)
 	_read_options()
 	Options.listen(_on_option_changed)
 	Options.listen_actions(_on_action_changed)
@@ -108,13 +108,15 @@ func set_screen_rect(rect: Rect2i) -> void:
 func set_transition(
 	cells: PackedByteArray, tiles: PackedByteArray, palette: PackedColorArray,
 	sprites: int = Gen2BattleTransition.SPRITES_ALL, opponent: int = -1,
-	order: int = Gen2BattleTransition.IDENTITY
+	order: int = Gen2BattleTransition.IDENTITY,
+	sources: PackedInt32Array = PackedInt32Array()
 ) -> void:
 	_transition_sprites = sprites
 	_transition_opponent = opponent
 	_transition.place(_screen_place())
 	_transition.set_frame(
-		cells, tiles, Gen2WorldPalette.fade_palette(palette, order)
+		cells, tiles, Gen2WorldPalette.fade_palette(palette, order), sources,
+		_stage.picture(), _stage.container.size
 	)
 	_transition_order = order
 	_apply_flash()
@@ -302,7 +304,7 @@ func _build_atlas() -> bool:
 		return false
 	if not _atlas.build(
 		_world.data, _world.current_map, _world.current_tileset,
-		_time_of_day, _animation
+		_time_of_day, _animation, _world.gen1_last_map(), _world.gen1_map_pal_offset
 	):
 		return false
 	_apply_background()
@@ -325,9 +327,9 @@ func _rebuild() -> void:
 		_stage.set_tufts([])
 		_stage.far_field().configure(null, _time_of_day, true)
 		return
-	var tileset: int = _world.current_tileset.number
+	var tileset: StringName = _world.current_tileset.name
 	if _shape == null or tileset != _shape_tileset:
-		_shape = TileShapeScript.new(Profile, tileset)
+		_shape = TileShapeScript.new(Profiles.of(_world.data), tileset)
 		_shape_tileset = tileset
 	var source: RefCounted = MapSourceScript.new(_world)
 	_outside = source.outside()
@@ -556,20 +558,35 @@ func _rebuild_actors() -> void:
 		_walker(), PackedColorArray(),
 		_world.player_height_offset_pixels()
 	)
-	if _mod_actors != null and _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
-		for entry: Dictionary in _mod_actors.sprites():
-			_add_actor(
-				entry["sprite"], 0, int(entry["facing"]), int(entry["frame"]),
-				_ground(entry["position_cells"], entry["span"]),
-				entry.get("colors", PackedColorArray()),
-				float(entry["height_offset_pixels"]),
-				int(entry.get("emote", Gen2WorldActors.EMOTE_NONE))
-			)
 	if _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
+		if _mod_actors != null:
+			for entry: Dictionary in _mod_actors.sprites():
+				_add_actor_entry(entry)
+		_add_cartridge_follower()
 		_add_connected_actors()
 	_add_encounter_pulse()
 	_stage.end_cards()
 	_stage.end_shadow_casters()
+
+
+## An entry shaped as `Gen2WorldActors.sprites()` shapes one.
+func _add_actor_entry(entry: Dictionary) -> void:
+	_add_actor(
+		entry["sprite"], 0, int(entry["facing"]), int(entry["frame"]),
+		_ground(entry["position_cells"], entry.get("span", {})),
+		entry.get("colors", PackedColorArray()),
+		float(entry.get("height_offset_pixels", 0.0)),
+		int(entry.get("emote", Gen2WorldActors.EMOTE_NONE))
+	)
+
+
+## Yellow's own Pikachu, slot fifteen, which the host answers as an actor entry
+## and empty on every other cartridge.
+func _add_cartridge_follower() -> void:
+	var follower: Dictionary = _world.gen1_pikachu_sprite()
+	if follower.is_empty() or bool(follower.get("hidden", false)):
+		return
+	_add_actor_entry(follower)
 
 
 func _drawn_in_transition(index: int) -> bool:
@@ -641,9 +658,7 @@ func _emote_texture(emote: int) -> Texture2D:
 		return null
 	var palette: PackedColorArray = sheet.get("colors", PackedColorArray())
 	if palette.is_empty():
-		palette = _world.data.overworld_sprite_palette(
-			Gen2WorldEffects.PAL_OW_EMOTE, _time_of_day
-		)
+		palette = _sprite_colors(Gen2WorldEffects.PAL_OW_EMOTE)
 	var image := Image.create_empty(EMOTE_SIDE, EMOTE_SIDE, false, Image.FORMAT_RGBA8)
 	var width: int = tiles * PokeTiles.TILE_WIDTH
 	for tile: int in 4:
@@ -684,14 +699,20 @@ func _actor_texture(
 		_world.data.overworld_icon_indices(sprite.icon_number) \
 			if sprite.sprite_type == Gen2WorldSprite.TYPE_MON_ICON \
 			else _world.data.overworld_sprite_indices(sprite.number),
-		colors if colors.size() >= 4 \
-		else _world.data.overworld_sprite_palette(palette, _time_of_day),
+		colors if colors.size() >= 4 else _sprite_colors(palette),
 		facing,
 		frame,
 	)
 	var texture: Texture2D = ImageTexture.create_from_image(image)
 	_actor_textures[key] = texture
 	return texture
+
+
+func _sprite_colors(palette: int) -> PackedColorArray:
+	return Gen2WorldPalette.overworld_sprite_colors(
+		_world.data, _world.current_map, palette, _time_of_day,
+		_world.gen1_last_map(), _world.gen1_map_pal_offset
+	)
 
 const BATTLER_CENTRE := Vector2(
 	(Gen2BattleScreenMap.ENEMY_AT.x + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * PokeTiles.TILE_WIDTH,

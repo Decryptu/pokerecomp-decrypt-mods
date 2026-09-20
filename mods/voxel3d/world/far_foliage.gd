@@ -10,7 +10,7 @@ const MAP_LIMIT: int = 32
 const FarDrawings: GDScript = preload("../shape/far_drawings.gd")
 const MesherScript: GDScript = preload("../shape/mesher.gd")
 const TileShapeScript: GDScript = preload("../shape/tile_shape.gd")
-const Profile: GDScript = preload("../shape/profile.gd")
+const Profiles: GDScript = preload("../shape/profiles.gd")
 
 var root: Node3D = null
 var _mesh: Mesh = null
@@ -55,12 +55,12 @@ func begin() -> void:
 
 
 func place(
-	map: Gen2WorldMap, origin: Vector2, sheet: RefCounted, drawings: Dictionary,
-	clear: Rect2 = Rect2()
+	data: GameData, map: Gen2WorldMap, origin: Vector2, sheet: RefCounted,
+	drawings: Dictionary, clear: Rect2 = Rect2()
 ) -> void:
 	if not root.visible or map == null or drawings.is_empty():
 		return
-	var dressing: Dictionary = _dressing(map, sheet, drawings)
+	var dressing: Dictionary = _dressing(data, map, sheet, drawings)
 	for drawing: String in dressing:
 		var worn: Dictionary = dressing[drawing]
 		if worn["mesh"] == null or worn["material"] == null:
@@ -207,9 +207,10 @@ func _border_dressing(
 	if _bordered.size() >= MAP_LIMIT:
 		_bordered.clear()
 	var cutter: RefCounted = MesherScript.new()
-	var shape: RefCounted = TileShapeScript.new(Profile, map.tileset)
+	var profile: GDScript = Profiles.of(data)
+	var shape: RefCounted = TileShapeScript.new(profile, data.world_tileset(map.tileset).name)
 	var out: Dictionary = {}
-	var walked: Dictionary = FarDrawings.of_border(data, map, Profile)
+	var walked: Dictionary = FarDrawings.of_border(data, map, profile)
 	for drawing: String in walked:
 		var found: Dictionary = walked[drawing]
 		var card: Array = cutter.far_card_for(
@@ -246,7 +247,7 @@ func _instance() -> MultiMeshInstance3D:
 
 
 func _dressing(
-	map: Gen2WorldMap, sheet: RefCounted, drawings: Dictionary
+	data: GameData, map: Gen2WorldMap, sheet: RefCounted, drawings: Dictionary
 ) -> Dictionary:
 	var key: String = "%d,%d" % [map.group, map.number]
 	if _dressed.has(key):
@@ -256,7 +257,9 @@ func _dressing(
 	if _dressed.size() >= MAP_LIMIT:
 		_dressed.clear()
 	var cutter: RefCounted = MesherScript.new()
-	var shape: RefCounted = TileShapeScript.new(Profile, map.tileset)
+	var shape: RefCounted = TileShapeScript.new(
+		Profiles.of(data), data.world_tileset(map.tileset).name
+	)
 	var out: Dictionary = {}
 	for drawing: String in drawings:
 		var found: Dictionary = drawings[drawing]

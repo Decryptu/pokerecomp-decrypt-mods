@@ -15,7 +15,7 @@ func _initialize() -> void:
 		return
 	var want: String = args[1]
 	var only: int = int(args[2]) if args.size() > 2 else -1
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
 	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
 	var counts: Dictionary = {}
@@ -28,8 +28,8 @@ func _initialize() -> void:
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		if tileset == null:
 			continue
-		var shape: RefCounted = shape_script.new(profile, map.tileset)
-		var source: RefCounted = source_script.new(null, map, tileset)
+		var shape: RefCounted = shape_script.new(profile, tileset.name)
+		var source: RefCounted = source_script.new(null, map, tileset, data)
 		var size := Vector2i(
 			map.width_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH * 2,
 			map.height_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH * 2

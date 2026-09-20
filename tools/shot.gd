@@ -43,9 +43,9 @@ func _initialize() -> void:
 
 	var atlas: RefCounted = (load("%s/shape/atlas.gd" % MOD) as GDScript).new()
 	var mesher: RefCounted = (load("%s/shape/mesher.gd" % MOD) as GDScript).new()
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var shape: RefCounted = (load("%s/shape/tile_shape.gd" % MOD) as GDScript).new(
-		profile, map.tileset
+		profile, tileset.name
 	)
 	var source: RefCounted = (load("%s/shape/map_source.gd" % MOD) as GDScript).new(
 		null, map, tileset, data
@@ -128,7 +128,8 @@ func _actors(
 			data.overworld_icon_indices(sprite.icon_number) \
 				if sprite.sprite_type == Gen2WorldSprite.TYPE_MON_ICON \
 				else data.overworld_sprite_indices(sprite.number),
-			data.overworld_sprite_palette(
+			Gen2WorldPalette.overworld_sprite_colors(
+				data, map,
 				int(event.get("palette", 0)) if int(event.get("palette", 0)) != 0
 				else sprite.default_palette,
 				time_of_day

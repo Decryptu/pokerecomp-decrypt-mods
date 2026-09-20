@@ -25,6 +25,10 @@ var _frames: Dictionary = {}
 var _sky_ramp: PackedColorArray = PackedColorArray()
 var _shore_colors: PackedColorArray = PackedColorArray()
 var _water_colors: PackedColorArray = PackedColorArray()
+## `wLastMap` and `wMapPalOffset`, which only a Generation 1 map's colours read:
+## an indoor map takes the last town's palette, and Rock Tunnel is dark.
+var _last_map: int = -1
+var _map_pal_offset: int = 0
 
 
 func build(
@@ -33,6 +37,8 @@ func build(
 	tileset: Gen2WorldTileset,
 	time_of_day: int,
 	animation: Gen2WorldAnimation = null,
+	last_map: int = -1,
+	map_pal_offset: int = 0,
 ) -> bool:
 	var kept: ImageTexture = texture
 	texture = null
@@ -43,6 +49,8 @@ func build(
 	if _animation != animation:
 		_frames.clear()
 	_animation = animation
+	_last_map = last_map
+	_map_pal_offset = map_pal_offset
 	if data == null or map == null or tileset == null:
 		return false
 
@@ -81,7 +89,7 @@ func refresh_animation(
 	if _image == null or texture == null or animation == null:
 		return false
 	if animation.palette_changed():
-		return build(data, map, tileset, time_of_day, animation)
+		return build(data, map, tileset, time_of_day, animation, _last_map, _map_pal_offset)
 	var changed: PackedInt32Array = animation.changed_tiles()
 	if changed.is_empty():
 		return false
@@ -226,13 +234,23 @@ func water_colors() -> PackedColorArray:
 	return _water_colors
 
 
+## A Generation 1 map is drawn in one four-colour row, and every town and
+## route row puts the same sky blue at colour 2: the water is dithered from it
+## and the sky is graded from it.
+const GEN1_SKY_COLOR: int = 2
+
+
 func _read_shore_colors(
 	data: GameData, map: Gen2WorldMap, time_of_day: int
 ) -> PackedColorArray:
-	var slots: Array = Gen2WorldPalette.palette_slots(map.environment, time_of_day)
-	if slots.size() <= SKY_WATER_SLOT:
-		return PackedColorArray()
-	var row: PackedColorArray = data.world_palette(int(slots[SKY_WATER_SLOT]))
+	var row: PackedColorArray
+	if data.generation == RomRegistry.GEN1:
+		row = Gen2WorldPalette.gen1_map_colors(data, map, _last_map)
+	else:
+		var slots: Array = Gen2WorldPalette.palette_slots(map.environment, time_of_day)
+		if slots.size() <= SKY_WATER_SLOT:
+			return PackedColorArray()
+		row = data.world_palette(int(slots[SKY_WATER_SLOT]))
 	if row.size() < 3:
 		return PackedColorArray()
 	_water_colors = row
@@ -242,6 +260,14 @@ func _read_shore_colors(
 func _read_sky_ramp(
 	data: GameData, map: Gen2WorldMap, time_of_day: int
 ) -> PackedColorArray:
+	if data.generation == RomRegistry.GEN1:
+		var row: PackedColorArray = Gen2WorldPalette.gen1_map_colors(data, map, _last_map)
+		if row.size() <= GEN1_SKY_COLOR:
+			return PackedColorArray()
+		return PackedColorArray([
+			row[GEN1_SKY_COLOR].darkened(SKY_HORIZON_DARKEN),
+			row[GEN1_SKY_COLOR].darkened(SKY_ZENITH_DARKEN),
+		])
 	var slots: Array = Gen2WorldPalette.palette_slots(map.environment, time_of_day)
 	if slots.size() <= SKY_SLOT:
 		return PackedColorArray()
@@ -299,6 +325,10 @@ func _palettes(
 		time_of_day,
 		animation.water_palette_color() if animation != null else -1,
 		animation.cave_palette_color() if animation != null else -1,
+		Gen2WorldPalette.FADE_IDENTITY,
+		false,
+		_last_map,
+		_map_pal_offset,
 	)
 
 

@@ -6,7 +6,7 @@ extends RefCounted
 ## 16, and a height is a whole number of 8px bands, so a shape height can be
 ## read straight off the art.
 
-const Houses: GDScript = preload("houses.gd")
+const Classes: GDScript = preload("classes.gd")
 const Levels: GDScript = preload("levels.gd")
 const Model: GDScript = preload("model.gd")
 
@@ -997,12 +997,12 @@ func _fill_row(source: RefCounted, shape: RefCounted, ty: int) -> void:
 		_front[at] = fact[FACT_FRONT]
 		_lip[at] = fact[FACT_LIP]
 		_heights[at] = fact[FACT_HEIGHT]
-		var grass: int = source.code_at(cell)
+		var grass: int = source.grass_at(cell)
 		_tufted[at] = int(
 			fact[FACT_TUFTED] == 1
-			or (Gen2WorldCollision.is_grass(grass) and not _is_water(at))
+			or (grass != Gen2WorldCollision.GRASS_NONE and not _is_water(at))
 		)
-		_long_grass[at] = int(Gen2WorldCollision.is_long_grass(grass))
+		_long_grass[at] = int(grass == Gen2WorldCollision.GRASS_LONG)
 
 
 func _blank_tile(at: int) -> void:
@@ -1073,12 +1073,11 @@ func _passes(source: RefCounted, shape: RefCounted) -> Array[Callable]:
 func _band_houses(
 	passes: Array[Callable], source: RefCounted, shape: RefCounted
 ) -> void:
-	var painted_map: Gen2WorldMap = source.map()
-	if painted_map == null:
+	if source.map() == null:
 		return
 	passes.append(_open_houses)
 	_band(passes, _tile_spots)
-	for house: Dictionary in _painted_houses(painted_map.tileset):
+	for house: Dictionary in _painted_houses(shape):
 		passes.append(_find_house.bind(house))
 		passes.append(_plan_house.bind(house))
 		passes.append(_offer_house.bind(house))
@@ -1233,8 +1232,8 @@ func _keep_fold(members: PackedInt32Array, storeys: Vector2i) -> void:
 
 
 ## Largest drawing first, so a big house claims before a piece of it can.
-func _painted_houses(tileset_number: int) -> Array:
-	var painted: Array = Houses.of_tileset(tileset_number)
+func _painted_houses(shape: RefCounted) -> Array:
+	var painted: Array = shape.houses()
 	painted.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return (a["tiles"] as Array).size() * ((a["tiles"][0] as Array).size()) \
 			> (b["tiles"] as Array).size() * ((b["tiles"][0] as Array).size()))
@@ -1348,11 +1347,11 @@ func _paint_house(
 			var stroke: String = _house_word(paint, row, column)
 			if stroke == "":
 				continue
-			if stroke == Houses.NONE:
+			if stroke == Classes.HOUSE_NONE:
 				if _part[at] == PART_NONE:
 					continue
 				_house[at] = HOUSE_GROUND
-			elif stroke == Houses.ROOF:
+			elif stroke == Classes.HOUSE_ROOF:
 				_house[at] = HOUSE_ROOF
 			else:
 				_house[at] = HOUSE_WALL
@@ -1540,9 +1539,9 @@ func _house_claimed(rect: Rect2i) -> bool:
 
 func _house_tile(shape: RefCounted, at: int, stroke: String) -> void:
 	var painted: StringName = &"roof"
-	if stroke == Houses.WALL or stroke == Houses.FRONT:
+	if stroke == Classes.HOUSE_WALL or stroke == Classes.HOUSE_FRONT:
 		painted = &"facade"
-	elif stroke == Houses.NONE:
+	elif stroke == Classes.HOUSE_NONE:
 		painted = &"ground"
 	_art[at] = _art_mode(shape.art(painted))
 	_depths[at] = clampi(shape.depth(painted), 1, 16)
@@ -1555,7 +1554,7 @@ func _house_tile(shape: RefCounted, at: int, stroke: String) -> void:
 			_part[at] = PART_ROOF
 		_:
 			_part[at] = PART_NONE
-	_slope[at] = int(stroke == Houses.FRONT)
+	_slope[at] = int(stroke == Classes.HOUSE_FRONT)
 	_round[at] = 0
 	_filled[at] = 0
 	_stem[at] = 0
@@ -2339,13 +2338,10 @@ func _tallest_beside(at: int, source: RefCounted = null) -> int:
 func _is_collision_door(source: RefCounted, at: int) -> bool:
 	@warning_ignore("integer_division")
 	var tile := Vector2i(at % _size.x - _margin.x, at / _size.x - _margin.y)
-	var code: int = source.code_at(Vector2i(
+	return source.is_door_at(Vector2i(
 		floori(float(tile.x) / float(CELL_TILES)),
 		floori(float(tile.y) / float(CELL_TILES))
 	))
-	return code == Gen2WorldCollision.COLL_DOOR \
-		or code == Gen2WorldCollision.COLL_DOOR_79 \
-		or code == Gen2WorldCollision.COLL_CAVE
 
 
 func _measure_mouths() -> void:
@@ -3176,15 +3172,11 @@ func _measure_ledges(from: int, to: int, source: RefCounted) -> void:
 	var cells := Vector2i(_size.x / CELL_TILES, _size.y / CELL_TILES)
 	for cy: int in range(from, mini(to, cells.y)):
 		for cx: int in cells.x:
-			var code: int = source.code_at(Vector2i(cx, cy) - _margin_cells())
-			if (code & 0xF0) != Gen2WorldCollision.HI_NYBBLE_LEDGES:
+			var steps: Array = source.ledge_steps_at(Vector2i(cx, cy) - _margin_cells())
+			if steps.is_empty():
 				continue
 			var base: int = _cell_floor(cx, cy)
-			for step: Vector2i in [
-				Vector2i.DOWN, Vector2i.UP, Vector2i.RIGHT, Vector2i.LEFT
-			]:
-				if not Gen2WorldCollision.allows_hop(code, step):
-					continue
+			for step: Vector2i in steps:
 				var over := Vector2i(cx, cy) + step
 				if over.x < 0 or over.y < 0 or over.x >= cells.x or over.y >= cells.y:
 					continue
@@ -5632,7 +5624,7 @@ func _plan_masks(house: Dictionary) -> void:
 	_plan = {
 		&"paint": paint,
 		&"cols": String(paint[0]).length(),
-		&"wall": _house_mask(paint, Houses.WALL),
+		&"wall": _house_mask(paint, Classes.HOUSE_WALL),
 		&"all": _house_mask(paint, ""),
 	}
 
@@ -5669,7 +5661,7 @@ func _plan_bodies(id: int) -> void:
 ## byte rather than indexing a string once a neighbour. An empty word is any
 ## stroke at all.
 func _house_mask(paint: Array, word: String) -> PackedByteArray:
-	var blank: int = Houses.NONE.unicode_at(0)
+	var blank: int = Classes.HOUSE_NONE.unicode_at(0)
 	var want: int = -1 if word.is_empty() else word.unicode_at(0)
 	var mask := PackedByteArray()
 	for line: String in paint:
@@ -5770,13 +5762,13 @@ func _house_reach(
 
 func _house_run(paint: Array, rows: int, x: int, band: Vector2i) -> Vector2i:
 	for y: int in range(band.x, band.y + 1):
-		if y < 0 or y >= rows or paint[y][x] == Houses.NONE:
+		if y < 0 or y >= rows or paint[y][x] == Classes.HOUSE_NONE:
 			continue
 		var top: int = y
-		while top > 0 and paint[top - 1][x] != Houses.NONE:
+		while top > 0 and paint[top - 1][x] != Classes.HOUSE_NONE:
 			top -= 1
 		var bottom: int = y
-		while bottom + 1 < rows and paint[bottom + 1][x] != Houses.NONE:
+		while bottom + 1 < rows and paint[bottom + 1][x] != Classes.HOUSE_NONE:
 			bottom += 1
 		return Vector2i(top, bottom)
 	return Vector2i(-1, -1)
@@ -5914,9 +5906,9 @@ func _house_roof_rows(
 		peak = mini(peak, tops[x])
 		top_row = mini(top_row, tops[x])
 		var y: int = _house_paint_run(
-			paint, tops[x] - 1, x, Houses.FRONT, eave_from, eave_to
+			paint, tops[x] - 1, x, Classes.HOUSE_FRONT, eave_from, eave_to
 		)
-		y = _house_paint_run(paint, y, x, Houses.ROOF, cap_from, cap_to)
+		y = _house_paint_run(paint, y, x, Classes.HOUSE_ROOF, cap_from, cap_to)
 		if cap_from[x] >= 0:
 			top_row = mini(top_row, cap_from[x])
 		elif eave_from[x] >= 0:

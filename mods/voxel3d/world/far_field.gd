@@ -6,7 +6,7 @@ const AtlasScript: GDScript = preload("../shape/atlas.gd")
 const FarFoliageScript: GDScript = preload("far_foliage.gd")
 const FarHousesScript: GDScript = preload("far_houses.gd")
 const FarDrawings: GDScript = preload("../shape/far_drawings.gd")
-const Profile: GDScript = preload("../shape/profile.gd")
+const Profiles: GDScript = preload("../shape/profiles.gd")
 
 const TILE: float = 8.0
 const BLOCK_PIXELS: float = 32.0
@@ -230,7 +230,7 @@ func advance(focus: Vector3, reach: float) -> void:
 			near.border_block, near.tileset, false)
 		_stand(layer, origin, size, NEAR_DEPTH)
 		var found: Dictionary = _walk_of(near, Rect2i())
-		_foliage.place(near, origin, sheet, found.get("drawings", {}), _stamped)
+		_foliage.place(_world.data, near, origin, sheet, found.get("drawings", {}), _stamped)
 		_houses.place(near, origin, sheet, found.get("buildings", []), _stamped)
 
 	var here: ImageTexture = _here_texture(map)
@@ -247,7 +247,8 @@ func advance(focus: Vector3, reach: float) -> void:
 		_stand(layer, origin, blocks * BLOCK_PIXELS, HERE_DEPTH)
 		var here_found: Dictionary = _walk_of(map, _ring_grid())
 		_foliage.place(
-			map, Vector2.ZERO, _sheet(map, true), here_found.get("drawings", {}), _hole
+			_world.data, map, Vector2.ZERO, _sheet(map, true),
+			here_found.get("drawings", {}), _hole
 		)
 		_houses.place(
 			map, Vector2.ZERO, _sheet(map, true), here_found.get("buildings", []), _hole
@@ -269,7 +270,7 @@ func _walk_of(map: Gen2WorldMap, grid: Rect2i) -> Dictionary:
 	_walk_owed = true
 	if _walked.size() >= SHEET_LIMIT:
 		_walked.clear()
-	_walked[key] = FarDrawings.of_map(_world.data, map, Profile, grid)
+	_walked[key] = FarDrawings.of_map(_world.data, map, Profiles.of(_world.data), grid)
 	return _walked[key]
 
 

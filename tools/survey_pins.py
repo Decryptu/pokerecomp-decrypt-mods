@@ -2,7 +2,7 @@
 """Turns what a reviewer said about blocks into what the profile pins: tiles.
 
 A reviewer answers about BLOCKS, because a block is what a drawing looks like.
-`shape/profile.gd` pins TILES, because a tile id is what a shape resolves for.
+`shape/gen<n>/profile.gd` pins TILES, because a tile id is what a shape resolves for.
 The step between them is not a parse of the sentence, it is a set problem, and
 the labels solve it by accident of being many: the four tiles of a bollard are
 exactly the tiles that appear in blocks called bollard and in no other, and 22
@@ -168,8 +168,8 @@ def main():
         groups = collections.defaultdict(list)
         for tile, name in claimed.items():
             groups[name].append(tile)
-        print("tileset %d: %d blocks read, %d tiles claimed" % (
-            number, len(said), len(claimed)))
+        print("tileset %d %s: %d blocks read, %d tiles claimed" % (
+            number, meta.get("name", ""), len(said), len(claimed)))
         for name, tiles in sorted(groups.items()):
             print("  %-10s %s" % (name, sorted(tiles)))
         print(" ", picture(directory, number, groups, tiles_of, slot_of,

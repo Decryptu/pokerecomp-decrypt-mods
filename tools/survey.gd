@@ -48,7 +48,7 @@ func _initialize() -> void:
 		return
 	DirAccess.make_dir_recursive_absolute(_out)
 
-	_profile = load("%s/shape/profile.gd" % MOD)
+	_profile = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(_data)
 	_tile_shape = load("%s/shape/tile_shape.gd" % MOD)
 	_map_source = load("%s/shape/map_source.gd" % MOD)
 	_atlas = (load("%s/shape/atlas.gd" % MOD) as GDScript).new()
@@ -86,8 +86,8 @@ func _filler(tileset: Gen2WorldTileset, blocks: Array) -> int:
 		var walkable: bool = true
 		for cell_y: int in BLOCK_CELLS:
 			for cell_x: int in BLOCK_CELLS:
-				var permission: int = Gen2WorldCollision.permission_for(
-					tileset.collision_index(block, cell_x, cell_y)
+				var permission: int = _map_source.permission_of(
+					_data, tileset, _map_source.code_in_block(_data, tileset, block, cell_x, cell_y)
 				)
 				if permission != Gen2WorldCollision.LAND_TILE:
 					walkable = false
@@ -138,7 +138,9 @@ func _grid_map(source: Gen2WorldMap, tileset: Gen2WorldTileset, blocks: Array) -
 			var block: int = map.block_at(block_x, block_y)
 			for cell_y: int in BLOCK_CELLS:
 				for cell_x: int in BLOCK_CELLS:
-					var index: int = tileset.collision_index(block, cell_x, cell_y)
+					var index: int = _map_source.code_in_block(
+						_data, tileset, block, cell_x, cell_y
+					)
 					map.collision[
 						(block_y * BLOCK_CELLS + cell_y) * map.collision_width
 						+ block_x * BLOCK_CELLS + cell_x
@@ -193,9 +195,9 @@ func _verdict(
 	for cell_y: int in BLOCK_CELLS:
 		for cell_x: int in BLOCK_CELLS:
 			var cell := Vector2i(at.x * BLOCK_CELLS + cell_x, at.y * BLOCK_CELLS + cell_y)
-			permissions.append(
-				Gen2WorldCollision.permission_for(map.collision_at(cell.x, cell.y))
-			)
+			permissions.append(_map_source.permission_of(
+				_data, tileset, map.collision_at(cell.x, cell.y)
+			))
 			heights.append(_mesher.height_at_position(
 				Vector3(cell.x * CELL + CELL * 0.5, 0.0, cell.y * CELL + CELL * 0.5)
 			))
@@ -252,8 +254,8 @@ func _build(number: int) -> bool:
 	if _atlas.build(_data, map, tileset, Gen2WorldPalette.TIME_DAY, animation):
 		_stage.set_texture(_atlas.texture)
 		_stage.set_background(Color(0.09, 0.09, 0.11))
-	var shape: RefCounted = _tile_shape.new(_profile, number)
-	_stage.set_terrain(_mesher.build(_map_source.new(null, map, tileset), shape, _atlas))
+	var shape: RefCounted = _tile_shape.new(_profile, tileset.name)
+	_stage.set_terrain(_mesher.build(_map_source.new(null, map, tileset, _data), shape, _atlas))
 	_stage.set_water(_mesher.take_water())
 	_stage.set_tufts(_mesher.take_tufts())
 	_stage.set_models(_mesher.take_models())
@@ -293,6 +295,7 @@ func _build(number: int) -> bool:
 
 	_pending = {
 		"tileset": number,
+		"name": String(tileset.name),
 		"columns": COLUMNS,
 		"block_pixels": BLOCK_PIXELS,
 		"crop": [CROP.x, CROP.y],

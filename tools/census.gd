@@ -13,7 +13,7 @@ func _initialize() -> void:
 		print("no cache")
 		quit(1)
 		return
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
 	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
 	var tiles: Dictionary = {}
@@ -22,8 +22,8 @@ func _initialize() -> void:
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		if tileset == null:
 			continue
-		var shape: RefCounted = shape_script.new(profile, map.tileset)
-		var source: RefCounted = source_script.new(null, map, tileset)
+		var shape: RefCounted = shape_script.new(profile, tileset.name)
+		var source: RefCounted = source_script.new(null, map, tileset, data)
 		var here: Dictionary = {}
 		for ty: int in map.height_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH * 2:
 			for tx: int in map.width_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH * 2:

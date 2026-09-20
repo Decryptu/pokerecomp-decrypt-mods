@@ -28,7 +28,7 @@ func _initialize() -> void:
 		return
 	DirAccess.make_dir_recursive_absolute(out)
 
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var mesher_script: GDScript = load("%s/shape/mesher.gd" % MOD)
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
 	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
@@ -54,8 +54,8 @@ func _initialize() -> void:
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		if tileset == null:
 			continue
-		var shape: RefCounted = shape_script.new(profile, map.tileset)
-		var source: RefCounted = source_script.new(null, map, tileset)
+		var shape: RefCounted = shape_script.new(profile, tileset.name)
+		var source: RefCounted = source_script.new(null, map, tileset, data)
 		var mesher: RefCounted = mesher_script.new()
 		mesher.resolve(source, shape)
 		var size: Vector2i = mesher.size_tiles()
@@ -135,8 +135,8 @@ func _has_stairs(
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 	if tileset == null:
 		return false
-	var shape: RefCounted = shape_script.new(profile, map.tileset)
-	var source: RefCounted = source_script.new(null, map, tileset)
+	var shape: RefCounted = shape_script.new(profile, tileset.name)
+	var source: RefCounted = source_script.new(null, map, tileset, data)
 	var width: int = map.width_blocks * 4
 	var height: int = map.height_blocks * 4
 	for ty: int in height:

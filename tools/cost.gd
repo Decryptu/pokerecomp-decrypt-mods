@@ -55,7 +55,7 @@ func _initialize() -> void:
 	if args.size() > 1 and args[1] != "all":
 		only = int(args[1])
 
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var atlas_script: GDScript = load("%s/shape/atlas.gd" % MOD)
 	var mesher_script: GDScript = load("%s/shape/mesher.gd" % MOD)
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
@@ -80,7 +80,7 @@ func _initialize() -> void:
 		animation.configure_tileset(data, tileset, 1)
 		if not atlas.build(data, map, tileset, 1, animation):
 			continue
-		var shape: RefCounted = shape_script.new(profile, map.tileset)
+		var shape: RefCounted = shape_script.new(profile, tileset.name)
 		var source: RefCounted = source_script.new(null, map, tileset, data)
 
 		var measured: Array = _resolve(mesher, source, shape)

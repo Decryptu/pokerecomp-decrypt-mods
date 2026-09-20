@@ -76,7 +76,7 @@ func _initialize() -> void:
 
 
 func _census(data: GameData, wanted: Dictionary) -> Array:
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
 	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
 	var mesher_script: GDScript = load("%s/shape/mesher.gd" % MOD)
@@ -85,7 +85,7 @@ func _census(data: GameData, wanted: Dictionary) -> Array:
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		if tileset == null:
 			continue
-		var shape: RefCounted = shape_script.new(profile, map.tileset)
+		var shape: RefCounted = shape_script.new(profile, tileset.name)
 		var source: RefCounted = source_script.new(null, map, tileset, data)
 		var mesher: RefCounted = mesher_script.new()
 		mesher.resolve(source, shape)
@@ -189,7 +189,7 @@ func _stand_3d(
 
 	var right := Vector3(cos(bearing), 0.0, -sin(bearing))
 	var mesher_script: GDScript = load("%s/shape/mesher.gd" % MOD)
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
 	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
 	for index: int in found.size():
@@ -203,7 +203,7 @@ func _stand_3d(
 		var mesher: RefCounted = mesher_script.new()
 		mesher.resolve(
 			source_script.new(null, map, tileset, data),
-			shape_script.new(profile, map.tileset)
+			shape_script.new(profile, tileset.name)
 		)
 		var across: Vector2i = record["across"]
 		var span := Vector2(across * TILE)

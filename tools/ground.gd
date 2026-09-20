@@ -1,6 +1,6 @@
 extends SceneTree
 
-## Prints `shape/profile.gd`'s GROUND table: the floor a standing drawing is
+## Prints the generation's `shape/gen<n>/profile.gd` GROUND table: the floor a standing drawing is
 ## painted with where there is none beside it.
 ## GENERATED, NEVER TRANSCRIBED. Eighteen tilesets of one number each read off a
 
@@ -21,12 +21,12 @@ func _initialize() -> void:
 		return
 	var atlas: RefCounted = (load("%s/shape/atlas.gd" % MOD) as GDScript).new()
 	var mesher: RefCounted = (load("%s/shape/mesher.gd" % MOD) as GDScript).new()
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var beside: Dictionary = {}
 	for map: Gen2WorldMap in data.world_maps():
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		var shape: RefCounted = (load("%s/shape/tile_shape.gd" % MOD) as GDScript).new(
-			profile, map.tileset
+			profile, tileset.name
 		)
 		var source: RefCounted = (load("%s/shape/map_source.gd" % MOD) as GDScript).new(
 			null, map, tileset, data
@@ -76,7 +76,7 @@ func _initialize() -> void:
 			continue
 		var classes: Array = counts.keys()
 		classes.sort()
-		print("\t%d: {" % tileset_number)
+		print("\t&\"%s\": {" % data.world_tileset(tileset_number).name)
 		for id: int in classes:
 			var shape_class: StringName = names.get(id, &"?")
 			var per: Dictionary = counts[id]

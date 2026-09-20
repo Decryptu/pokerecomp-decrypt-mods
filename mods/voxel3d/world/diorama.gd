@@ -255,6 +255,11 @@ func _set_shadow_reach(pixels: float) -> void:
 		if pixels <= ONE_SPLIT_REACH else DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 
 
+## The finished frame, every pass spent, at the size the render scale draws it.
+func picture() -> Texture2D:
+	return _pass_viewport.get_texture()
+
+
 func set_render_scale(divisor: int) -> void:
 	container.stretch_shrink = clampi(divisor, 1, 4)
 

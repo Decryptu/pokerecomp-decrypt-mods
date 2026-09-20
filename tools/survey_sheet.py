@@ -7,7 +7,7 @@ to. This puts them side by side under one number.
 
 The number is the whole point. A reviewer reads down the sheet and writes a
 list, `12 tree, 13 sign, 27 flowers`, and that list is what becomes pins in
-`mods/voxel3d/shape/profile.gd`. So the layout is built around being able to
+`mods/voxel3d/shape/gen<n>/profile.gd`. So the layout is built around being able to
 name a block in a glance and never having to describe it in words.
 
     tools/survey_sheet.py <survey dir> [tileset ...]
@@ -58,7 +58,7 @@ def sheet(directory, number):
         BACK,
     )
     pen = ImageDraw.Draw(out)
-    pen.text((PAD, 6), "tileset %d  -  %d blocks  -  2D | 3D" % (number, len(blocks)), fill=INK)
+    pen.text((PAD, 6), "tileset %d %s  -  %d blocks  -  2D | 3D" % (number, meta.get("name", ""), len(blocks)), fill=INK)
 
     for index, block in enumerate(blocks):
         slot = block["slot"]

@@ -46,6 +46,9 @@ func _initialize() -> void:
 				record["group"], record["number"]
 			])
 			continue
+		var source: RefCounted = (load("%s/shape/map_source.gd" % MOD) as GDScript).new(
+			null, map, data.world_tileset(map.tileset), data
+		)
 		var cells := Vector2i(int(record["cells"][0]), int(record["cells"][1]))
 		var levels: Array = record["levels"]
 		var walls: Array = record["walls"]
@@ -58,8 +61,7 @@ func _initialize() -> void:
 			var row: String = ""
 			for cx: int in cells.x:
 				walkable[cy * cells.x + cx] = int(
-					Gen2WorldCollision.permission_for(map.collision_at(cx, cy))
-					== Gen2WorldCollision.LAND_TILE
+					source.permission_at(Vector2i(cx, cy)) == Gen2WorldCollision.LAND_TILE
 				)
 				if int((walls[cy] as Array)[cx]) == 1:
 					row += WALL

@@ -38,7 +38,7 @@ func _initialize() -> void:
 	var only: int = int(args[2]) if args.size() > 2 else -1
 	DirAccess.make_dir_recursive_absolute(out)
 
-	var profile: GDScript = load("%s/shape/profile.gd" % MOD)
+	var profile: GDScript = (load("%s/shape/profiles.gd" % MOD) as GDScript).of(data)
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
 	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
 
@@ -49,7 +49,7 @@ func _initialize() -> void:
 		var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 		if tileset == null:
 			continue
-		_walk(map, tileset, profile, shape_script, source_script, drawings)
+		_walk(data, map, tileset, profile, shape_script, source_script, drawings)
 
 	var keys: Array = drawings.keys()
 	keys.sort_custom(func(a: String, b: String) -> bool:
@@ -98,12 +98,12 @@ func _initialize() -> void:
 
 
 func _walk(
-	map: Gen2WorldMap, tileset: Gen2WorldTileset,
+	data: GameData, map: Gen2WorldMap, tileset: Gen2WorldTileset,
 	profile: GDScript, shape_script: GDScript, source_script: GDScript,
 	drawings: Dictionary
 ) -> void:
-	var shape: RefCounted = shape_script.new(profile, map.tileset)
-	var source: RefCounted = source_script.new(null, map, tileset)
+	var shape: RefCounted = shape_script.new(profile, tileset.name)
+	var source: RefCounted = source_script.new(null, map, tileset, data)
 	var w: int = map.width_blocks * BLOCK_TILES
 	var h: int = map.height_blocks * BLOCK_TILES
 	var warps: Dictionary = {}
@@ -156,10 +156,10 @@ func _walk(
 				rows.append(line)
 				paint.append(strokes)
 			_fill_falls(paint)
-			var key: String = "ts%d %s" % [map.tileset, str(rows)]
+			var key: String = "%s %s" % [tileset.name, str(rows)]
 			if not drawings.has(key):
 				drawings[key] = {
-						"tileset": map.tileset,
+						"tileset": String(tileset.name),
 					"tiles": rows,
 					"size": [box.size.x, box.size.y],
 					"cells": [box.size.x / 2.0, box.size.y / 2.0],
