@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
-"""Fails on code that is too long, too branchy or too commented.
+"""Checks function complexity, length, and file comment ratio.
 
-New code meets the ceilings. What was already over them is listed in
-`bloat_debt.txt`, which may only ever shrink: a function on that list that now
-passes must come off it, and one that is not on it may not go over. So the debt
-is paid down and never added to.
-
-`--top N` ranks the worst without failing. `--debt` rewrites the list, which is
-only correct when the entries it drops were genuinely fixed.
+`bloat_debt.txt` lists existing exceptions; it may only shrink.
+`--top N` ranks functions. `--debt` rewrites the exception list.
 """
 import argparse, pathlib, re, subprocess, sys
 

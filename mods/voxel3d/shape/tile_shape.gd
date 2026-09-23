@@ -1,8 +1,5 @@
 extends RefCounted
 
-## Resolves every graphics tile of a map to an extrusion shape: a generation's
-## profile says which tiles are pinned, `classes.gd` what each class is.
-
 const Classes: GDScript = preload("classes.gd")
 const Stems: GDScript = preload("stems.gd")
 

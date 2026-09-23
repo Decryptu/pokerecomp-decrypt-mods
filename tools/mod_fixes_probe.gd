@@ -1,8 +1,5 @@
 extends SceneTree
 
-## Prints the resolved ledge corner, battle occlusion and visible population
-## regressions against a real cartridge cache.
-
 const FIRST_SEED: int = 1234
 const SECOND_SEED: int = 5678
 

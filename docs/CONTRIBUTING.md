@@ -135,19 +135,14 @@ in the game repository first. It is the contract, and it is enforced.
   have to agree, which is what lets `V` switch between them mid-step.
 - iOS forbids JIT and loading native code at runtime, so a distributed mod is
   interpreted GDScript. No GDExtension, no compiled anything.
-- `api_version` is the oldest host a mod works against, not a number to keep
-  current. The host accepts `PokeModManifest.MIN_API_VERSION` to `API_VERSION`,
-  30 to 37 today, and refuses anything outside that. Raise it when the mod
-  starts using something newer, not with every release. Version 30 renamed the
-  classes both generations reach, so it moved the floor as well as the ceiling:
-  a mod below it names a class the host no longer declares.
+- `api_version` is the oldest compatible host. The host accepts versions from
+  `PokeModManifest.MIN_API_VERSION` through `API_VERSION`; see the contract
+  versions table in `docs/MODS.md`. Raise a mod's value when it uses a newer
+  seam.
 - `games` names the cartridges the mod is for, out of `red`, `blue`, `yellow`,
   `gold`, `silver` and `crystal`. All six are played, on the same `Gen2*`
-  screens and seams, but a seam a Generation I screen does not reach is silent
-  there rather than refused: a mart reached on Red carries no `mart_id`, and a
-  registered stats page was silent there before `api_version` 33. Name a
-  cartridge only after each seam the mod uses has been walked on it, with a
-  probe and a picture.
+  screens and seams. Check each seam a mod uses on every cartridge it names,
+  with a probe and a picture.
 
 ## Writing rules
 

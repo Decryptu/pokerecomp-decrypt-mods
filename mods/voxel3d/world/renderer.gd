@@ -1,7 +1,5 @@
 extends Control
 
-## The world drawn as a voxel diorama instead of a tile page.
-
 const Options: GDScript = preload("../options.gd")
 const Steering: GDScript = preload("../steering.gd")
 

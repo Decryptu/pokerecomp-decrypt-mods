@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Population policy for the host's visible-encounter seam.
-
 const Options := preload("options.gd")
 const Plan := preload("plan.gd")
 const Rng := preload("rng.gd")

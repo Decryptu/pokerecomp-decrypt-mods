@@ -1,7 +1,5 @@
 extends RefCounted
 
-## A fixed integer generator.
-
 const MASK: int = 0xFFFFFFFF
 const MULTIPLIER: int = 1664525
 const INCREMENT: int = 1013904223

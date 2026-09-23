@@ -1,8 +1,5 @@
 extends SceneTree
 
-## Builds visible populations from the context the host hands a provider on a
-## real cartridge map, walks and turns them over, and PRINTS what held.
-
 const DEFAULT_SEED: int = 1234
 const OTHER_SEED: int = 5678
 const ROAM_STEPS: int = 40
@@ -351,9 +348,9 @@ func _glowing(context: Dictionary) -> int:
 			rungs[landed.get("amount", 0.0)] = true
 	return _report("%d DV words: %d shiny, %d excellent, both %d" % [
 			DV_WORDS, shiny, excellent, both,
-		], both == 0) \
+		], shiny == 8 and excellent == 1001 and both == 0) \
 		+ _report("a glow reaches only an excellent Pokemon, on %d rungs" % rungs.size(),
-			only_excellent and rungs.size() <= Gen2WorldEncounters.GLOW_RUNGS + 1)
+			only_excellent and rungs.size() in range(1, Gen2WorldEncounters.GLOW_RUNGS + 2))
 
 
 func _spread(context: Dictionary) -> int:
@@ -372,10 +369,10 @@ func _spread(context: Dictionary) -> int:
 			if index >= 0:
 				octiles[mini(index * SPREAD_OCTILES / cells.size(), SPREAD_OCTILES - 1)] += 1
 	var busiest: int = octiles.max()
-	var quietest: int = maxi(octiles.min(), 1)
+	var quietest: int = octiles.min()
 	return _report("%d seeds by eighth of the map: %s, evenly spread" % [
 		SPREAD_RUNS, str(octiles),
-	], float(busiest) / float(quietest) <= SPREAD_RATIO)
+	], quietest > 0 and float(busiest) / float(quietest) <= SPREAD_RATIO)
 
 
 ## Every slot the host offers carries its own chance, and a population draws

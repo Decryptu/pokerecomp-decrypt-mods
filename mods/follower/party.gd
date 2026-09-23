@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Which Pokemon is out, read off the party the world already mirrors.
-
 const SLOTS: int = 6
 
 

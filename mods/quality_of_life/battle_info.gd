@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Small monochrome marks on the cartridge's own 20x18 battle interface.
-
 const Options := preload("options.gd")
 
 const MARK_SUPER: Array[int] = [0x3C, 0x42, 0x81, 0x99, 0x99, 0x81, 0x42, 0x3C]

@@ -1,8 +1,5 @@
 extends SceneTree
 
-## Exercises the randomizer through the real host save lifecycle, on the game
-## named as the one argument, Crystal when none is.
-
 const Staging: GDScript = preload("staging.gd")
 
 const MOD_ID: StringName = &"randomizer"

@@ -1,7 +1,5 @@
 extends RefCounted
 
-## The ground the mesh does not reach, drawn flat from the same cartridge data.
-
 const AtlasScript: GDScript = preload("../shape/atlas.gd")
 const FarFoliageScript: GDScript = preload("far_foliage.gd")
 const FarHousesScript: GDScript = preload("far_houses.gd")
@@ -34,10 +32,7 @@ uniform highp float border_block = 0.0;
 uniform highp float block_count = 1.0;
 uniform highp float atlas_rows = 1.0;
 uniform bool fill_border = false;
-// The water out here is the same water. A far map is a drawing rather than a
-// surface, so it has no swell, glint or bank; what it can have is the sky in it,
-// which is why the near sea and the far sea used to meet at a hard line. The
-// three are that map's own water row: see `atlas.gd:water_colors`.
+// Match far water to this map's palette row; see `atlas.gd:water_colors`.
 uniform vec3 water_one : source_color = vec3(0.0);
 uniform vec3 water_two : source_color = vec3(0.0);
 uniform vec3 water_three : source_color = vec3(0.0);
@@ -78,13 +73,10 @@ void fragment() {
 	highp vec2 sheet = vec2(mod(tile, 16.0), floor(tile / 16.0));
 	vec3 texel = texture(atlas, (sheet * 8.0 + pixel + 0.5)
 		/ vec2(16.0 * 8.0, max(atlas_rows, 1.0) * 8.0)).rgb;
-	// A palette colour is exact, so this is an equality test with room for the
-	// last bit of an 8 bit channel and nothing more.
+	// Tolerate only 8-bit palette rounding.
 	if (water_mix > 0.0 && (distance(texel, water_one) < 0.01
 		|| distance(texel, water_two) < 0.01
 		|| distance(texel, water_three) < 0.01)) {
-		// The far sea is seen at a grazing angle and nowhere else, which is the
-		// one place `water.gd`'s Fresnel has a single answer: its most.
 		texel = mix(texel, sky_horizon, water_mix);
 	}
 	ALBEDO = texel;
@@ -274,7 +266,6 @@ func _walk_of(map: Gen2WorldMap, grid: Rect2i) -> Dictionary:
 	return _walked[key]
 
 
-## The mesher's grid in map tiles, which is what it stamped models over.
 func _ring_grid() -> Rect2i:
 	if not _stamped.has_area():
 		return Rect2i()

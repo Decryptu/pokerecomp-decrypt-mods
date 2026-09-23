@@ -1,7 +1,5 @@
 extends RefCounted
 
-## What one save has unlocked, and the two rules that keep a notice honest.
-
 const Catalogue := preload("catalogue.gd")
 
 const VERSION: int = 1

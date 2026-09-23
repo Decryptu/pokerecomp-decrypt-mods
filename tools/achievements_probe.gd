@@ -1,8 +1,5 @@
 extends SceneTree
 
-## Checks the Achievements mod against a real cartridge cache, through the
-## host's own joins rather than through the mod's objects.
-
 const Staging: GDScript = preload("staging.gd")
 
 const MOD_ID: StringName = &"achievements"
@@ -72,7 +69,7 @@ func _registered(host: Gen2ModHost) -> bool:
 func _table(data: GameData) -> bool:
 	var ok: bool = true
 	var ids: Dictionary = {}
-	var badges: Dictionary = {}
+	var badges: Array[int] = []
 	for row: Dictionary in _rows:
 		var id: StringName = StringName(row["id"])
 		if ids.has(id):
@@ -85,13 +82,14 @@ func _table(data: GameData) -> bool:
 			Gen2ModPageScreen.TEXT_COLUMNS) and ok
 		ok = _art(data, id, row["icon"] as Dictionary) and ok
 		if StringName(row["rule"]) == _catalogue.RULE_BADGE:
-			badges[int(row["at"])] = true
+			badges.append(int(row["at"]))
 	print("  rows         %d, %d of them a badge, %d cells wide at most" % [
 		_rows.size(), badges.size(), Gen2MapNameSignPage.NOTICE_COLUMNS,
 	])
-	var expected: int = _catalogue.KANTO_BADGE_COUNT if _kanto else _catalogue.BADGE_COUNT
-	if badges.size() != expected:
-		print("the badges are not covered once each")
+	badges.sort()
+	var expected_badges: Array = range(8, 16) if _kanto else range(16)
+	if badges != expected_badges:
+		print("the badge positions are incomplete or misplaced")
 		ok = false
 	return ok
 
@@ -207,17 +205,9 @@ func _rows_of(rule: StringName) -> Array[Dictionary]:
 	return out
 
 
-## The region's own badges as one mask, and its first badge alone.
-func _badge_masks() -> Vector2i:
-	var all: int = 0
-	for row: Dictionary in _rows_of(_catalogue.RULE_BADGE):
-		all |= 1 << int(row["at"])
-	return Vector2i(all, all & -all)
-
-
 func _once() -> bool:
 	var ok: bool = true
-	var masks: Vector2i = _badge_masks()
+	var masks := Vector2i(0xFF00, 0x0100) if _kanto else Vector2i(0xFFFF, 0x0001)
 	var played: Dictionary = {
 		&"badges": masks.x, &"hall_of_fame": true, &"caught_count": 100,
 		&"party_count": 6, &"highest_level": 100,

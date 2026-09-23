@@ -69,8 +69,7 @@ camera being solved against the hardware's picture slots; it stops where the
 composition does, left at the solved shot, right side-on, down at the rig's low
 stance and up 45 degrees above it.
 
-Movement and interaction keys never reach the mod, so the game is still played on
-the grid it always was.
+Movement and interaction keys stay with the game; movement remains grid based.
 
 ## Settings
 
@@ -107,17 +106,14 @@ and at most camera angles half of it is behind the eye. Stamped models are
 grouped on the same grid, which is where a filled window pays most: on the
 largest shot in the game, 5.39M triangles in 116 draws becomes 1.26M in 166.
 
-A build is spread over frames, since a town is 200 ms of geometry and that was a
-visible stop on every warp; whatever is on screen keeps being drawn meanwhile.
-Measuring the map is spread the same way, one pass of it a frame. A battle keeps
+A town can take about 200 ms of geometry work. Builds and map measurements
+run over several frames while the current scene stays visible. A battle keeps
 the map it resolved, so a second fight on a route pays for geometry alone.
 
 Walking out of the middle of the window rebuilds it around you: the map is
 resolved once and only the geometry emitted again, with a margin of a third of
-the draw distance so this is not most steps. Chunks are cut to the map rather
-than the window, making a chunk's rectangle a fact about the map instead of about
-where the player stood, so a rebuild reuses four fifths of them: 3 to 30 ms
-instead of 80 to 150.
+the draw distance so this is not most steps. Chunks follow map coordinates, so
+a rebuild reuses about four fifths of them and costs roughly 3 to 30 ms.
 
 A cached chunk may not depend on its neighbours, and a house, an object, a
 staircase or a fence can each cross a chunk edge. Each structure has one owner,
@@ -348,12 +344,10 @@ you and coming back there is a small wall in front of you. Where perpendicular
 runs meet at a corner, their intersection inherits both slopes. The player and
 scripted NPCs follow the host's own jump offset while crossing; the card rises
 and lands while its shadow and the camera stay on the ground. 1380 cells on 72
-maps are hopped over, and before this they were 16px walls you could not see
-over.
+maps are hopped over.
 
-**A door** is walkable, so a pass reading collision called it ground and the
-doorway came out as a hole through the building. The cartridge is asked instead:
-a cell whose collision is a door, its second door code or a cave takes the height
+**A door** is walkable but stands in a wall. A cell whose collision is a door,
+its second door code or a cave takes the height
 of the wall around it and the face machinery paints its drawing on. Warp carpets
 are deliberately excluded, since a carpet is a floor you walk onto and every map
 edge has one.
@@ -365,8 +359,7 @@ named in the profile, and the run of face in each column says the flat ground
 north of it is on top and the flat ground under its front band is the ground
 plane. Under the FRONT rather than under the run, because a column at a corner
 carries the front at the top and then runs on down the rim beside the plateau,
-so what lies under the bottom of it is more plateau: read the other way, six
-such columns told Cianwood that its rock was the ground its own wall stands on.
+so what lies under the bottom of it is more plateau.
 Both answers are carried across by flooding, because a plateau is a region and
 not a strip, and a region that ends up with both is left alone: a plateau always
 opens somewhere, so a leak is a contradiction rather than a wrong height.
@@ -667,14 +660,10 @@ two do not meet at a hard line. A far map keeps its own row, so a distant lake i
 graded in the colours the cartridge painted it with. It gets no waterline, no
 swell and no glint, since those maps are drawings rather than surfaces.
 
-**Water is stood in, not on.** It lies eight pixels below the land it is recessed
-from, and everything standing on it, a surfing player, a swimmer, a wild Pokemon
-on a surf cell, sat at the height of the land instead: a whole band clear of the
-surface with daylight in the gap. On a Game Boy screen that was a few pixels;
-drawn at window resolution it is a boat in the air. They now stand on the surface
-and two pixels into it, so the waterline crosses the drawing. Two rather than
-more, because the cartridge's art already draws the waterline: a swimmer is a
-head and shoulders and the surf blob is half sunk.
+**Water is stood in, not on.** Water lies eight pixels below surrounding land.
+Surfing players, swimmers and wild Pokemon stand two pixels into its surface,
+so the waterline crosses their drawings. The cartridge art already shows a
+swimmer's head and shoulders and a half-sunk surf blob.
 
 ## Grass, trees and the things that bend
 
@@ -767,12 +756,8 @@ ripples, the flowers open and shut, a whirlpool turns. This view repaints those
 tiles on the one sheet every mesh samples, so a change moves every instance of
 that tile at once, which is what the hardware does.
 
-A drawing that animates is cut from all of its frames and not from one. The sheet
-only ever shows one frame, so cutting from whichever frame the map loaded on left
-the geometry short where a later frame drew further out and standing empty where
-only an earlier one drew. The mask is the union of every frame the tile is ever
-shown as, and the texture trims the rest. It shows most in a bed of meadow
-flowers.
+An animated drawing's geometry uses the union of all its frames; the current
+texture frame trims the rest.
 
 ## Sprites another mod puts in the world
 
@@ -854,19 +839,14 @@ A pin is presentational and can only ever be. Collision, warps, triggers and
 scripts read the same data they always did, and a fix that seems to need a
 collision change is the wrong fix.
 
-`shape/gen2/profile.gd` is hand-authored from measurements off the drawing.
+`shape/gen2/profile.gd` holds hand-authored measurements from the drawings.
 `shape/gen2/pass.gd` is generated from a full pass over every tileset, where
 the same ringed pictures are read tile by tile and the answers become pins. The
-hand table wins wherever both name a tile, and the generated one can be thrown
-away and rebuilt. All thirty-five tilesets are covered: 3618 tiles read, 2168
-pinned, the rest left to automatic resolution. Run blind against a tileset that
-had already been answered by hand, the pass agreed on 63 of the 67 settled tiles,
-and every miss was one it had marked short of sure.
+hand table wins wherever both name a tile. All thirty-five tilesets are covered:
+2168 of 3618 tiles have pins; the rest use automatic resolution.
 
-`shape/gen1/profile.gd` is Kanto's hand table, seeded from the pins the
-[DramaticShapeVoxelMod](https://github.com/DramaticShape/DramaticShapeVoxelMod)
-profile settled on and corrected against the survey sheets and the cartridge's
-own art, map by map. Its pass, `shape/gen1/pass.gd`, is empty: the twenty-five
+`shape/gen1/profile.gd` is Kanto's hand table, checked against survey sheets
+and cartridge art. Its pass, `shape/gen1/pass.gd`, is empty: the twenty-five
 tilesets have not had the full tile-by-tile pass yet, and what the hand table
 does not name is left to the automatic resolution.
 
@@ -910,10 +890,5 @@ shape/mesher.gd      map -> one static mesh
 
 ## Credits
 
-The voxelization approach follows
-[DramaticShapeVoxelMod](https://github.com/DramaticShape/DramaticShapeVoxelMod),
-which worked out how to turn Generation I's flat tile art into geometry without
-authoring any. That mod is for a different game on a different engine; what is
-borrowed is the method, not the code, and on Red, Blue and Yellow the reading its
-profile settled on of which Kanto tiles are trees, signs, shelves and stairs,
-which seeded `shape/gen1/profile.gd` before the pictures corrected it.
+The voxelization method follows
+[DramaticShapeVoxelMod](https://github.com/DramaticShape/DramaticShapeVoxelMod).

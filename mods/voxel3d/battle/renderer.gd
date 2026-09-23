@@ -1,8 +1,5 @@
 extends Control
 
-## The fight staged on the map it was started on, shot over the player's
-## shoulder, with the Game Boy's own panels over the top.
-
 const Options: GDScript = preload("../options.gd")
 const Steering: GDScript = preload("../steering.gd")
 const Frost: GDScript = preload("panel.gd")

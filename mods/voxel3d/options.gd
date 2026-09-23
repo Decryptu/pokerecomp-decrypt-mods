@@ -1,7 +1,5 @@
 extends RefCounted
 
-## The settings this mod registers, and the one place that names them.
-
 const MOD_ID: StringName = &"voxel3d"
 
 const Steering: GDScript = preload("steering.gd")

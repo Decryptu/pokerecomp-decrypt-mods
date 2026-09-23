@@ -1,8 +1,5 @@
 extends RefCounted
 
-## A Catch Combo: catch the same species over and over and the wild Pokemon of
-## that species are drawn with more DV words, so a shiny comes sooner.
-
 const Combo := preload("combo.gd")
 const Options := preload("options.gd")
 

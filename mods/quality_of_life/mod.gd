@@ -1,8 +1,5 @@
 extends RefCounted
 
-## Ten switches, seven host-owned gameplay policies, one host-owned start-menu
-## action and one cartridge-grid battle annotation provider.
-
 const Options := preload("options.gd")
 const Policies := preload("policies.gd")
 const BattleInfo := preload("battle_info.gd")

@@ -1,8 +1,5 @@
 extends RefCounted
 
-## Registers the settings, the page, the start-menu row that opens it, and a
-## save lifecycle, then watches the run.
-
 const Catalogue := preload("catalogue.gd")
 const Ledger := preload("ledger.gd")
 const Options := preload("options.gd")

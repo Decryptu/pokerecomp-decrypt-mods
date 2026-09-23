@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Registers one stats-screen page and returns.
-
 const Page := preload("page.gd")
 
 

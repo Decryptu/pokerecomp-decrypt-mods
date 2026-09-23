@@ -1,8 +1,5 @@
 extends RefCounted
 
-## Where the overworld's eye sits, what lens is on it, and the ease between one
-## setting and the next.
-
 const Steering: GDScript = preload("../steering.gd")
 
 const PITCH_LIMITS := Vector2(12.0, 88.0)

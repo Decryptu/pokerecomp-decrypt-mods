@@ -1,59 +1,17 @@
 #!/usr/bin/env python3
-"""The page a reviewer PAINTS the houses on, one PIXEL at a time.
-
-A house is the one drawing in Generation II that packs different surfaces into
-one flat picture: the wall, which you are looking AT, and the roof, which you
-are either looking DOWN onto or looking at from the FRONT. Nothing measurable
-tells them apart, so a person says which is which.
+"""Builds a page for painting house surfaces per pixel.
 
     tools/house_page.py <houses dir> [saved houses.json]
     tools/house_page.py <houses dir> --accept
 
-The directory is what `tools/house_export.gd` wrote: one JSON, one picture of the
-drawing and one picture of it RINGED where the cartridge places it, per drawing.
-`--accept` writes `houses.json` from the pre-fill alone, with nothing painted
-over it, which is the whole answer where every tile of a building is one
-surface, as Generation I's are.
-
-THE UNIT IS THE PIXEL, NOT THE TILE, and that is the whole difference from the
-first version of this page. A hipped roof's end comes down as a DIAGONAL across
-its tiles, so a tile there is part roof and part wall, and no answer at tile
-resolution is right: "roof" lifts the wall's top onto the roof and "wall" cuts
-the corner off the roof. The reviewer said so and they were right.
-
-IT IS A BRUSH AND NOTHING CLEVERER. A wand was built first, flooding the
-drawing's own shape through everything that was not its outline, and it was
-refused: a Game Boy drawing is not sealed the way a wand needs, so it took a
-whole house as often as it took a roof, and a tool that has to be undone half
-the time is slower than one that never surprises you. So: hold and drag, a brush
-whose size is SHOWN at the cursor, a rectangle, and a fill that spreads only
-through what is already painted the same word. Nothing guesses.
-
-FOUR WORDS AND NO MORE, and each is a fact about the drawing rather than a term
-of art:
-
-    wall              you are looking AT it. It stands up.
-    roof              you are looking DOWN onto it. It lies flat on the walls.
-    roof, from front  the roof drawn face-on, so you see its planks edge-on
-                      rather than its surface. It leans back over the house.
-    not the house     the pavement, the shadow, the grass in the corner.
-
-There is no word for a door and there deliberately is not: a door is a wall the
-player walks through, and walking through is the collision's business, which
-nothing here touches. It arrives painted as wall already, because the cartridge
-names every door itself as a warp.
-
-There is no word for a SLOPE either. How far a roof has fallen is already
-measured from the drawing and pinned from the reviewer's own tileset 3
-measurements, so asking for it again would be asking twice.
-
-SAVE writes `houses.json`: per drawing, one string per pixel row, ready for
-`tools/house_pins.gd`.
+`house_export.gd` supplies each drawing and a map context image. A pixel can
+be wall, roof, roof seen from the front, or outside the house. Door collision
+and roof slope come from the cartridge and the mesher. Saved paintings seed
+unfinished work; `--accept` saves the initial painting. SAVE writes
+`houses.json` for `house_pins.gd`.
 """
 
 TILE = 8
-# The pre-fill, expanded from the tile reading the mod already has: the page's
-# own `guessOf`, for a session with no browser.
 PAINT_OF = {"D": "W", "P": "F", "W": "W", ".": "."}
 
 
@@ -279,17 +237,13 @@ let W = 0, H = 0;
 // drawing under it.
 let hover = null;
 
-// The pre-fill, expanded from the tile reading the mod already has. A tile word
-// covers all 64 of its pixels, which is exactly today's answer and therefore
-// exactly the right thing to correct.
 function guessOf(h) {
   const g = [];
   for (let y = 0; y < h.size[1] * TILE; y++) {
     const row = new Array(h.size[0] * TILE);
     for (let x = 0; x < h.size[0] * TILE; x++) {
       const t = h.paint[(y / TILE) | 0][(x / TILE) | 0];
-      // A door is a wall the player walks through, so it arrives as wall; the
-      // falling arrows the first page asked for are all just roof.
+      // Door collision is separate from the painted surface.
       row[x] = t === "D" ? "W" : (t === "P" ? "F"
         : (t === "W" || t === "." ? t : "R"));
     }
@@ -302,10 +256,7 @@ function state(i) {
   const h = HOUSES[i];
   if (!h._guess) h._guess = guessOf(h);
   if (!h._paint) {
-    // WHAT THIS BROWSER REMEMBERS WINS, then the file, then the guess. The file
-    // is a painting saved from here, possibly with `tools/house_learn.py` having
-    // carried it into the drawings nobody had reached yet; either way a hand
-    // that has touched a drawing since is the later word on it.
+    // Keep local edits ahead of an imported painting.
     let saved = null;
     try { saved = store[KEY + h.id] ? JSON.parse(store[KEY + h.id]) : null; } catch (e) {}
     const seed = (!saved && h.seed && h.seed.length === h._guess.length)
@@ -594,8 +545,6 @@ function go(step) {
 
 function build() {
   buildHatches();
-  // THE BUTTON WEARS ITS OWN HATCH, or the legend and the picture are two things
-  // to hold in your head instead of one.
   $("palette").innerHTML = PAINTS.map((p) => {
     const bar = HATCHES[p.k].toDataURL();
     return `<span class="pt" data-k="${p.k}" style="color:${p.color};` +
@@ -704,10 +653,6 @@ def main():
         print(__doc__)
         return 1
     directory = pathlib.Path(sys.argv[1])
-    # A saved painting to start from, which is how a session is resumed on
-    # another machine or after `tools/house_learn.py` has carried one painting
-    # into the drawings nobody had reached. What the browser remembers still
-    # wins over it, so a hand is never overruled by a file.
     seeds = {}
     if len(sys.argv) > 2 and sys.argv[2] != "--accept":
         saved = json.loads(pathlib.Path(sys.argv[2]).read_text())

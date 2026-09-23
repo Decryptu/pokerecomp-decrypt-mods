@@ -1,8 +1,5 @@
 extends SceneTree
 
-## Checks the Catch Combo against a real cartridge cache, through the host's
-## own joins rather than through the mod's objects.
-
 const Staging: GDScript = preload("staging.gd")
 
 const MOD_ID: StringName = &"catch_combo"

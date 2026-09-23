@@ -1,8 +1,5 @@
 extends SceneTree
 
-## Builds the randomizer's plan against a real cartridge cache and PRINTS what
-## it changed, without a game running.
-
 const DEFAULT_SEED: int = 1234
 const OTHER_SEED: int = 5678
 const FISHING_LISTS: Array[String] = ["rods", "slots"]
@@ -59,13 +56,13 @@ func _initialize() -> void:
 		options.seed_text(seed_value), first_digest, again_digest,
 	])
 	print("seed %s     digest %08x" % [options.seed_text(other_seed), other_digest])
-	_report("one seed twice is one game", first_digest == again_digest)
-	_report("two seeds are two games", first_digest != other_digest)
+	var failures: int = int(not _report("one seed twice is one game", first_digest == again_digest))
+	failures += int(not _report("two seeds are two games", first_digest != other_digest))
 
 	_counts(first)
 	_samples(world, first, data)
 	_wild_sample(world, first, data)
-	var failures: int = _rules(world, first, validate)
+	failures += _rules(world, first, validate)
 	quit(int(failures > 0))
 
 
@@ -466,12 +463,9 @@ func _indexed_wild_keeps_shape(world: Dictionary, patches: Dictionary) -> bool:
 			if not _same_shape(rows[int(entry["number"])], entry["fields"]):
 				return false
 	for kind: StringName in [&"bug_contest", &"roaming"]:
-		var rows: Dictionary = world[kind]
 		for entry: Dictionary in (patches[kind] as Array):
-			var before: Dictionary = rows[int(entry["number"])]
-			var after: Dictionary = before.duplicate(true)
-			after["species"] = int((entry["fields"] as Dictionary)["species"])
-			if not _same_shape(before, after):
+			var fields: Dictionary = entry["fields"]
+			if fields.size() != 1 or not fields.has("species"):
 				return false
 	return true
 

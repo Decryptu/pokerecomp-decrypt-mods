@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Registers the settings and a save lifecycle.
-
 const Options := preload("options.gd")
 const Plan := preload("plan.gd")
 const ALGORITHM_VERSION: int = 2

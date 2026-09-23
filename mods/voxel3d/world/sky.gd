@@ -1,8 +1,5 @@
 extends RefCounted
 
-## The sky, generated rather than filled.
-## The sky, generated rather than filled.
-
 const DITHER_START: float = 0.6
 const DITHER_CELL: float = 2.0
 const BANDS: float = 6.0
@@ -22,26 +19,20 @@ uniform float cell;
 uniform float elevation_span;
 uniform vec2 frame;
 
-// Band 0 is the horizon and band `bands - 1` the zenith.
 vec3 band_color(float index) {
 	return mix(horizon_color, zenith_color, clamp(index / (bands - 1.0), 0.0, 1.0));
 }
 
 void sky() {
 	float elevation = asin(clamp(EYEDIR.y, -1.0, 1.0));
-	// Symmetric about the horizon. Below it is the void past the edge of the
-	// ground, and the ramp's pale end there reads as fog rolling in. Running the
-	// ramp downward keeps the pale band at the horizon, where distance belongs.
+	// Mirror the ramp below the horizon so off-map ground fades into fog.
 	float up = clamp(abs(elevation) / elevation_span, 0.0, 1.0) * bands;
 	float index = min(floor(up), bands - 1.0);
-	// 0 at the band's own bottom edge, 1 at its top.
 	float within = up - index;
 	vec3 here = band_color(index);
 	if (1.0 - within <= dither_start) {
 		COLOR = here;
 	} else {
-		// The band below, checkerboarded in. At the lowest band that is itself,
-		// which is no dither rather than a special case.
 		vec3 under = band_color(max(index - 1.0, 0.0));
 		vec2 pixel = SCREEN_UV * frame;
 		float check = mod(floor(pixel.x / cell) + floor(pixel.y / cell), 2.0);

@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Defines one item, puts it on one shelf a cartridge and returns.
-
 const LINKING_CORD: int = 256
 
 const PRICE: int = 2100

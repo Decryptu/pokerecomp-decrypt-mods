@@ -1,8 +1,5 @@
 extends SceneTree
 
-## Walks a route past the follower against a real cartridge cache and PRINTS
-## where it stood, without a game running.
-
 const STEP_FRAMES: int = 8
 
 const HOME: Vector2i = Vector2i(24, 3)

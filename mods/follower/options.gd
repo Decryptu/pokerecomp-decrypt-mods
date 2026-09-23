@@ -1,7 +1,5 @@
 extends RefCounted
 
-## The settings and the one control this mod registers, named once here.
-
 const MOD_ID: StringName = &"follower"
 
 const SLOT: StringName = &"slot"

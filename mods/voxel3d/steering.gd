@@ -1,7 +1,5 @@
 extends RefCounted
 
-## What a key or a wheel notch means to a camera, in either view.
-
 const NONE: StringName = &""
 const ZOOM_IN: StringName = &"zoom_in"
 const ZOOM_OUT: StringName = &"zoom_out"

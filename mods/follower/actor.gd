@@ -1,8 +1,5 @@
 extends RefCounted
 
-## The follower as the host drives it: one observation a frame in, one sprite
-## out, no writes.
-
 const Options := preload("options.gd")
 const Party := preload("party.gd")
 const Trail := preload("trail.gd")

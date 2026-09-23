@@ -1,35 +1,13 @@
 #!/usr/bin/env python3
-"""The page a reviewer PAINTS a map's ground levels on.
+"""Builds a page for painting map ground levels.
 
-Every other question in this project is answered in words. Height cannot be:
-"the floor behind that wall is one up" is true of a region, not of a thing, and
-naming the region is harder than pointing at it. So this one is painted. The
-reviewer drags a rectangle over the map's own art and says what level it is, and
-what comes back is a matrix rather than a sentence.
+    tools/level_page.py <levels dir>
 
-    tools/level_page.py <levels dir>      # writes <levels dir>/levels.html
-
-The directory is what `tools/level_export.gd` wrote, with each map's own art
-from `tools/map_art.gd` beside it.
-
-THE UNIT IS THE WHOLE LEVEL, one walk cell, 16px. Half levels were offered and
-withdrawn within the hour, for a reason worth keeping: these maps are not
-consistent three-dimensional spaces. One lake has ground at different half
-heights all the way round it, which no single water surface can meet. A half
-step let a person write an impossibility down one cell at a time; whole levels
-make them choose, which is the only thing that can be built.
-
-WATER AND LEDGES ARE NOT PAINTED. Both live on single TILES, and a tile is a
-quarter of a cell, which is why a cell can be half jumping ledge and half ground
-or half water and half bank: the mesher resolves those tiles separately. The
-paint says where the GROUND is and nothing else.
-
-PRE-FILLED with what the mod already measures, so the job is correcting a
-proposal rather than painting a map from blank. Outdoors the cliff pass is
-mostly right already; the caves are the ones that come out flat and wrong.
-
-SAVE writes `levels.json`: per map, the level matrix and the wall matrix, ready
-to be read straight back.
+The directory contains `level_export.gd` data and scale-1 `map_art.gd` images.
+Paint uses whole 16 px walk-cell levels; half levels cannot form consistent
+water surfaces on these maps. Water and ledges are resolved per 8 px tile and
+are not painted. The page starts from measured levels and saves `levels.json`
+with a level and wall matrix for each map.
 """
 
 import json
@@ -140,18 +118,10 @@ PAGE = """<!doctype html>
 <script>
 const MAPS = __MAPS__;
 const CELL = 16;
-// WHOLE LEVELS ONLY, one walk cell of 16px each. Half levels were offered and
-// withdrawn: these maps are not consistent three-dimensional spaces, and one
-// lake has ground at different half heights all the way round it. A half step
-// let a person write an impossibility down one cell at a time. Whole levels make
-// them choose, which is the only thing that can be built.
 // Up to 13, because a cave is two storeys and the wall between them is as many
 // levels tall as the waterfall down it. Most maps use three of these.
 const BANDS = [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
-// A ramp a person can tell apart at a glance, low to high. EVERY level is
-// tinted, including zero: leaving zero untinted was the first version and the
-// reviewer could not see which cells they had painted, because most of a map is
-// zero and an untinted cell reads as an unanswered one.
+// Tint zero so painted cells remain distinguishable from untouched art.
 const COLORS = {
   "-1": "#4a63c8", "0": "#6b7280", "1": "#4fae4f", "2": "#d8c95a",
   "3": "#e09a4a", "4": "#d4603c", "5": "#c04a8a", "6": "#8f57c8",
@@ -488,11 +458,6 @@ def main():
     missing = [m["art"] for m in maps if not (directory / m["art"]).exists()]
     if missing:
         print("missing map art beside the page: %s" % ", ".join(missing))
-        # Named rather than described: `map_art.gd` writes whatever path it is
-        # given, and the name this page looks for is not the one that tool's own
-        # examples use, so "run map_art.gd" on its own has sent two sessions
-        # round the loop again with the file sitting right there under the other
-        # name.
         print("run tools/map_art.gd at scale 1, writing each to that exact name")
         return 1
     out = directory / "levels.html"

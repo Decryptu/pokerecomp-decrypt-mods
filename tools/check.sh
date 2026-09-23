@@ -1,22 +1,9 @@
 #!/usr/bin/env bash
-# Parses every mod script and says nothing when they all parse, then runs
-# tools/bloat.py over them. Run it after any edit: six seconds, no cartridge.
-#
-#   tools/check.sh [mods|tools|all|warnings] [pokerecomp path]
-#
-# `tools` reads the probes and shot drivers instead, half a minute; `all` is
-# both. `warnings` runs the game's own analyser through its editor, about a
-# minute, and is a pre-release check rather than a per-edit one.
-#
-# The host is the first argument, else $POKERECOMP, else `.references`. The
-# binary is $GODOT, else `godot`, else where the macOS installer puts it.
-#
-# A FAILURE NAMING A `game/` FILE IS NOT A MOD FAULT: parsing resolves against
-# the game's class index, which is a build cache, so a `class_name` added since
-# the last editor scan does not resolve yet. One scan clears it:
-#
-#   godot --headless --editor --path /path/to/pokerecomp --quit
-
+# Checks script parsing and size. Usage:
+# tools/check.sh [mods|tools|all|warnings] [pokerecomp path]
+# `warnings` runs the host analyser. POKERECOMP and GODOT select the environment.
+# A host class-index error may need an editor scan:
+# godot --headless --editor --path /path/to/pokerecomp --quit
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 WHAT="mods"

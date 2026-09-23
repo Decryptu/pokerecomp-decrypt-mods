@@ -1,8 +1,5 @@
 extends RefCounted
 
-## The 3D stage both views are built on: a viewport of its own, the daylight,
-## the terrain mesh and the material it is drawn with.
-
 const Sky3D: GDScript = preload("sky.gd")
 const Water3D: GDScript = preload("water.gd")
 const Wind3D: GDScript = preload("wind.gd")
@@ -36,8 +33,7 @@ const HAZE_END: float = 5200.0
 const HAZE_CURVE: float = 2.0
 const HAZE_DENSITY: float = 0.85
 
-## The drawn layers, named once. The four meshed ones hang off a root apiece so
-## a rebuild never has to know which are switched off.
+## Separate roots keep layer visibility across rebuilds.
 const MESH_LAYERS: Array[StringName] = [&"terrain", &"water", &"tufts", &"models"]
 const LAYERS: Array[StringName] = [
 	&"terrain", &"water", &"tufts", &"models", &"far", &"actors", &"motes",
@@ -165,8 +161,6 @@ func _build_layers() -> void:
 	_roots[&"actors"] = actors
 
 
-## Takes one drawn layer away and gives it back, which is how a layer is priced
-## and how a device too weak to draw it refuses it.
 func set_layer_visible(layer: StringName, shown: bool) -> bool:
 	if not LAYERS.has(layer):
 		return false
@@ -255,7 +249,6 @@ func _set_shadow_reach(pixels: float) -> void:
 		if pixels <= ONE_SPLIT_REACH else DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 
 
-## The finished frame, every pass spent, at the size the render scale draws it.
 func picture() -> Texture2D:
 	return _pass_viewport.get_texture()
 

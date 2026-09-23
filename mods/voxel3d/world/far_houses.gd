@@ -1,8 +1,5 @@
 extends RefCounted
 
-## The buildings on the maps past the mesh, so a town out there is not a flat
-## page with roofs painted on it.
-
 const TILE: float = 8.0
 const MAP_LIMIT: int = 32
 

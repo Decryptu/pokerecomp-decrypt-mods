@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Where a fight is staged on the map, and the camera that shoots it.
-
 const Steering: GDScript = preload("../steering.gd")
 
 const CELL: float = 16.0
