@@ -1,8 +1,5 @@
 extends RefCounted
 
-## Defines one key item, says what holding it is worth, and watches for the
-## moment the game hands it over.
-
 const Charm := preload("charm.gd")
 const Policy := preload("policy.gd")
 

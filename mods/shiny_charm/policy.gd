@@ -1,7 +1,5 @@
 extends RefCounted
 
-## How many times the host rolls a wild Pokemon's DV word.
-
 const Charm := preload("charm.gd")
 
 var _host: Gen2ModHost = null

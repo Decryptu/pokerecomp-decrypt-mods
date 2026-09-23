@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Every convenience this mod provides, named once.
-
 const MOD_ID: StringName = &"quality_of_life"
 
 const FIELD_MOVES: StringName = &"field_moves"

@@ -1,7 +1,5 @@
 extends RefCounted
 
-## One setting: how often the box after a catch says how long the combo is.
-
 const MOD_ID: StringName = &"catch_combo"
 
 const BOX: StringName = &"box"

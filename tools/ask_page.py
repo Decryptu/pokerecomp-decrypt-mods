@@ -1,35 +1,13 @@
 #!/usr/bin/env python3
-"""Builds a page of MIXED questions: named tiles and judgement calls together.
+"""Builds a page of tile and judgement questions from a written spec.
 
-`survey_label.py` asks what a block is and `survey_tiles.py` asks what a tile
-is. Both ask one shape of question over and over. This one takes a written spec
-and asks whatever a round actually needs: a handful of leftover tiles to name,
-and beside them the calls that no measurement can settle, each with the pictures
-that make it answerable and a set of options where there is one.
+    tools/ask_page.py <survey dir> <spec.json>
 
-Written because the fast tile loop and the considered judgement are different
-jobs and were being run as separate sittings. A round is now one page: the tiles
-first, two seconds each, then the questions, and one SAVE for both.
-
-    tools/ask_page.py <survey dir> <spec.json>   # writes <survey dir>/ask.html
-
-The spec is a dict with `title`, `out` and `items`, and optionally `page`, which
-is the file name to write beside the pictures. It defaults to `ask.html`; a round
-that asks two separate things names the second, because the alternative is
-building one over the other and renaming it afterwards, and a renamed page is how
-a stale one gets sent.
-
-An item is one of:
-
-    {"kind": "tile", "tileset": 9, "tile": 66, "image": "ctx_ts9_66.png",
-     "note": "what the pass said about it"}
-    {"kind": "question", "id": "stairs", "title": "...", "body": "...",
-     "images": [{"src": "a.png", "caption": "..."}],
-     "choices": [{"value": "flat", "label": "...", "note": "..."}]}
-
-SAVE writes the spec's `out` file: `ts<n> <tile> <words>` for a tile, so the
-answer joins the record every other round is read from and is never asked for
-twice, and `Q <id> <choice> <words>` for a question.
+The spec has `title`, `out`, `items`, and optional output filename `page`.
+An item has `kind: tile` with `tileset`, `tile`, `image` and `note`, or
+`kind: question` with `id`, `title`, `body`, `images` and `choices`.
+SAVE writes the spec's `out` file: `ts<n> <tile> <words>` for a tile and
+`Q <id> <choice> <words>` for a question.
 """
 
 import json

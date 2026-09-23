@@ -1,7 +1,5 @@
 extends RefCounted
 
-## A voxel model turned from the drawing, one per distinct sprite, built once.
-
 const VOXEL: float = 2.0
 const ROCK_VOXEL: float = 1.0
 const POT_STALK: float = 5.0
@@ -66,7 +64,6 @@ class Measure extends RefCounted:
 		return profile.size() + trunk_height
 
 
-## Solid pixels per row, and the first and last row that has any.
 class Rows:
 	var width := PackedInt32Array()
 	var first: int = -1
@@ -94,8 +91,6 @@ static func _rows(mask: PackedByteArray, span: Vector2i) -> Rows:
 	return out
 
 
-## Where the crown stops and the trunk starts, by the row that first narrows to
-## half the widest row and the run of narrow rows under it.
 static func _crown_bottom(rows: Rows) -> int:
 	var narrow: int = maxi(rows.widest / 2, 1)
 	var at: int = rows.first
@@ -108,8 +103,6 @@ static func _crown_bottom(rows: Rows) -> int:
 	return at
 
 
-## The first row of the crown wide enough to be a body. The ragged tips above it
-## are a pixel or two across, and a pixel revolved is a spike, not a leaf.
 static func _crown_top(rows: Rows, crown_bottom: int) -> int:
 	var at: int = rows.first
 	while at < crown_bottom - 1 and rows.width[at] < CROWN_LEAST:
@@ -125,7 +118,6 @@ static func _trunk_bottom(rows: Rows, crown_bottom: int) -> int:
 	return at
 
 
-## Where a pot starts: the run under the crown no wider than its thinnest row.
 static func _pot_top(rows: Rows, crown_bottom: int) -> int:
 	var thin: int = 0
 	for py: int in range(crown_bottom, rows.last + 1):
@@ -151,7 +143,6 @@ static func _wood(bark: PackedColorArray, tones: PackedColorArray) -> PackedColo
 	return out
 
 
-## Of those, the ones the crown does not also wear.
 static func _unshared(
 	wood: PackedColorArray, tones: PackedColorArray
 ) -> PackedColorArray:
@@ -165,7 +156,6 @@ static func _unshared(
 	return out
 
 
-## What a shape with nothing measurable in it falls back to.
 static func _greenery(out: Measure) -> Measure:
 	if out.tones.is_empty():
 		out.tones = PackedColorArray([
@@ -248,8 +238,6 @@ static func _measure_crown(
 	out.lobes = _lobes(mask, span, top, end)
 
 
-## Half the span between the outer packs of leaves, a row at a time. A crown
-## drawn as one mass answers zero on that row and is carved as one.
 static func _lobes(
 	mask: PackedByteArray, span: Vector2i, from_row: int, to_row: int
 ) -> PackedFloat32Array:
@@ -261,8 +249,6 @@ static func _lobes(
 	return out
 
 
-## The centre of every run of solid pixels on one row, less the specks: a single
-## ragged pixel off the edge of the leaves is not a pack of them.
 static func _islands(mask: PackedByteArray, span: Vector2i, py: int) -> Array:
 	var out: Array = []
 	var first: int = -1
@@ -289,9 +275,6 @@ static func _measure_bark(out: Measure) -> void:
 		out.bark = wood
 
 
-## The crown's ladder: every tone it is drawn in, lightest first, so a face is
-## shaded a rung at a time. Counting the dark mass alone buries the lit tone
-## under the share a run of it needs, and leaves nothing to shade against.
 static func _rungs(
 	tones: PackedColorArray, shaded: PackedColorArray
 ) -> PackedColorArray:
@@ -389,8 +372,6 @@ static func _bands(
 	return out
 
 
-## The bands a cap is read from: the top half of the run, one where the run is
-## one band, and none where there is no run at all.
 static func _cap_half(bands: PackedColorArray) -> int:
 	return mini(maxi(bands.size() / 2, 1), bands.size())
 
@@ -467,7 +448,6 @@ const LEAF: int = 2
 const POT: int = 3
 
 
-## The box a tree is carved out of, in voxels.
 class Frame:
 	var reach: int = 0
 	var wide: int = 0
@@ -541,8 +521,6 @@ func _carve(measured: Measure, frame: Frame) -> PackedByteArray:
 	return solid
 
 
-## Pot, then trunk, then crown. A voxel the pot or the trunk does not claim is
-## still offered to the crown, so leaves reach down past the trunk they grow on.
 func _fill(
 	measured: Measure, frame: Frame, vy: int, x: float, z: float, plan: float
 ) -> int:
@@ -556,7 +534,6 @@ func _fill(
 	return _leaf_fill(measured, frame, vy, x, z, plan)
 
 
-## The pot's own wall, with its rim a voxel proud so the lip reads.
 func _pot_fill(measured: Measure, frame: Frame, vy: int, plan: float) -> int:
 	var at_row: int = mini(
 		int(float(frame.pot_high - 1 - vy) * _voxel), measured.pot.size() - 1
@@ -567,8 +544,6 @@ func _pot_fill(measured: Measure, frame: Frame, vy: int, plan: float) -> int:
 	return POT if plan <= wall else EMPTY
 
 
-## The trunk, with roots flaring along the axes at its foot. A potted plant has
-## no roots to show.
 func _bark_fill(
 	frame: Frame, vy: int, x: float, z: float, plan: float
 ) -> int:
@@ -606,10 +581,6 @@ func _leaf_fill(
 	return LEAF if reach <= radius * _wobble(x, z, plan, vy, ragged) else EMPTY
 
 
-## How far a voxel sits from the leaves, which is its distance from the nearest
-## pack rather than from the trunk on a row drawn as more than one. The packs
-## are widened to meet, so the crown still spans the width it is drawn, and the
-## gap is held well under the row so the split is a dip and never a hole.
 func _reach(
 	measured: Measure, radius: float, up: int, crown_high: int, at: Vector2
 ) -> float:
@@ -626,11 +597,6 @@ func _reach(
 	return sqrt(near * near + at.y * at.y) * radius / lobe
 
 
-## One layer of colour per voxel row, then a face wherever a solid voxel meets
-## air. Raggedness is a share of the crown, not a count of voxels: the same
-## amplitude that frays a route tree shreds a sapling a third its width.
-## One quad per exposed voxel face is 649 of them on a route tree; the same
-## faces merged into runs of a single colour are 454, and no pixel moves.
 func _shell(solid: PackedByteArray, measured: Measure, frame: Frame) -> void:
 	var faces: Dictionary = _exposed(solid, measured, frame)
 	for side: Vector3i in SIDES:
@@ -688,8 +654,6 @@ static func _open(
 	return solid[(at.y * frame.wide + at.z) * frame.wide + at.x] == EMPTY
 
 
-## How much of the sky this voxel stands under and how crowded it is, which is
-## every shade `_tone` reads. Measured once for the voxel, not once per face.
 static func _light_at(
 	solid: PackedByteArray, frame: Frame, at: Vector3i
 ) -> Array:
@@ -717,8 +681,6 @@ func _bands_at(measured: Measure, frame: Frame, vy: int) -> void:
 		)]
 
 
-## The face's own two axes, taken the way `_quad_span` takes them so a cell's
-## index and the rectangle drawn over it cannot disagree.
 static func _plane_axes(side: Vector3i) -> Array:
 	var normal := Vector3(side)
 	var along := Vector3(0.0, 0.0, 1.0) if absf(normal.y) > 0.5 \
@@ -733,8 +695,6 @@ static func _dot(at: Vector3i, axis: Vector3i) -> int:
 	return at.x * axis.x + at.y * axis.y + at.z * axis.z
 
 
-## Greedy rectangles over one plane of same-coloured faces: widest run first,
-## then as many whole rows below it as match.
 static func _merge(cells: Dictionary) -> Array:
 	var todo: Dictionary = cells.duplicate()
 	var order: Array = cells.keys()
@@ -818,7 +778,6 @@ func _radius(measured: Measure, up: int, crown_high: int) -> float:
 	return measured.profile[at] / _voxel
 
 
-## The drawn row a voxel layer stands for, counting down from the top of both.
 static func _row_at(rows: int, up: int, crown_high: int) -> int:
 	return clampi(
 		int(round(float(crown_high - 1 - up) * float(rows - 1)
@@ -942,8 +901,6 @@ func _sway_at(height: float) -> float:
 	return clampf((height - _sway_foot) / _sway_span, 0.0, 1.0)
 
 
-## A rectangle [param wide] by [param high] voxels over the face of the voxel at
-## [param origin], which is the one lowest on both of the plane's own axes.
 func _quad_span(
 	origin: Vector3, side: Vector3i, color: Color, wide: int, high: int
 ) -> void:

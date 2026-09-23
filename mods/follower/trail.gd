@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Where the follower stands, as one pure function of what the player did.
-
 const STEPS: Dictionary = {
 	Vector2i.DOWN: Gen2WorldSprite.FACING_DOWN,
 	Vector2i.UP: Gen2WorldSprite.FACING_UP,
@@ -9,11 +7,9 @@ const STEPS: Dictionary = {
 	Vector2i.RIGHT: Gen2WorldSprite.FACING_RIGHT,
 }
 
-## What an observation carries where the map changed for a reason that renumbers
-## nothing: a warp, a Fly, the first frame of a session.
+## A warp or initial placement has no coordinate shift to carry over.
 const NO_CARRY: Vector2i = Vector2i.MAX
 
-## The host's own names for the two moves a follower makes; a hop covers two.
 const KIND_STEP: StringName = &"step"
 const KIND_HOP: StringName = &"jump_step"
 
@@ -51,15 +47,12 @@ func observe(observation: Dictionary) -> Dictionary:
 	return pose
 
 
-## The follower's progress is the player's, so it arrives when they do whatever
-## either step cost. A distance cannot say this: a hop covers two cells.
+## A hop covers two cells but completes with the player's step.
 static func progress_of(span: Dictionary) -> float:
 	return 1.0 if span.is_empty() else float(span["progress"])
 
 
-## SMOOTH SCROLL moves this between two hardware frames, so it is a read the
-## host asks again every drawn frame rather than a pose held from [method
-## observe]. The span is the same move for a view that folds plan into height.
+## The host reads the pose on each drawn frame for smooth scrolling.
 func drawn(progress: float) -> Dictionary:
 	if _direction == Vector2i.ZERO:
 		return {"cell": _cell, "offset": Vector2.ZERO, "span": {}}
@@ -75,10 +68,7 @@ func drawn(progress: float) -> Dictionary:
 	}
 
 
-## Crossing a connection renumbers every cell of the map left behind, so the
-## follower is carried into the new numbering and keeps walking. A crossing is
-## told from a warp by the step: the player walks over a connection one cell at
-## a time, so the cell they came from is beside the one they are on.
+## Map connections shift both cells; a distant landing is a warp.
 func _carry(shift: Vector2i, player_cell: Vector2i) -> void:
 	if not _placed or shift == NO_CARRY:
 		_placed = false
@@ -89,8 +79,7 @@ func _carry(shift: Vector2i, player_cell: Vector2i) -> void:
 		_placed = false
 
 
-## The player's last move, replayed a move behind them. Two cells of one
-## direction is a ledge, so the follower takes it rather than being put down.
+## A two-cell move is a ledge hop.
 func _step_toward(target: Vector2i, player_facing: int) -> void:
 	var delta: Vector2i = target - _cell
 	if delta == Vector2i.ZERO:

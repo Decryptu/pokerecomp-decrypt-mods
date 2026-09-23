@@ -635,8 +635,6 @@ const STEPS: Array[Vector2i] = [
 ]
 
 
-## A grid index, or -1 off the grid. Every lookup goes through here so no pass
-## carries its own bounds test.
 func _index(tx: int, ty: int) -> int:
 	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
 		return -1
@@ -652,7 +650,6 @@ func _tile_of(at: int) -> Vector2i:
 	return Vector2i(at % _size.x, at / _size.x)
 
 
-## The in-grid four-neighbours of a tile.
 func _neighbours(at: int) -> PackedInt32Array:
 	var out := PackedInt32Array()
 	var from: Vector2i = _tile_of(at)
@@ -663,8 +660,6 @@ func _neighbours(at: int) -> PackedInt32Array:
 	return out
 
 
-## Every tile reachable from `start` through `accept`, marking `seen` as it goes.
-## A spread walks no more tiles than the grid holds, which is its own ceiling.
 func _spread(start: int, seen: PackedByteArray, accept: Callable) -> PackedInt32Array:
 	var region := PackedInt32Array([start])
 	seen[start] = 1
@@ -722,8 +717,6 @@ var _sweep_at: int = 0
 var _sweep_walked: int = 0
 
 
-## `budget` tiles of one spread, answering how far it walked, so a flood too big
-## for a frame is spent over several.
 func _spread_step(
 	region: PackedInt32Array, walked: int, seen: PackedByteArray,
 	accept: Callable, budget: int
@@ -892,7 +885,6 @@ func _forget() -> void:
 	# every drawing has its own id, so it outlives the map it was first met on.
 
 
-## The grid is the map plus the ring around it, each side grown on its own.
 func _size_grid(source: RefCounted, shape: RefCounted) -> void:
 	var ring: int = _ring_depth(source, shape) if _outside \
 		else (ROOM_RING if not _room_wall.is_empty() else 0)
@@ -1084,8 +1076,6 @@ func _band_houses(
 	passes.append(_paint_houses.bind(shape))
 
 
-## The ledge measure, whose cells are answered in order, and the corner join
-## after it, whose rows are.
 func _band_ledges(passes: Array[Callable], source: RefCounted) -> void:
 	@warning_ignore("integer_division")
 	var cell_rows: int = _size.y / CELL_TILES
@@ -1096,7 +1086,6 @@ func _band_ledges(passes: Array[Callable], source: RefCounted) -> void:
 	passes.append(_add_ledge_corners)
 
 
-## The ramp measure, whose four steps each walk the whole grid.
 func _band_ramps(passes: Array[Callable]) -> void:
 	passes.append(_open_ramps)
 	_band(passes, _reset_corners)
@@ -1105,18 +1094,14 @@ func _band_ramps(passes: Array[Callable]) -> void:
 	_band(passes, _slope_shelves)
 
 
-## A pass whose rows are answered in order is spent a band of rows at a time.
 func _band_rows(passes: Array[Callable], over: Callable) -> void:
 	_band_over(passes, over, _size.y, maxi(BAND_TILES / maxi(_size.x, 1), 1))
 
 
-## The same for a pass that walks the grid by index rather than by row.
 func _band(passes: Array[Callable], over: Callable) -> void:
 	_band_over(passes, over, _size.x * _size.y, BAND_TILES)
 
 
-## `per` of `count` a slice. The span comes first in the pass's signature, since
-## a bound argument lands after it.
 func _band_over(
 	passes: Array[Callable], over: Callable, count: int, per: int
 ) -> void:
@@ -1249,8 +1234,6 @@ func _open_houses() -> void:
 	_house_offered = []
 
 
-## Every grid position each tile id sits at, so a pattern is looked for from its
-## anchor rather than from every tile of the map.
 func _tile_spots(from: int, to: int) -> void:
 	for at: int in range(from, to):
 		var tile: int = maxi(_tiles[at], 0)
@@ -1266,9 +1249,6 @@ func _paint_houses(shape: RefCounted) -> void:
 		_paint_house(shape, _house_found[index], index, claims)
 
 
-## Where one drawing sits on the map. A drawing nothing matches costs this and
-## no plan at all, which is why the search comes before the plan rather than in
-## the middle of it.
 func _find_house(house: Dictionary) -> void:
 	_offer_spots = []
 	_plan = {}
@@ -1300,8 +1280,6 @@ func _offer_house(house: Dictionary) -> void:
 			])
 
 
-## A box mostly inside a bigger box belonging to another placement is a piece of
-## that one seen twice, and is struck out.
 func _drop_overlapping(offered: Array) -> void:
 	for offer: Array in offered:
 		for other: Array in offered:
@@ -1329,7 +1307,6 @@ func _claim_houses(offered: Array) -> Dictionary:
 	return claims
 
 
-## A placement with boxes is kept as boxes; one without is painted per tile.
 func _paint_house(
 	shape: RefCounted, place: Array, index: int, claims: Dictionary
 ) -> void:
@@ -1819,7 +1796,6 @@ func _measure_fences(shape: RefCounted) -> void:
 				_arm_fence_cell(cells, here, cell_x, cell_y)
 
 
-## Which walk cells carry a fence at all, so a run is read cell by cell.
 func _fence_cells(cells: Vector2i) -> PackedByteArray:
 	var here := PackedByteArray()
 	here.resize(cells.x * cells.y)
@@ -1859,7 +1835,6 @@ func _arm_fence_cell(
 			_volume[at] = 0
 
 
-## Whether another fence cell lies either way along one axis.
 func _fence_beside(
 	cells: Vector2i, here: PackedByteArray, cell_x: int, cell_y: int,
 	axis: Vector2i
@@ -1983,8 +1958,6 @@ func _reset_corners(from: int, to: int) -> void:
 			_corners[at * 4 + corner] = _heights[at]
 
 
-## How many tiles in from its own lip each shelf tile lies, by breadth. A lip is
-## a shelf tile with lower ground beside it inside the map.
 func _seed_shelf_depths(from: int, to: int) -> void:
 	for at: int in range(from, to):
 		if _shelf[at] == 1 and _heights[at] > 0 and _on_shelf_lip(at):
@@ -2023,8 +1996,6 @@ func _on_shelf_lip(at: int) -> bool:
 	return false
 
 
-## One shelf tile: each corner pulled down to the shallowest depth around it, so
-## a shelf falls away as a slope rather than a step.
 func _slope_shelf(at: int) -> void:
 	var tile: Vector2i = _tile_of(at)
 	var sloped: bool = false
@@ -2141,8 +2112,6 @@ func standing_at(cells: Vector2) -> Vector3:
 const FOLD_STAND: float = 2.0
 
 
-## `_world_z` between rows, so a position part way down one lands part way down
-## it, and a folded row, having no depth, holds still.
 func _world_z_at(row: float) -> float:
 	var whole: int = floori(row)
 	var near: float = _world_z(whole)
@@ -2185,8 +2154,6 @@ func _measure_mounds(shape: RefCounted) -> void:
 			_raise_mound(at, inside, distance)
 
 
-## Every tile of a mound small enough to be one: a door tile and the body it
-## reaches. A region over `MOUND_MAX` is a landscape rather than a mound.
 func _mound_interiors(doors: Array, body: Array) -> PackedByteArray:
 	var count: int = _size.x * _size.y
 	var inside := PackedByteArray()
@@ -2208,7 +2175,6 @@ func _mound_interiors(doors: Array, body: Array) -> PackedByteArray:
 	return inside if any else PackedByteArray()
 
 
-## How many tiles in from its own edge each mound tile lies, by breadth.
 func _mound_depths(inside: PackedByteArray) -> PackedInt32Array:
 	var distance := PackedInt32Array()
 	distance.resize(inside.size())
@@ -2232,7 +2198,6 @@ func _mound_depths(inside: PackedByteArray) -> PackedInt32Array:
 	return distance
 
 
-## A tile with a neighbour outside the mound, the grid's own edge included.
 func _on_mound_edge(at: int, inside: PackedByteArray) -> bool:
 	var from: Vector2i = _tile_of(at)
 	for step: Vector2i in STEPS:
@@ -2242,8 +2207,6 @@ func _on_mound_edge(at: int, inside: PackedByteArray) -> bool:
 	return false
 
 
-## One mound tile: flat art at the mound's height, with each corner pulled down
-## to the shallowest depth around it so the rim slopes rather than steps.
 func _raise_mound(at: int, inside: PackedByteArray, distance: PackedInt32Array) -> void:
 	_heights[at] = MOUND_HIGH
 	_art[at] = ART_FLAT
@@ -2317,15 +2280,12 @@ func _measure_collision_doors(from: int, to: int, source: RefCounted) -> void:
 			_corners[at * 4 + corner] = high
 
 
-## Ground a door could be cut into: flat, unclaimed by a house, and not a ramp.
 func _flat_and_free(at: int) -> bool:
 	if _tiles[at] < 0 or _heights[at] > 0 or _ramp[at] == 1:
 		return false
 	return _house_covered.is_empty() or _house_covered[at] == 0
 
 
-## The tallest neighbour, skipping any that is itself a collision door when a
-## source is given.
 func _tallest_beside(at: int, source: RefCounted = null) -> int:
 	var high: int = 0
 	for index: int in _neighbours(at):
@@ -2825,8 +2785,6 @@ func _settle_aprons() -> void:
 			_release_apron(at, wanted)
 
 
-## The bottom row of a standing run: the row above it is the same class at the
-## same height on a different tile, and the row below it is not.
 func _is_apron(at: int, wanted: Dictionary) -> bool:
 	if not _stands_apron(at, wanted):
 		return false
@@ -2843,7 +2801,6 @@ func _is_apron(at: int, wanted: Dictionary) -> bool:
 	)
 
 
-## A standing tile of a wanted class that nothing else has already claimed.
 func _stands_apron(at: int, wanted: Dictionary) -> bool:
 	if not wanted.has(int(_klass[at])):
 		return false
@@ -2854,8 +2811,6 @@ func _stands_apron(at: int, wanted: Dictionary) -> bool:
 	return _heights[at] > 0 and _tiles[at] >= 0
 
 
-## Lay the bottom row flat on the floor beside it and hand its own art up the
-## run, so the standing part wears the apron and the floor is floor.
 func _release_apron(at: int, wanted: Dictionary) -> void:
 	var tile: Vector2i = _tile_of(at)
 	var floor_tile: Vector2i = _floor_beside(tile.x, tile.y)
@@ -3112,8 +3067,6 @@ func _stand_object(
 			)
 
 
-## One tile a drawing covers: the terrain under it is released, and it stands on
-## the floor its own cell measured or on the surface beside it where it rises.
 func _cover_object(
 	object: Dictionary, index: int, tile: Vector2i, floor_height: int
 ) -> void:
@@ -4224,7 +4177,6 @@ func _emit_object(index: int, atlas: RefCounted) -> void:
 	_turn = false
 
 
-## One standing object, measured out of its own drawing.
 class Standing:
 	var start := Vector2i.ZERO
 	var across := Vector2i.ZERO
@@ -4268,8 +4220,6 @@ func _emit_object_body(index: int, atlas: RefCounted) -> void:
 	_object_sides(object, it, atlas)
 
 
-## The drawing an object wears: its own authored art where it has some, else the
-## tiles the map places under it.
 func _object_tiles(object: Dictionary, start: Vector2i, across: Vector2i) -> Array:
 	var painted: Array = object.get(&"art", [])
 	var tiles: Array = []
@@ -4296,7 +4246,6 @@ func _object_mask(
 	return mask
 
 
-## An object declared as one of the authored shapes builds itself and is done.
 func _object_built(
 	object: Dictionary, it: Standing, atlas: RefCounted
 ) -> bool:
@@ -4352,8 +4301,6 @@ func _object_measure(object: Dictionary, it: Standing) -> void:
 	it.high = it.base + it.tall
 
 
-## The drawing itself, greedily gathered into the largest rectangles that stay
-## inside one tile: the top rows lie across the depth, the rest stand up the face.
 func _object_faces(it: Standing, atlas: RefCounted) -> void:
 	var taken := PackedByteArray()
 	taken.resize(it.window.size.x * it.window.size.y)
@@ -4370,8 +4317,6 @@ func _object_faces(it: Standing, atlas: RefCounted) -> void:
 			px = _object_patch(it, atlas, taken, row, py, px, above, down_stop)
 
 
-## One rectangle from `px` rightward, as deep as it can go without leaving the
-## tile or meeting a pixel already spent. Answers where the next one starts.
 func _object_patch(
 	it: Standing, atlas: RefCounted, taken: PackedByteArray, row: int, py: int,
 	px: int, above: bool, down_stop: int
@@ -4481,7 +4426,6 @@ func _object_sides(
 		_object_lid(object, it, atlas)
 
 
-## World height of one row of the window, the face's own mapping.
 func _object_y(it: Standing, py: int) -> float:
 	return it.high - it.tall * float(py - it.face_from) / float(it.face_rows)
 
@@ -4518,7 +4462,6 @@ func _object_edges(it: Standing, side: Rect2) -> void:
 			_object_level(it, side, px, run.y, -1.0)
 
 
-## One upright wall a pixel tall, at the left or the right of a run.
 func _object_upright(
 	it: Standing, side: Rect2, px: int, py: int, facing: float
 ) -> void:
@@ -4534,7 +4477,6 @@ func _object_upright(
 	)
 
 
-## One level wall a pixel wide, at the top or the bottom of a run.
 func _object_level(
 	it: Standing, side: Rect2, px: int, py: int, facing: float
 ) -> void:
@@ -4551,7 +4493,6 @@ func _object_level(
 	)
 
 
-## The face's silhouette as the fewest rectangles, in window pixels.
 func _object_slabs(it: Standing) -> Array[Rect2i]:
 	var slabs: Array[Rect2i] = []
 	var taken := PackedByteArray()
@@ -4573,7 +4514,6 @@ func _object_slabs(it: Standing) -> Array[Rect2i]:
 	return slabs
 
 
-## How far right the slab starting at `px` reaches, or `px` where none does.
 func _object_slab_run(
 	it: Standing, taken: PackedByteArray, row: int, px: int
 ) -> int:
@@ -4586,7 +4526,6 @@ func _object_slab_run(
 	return run
 
 
-## How far down that slab reaches, marking every pixel it claims.
 func _object_slab_depth(
 	it: Standing, taken: PackedByteArray, row: int, px: int, run: int
 ) -> int:
@@ -4608,7 +4547,6 @@ func _object_slab_depth(
 	return deep
 
 
-## Runs of drawn pixels down one column of the window, as first and past-the-end.
 func _object_column_runs(it: Standing, px: int) -> Array[Vector2i]:
 	var runs: Array[Vector2i] = []
 	var py: int = it.face_from
@@ -4650,7 +4588,6 @@ func _object_lid(object: Dictionary, it: Standing, atlas: RefCounted) -> void:
 		)
 
 
-## Every run of drawn columns along one row of the window, as start and end.
 func _object_row_runs(it: Standing, py: int) -> Array[Vector2i]:
 	var runs: Array[Vector2i] = []
 	var px: int = it.window.position.x
@@ -4908,9 +4845,6 @@ func _object_bin(
 		)
 
 
-## Whether the tile under a world position draws the side facing this way. A
-## room cuts its sides away so the camera can see in, and a tool reading the
-## mesh alone would call the cut an opening.
 func draws_side(world: Vector2, normal: Vector3) -> bool:
 	var tx: int = floori(world.x / TILE) + _margin.x
 	var ty: int = floori(world.y / TILE) + _margin.y
@@ -4919,9 +4853,6 @@ func draws_side(world: Vector2, normal: Vector3) -> bool:
 	return _room_faces(tx, ty, normal)
 
 
-## Which sides a tile draws. A room band is looked at from the south, so it
-## keeps every side but its north one; the shell keeps only the sides that face
-## into the room.
 func _room_faces(tx: int, ty: int, normal: Vector3) -> bool:
 	if _room.is_empty():
 		return true
@@ -4962,7 +4893,6 @@ func _row_run(mask: PackedByteArray, span: Vector2i, window: Rect2i, py: int) ->
 	return widest
 
 
-## A round seat on four splayed legs, built from the drawing's own widest row.
 func _object_stool(
 	_object: Dictionary, start: Vector2i, across: Vector2i, front: float, tiles: Array,
 	mask: PackedByteArray, span: Vector2i, window: Rect2i, atlas: RefCounted
@@ -5008,7 +4938,6 @@ func _stool_width(
 	return widest if first >= 0 and last >= first else 0
 
 
-## A disc of unit columns: a lid on each, and a rim wherever the disc ends.
 func _stool_seat(
 	wide: int, left: float, back: float, low: float, high: float, tile: int,
 	atlas: RefCounted
@@ -5036,7 +4965,6 @@ func _stool_seat(
 			_stool_rim(filled, wide, i, j, x0, z0, low, high, rim)
 
 
-## The lid darkens at the disc's edge and catches a highlight near its middle.
 func _stool_lid(
 	filled: PackedByteArray, wide: int, i: int, j: int, radius: float,
 	tile: int, atlas: RefCounted
@@ -5596,8 +5524,7 @@ func _house_id(house: Dictionary) -> int:
 	return int(house.get("id", -1))
 
 
-## A plan is read off the drawing alone, so it is built once for the session and
-## every later map reads it back.
+## House plans depend on the drawing, so maps share the cached plan.
 func _house_plan(house: Dictionary) -> Array:
 	return _house_plans.get(_house_id(house), [])
 
@@ -5673,8 +5600,6 @@ func _house_mask(paint: Array, word: String) -> PackedByteArray:
 	return mask
 
 
-## Four-connected components, a run of a row at a time rather than a pixel at a
-## time: the stack carries one seed per run, not one per pixel.
 func _house_flood(mask: PackedByteArray, cols: int) -> PackedInt32Array:
 	var owner := PackedInt32Array()
 	owner.resize(mask.size())
@@ -5697,7 +5622,6 @@ func _house_flood(mask: PackedByteArray, cols: int) -> PackedInt32Array:
 	return owner
 
 
-## The unclaimed run through `at` in its own row, claimed for `body`.
 @warning_ignore("integer_division")
 func _house_span(
 	mask: PackedByteArray, owner: PackedInt32Array, cols: int, at: int, body: int
@@ -5714,7 +5638,6 @@ func _house_span(
 	return Vector2i(from, to)
 
 
-## One seed per unclaimed run over the span, for the flood to take next.
 func _house_seeds(
 	mask: PackedByteArray, owner: PackedInt32Array,
 	from: int, to: int, stack: PackedInt32Array
@@ -5864,8 +5787,6 @@ func _house_boxes(
 	return boxes
 
 
-## The wall count per row and the first wall row per column, read over the
-## body's own rectangle rather than the whole painting. Answers its area.
 func _house_fill(
 	owner: PackedInt32Array, cols: int, box: Rect2i, body: int,
 	walls: PackedInt32Array, tops: PackedInt32Array
@@ -5891,8 +5812,6 @@ func _house_foot(walls: PackedInt32Array, bottom: int) -> int:
 	return foot
 
 
-## Above each wall column: a run of front-facing roof, then a run of roof seen
-## from above. Answers the highest drawn row and the highest wall row.
 func _house_roof_rows(
 	paint: Array, rows: int, left: int, right: int, tops: PackedInt32Array,
 	eave_from: PackedInt32Array, eave_to: PackedInt32Array,
@@ -5916,8 +5835,6 @@ func _house_roof_rows(
 	return Vector2i(top_row, peak)
 
 
-## Walks up one column while the paint reads `stroke`, recording the run's top
-## and bottom. Answers the first row that does not.
 func _house_paint_run(
 	paint: Array, from: int, x: int, stroke: String,
 	first: PackedInt32Array, last: PackedInt32Array
@@ -5952,7 +5869,6 @@ func _house_rivals(
 	return rival
 
 
-## The run of columns standing at the highest row, which is the ridge.
 func _house_ridge(
 	tops: PackedInt32Array, left: int, right: int, peak: int
 ) -> Vector2i:
@@ -5965,8 +5881,6 @@ func _house_ridge(
 	return Vector2i(m0, m1) if m1 >= 0 else Vector2i(left, right)
 
 
-## The eave's thickness in rows: the ridge column's own, else the commonest over
-## the body, taking the taller where two are as common.
 func _house_thick(
 	eave_from: PackedInt32Array, eave_to: PackedInt32Array,
 	left: int, right: int, ridge: int
@@ -7189,8 +7103,6 @@ func _rail_box(
 	)
 
 
-## The far row along a step's own axis, the near row against it, and the piece's
-## own place across it.
 func _stair_offset(step: int, across: int, piece: int) -> int:
 	if step > 0:
 		return across - 1
@@ -7203,8 +7115,6 @@ func _tile_at(tx: int, ty: int) -> int:
 	return maxi(_tiles[ty * _size.x + tx], 0)
 
 
-## The floor a drawing stands on: what a house or an apron released here, else
-## the nearest flat ground beside it, else the tile's own art.
 func _ground_art(tx: int, ty: int) -> Vector2i:
 	var at: int = ty * _size.x + tx
 	var released: Vector2i = _house_ground.get(at, Vector2i(-1, 0))
@@ -7300,8 +7210,6 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	_emit_body(tx, ty, at, tile, atlas)
 
 
-## A drawing that is not the ground it stands on: the floor under it is laid
-## first, with its four sides, and then the drawing itself.
 func _emit_detail(tx: int, ty: int, at: int, atlas: RefCounted) -> void:
 	var ground: Vector2i = _ground_art(tx, ty)
 	if ground.y < 0 and _house_ground.has(at):
@@ -7322,8 +7230,6 @@ func _emit_detail(tx: int, ty: int, at: int, atlas: RefCounted) -> void:
 	_emit_standing(tx, ty, at, ground, atlas)
 
 
-## What stands on the floor that tile drew. A house or an object is emitted whole
-## from the first of its tiles this chunk owns, so each is drawn once.
 func _emit_standing(
 	tx: int, ty: int, at: int, ground: Vector2i, atlas: RefCounted
 ) -> void:
@@ -7377,7 +7283,6 @@ func _emit_covering(
 			_emit_object(index, atlas)
 
 
-## The tile as a solid: its cap, its four sides, and whatever stands on it.
 func _emit_body(tx: int, ty: int, at: int, tile: int, atlas: RefCounted) -> void:
 	var here: int = _heights[at]
 	var is_volume: bool = _volume[at] == 1

@@ -1,8 +1,5 @@
 extends RefCounted
 
-## Which hidden item the follower can reach, as one pure function of where it
-## stands.
-
 const AROUND: Array[Vector2i] = [
 	Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT,
 ]

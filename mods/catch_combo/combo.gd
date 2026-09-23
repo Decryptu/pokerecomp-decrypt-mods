@@ -1,8 +1,5 @@
 extends RefCounted
 
-## The combo itself: which species it is on, how long it is, and every rule
-## that moves it.
-
 const RUNGS: Array = [[31, 12], [21, 8], [11, 4]]
 
 var species: int = 0

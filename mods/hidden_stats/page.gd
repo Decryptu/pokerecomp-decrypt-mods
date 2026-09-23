@@ -1,7 +1,5 @@
 extends RefCounted
 
-## What the fourth page says, as placements on the screen's own tile grid.
-
 const DIVIDER_COLUMN: int = 10
 
 const HEADER_ROW: int = 8

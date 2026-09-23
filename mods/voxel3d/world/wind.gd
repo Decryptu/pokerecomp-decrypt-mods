@@ -1,7 +1,5 @@
 extends RefCounted
 
-## The wind, and everything that bends in it.
-
 const WIND: Vector2 = Vector2(0.92, 0.39)
 const SWAY_PERIOD: float = 2.9
 ## Long enough that `TIME / period` is nothing, which is what stills a sway.

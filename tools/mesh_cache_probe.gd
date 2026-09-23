@@ -1,7 +1,5 @@
 extends SceneTree
 
-## A mesh window REACHED BY WALKING must be the window built cold.
-
 const MOD := "user://mods/voxel3d"
 const CELL: int = 16
 const RING_CELLS: float = 35.0
@@ -71,7 +69,7 @@ func _initialize() -> void:
 			print("%d,%d  warped %s" % [map.group, map.number, str(warped)])
 			print("      cold   %s" % str(fresh))
 	print("%d maps checked at %d cells, %d differ" % [checked, draw_cells, bad])
-	quit(int(bad > 0))
+	quit(int(bad > 0 or checked == 0))
 
 
 func _emit(

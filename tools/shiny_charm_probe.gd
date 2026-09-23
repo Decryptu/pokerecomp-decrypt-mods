@@ -1,16 +1,12 @@
 extends SceneTree
 
-## Checks the Shiny Charm against a real cartridge cache, on whichever of the
-## three is named.
-
 const Staging: GDScript = preload("staging.gd")
 
 const MOD_ID: StringName = &"shiny_charm"
 const SHINY_CHARM: int = 257
 const ROLLS: int = 3
 const VANILLA_ODDS: int = 8192
-## Thirty-odd plain shinies, enough to tell a ratio of 3 from 1; a quarter of
-## that read 1.06 once on the same seeds.
+## Enough plain shinies to distinguish a threefold increase.
 const DEFAULT_WILDS: int = 240000
 const MINIMUM_ARM: int = DEFAULT_WILDS
 const RATIO_BAND := Vector2(2.0, 4.0)

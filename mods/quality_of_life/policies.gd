@@ -1,7 +1,5 @@
 extends RefCounted
 
-## The decisions the mod owns.
-
 const Options := preload("options.gd")
 
 

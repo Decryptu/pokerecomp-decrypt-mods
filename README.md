@@ -6,8 +6,7 @@ Blue, Yellow, Gold, Silver and Crystal recompilation. Each mod is GDScript under
 
 ## The mods
 
-Every mod runs on Gold, Silver and Crystal. The ones that run on Red, Blue and
-Yellow as well say so; the rest are being brought over one at a time.
+Every mod runs on Red, Blue, Yellow, Gold, Silver and Crystal.
 
 | Icon | Mod | Version | Cartridges | What it does |
 | --- | --- | --- | --- | --- |
@@ -26,13 +25,13 @@ Yellow as well say so; the rest are being brought over one at a time.
 
 Two routes, both ending in the same installer.
 
-**Follow this index.** In the game's launcher, on its mods page, add:
+**Follow this index.** In the launcher's mods page, add:
 
 ```
 Decryptu/pokerecomp-decrypt-mods
 ```
 
-The launcher turns that into the feed itself, which you can paste instead:
+The launcher accepts the feed URL too:
 
 ```
 https://decryptu.github.io/pokerecomp-decrypt-mods/index.json

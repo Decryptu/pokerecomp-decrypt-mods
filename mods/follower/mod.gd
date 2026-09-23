@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Registers the settings, the recall control and the follower, and returns.
-
 const Options := preload("options.gd")
 const Actor := preload("actor.gd")
 

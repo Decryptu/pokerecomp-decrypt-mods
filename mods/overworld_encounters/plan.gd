@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Pure population planning from a host-resolved visible-encounter context.
-
 const Rng := preload("rng.gd")
 const EXCELLENT_TOTAL: int = 50
 

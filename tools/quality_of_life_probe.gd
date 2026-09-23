@@ -1,8 +1,5 @@
 extends SceneTree
 
-## Exercises every decision the Quality of Life mod owns through the production
-## host registration.
-
 const Staging: GDScript = preload("staging.gd")
 
 const MOD_ID: StringName = &"quality_of_life"
@@ -38,6 +35,7 @@ func _initialize() -> void:
 	_keys = Options.keys_for(data.generation)
 	_host = Gen2ModHost.instance()
 	_expect(Staging.mod_loaded(_host, data, MOD_ID), "the mod loaded on %s" % String(game))
+	PokeModOptions.bind_run({MOD_ID: {}})
 	for key: StringName in _keys:
 		_original[key] = _host.option(MOD_ID, key)
 		_switch(key, false)
@@ -62,13 +60,24 @@ func _initialize() -> void:
 		_host.set_option(MOD_ID, key, _original[key])
 	_host.set_option(MOD_ID, EXP_SCALE, _original_scale)
 	_host.set_option(MOD_ID, MULTI_EXP, _original_share)
+	PokeModOptions.unbind_run()
 	print("%s: %s" % [game, "ok" if _ok else "FAILED"])
 	quit(0 if _ok else 1)
 
 
 func _registration() -> void:
-	_expect(_host.options(MOD_ID).size() == _keys.size() + 2,
-		"%d switches, the EXP rate and MULTI EXP registered" % _keys.size())
+	var expected: Array[StringName] = [
+		&"field_moves", &"auto_repel", &"catch_exp", &"pc_access",
+		&"run_shoes", &"move_guide", &"stat_stages", &"exp_scale", &"multi_exp",
+	]
+	if _data.generation != RomRegistry.GEN1:
+		expected.append(&"weather")
+	var actual: Array[StringName] = []
+	for option: Dictionary in _host.options(MOD_ID):
+		actual.append(StringName(option["key"]))
+	expected.sort()
+	actual.sort()
+	_expect(actual == expected, "all options are registered once (%s)" % str(actual))
 	_expect(_keys.has(&"weather") == (_data.generation != RomRegistry.GEN1),
 		"WEATHER is offered where the cartridge has weather")
 	_expect(_host.field_move_source_ids().has(MOD_ID), "field-move source registered")

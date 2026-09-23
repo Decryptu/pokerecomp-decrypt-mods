@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Registers the settings and the visible-encounter provider, and returns.
-
 const Options := preload("options.gd")
 const Provider := preload("provider.gd")
 

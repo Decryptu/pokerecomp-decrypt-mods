@@ -61,9 +61,7 @@ func _initialize() -> void:
 	var shape_script: GDScript = load("%s/shape/tile_shape.gd" % MOD)
 	var source_script: GDScript = load("%s/shape/map_source.gd" % MOD)
 
-	# One mesher for the run, as the renderer holds one for the session: a
-	# drawing's plan outlives the map it was first met on, so a fresh mesher a
-	# map charges every map for a cache the game fills once.
+	# Reuse the mesher so each house plan is charged once across maps.
 	var mesher: RefCounted = mesher_script.new()
 	var lines: Array = []
 	var triangles: int = 0

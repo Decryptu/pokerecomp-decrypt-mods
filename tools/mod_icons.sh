@@ -1,15 +1,7 @@
 #!/bin/sh
-# Every mod's icon, painted from one cartridge by `tools/icon_art.gd`.
-#
-# The recipes live here rather than in a note, because an icon is only ever
-# regenerated whole: change a border style or a species and this is the file
-# that says what all six then are.
-#
-#   sh tools/mod_icons.sh <out directory> [cache] [scale]
-#
-# Icons are written at their native 32x32 as `<mod>.png`. A scale above one also
-# writes `<mod>@<scale>x.png` beside it, which is for looking at, not shipping.
-
+# Paints icons from a cartridge.
+# Usage: sh tools/mod_icons.sh <out directory> [cache] [scale]
+# Native 32x32 icons ship; scaled copies are for review.
 set -e
 
 OUT=${1:?usage: mod_icons.sh <out directory> [cache] [scale]}

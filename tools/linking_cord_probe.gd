@@ -1,8 +1,5 @@
 extends SceneTree
 
-## Checks the Linking Cord against a real cartridge cache, on whichever of the
-## six is named.
-
 const Staging: GDScript = preload("staging.gd")
 
 const MOD_ID: StringName = &"linking_cord"

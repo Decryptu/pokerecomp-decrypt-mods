@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Trees on the maps past the mesh.
-
 const BLOCK: float = 32.0
 const BORDER_RUNGS: Array = [[600.0, 1], [1200.0, 2], [2400.0, 4], [4800.0, 8]]
 const BORDER_STEP: float = 512.0

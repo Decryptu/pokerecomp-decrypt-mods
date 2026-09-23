@@ -1,7 +1,5 @@
 extends RefCounted
 
-## The whole randomization, as one pure function of the cartridge and the seed.
-
 const Rng := preload("rng.gd")
 
 const STAT_KEYS: Array[String] = [

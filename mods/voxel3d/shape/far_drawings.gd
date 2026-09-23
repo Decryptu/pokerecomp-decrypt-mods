@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Which drawing stands where, on a map that was never resolved.
-
 const TileShapeScript: GDScript = preload("tile_shape.gd")
 const MapSourceScript: GDScript = preload("map_source.gd")
 

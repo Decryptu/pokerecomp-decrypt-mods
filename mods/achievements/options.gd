@@ -1,7 +1,5 @@
 extends RefCounted
 
-## Two settings, both about the notice.
-
 const MOD_ID: StringName = &"achievements"
 
 const NOTICE: StringName = &"notice"

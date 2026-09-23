@@ -1,7 +1,5 @@
 extends RefCounted
 
-## The charm's number and what holding it is worth.
-
 const NUMBER: int = 257
 
 const ROLLS: int = 3

@@ -1,8 +1,5 @@
 extends SceneTree
 
-## Checks the Hidden Stats page against a real cartridge cache: the snapshot
-## carries the two hidden words, the page says them, and the screen turns to it.
-
 const Staging: GDScript = preload("staging.gd")
 
 const MOD_ID: StringName = &"hidden_stats"
@@ -92,22 +89,11 @@ func _page(host: Gen2ModHost, snapshot: Dictionary) -> bool:
 			print("placement %s is outside the lower half" % str(placement))
 			ok = false
 		texts.append(String(placement.get("text", "")).strip_edges())
-	for wanted: String in _expected():
+	for wanted: String in ["15", "11", "7", "13", "9", "21760", "40960", "8704", "15104", "33280"]:
 		if not texts.has(wanted):
 			print("page never says %s" % wanted)
 			ok = false
 	return ok
-
-
-func _expected() -> Array[String]:
-	var out: Array[String] = [
-		str(Gen2Stats.hp_dv(DVS)), str(Gen2Stats.attack_dv(DVS)),
-		str(Gen2Stats.defense_dv(DVS)), str(Gen2Stats.special_dv(DVS)),
-		str(Gen2Stats.speed_dv(DVS)),
-	]
-	for key: String in DV_KEYS:
-		out.append(str(int(STAT_EXP[key])))
-	return out
 
 
 ## The screen turns to the page: RIGHT past the blue page on Generation II, A

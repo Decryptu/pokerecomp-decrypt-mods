@@ -1,9 +1,5 @@
 extends SceneTree
 
-## The voxel view's own arithmetic, checked without a display: the grid it puts
-## the camera and every card on, and what moves over that grid. See
-## `mods/voxel3d/world/grid.gd`.
-
 const BEARINGS: Array[float] = [0.0, 17.0, 45.0, -45.0, 123.0, 180.0]
 const PITCHES: Array[float] = [20.0, 35.0, 60.0, 80.0]
 const SURFACE_PIXELS: float = 540.0

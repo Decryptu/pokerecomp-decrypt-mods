@@ -1,40 +1,10 @@
 #!/usr/bin/env bash
-# ONE 3D FRAME OF EACH OF MANY MAPS, into a directory, for a reviewer to pick
-# the worst one out of.
-#
-# This is how a survey round starts. `tools/shot.gd` photographs ONE place and
-# is what every close reading uses; the round before it is the opposite job, a
-# wide shot of a dozen maps at once, sent as a pack so a person can say "that
-# one" without reading anything. Doing that by hand is a shell loop rewritten
-# every round, and the aim point is the one thing easy to get wrong: it is the
-# map's own centre and `tools/maps.gd` prints it.
-#
-#   tools/pack.sh <out dir> [selection...] [pitch] [back] [time] [bearing]
-#
-# SELECTION is anything `tools/maps.gd` takes, `all`, `towns`, `outside`,
-# `inside`, `ts<number>`, or an explicit list of `group,number` separated by
-# spaces. Default `towns`, which is the twenty-three maps the cartridge files as
-# a town or a city and is the right size for one pack.
-#
-# The defaults stand the eye back far enough to hold each map WHOLE: pitch 34,
-# back `auto`, morning, and the survey bearing rather than due south, since what
-# a pack is for is showing a face and a flank at once. `auto` is per map, off
-# `maps.gd`, because one distance cannot frame a city and a village alike: 320
-# holds a village and shows one corner of Saffron. Give a number to override it.
-#
-# Files are named `<group>_<number>.png`, and each frame carries its own map
-# and the cartridge's own name for it BURNED IN, through `tools/label.py`: a
-# reviewer sent a picture does not see what it is called, so a pack whose only
-# labels are filenames is a pack nobody can point at. A LOG is written beside
-# them naming every map as well, for the agent's own side of the round.
-#
-# The cartridge cache is $CACHE, else the Crystal one. The pokerecomp checkout
-# is $POKERECOMP, else the read-only one in `.references`. The Godot binary is
-# $GODOT, else `godot` on the path, else where the macOS installer puts it.
-#
-# THIS RENDERS, so it needs a display: no `--headless`. Reckon four seconds a
-# map, which is Godot starting, not the mesh.
-
+# Renders labelled 3D frames for a map selection.
+# Usage: tools/pack.sh <out dir> [selection...] [pitch] [back] [time] [bearing]
+# Selection: towns (default), all, outside, inside, ts<number>, or map pairs
+# written group,number. Defaults: pitch 34, per-map distance, morning,
+# bearing 20.4. CACHE, POKERECOMP and GODOT select the environment.
+# Rendering requires a display.
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 HOST="${POKERECOMP:-$HERE/.references/pokerecomp}"
@@ -48,11 +18,7 @@ fi
 shift
 SELECT="${1:-towns}"
 [ $# -gt 0 ] && shift
-# AN EXPLICIT LIST MAY BE GIVEN AS SEPARATE WORDS, so keep taking map pairs
-# before reading the options: the options are all plain numbers and none of
-# them holds a comma, so the first word without one ends the list. Without
-# this the pitch, the distance, the hour and the bearing each swallowed a map
-# and the pack came back shot at midnight with three maps missing.
+# Commas distinguish map pairs from positional numeric options.
 while [ $# -gt 0 ]; do
 	case "$1" in
 		[0-9]*,[0-9]*)
@@ -90,9 +56,7 @@ fi
 
 mkdir -p "$OUT"
 LOG="$OUT/pack.txt"
-# KEPT ACROSS RUNS, because a pack shot in two goes keeps every picture and
-# truncating here left two thirds of them unnamed. A map re-shot replaces its
-# own line rather than gaining a second one.
+# Keep the map list across partial runs.
 touch "$LOG"
 
 # An explicit list is anything holding a comma that is not one of the words, and
@@ -147,8 +111,7 @@ printf '%s\n' "$rows" | while IFS="$(printf '\t')" read -r map centre fit name; 
 	stand="$BACK"
 	[ "$stand" = "auto" ] && stand="$fit"
 	file="$OUT/${group}_${number}.png"
-	# The old picture goes first, or a render that fails leaves the last one
-	# standing: the check below then passes, the log calls it fresh, and the
+	# Remove stale output before checking whether this render succeeded.
 	# label is burned on top of the label it already wears.
 	rm -f "$file"
 	"$GODOT" --path "$HOST" -s "$HERE/tools/shot.gd" -- "$CACHE" \
