@@ -144,8 +144,10 @@ attempts, far rarer than one seed in a billion, stays vanilla with a warning.
 Creating a save runs the fill once: about one second on Red, Blue and Yellow and
 three to seven on Gold, Silver and Crystal. The host's model errs
 toward passing, so a placement proves there is no lock the model can see, not
-that every story state is beatable. On Red, Blue and Yellow no item site hands
-HM05 or the POKé DOLL, so the fill never moves them.
+that every story state is beatable. Oak's aides on Red, Blue and Yellow are item
+sites that wait on their Pokedex count, so HM05, the ITEMFINDER and the EXP.ALL
+move with the rest. No item site hands the POKé DOLL, which is only sold, so
+the fill never moves it.
 
 ## What it deliberately leaves alone
 
