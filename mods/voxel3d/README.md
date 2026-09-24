@@ -31,7 +31,6 @@ differently are answered in one place each:
   the host's `Gen2BattleColors` what each square, panel, bar and sprite wears,
   which on a Super Game Boy is the palette of the mon whose square it is.
 
-Yellow's Pikachu walks the diorama as the actor entry the host answers for it.
 The clock still lights the scene: the cartridge has no night, but the host runs
 a clock on it and the sky and the sun follow that clock as they do on Gold.
 
@@ -191,7 +190,7 @@ height, so a tree cannot be picked as open foreground.
 A pinned picture is not in the 3D scene, so each battler hands the sun an upright
 card of the same drawing, drawn into the shadow pass only. The shadow is the
 animal's own silhouette: it lands on the floor, climbs a wall and drapes over a
-ledge. Overworld actor cards get theirs the same way.
+ledge. Overworld cards get theirs the same way.
 
 The eye breathes rather than sitting still, since a flat picture has no parallax
 until something moves: a one degree orbit with a smaller dolly under it, on a
@@ -348,8 +347,8 @@ over. Those tiles are built as a wedge, a ramp rising toward the drop and a
 vertical face at it, so going the way the hop goes the ground falls away under
 you and coming back there is a small wall in front of you. Where perpendicular
 runs meet at a corner, their intersection inherits both slopes. The player and
-scripted NPCs follow the host's own jump offset while crossing; the card rises
-and lands while its shadow and the camera stay on the ground. 1380 cells on 72
+scripted NPCs follow the host's own jump arc while crossing; the body rises
+and lands on its card while the card and the camera stay on the ground. 1380 cells on 72
 maps are hopped over.
 
 **A door** is walkable but stands in a wall. A cell whose collision is a door,
@@ -765,23 +764,24 @@ that tile at once, which is what the hardware does.
 An animated drawing's geometry uses the union of all its frames; the current
 texture frame trims the rest.
 
-## Sprites another mod puts in the world
+## What stands on the map
 
-A mod can register a world actor: one sprite the host drives a frame at a time
-and resolves into the same `Gen2WorldSprite` the map's own objects carry. A
-Pokemon following the player is one. This view takes them through `set_actors`
-and stands each one up as a card on the cell it names, with its own shadow, so
-the same follower is behind the player in both views and `V` swaps between them
-without losing it. The host resolves the art, the palette, the hour and, for a
-party icon, its own two frames.
+Every sprite comes from the host's `Gen2WorldDrawList`, the same resolved rows
+the built-in view draws: the map's objects, the player, a mod's actors, Yellow's
+Pikachu, visible wild Pokemon with their own colours and shiny sparkle, emote
+bubbles, the fishing rod, Cut and Headbutt, the heal machine and Fly. Rows that
+share an owner compose one card in their own pixel space, and the card stands
+the row's `ground` on the owner's cell, stepping through the same two cells and
+the same geometry the player does. A jump is already in a body's rows, so the
+card is not raised again. A screen-anchored effect carries the cell it lands on,
+so it stands there too. `world/sprite_cards.gd` builds the cards and caches them
+by what they show; each gets a shadow caster of its bodies, and a bubble or a
+sparkle casts none. The map's grass over a sprite's feet and the ledge shadow
+under a hop are the flat view's stand-ins for depth, and here the diorama has
+the real ones. The earthquake's shake moves the ground and no card.
 
-A step it is taking comes with the two cells it runs between, so a follower
-crossing a ledge or a fold is put through the same geometry the player is, and
-a hop is stood on the arc the host reads off the movement's own name.
-
-Visible wild Pokemon use the same path. Their host-resolved four colours override
-the ordinary icon row so shininess stays visible, and the optional encounter
-handle stands each tile of the cartridge's shiny sparkle around the Pokemon.
+`draw_reach_pixels` asks for the neighbouring maps' people out to 2400 pixels,
+as far as the far field draws their ground.
 
 ## One grid under the whole picture
 
@@ -864,6 +864,7 @@ options.gd           the settings, named once, registered and read back here
 steering.gd          what a key or a wheel notch means, in either view
 world/renderer.gd    the overworld Node the host builds
 world/diorama.gd     the 3D stage both views share: viewport, daylight, cards
+world/sprite_cards.gd the host's draw list as cards, one per owner
 world/sky.gd         the banded, dithered sky and the shader that paints it
 world/water.gd       the water surface: the sky by Fresnel, the swell, the sun
 world/wind.gd        what makes grass and foliage bend, and part around a walker

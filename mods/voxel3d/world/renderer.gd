@@ -12,11 +12,13 @@ const CameraRigScript: GDScript = preload("camera_rig.gd")
 const DioramaScript: GDScript = preload("diorama.gd")
 const Grid: GDScript = preload("grid.gd")
 const TransitionScript: GDScript = preload("transition.gd")
+const SpriteCards: GDScript = preload("sprite_cards.gd")
 
 const CELL: float = 16.0
 const TILE: float = 8.0
 
 const FIELD_OPACITY: float = 0.75
+const CONNECTED_REACH_PIXELS: int = 2400
 
 var _world: Gen2WorldAPI = null
 var _animation: Gen2WorldAnimation = null
@@ -34,12 +36,8 @@ var _rig: RefCounted = null
 var _held := Steering.Glide.new()
 var _shape: RefCounted = null
 
-var _actor_textures: Dictionary = {}
-var _pulse_textures: Dictionary = {}
-var _mod_actors: Gen2WorldActors = null
-## `HideSprites`: no map object and no player is drawn. The host sets it.
-var sprites_hidden: bool = false
-var _encounters: Gen2WorldEncounters = null
+var _draw_list: Gen2WorldDrawList = null
+var _cards: RefCounted = SpriteCards.new()
 var _shape_tileset: StringName = &""
 
 var _draw_cells: int = 0
@@ -61,8 +59,6 @@ var _text_box := Rect2i()
 var _screen_rect := Rect2i()
 var _interface_masked: bool = false
 var _transition: Control = null
-var _transition_sprites: int = Gen2BattleTransition.SPRITES_ALL
-var _transition_opponent: int = -1
 var _fade_order: int = Gen2WorldPalette.FADE_IDENTITY
 var _transition_order: int = Gen2BattleTransition.IDENTITY
 var _pending_hole := Rect2()
@@ -106,14 +102,13 @@ func set_screen_rect(rect: Rect2i) -> void:
 	_apply_interface_mask()
 
 
+## The wipe alone: which sprites it leaves standing is in the draw list.
 func set_transition(
 	cells: PackedByteArray, tiles: PackedByteArray, palette: PackedColorArray,
-	sprites: int = Gen2BattleTransition.SPRITES_ALL, opponent: int = -1,
+	_sprites: int = Gen2BattleTransition.SPRITES_ALL, _opponent: int = -1,
 	order: int = Gen2BattleTransition.IDENTITY,
 	sources: PackedInt32Array = PackedInt32Array()
 ) -> void:
-	_transition_sprites = sprites
-	_transition_opponent = opponent
 	_transition.place(_screen_place())
 	_transition.set_frame(
 		cells, tiles, Gen2WorldPalette.fade_palette(palette, order), sources,
@@ -124,8 +119,6 @@ func set_transition(
 
 
 func clear_transition() -> void:
-	_transition_sprites = Gen2BattleTransition.SPRITES_ALL
-	_transition_opponent = -1
 	_transition.clear()
 	_transition_order = Gen2BattleTransition.IDENTITY
 	_apply_flash()
@@ -199,25 +192,25 @@ func set_native_size(size_pixels: Vector2i) -> void:
 	_apply_interface_mask()
 
 
-func set_actors(actors: Gen2WorldActors) -> void:
-	_mod_actors = actors
+func set_draw_list(list: Gen2WorldDrawList) -> void:
+	_draw_list = list
 
 
-func set_encounters(encounters: Gen2WorldEncounters) -> void:
-	_encounters = encounters
+## The neighbouring maps' people the draw list carries, as far out as the far
+## field draws their ground.
+func draw_reach_pixels() -> int:
+	return CONNECTED_REACH_PIXELS
 
 
 func set_world(world: Gen2WorldAPI, animation: Gen2WorldAnimation = null) -> void:
 	_world = world
 	_animation = animation
-	_actor_textures.clear()
-	_pulse_textures.clear()
+	_cards.clear()
 	_rebuild()
 
 
 func set_time_of_day(time_of_day: int) -> void:
 	_time_of_day = clampi(time_of_day, 0, 3)
-	_actor_textures.clear()
 	_stage.set_time_of_day(_time_of_day)
 	_stage.far_field().set_time_of_day(_time_of_day)
 	if _build_atlas():
@@ -322,8 +315,12 @@ func _apply_background() -> void:
 
 
 func _rebuild() -> void:
-	_building = false
 	_standing = false
+	_resolve()
+
+
+func _resolve() -> void:
+	_building = false
 	if _world == null or _world.current_map == null or _world.current_tileset == null:
 		_stage.set_terrain([])
 		_stage.set_water([])
@@ -348,10 +345,11 @@ func _rebuild() -> void:
 
 
 ## A `changeblock` (a Cut tree, an opened door, a gate) edits the loaded map
-## without a new `set_world`.
+## without a new `set_world`, and the terrain standing stays up until its
+## replacement is built.
 func _follow_block_changes() -> void:
 	if _world != null and not _resolving and _world.block_revision != _block_revision:
-		_rebuild()
+		_resolve()
 
 
 ## Measuring a map is sliced the way emitting it is, except on the first build,
@@ -543,271 +541,18 @@ func _walker() -> Vector3:
 
 
 func _rebuild_actors() -> void:
-	if _world == null:
+	if _world == null or _draw_list == null:
 		return
 	_stage.begin_cards()
 	_stage.begin_shadow_casters()
-	if _transition_sprites == Gen2BattleTransition.SPRITES_NONE:
-		_stage.end_cards()
-		_stage.end_shadow_casters()
-		return
-	if not sprites_hidden:
-		_add_map_objects()
-		_add_player()
-	if _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
-		if _mod_actors != null:
-			for entry: Dictionary in _mod_actors.sprites():
-				_add_actor_entry(entry)
-		_add_cartridge_follower()
-		_add_connected_actors()
-	_add_encounter_pulse()
+	for card: Dictionary in _cards.cards(_draw_list):
+		var ground: Vector3 = _snapped(_ground(card["position_cells"], card["span"]))
+		_stage.add_card(card["texture"], ground, card["anchor"])
+		if card["caster"] != null:
+			_stage.add_shadow_caster(card["caster"], ground, 1.0, card["anchor"])
 	_stage.end_cards()
 	_stage.end_shadow_casters()
-
-
-func _add_map_objects() -> void:
-	var moved: float = _world.pass_fraction
-	for object: Gen2WorldObject in _world.visible_objects():
-		if not _drawn_in_transition(object.index):
-			continue
-		_add_actor(
-			object.sprite, object.palette, object.drawn_facing(), object.frame,
-			_ground(
-				Vector2(object.cell) + object.step_offset_cells(moved),
-				object.step_span(moved)
-			), PackedColorArray(), object.height_offset_pixels(),
-			object.emote_id if object.emote_visible else Gen2WorldActors.EMOTE_NONE
-		)
-
-
-## `disappear PLAYER` takes the player out of OAM, and so does a skyfall's start.
-func _add_player() -> void:
-	if not _world.player_visible() or _world.player_skyfall_hidden():
-		return
-	_add_actor(
-		_world.player_sprite(), _world.player_palette(),
-		_world.player_drawn_facing(), _world.player_walk_frame(),
-		_walker(), PackedColorArray(),
-		_world.player_height_offset_pixels()
-	)
-
-
-## An entry shaped as `Gen2WorldActors.sprites()` shapes one.
-func _add_actor_entry(entry: Dictionary) -> void:
-	_add_actor(
-		entry["sprite"], 0, int(entry["facing"]), int(entry["frame"]),
-		_ground(entry["position_cells"], entry.get("span", {})),
-		entry.get("colors", PackedColorArray()),
-		float(entry.get("height_offset_pixels", 0.0)),
-		int(entry.get("emote", Gen2WorldActors.EMOTE_NONE))
-	)
-
-
-## Yellow's own Pikachu, slot fifteen, which the host answers as an actor entry
-## and empty on every other cartridge.
-func _add_cartridge_follower() -> void:
-	var follower: Dictionary = _world.gen1_pikachu_sprite()
-	if follower.is_empty() or bool(follower.get("hidden", false)):
-		return
-	_add_actor_entry(follower)
-
-
-func _drawn_in_transition(index: int) -> bool:
-	if _transition_sprites == Gen2BattleTransition.SPRITES_BATTLERS:
-		return index == _transition_opponent
-	return _transition_sprites != Gen2BattleTransition.SPRITES_NONE
-
-const CONNECTED_REACH: float = 2400.0
-
-
-func _add_connected_actors() -> void:
-	if _world == null or not _outside \
-			or not _world.has_method(&"connected_map_objects"):
-		return
-	var here: Vector2 = _world.player_position_cells() * CELL
-	var moved: float = _world.pass_fraction
-	for entry: Dictionary in _world.connected_map_objects():
-		var object: Gen2WorldObject = entry["object"]
-		var shift := Vector2(entry["offset"] as Vector2i)
-		var cells: Vector2 = Vector2(object.cell) + object.step_offset_cells(moved)
-		if here.distance_squared_to((cells + shift) * CELL) \
-				> CONNECTED_REACH * CONNECTED_REACH:
-			continue
-		_add_actor(
-			object.sprite, object.palette, object.drawn_facing(), object.frame,
-			_ground(cells, object.step_span(moved), shift), PackedColorArray(),
-			object.height_offset_pixels()
-		)
-
-
-func _add_actor(
-	sprite: Gen2WorldSprite, palette: int, facing: int, frame: int, ground: Vector3,
-	colors: PackedColorArray = PackedColorArray(), height_offset: float = 0.0,
-	emote: int = Gen2WorldActors.EMOTE_NONE
-) -> void:
-	var texture: Texture2D = _actor_texture(sprite, palette, facing, frame, colors)
-	if texture != null:
-		var stood: Vector3 = _snapped(_actor_position(ground, height_offset))
-		_stage.add_standing_card(texture, stood)
-		_stage.add_shadow_caster(texture, _snapped(ground), 1.0)
-		_add_emote(emote, stood)
-
-const EMOTE_SIDE: int = 2 * PokeTiles.TILE_WIDTH
-const EMOTE_CENTRE: float = 1.5 * EMOTE_SIDE
-
-
-func _add_emote(emote: int, stood: Vector3) -> void:
-	if emote == Gen2WorldActors.EMOTE_NONE:
-		return
-	var texture: Texture2D = _emote_texture(emote)
-	if texture == null:
-		return
-	_stage.add_centred_card(texture, stood + Vector3(0.0, EMOTE_CENTRE, 0.0))
-
-
-func _emote_texture(emote: int) -> Texture2D:
-	if _world == null or _world.data == null \
-			or emote < 0 or emote >= Gen2Layout.EMOTE_NAMES.size():
-		return null
-	var key: String = "e%d:%d" % [emote, _time_of_day]
-	if _actor_textures.has(key):
-		return _actor_textures[key]
-	var sheet: Dictionary = _world.data.overworld_effect(Gen2Layout.EMOTE_NAMES[emote])
-	if sheet.is_empty():
-		return null
-	var tiles: int = int(sheet.get("tiles", 0))
-	var indices: PackedByteArray = sheet.get("indices", PackedByteArray())
-	if tiles < 4 or indices.size() < tiles * PokeTiles.TILE_PIXELS:
-		return null
-	var palette: PackedColorArray = sheet.get("colors", PackedColorArray())
-	if palette.is_empty():
-		palette = _sprite_colors(Gen2WorldEffects.PAL_OW_EMOTE)
-	var image := Image.create_empty(EMOTE_SIDE, EMOTE_SIDE, false, Image.FORMAT_RGBA8)
-	var width: int = tiles * PokeTiles.TILE_WIDTH
-	for tile: int in 4:
-		var left: int = (tile & 1) * PokeTiles.TILE_WIDTH
-		var top: int = (tile >> 1) * PokeTiles.TILE_HEIGHT
-		for y: int in PokeTiles.TILE_HEIGHT:
-			for x: int in PokeTiles.TILE_WIDTH:
-				var index: int = int(indices[y * width + tile * PokeTiles.TILE_WIDTH + x])
-				if index == 0:
-					continue
-				image.set_pixel(
-					left + x, top + y,
-					palette[index] if index < palette.size() else Color.MAGENTA
-				)
-	var texture: Texture2D = ImageTexture.create_from_image(image)
-	_actor_textures[key] = texture
-	return texture
-
-
-func _actor_position(ground: Vector3, height_offset: float) -> Vector3:
-	return ground + Vector3(0.0, height_offset, 0.0)
-
-
-func _actor_texture(
-	sprite: Gen2WorldSprite, palette_override: int, facing: int, frame: int,
-	colors: PackedColorArray = PackedColorArray()
-) -> Texture2D:
-	if sprite == null or _world == null or _world.data == null:
-		return null
-	var palette: int = palette_override if palette_override != 0 else sprite.default_palette
-	var key: String = "%d:%d:%d:%d:%d:%d:%s" % [
-		sprite.sprite_type, sprite.number, palette, facing, frame, _time_of_day, str(colors),
-	]
-	if _actor_textures.has(key):
-		return _actor_textures[key]
-	var image: Image = Gen2WorldSprite.image_for(
-		sprite,
-		_world.data.overworld_icon_indices(sprite.icon_number) \
-			if sprite.sprite_type == Gen2WorldSprite.TYPE_MON_ICON \
-			else _world.data.overworld_sprite_indices(sprite.number),
-		colors if colors.size() >= 4 else _sprite_colors(palette),
-		facing,
-		frame,
-	)
-	var texture: Texture2D = ImageTexture.create_from_image(image)
-	_actor_textures[key] = texture
-	return texture
-
-
-func _sprite_colors(palette: int) -> PackedColorArray:
-	return Gen2WorldPalette.overworld_sprite_colors(
-		_world.data, _world.current_map, palette, _time_of_day,
-		_world.gen1_last_map(), _world.gen1_map_pal_offset
-	)
-
-const BATTLER_CENTRE := Vector2(
-	(Gen2BattleScreenMap.ENEMY_AT.x + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * PokeTiles.TILE_WIDTH,
-	(Gen2BattleScreenMap.ENEMY_AT.y + 0.5 * Gen2BattleScreenMap.ENEMY_SIDE) * PokeTiles.TILE_HEIGHT
-)
-
-
-func _add_encounter_pulse() -> void:
-	if _encounters == null or _world == null or _world.data == null:
-		return
-	var anchor: Variant = _encounters.pulse_anchor()
-	if not anchor is Vector2:
-		return
-	var centre: Vector3 = _ground((anchor as Vector2) / CELL) + Vector3(0.0, CELL * 0.5, 0.0)
-	var window: Array = _encounters.pulse_tiles()
-	var pair: Array = _encounters.pulse_battler_pair()
-	for value: Variant in _encounters.pulse_sprites():
-		if not value is Dictionary:
-			continue
-		var sprite: Dictionary = value
-		var at: int = int(sprite.get("tile", 0)) - Gen2BattleAnimObject.BASE_TILE
-		if at < 0 or at >= window.size() or not window[at] is Dictionary:
-			continue
-		var slot: Dictionary = window[at]
-		if not slot.has("gfx"):
-			continue
-		var attributes: int = int(sprite.get("attributes", 0))
-		var texture: Texture2D = _pulse_texture(
-			int(slot["gfx"]), int(slot["tile"]), attributes, pair
-		)
-		if texture == null:
-			continue
-		var offset := Vector2(
-			float(int(sprite.get("x", 0)) - 8),
-			float(int(sprite.get("y", 0)) - 16)
-		) - BATTLER_CENTRE + Vector2(4.0, 4.0)
-		_stage.add_centred_card(texture, centre + Vector3(offset.x, -offset.y, 0.0))
-
-
-func _pulse_texture(
-	gfx: int, tile: int, attributes: int, pair: Array
-) -> Texture2D:
-	var key: String = "%d:%d:%d:%s" % [
-		gfx, tile, attributes & (Gen2BattleAnimObject.OAM_SHARED_FLAGS
-			| Gen2BattleAnimObject.OAM_PALETTE), str(pair),
-	]
-	if _pulse_textures.has(key):
-		return _pulse_textures[key]
-	var strip: PackedByteArray = _world.data.battle_anim_gfx_indices(gfx)
-	@warning_ignore("integer_division")
-	var width: int = strip.size() / PokeTiles.TILE_HEIGHT
-	if width <= 0 or (tile + 1) * PokeTiles.TILE_WIDTH > width:
-		return null
-	var pixels := PackedByteArray()
-	pixels.resize(PokeTiles.TILE_PIXELS)
-	for row: int in PokeTiles.TILE_HEIGHT:
-		var from: int = row * width + tile * PokeTiles.TILE_WIDTH
-		for column: int in PokeTiles.TILE_WIDTH:
-			pixels[row * PokeTiles.TILE_WIDTH + column] = strip[from + column]
-	var image: Image = Gen2PicImage.from_indices(
-		pixels, PokeTiles.TILE_WIDTH, PokeTiles.TILE_HEIGHT,
-		_world.data.battle_object_palette(
-			attributes & Gen2BattleAnimObject.OAM_PALETTE, pair
-		), true
-	)
-	if (attributes & Gen2BattleAnimObject.OAM_XFLIP) != 0:
-		image.flip_x()
-	if (attributes & Gen2BattleAnimObject.OAM_YFLIP) != 0:
-		image.flip_y()
-	var texture: Texture2D = ImageTexture.create_from_image(image)
-	_pulse_textures[key] = texture
-	return texture
+	_stage.set_ground_offset(_draw_list.background_offset())
 
 
 func _bank() -> void:

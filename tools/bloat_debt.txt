@@ -61,8 +61,6 @@ mods/voxel3d/shape/model.gd:impostor
 mods/voxel3d/world/far_field.gd:advance
 mods/voxel3d/world/far_foliage.gd:_border_ring
 mods/voxel3d/world/far_houses.gd:_box
-mods/voxel3d/world/renderer.gd:_add_encounter_pulse
-mods/voxel3d/world/renderer.gd:_emote_texture
 tools/achievements_probe.gd:_initialize
 tools/achievements_probe.gd:_once
 tools/achievements_shot.gd:_initialize
