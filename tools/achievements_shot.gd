@@ -101,6 +101,8 @@ func _initialize() -> void:
 
 
 func _process(_delta: float) -> bool:
+	if _screen == null:
+		return true
 	_screen.set_process(false)
 	_frames += 1
 	if _frames < STAGE_ON:

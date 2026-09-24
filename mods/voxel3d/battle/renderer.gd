@@ -39,6 +39,7 @@ var _hud: Gen2BattleHud = null
 var _panels_backing: Array[ColorRect] = []
 var _frost: RefCounted = null
 var _hud_layers: Array[TextureRect] = []
+var _hud_keys: Array = []
 var _anim: RefCounted = null
 var _anim_layer: TextureRect = null
 var _anim_player_drift := Vector2.ZERO
@@ -71,6 +72,7 @@ func _init() -> void:
 		layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(layer)
 		_hud_layers.append(layer)
+		_hud_keys.append(null)
 	_anim_layer = TextureRect.new()
 	_anim_layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_anim_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -140,6 +142,8 @@ func set_battle_data(data: GameData) -> bool:
 	if data == null:
 		return false
 	_hud = Gen2BattleHud.from_data(data)
+	_hud_keys.fill(null)
+	_pic_textures.clear()
 	_colors = Gen2BattleColors.new(data)
 	_anim = Anim.new(data, _colors)
 	return _hud != null
@@ -317,31 +321,13 @@ func _pin_side(slot: int, side: Dictionary, back: bool, ground: Vector3) -> int:
 	)
 
 const KIND_NONE: StringName = &"none"
-const KIND_TRAINER: StringName = &"trainer"
 const KIND_MON: StringName = &"mon"
 
 
 func _side_pic(side: Dictionary, back: bool) -> Texture2D:
-	match StringName(side.get("kind", KIND_NONE)):
-		KIND_MON:
-			return _battler_pic(back) if int(side.get("species", 0)) > 0 else null
-		KIND_TRAINER:
-			if back:
-				return _backpic(String(side.get("backpic", "")))
-			var trainer_class: int = int(side.get("trainer_class", 0))
-			if trainer_class == Gen2BattleScreen.LINK_OPPONENT_PIC:
-				return _link_opponent_pic()
-			return _trainer_pic(trainer_class)
-	return null
-
-
-func _backpic(kind: String) -> Texture2D:
-	if _data == null or kind.is_empty():
+	if StringName(side.get("kind", KIND_NONE)) == KIND_NONE:
 		return null
-	var palette: PackedColorArray = _colors.pic_palette(true)
-	return _texture(
-		"b%s:%s" % [kind, str(palette)], _data.player_backpic(kind), palette, true
-	)
+	return _square_pic(back)
 
 
 func _pin(
@@ -394,114 +380,42 @@ func _battler(slot: int) -> TextureRect:
 		_battlers.append(rect)
 	return _battlers[slot]
 
-func _pic(species: int, back: bool) -> Texture2D:
-	if _data == null or species <= 0:
-		return null
-	var form: int = int(_view.get("player_unown_form" if back else "enemy_unown_form", 0))
-	var unown: bool = species == Gen2Layout.UNOWN_SPECIES and form > 0
-	var palette: PackedColorArray = _colors.pic_palette(back)
-	return _texture(
-		"%d:%d:%d:%s" % [species, form, int(back), str(palette)],
-		_data.unown_pic(form - 1, back) if unown else _data.species_pic(species, back),
-		palette, back
-	)
 
-
-## What stands on a Pokemon's square, in the order the host's renderer picks it:
-## Generation 1's GHOST, the substitute's doll, Minimize's dot, the species.
-func _battler_pic(back: bool) -> Texture2D:
-	var side: String = "player_" if back else "enemy_"
-	var species: int = int(_view.get(side + "species", 0))
-	var special: String = "" if back else String(_view.get("enemy_special_pic", ""))
-	if not special.is_empty():
-		return _special_pic(special)
-	if bool(_view.get(side + "substitute", false)):
-		return _substitute_pic(species, back)
-	if bool(_view.get(side + "minimized", false)):
-		return _minimize_pic(back)
-	return _pic(species, back)
-
-
-func _special_pic(special: String) -> Texture2D:
-	var palette: PackedColorArray = _colors.pic_palette(false)
-	return _texture("s%s:%s" % [special, str(palette)], _data.gen1_special_pic(special), palette)
-
-
-func _link_opponent_pic() -> Texture2D:
-	var palette: PackedColorArray = _colors.pic_palette(false)
-	return _texture("link:%s" % str(palette), _data.player_frontpic(), palette)
-
-
-func _substitute_pic(species: int, back: bool) -> Texture2D:
-	return _boxed_texture("sub:%d" % species, back, func() -> PackedByteArray:
-		return Gen2BattleRenderer.substitute_pixels(
-			_data.overworld_sprite_indices(SUBSTITUTE_SPRITE), back, _data.generation
-		)
-	)
-
-
-func _minimize_pic(back: bool) -> Texture2D:
-	return _boxed_texture("min", back, func() -> PackedByteArray:
-		return Gen2BattleRenderer.minimize_pixels(
-			_data.tile_indices("minimize"), back, _data.generation
-		)
-	)
-
-
-## A picture the host builds a whole square for, cached by [param name], the side
-## and the palette it wears.
-func _boxed_texture(name: String, back: bool, pixels: Callable) -> Texture2D:
+## What stands on one side's square, as the host's own renderer draws it.
+func _square_pic(back: bool) -> Texture2D:
 	if _data == null:
 		return null
 	var palette: PackedColorArray = _colors.pic_palette(back)
-	var key: String = "%s:%d:%s" % [name, int(back), str(palette)]
-	if _pic_textures.has(key):
-		return _pic_textures[key]
-	var side: int = Gen2BattleScreenMap.player_box_side(_data.generation) if back \
-		else Gen2BattleScreenMap.ENEMY_SIDE
-	var box: int = side * TILE
-	var drawn: PackedByteArray = pixels.call()
-	if drawn.size() < box * box:
-		return null
-	var image: Image = _image(drawn, box, box, palette)
-	if image == null:
-		return null
-	var texture: Texture2D = ImageTexture.create_from_image(image)
-	_pic_textures[key] = texture
-	return texture
-
-const SUBSTITUTE_SPRITE: int = 0x4C
+	var key: String = str([Gen2BattleRenderer.square_key(_view, back), back, palette])
+	return _cached_texture(key, back, palette, func() -> PackedByteArray:
+		return Gen2BattleRenderer.square_pixels(_data, _view, back)
+	)
 
 
+## The opponent standing behind their Pokemon, which only this view stages.
 func _trainer_pic(trainer_class: int) -> Texture2D:
 	if _data == null or trainer_class <= 0:
 		return null
 	var palette: PackedColorArray = _colors.pic_palette(false)
-	return _texture(
-		"t%d:%s" % [trainer_class, str(palette)], _data.trainer_pic(trainer_class), palette
+	var key: String = "t%d:%s" % [trainer_class, str(palette)]
+	return _cached_texture(key, false, palette, func() -> PackedByteArray:
+		return Gen2BattleRenderer.padded_pic(
+			_data, _data.trainer_pic(trainer_class), Gen2BattleScreenMap.ENEMY_SIDE
+		)
 	)
 
 
-## A picture in the box the hardware draws it in: the player's back pic is
-## doubled on Generation 1, and the rest sit in their own square.
-func _texture(
-	key: String, pic: Dictionary, palette: PackedColorArray, back: bool = false
+func _cached_texture(
+	key: String, back: bool, palette: PackedColorArray, pixels: Callable
 ) -> Texture2D:
 	if _pic_textures.has(key):
 		return _pic_textures[key]
-	if pic.is_empty():
+	var box: int = Gen2BattleRenderer.square_side(_data.generation, back) * TILE
+	var drawn: PackedByteArray = pixels.call()
+	if drawn.size() < box * box:
 		return null
-	var side: int = Gen2BattleScreenMap.player_box_side(_data.generation) if back \
-		else Gen2BattleScreenMap.ENEMY_SIDE
-	var box: int = side * TILE
-	var image: Image = _image(
-		Gen2BattleRenderer.back_pixels(_data, pic) if back
-		else Gen2BattleRenderer.padded_pic(_data, pic, side),
-		box, box, palette
-	)
-	if image == null:
-		return null
-	var texture: Texture2D = ImageTexture.create_from_image(image)
+	var image: Image = _image(drawn, box, box, palette)
+	var texture: Texture2D = ImageTexture.create_from_image(image) if image != null else null
 	_pic_textures[key] = texture
 	return texture
 
@@ -556,16 +470,17 @@ func _field(pixels: PackedByteArray, width: int, height: int) -> PackedByteArray
 			stack.append(at + width)
 	return field
 
-const HUD_ENEMY_PANEL: int = 0
-const HUD_PLAYER_PANEL: int = 1
-const HUD_ENEMY_BAR: int = 2
-const HUD_PLAYER_BAR: int = 3
-const HUD_EXP_BAR: int = 4
-const HUD_TRAINER_BORDER: int = 5
-const HUD_TRAINER_BALLS: int = 6
-const HUD_LAYERS: int = 7
+const HUD_PANELS: int = 0
+const HUD_ENEMY_BAR: int = 1
+const HUD_PLAYER_BAR: int = 2
+const HUD_EXP_BAR: int = 3
+const HUD_TRAINER_BALLS: int = 4
+const HUD_LAYERS: int = 5
+const TILE: int = 8
 
 
+## The host draws both panels; the bars and the party balls each wear their
+## own palette, so each is a layer, redrawn only when what it shows changes.
 func _draw_hud() -> void:
 	if _hud == null:
 		return
@@ -574,91 +489,56 @@ func _draw_hud() -> void:
 	var player_up: bool = up and bool(_view.get("player_hud_visible", true))
 	_panels_backing[0].visible = enemy_up
 	_panels_backing[1].visible = player_up
-
-	var enemy_hp: int = int(_view.get("enemy_hp", 0))
-	var enemy_max_hp: int = int(_view.get("enemy_max_hp", 0))
-	var player_hp: int = int(_view.get("player_hp", 0))
-	var player_max_hp: int = int(_view.get("player_max_hp", 0))
 	var ink: PackedColorArray = _colors.panel_palette()
-
-	if enemy_up:
-		var panel: PackedByteArray = _buffer()
-		_hud.draw_enemy(
-			panel, Gen2Screen.WIDTH, String(_view.get("enemy_name", "")),
-			int(_view.get("enemy_level", 0)), bool(_view.get("enemy_caught", false)),
-			int(_view.get("enemy_status", Gen2Status.NONE)),
-			StringName(_view.get("enemy_gender", &""))
-		)
-		_show(HUD_ENEMY_PANEL, panel, ink)
-		var enemy_bar: PackedByteArray = _buffer()
-		_hud.draw_hp_bar(
-			enemy_bar, Gen2Screen.WIDTH, Gen2BattleHud.ENEMY_BAR, enemy_hp, enemy_max_hp
-		)
-		_show(HUD_ENEMY_BAR, enemy_bar, _colors.hp_palette(enemy_hp, enemy_max_hp))
-	else:
-		_hud_layers[HUD_ENEMY_PANEL].texture = null
-		_hud_layers[HUD_ENEMY_BAR].texture = null
-
-	if player_up:
-		var panel: PackedByteArray = _buffer()
-		_hud.draw_player(
-			panel, Gen2Screen.WIDTH, String(_view.get("player_name", "")),
-			int(_view.get("player_level", 0)), player_hp, player_max_hp,
-			int(_view.get("player_status", Gen2Status.NONE)),
-			StringName(_view.get("player_gender", &""))
-		)
-		_show(HUD_PLAYER_PANEL, panel, ink)
-		var player_bar: PackedByteArray = _buffer()
-		_hud.draw_hp_bar(
-			player_bar, Gen2Screen.WIDTH, Gen2BattleHud.PLAYER_BAR, player_hp, player_max_hp
-		)
-		_show(HUD_PLAYER_BAR, player_bar, _colors.hp_palette(player_hp, player_max_hp))
-		var gained: PackedByteArray = _buffer()
-		if not _hud.gen1:
-			_hud.draw_exp_bar(gained, Gen2Screen.WIDTH, int(_view.get("exp_pixels", 0)))
-		_show(HUD_EXP_BAR, gained, _data.bar_palette(GameData.EXP_BAR_PALETTE))
-	else:
-		_hud_layers[HUD_PLAYER_PANEL].texture = null
-		_hud_layers[HUD_PLAYER_BAR].texture = null
-		_hud_layers[HUD_EXP_BAR].texture = null
-
-	_draw_trainer_hud(up, ink)
-
-
-func _draw_trainer_hud(up: bool, ink: PackedColorArray) -> void:
-	var border: Array = _view.get("trainer_hud_border", []) as Array
-	if up and not border.is_empty():
-		var frame: PackedByteArray = _buffer()
-		for entry: Variant in border:
-			if entry is Dictionary:
-				var cell: Dictionary = entry
-				_hud.tiles.draw(
-					int(cell.get("tile", 0)), frame, Gen2Screen.WIDTH,
-					int(cell.get("x", 0)) * TILE, int(cell.get("y", 0)) * TILE
-				)
-		_show(HUD_TRAINER_BORDER, frame, ink)
-	else:
-		_hud_layers[HUD_TRAINER_BORDER].texture = null
-
+	_layer(HUD_PANELS, up, [Gen2BattleHud.panels_key(_view), ink], ink,
+		func(into: PackedByteArray) -> void: _hud.draw_panels(into, Gen2Screen.WIDTH, _view))
+	_draw_hp_layer(HUD_ENEMY_BAR, enemy_up, "enemy_", Gen2BattleHud.ENEMY_BAR)
+	_draw_hp_layer(HUD_PLAYER_BAR, player_up, "player_", Gen2BattleHud.PLAYER_BAR)
+	var gained: int = int(_view.get("exp_pixels", 0))
+	_layer(HUD_EXP_BAR, player_up and not _hud.gen1, [gained],
+		_data.bar_palette(GameData.EXP_BAR_PALETTE),
+		func(into: PackedByteArray) -> void: _hud.draw_exp_bar(into, Gen2Screen.WIDTH, gained))
 	var balls: Array = _view.get("trainer_hud_balls", []) as Array
-	if not up or balls.is_empty() or _data == null:
-		_hud_layers[HUD_TRAINER_BALLS].texture = null
+	_layer(HUD_TRAINER_BALLS, up and not balls.is_empty(), [balls],
+		_colors.object_palette(Gen2BattleAnimBackground.PAL_OB_YELLOW),
+		func(into: PackedByteArray) -> void: _draw_balls(into, balls))
+
+
+func _draw_hp_layer(index: int, shown: bool, side: String, bar: Vector2i) -> void:
+	var hp: int = int(_view.get(side + "hp", 0))
+	var max_hp: int = int(_view.get(side + "max_hp", 0))
+	var ink: PackedColorArray = _colors.hp_palette(hp, max_hp)
+	_layer(index, shown, [hp, max_hp, ink], ink,
+		func(into: PackedByteArray) -> void:
+			_hud.draw_hp_bar(into, Gen2Screen.WIDTH, bar, hp, max_hp))
+
+
+func _layer(
+	index: int, shown: bool, key: Array, palette: PackedColorArray, paint: Callable
+) -> void:
+	var keyed: Array = [shown] + key
+	if _hud_keys[index] == keyed:
 		return
-	var sheet: PackedByteArray = _data.tile_indices(BALL_ICON_SHEET)
-	var width: int = int(_data.tile_sheet(BALL_ICON_SHEET).get("width", 0))
-	if width <= 0:
-		_hud_layers[HUD_TRAINER_BALLS].texture = null
+	_hud_keys[index] = keyed
+	if not shown:
+		_hud_layers[index].texture = null
 		return
 	var into: PackedByteArray = _buffer()
+	paint.call(into)
+	_show(index, into, palette)
+
+
+## `LoadTrainerHudOAM`'s balls, out of the sheet each generation keeps them in.
+func _draw_balls(into: PackedByteArray, balls: Array) -> void:
+	var sheet_name: String = "battle_balls" if _hud.gen1 else "ball_icons"
+	var sheet: PackedByteArray = _data.tile_indices(sheet_name)
+	@warning_ignore("integer_division")
+	var width: int = int(_data.tile_sheet(sheet_name).get("width", sheet.size() / TILE))
+	if width <= 0:
+		return
 	for entry: Variant in balls:
 		if entry is Dictionary:
 			_blit_ball(into, entry, sheet, width)
-	_show(
-		HUD_TRAINER_BALLS, into, _colors.object_palette(Gen2BattleAnimBackground.PAL_OB_YELLOW)
-	)
-
-const BALL_ICON_SHEET: String = "ball_icons"
-const TILE: int = 8
 
 
 func _blit_ball(
