@@ -201,7 +201,9 @@ func _bystander_share(holders: Array) -> float:
 func _pc() -> void:
 	_expect(not _pc_row(1), "PC row is OFF")
 	_switch(&"pc_access", true)
-	_expect(not _pc_row(0), "PC row is hidden without a Pokemon")
+	## `PC_CheckPartyForPokemon`; Generation I's machine refuses nothing.
+	_expect(_pc_row(0) == (_data.generation == RomRegistry.GEN1),
+		"PC row without a Pokemon follows the machine's own gate")
 	_expect(_pc_row(1), "PC row is visible with a Pokemon")
 	_switch(&"pc_access", false)
 
@@ -328,7 +330,7 @@ func _pc_row(party_count: int) -> bool:
 	}):
 		if StringName(entry.get("kind", &"")) == MOD_ID:
 			return StringName(entry.get("action", &"")) \
-				== Gen2ModHost.START_ACTION_OPEN_BILLS_PC
+				== Gen2ModHost.START_ACTION_OPEN_PC
 	return false
 
 
