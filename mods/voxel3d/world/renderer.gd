@@ -37,6 +37,8 @@ var _shape: RefCounted = null
 var _actor_textures: Dictionary = {}
 var _pulse_textures: Dictionary = {}
 var _mod_actors: Gen2WorldActors = null
+## `HideSprites`: no map object and no player is drawn. The host sets it.
+var sprites_hidden: bool = false
 var _encounters: Gen2WorldEncounters = null
 var _shape_tileset: StringName = &""
 
@@ -51,6 +53,7 @@ var _resolving: bool = false
 var _recolouring: bool = false
 var _standing: bool = false
 var _first_build: bool = true
+var _block_revision: int = -1
 var _chunks: Array = []
 var _water: Array = []
 var _tufts: Array = []
@@ -238,6 +241,7 @@ func refresh_animation() -> void:
 
 
 func refresh() -> void:
+	_follow_block_changes()
 	_frame_camera()
 	_rebuild_actors()
 
@@ -252,6 +256,7 @@ func _process(delta: float) -> void:
 	if _resolving:
 		_advance_resolve()
 		return
+	_follow_block_changes()
 	_advance_build()
 	_advance_recolour()
 	_recentre_window()
@@ -325,6 +330,7 @@ func _rebuild() -> void:
 		_stage.set_tufts([])
 		_stage.far_field().configure(null, _time_of_day, true)
 		return
+	_block_revision = _world.block_revision
 	var tileset: StringName = _world.current_tileset.name
 	if _shape == null or tileset != _shape_tileset:
 		_shape = TileShapeScript.new(Profiles.of(_world.data), tileset)
@@ -339,6 +345,13 @@ func _rebuild() -> void:
 	_window_centre = Vector2i.MAX
 	_resolving = true
 	_advance_resolve()
+
+
+## A `changeblock` (a Cut tree, an opened door, a gate) edits the loaded map
+## without a new `set_world`.
+func _follow_block_changes() -> void:
+	if _world != null and not _resolving and _world.block_revision != _block_revision:
+		_rebuild()
 
 
 ## Measuring a map is sliced the way emitting it is, except on the first build,
@@ -538,6 +551,21 @@ func _rebuild_actors() -> void:
 		_stage.end_cards()
 		_stage.end_shadow_casters()
 		return
+	if not sprites_hidden:
+		_add_map_objects()
+		_add_player()
+	if _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
+		if _mod_actors != null:
+			for entry: Dictionary in _mod_actors.sprites():
+				_add_actor_entry(entry)
+		_add_cartridge_follower()
+		_add_connected_actors()
+	_add_encounter_pulse()
+	_stage.end_cards()
+	_stage.end_shadow_casters()
+
+
+func _add_map_objects() -> void:
 	var moved: float = _world.pass_fraction
 	for object: Gen2WorldObject in _world.visible_objects():
 		if not _drawn_in_transition(object.index):
@@ -550,21 +578,18 @@ func _rebuild_actors() -> void:
 			), PackedColorArray(), object.height_offset_pixels(),
 			object.emote_id if object.emote_visible else Gen2WorldActors.EMOTE_NONE
 		)
+
+
+## `disappear PLAYER` takes the player out of OAM, and so does a skyfall's start.
+func _add_player() -> void:
+	if not _world.player_visible() or _world.player_skyfall_hidden():
+		return
 	_add_actor(
 		_world.player_sprite(), _world.player_palette(),
 		_world.player_drawn_facing(), _world.player_walk_frame(),
 		_walker(), PackedColorArray(),
 		_world.player_height_offset_pixels()
 	)
-	if _transition_sprites == Gen2BattleTransition.SPRITES_ALL:
-		if _mod_actors != null:
-			for entry: Dictionary in _mod_actors.sprites():
-				_add_actor_entry(entry)
-		_add_cartridge_follower()
-		_add_connected_actors()
-	_add_encounter_pulse()
-	_stage.end_cards()
-	_stage.end_shadow_casters()
 
 
 ## An entry shaped as `Gen2WorldActors.sprites()` shapes one.

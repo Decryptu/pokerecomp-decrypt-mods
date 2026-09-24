@@ -108,7 +108,8 @@ largest shot in the game, 5.39M triangles in 116 draws becomes 1.26M in 166.
 
 A town can take about 200 ms of geometry work. Builds and map measurements
 run over several frames while the current scene stays visible. A battle keeps
-the map it resolved, so a second fight on a route pays for geometry alone.
+the map it resolved, so a second fight on a route pays for geometry alone. A
+`changeblock` (a Cut tree, an opened door or gate) resolves the map again.
 
 Walking out of the middle of the window rebuilds it around you: the map is
 resolved once and only the geometry emitted again, with a margin of a third of
@@ -166,7 +167,9 @@ The whole picture is grey while the intro runs, which is the cartridge writing i
 own grey over every background palette. Here it is both a pass over the diorama
 and the palette the battlers are drawn in, since greying only the world left two
 colour figures in a black and white one. An Unown is drawn as the letter it
-actually is, and a Pokemon behind a substitute is the cartridge's own doll.
+actually is, a Pokemon behind a substitute is the cartridge's own doll, a
+minimized one is its dot, and Pokemon Tower's unidentified ghost is the GHOST
+picture.
 
 **The shot is solved, not chosen.** Each battler is pinned to its patch of ground
 and drawn in hardware pixels at the size the cartridge drew it, so the camera
@@ -195,7 +198,9 @@ different period so they never sync. It rides the arm from what the lens is aime
 at, so the battlers stay in the middle of the frame and only the background moves.
 
 **Two layers.** The map is geometry at window resolution; the panels, bars and
-text box stay hardware pixels at whole-number scale. Each panel gets a light
+text box stay hardware pixels at whole-number scale. The panels are the host's
+own `Gen2BattleHud`, with the caught ball, the status and the gender sign it
+prints beside the level. Each panel gets a light
 translucent backing, since the cartridge draws black glyphs straight onto white
 and over a route they would be black on grass. What is behind it is blurred as
 well as tinted, because a dithered path shows every texel through the writing and

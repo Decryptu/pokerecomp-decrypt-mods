@@ -20,7 +20,8 @@ func _initialize() -> void:
 			+ " [facing 0-3] [time 0-3] [player species] [enemy species]"
 			+ " [hold frames] [hp 0-1] [anim index] [anim frame]"
 			+ " [enemy turn 0-1] [background half 0-1] [moment]"
-			+ " [doll none|enemy|player|both] [unown form 1-26]")
+			+ " [doll none|enemy|player|both] [unown form 1-26]"
+			+ " [shiny none|enemy|player|both] [marks none|hud] [square species|ghost|minimize]")
 		quit(1)
 		return
 	var data: GameData = GameData.open_argument(args[0])
@@ -90,6 +91,13 @@ func _initialize() -> void:
 	_view["enemy_shiny"] = shiny == "enemy" or shiny == "both"
 	_view["player_shiny"] = shiny == "player" or shiny == "both"
 
+	if (args[20] if args.size() > 20 else "none") == "hud":
+		_mark_huds()
+	var square: String = args[21] if args.size() > 21 else "species"
+	_view["enemy_special_pic"] = "ghost" if square == "ghost" else ""
+	_view["enemy_minimized"] = square == "minimize"
+	_view["player_minimized"] = square == "minimize"
+
 	var form: int = clampi(int(args[18]) if args.size() > 18 else 0, 0, 26)
 	if form > 0:
 		_view["enemy_species"] = Gen2Layout.UNOWN_SPECIES
@@ -128,6 +136,15 @@ func _initialize() -> void:
 		)
 
 const PLAYER_BACKPIC: String = "chris"
+
+
+## Every mark a battle panel prints beside the level: the caught ball, a status
+## on the enemy, and a gender sign on each side.
+func _mark_huds() -> void:
+	_view["enemy_caught"] = true
+	_view["enemy_status"] = Gen2Status.PARALYSIS
+	_view["enemy_gender"] = Gen2BattleMon.GENDER_FEMALE
+	_view["player_gender"] = Gen2BattleMon.GENDER_MALE
 const INTRO_MOMENTS: PackedStringArray = ["slide", "stand", "sent", "walkoff"]
 const TRAINER_CLASS: int = 1
 

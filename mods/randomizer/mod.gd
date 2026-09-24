@@ -50,14 +50,8 @@ func save_deactivated() -> void:
 
 
 func _apply(settings: Dictionary) -> void:
-	if _world.is_empty():
-		var game: StringName = _host.target_game()
-		if String(game).is_empty():
-			return
-		_data = GameData.open(game)
-		if _data == null:
-			return
-		_world = Plan.gather(_data)
+	if not _gathered_for(_host.target_game()):
+		return
 	var validate := func(candidate: Dictionary) -> Dictionary:
 		return _host.validate_placement(_data, candidate)
 	var patches: Dictionary = Plan.build(_world, settings, validate)
@@ -75,6 +69,18 @@ func _apply(settings: Dictionary) -> void:
 		Gen2ContentOverlay.KIND_CHECK,
 	]:
 		_apply_entries(kind, patches[kind], _patch_table)
+
+
+## The cartridge's own tables, read once per cartridge: a plan built from another
+## game's rows would patch this one with that game's numbers.
+func _gathered_for(game: StringName) -> bool:
+	if String(game).is_empty():
+		return false
+	if _data != null and _data.id == game and not _world.is_empty():
+		return true
+	_data = GameData.open(game)
+	_world = Plan.gather(_data) if _data != null else {}
+	return not _world.is_empty()
 
 
 func _apply_entries(kind: StringName, entries: Array, patch: Callable) -> void:

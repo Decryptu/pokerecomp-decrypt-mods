@@ -328,7 +328,10 @@ func _side_pic(side: Dictionary, back: bool) -> Texture2D:
 		KIND_TRAINER:
 			if back:
 				return _backpic(String(side.get("backpic", "")))
-			return _trainer_pic(int(side.get("trainer_class", 0)))
+			var trainer_class: int = int(side.get("trainer_class", 0))
+			if trainer_class == Gen2BattleScreen.LINK_OPPONENT_PIC:
+				return _link_opponent_pic()
+			return _trainer_pic(trainer_class)
 	return null
 
 
@@ -404,30 +407,63 @@ func _pic(species: int, back: bool) -> Texture2D:
 	)
 
 
+## What stands on a Pokemon's square, in the order the host's renderer picks it:
+## Generation 1's GHOST, the substitute's doll, Minimize's dot, the species.
 func _battler_pic(back: bool) -> Texture2D:
-	var species: int = int(_view.get("player_species" if back else "enemy_species", 0))
-	if bool(_view.get("player_substitute" if back else "enemy_substitute", false)):
+	var side: String = "player_" if back else "enemy_"
+	var species: int = int(_view.get(side + "species", 0))
+	var special: String = "" if back else String(_view.get("enemy_special_pic", ""))
+	if not special.is_empty():
+		return _special_pic(special)
+	if bool(_view.get(side + "substitute", false)):
 		return _substitute_pic(species, back)
+	if bool(_view.get(side + "minimized", false)):
+		return _minimize_pic(back)
 	return _pic(species, back)
 
 
+func _special_pic(special: String) -> Texture2D:
+	var palette: PackedColorArray = _colors.pic_palette(false)
+	return _texture("s%s:%s" % [special, str(palette)], _data.gen1_special_pic(special), palette)
+
+
+func _link_opponent_pic() -> Texture2D:
+	var palette: PackedColorArray = _colors.pic_palette(false)
+	return _texture("link:%s" % str(palette), _data.player_frontpic(), palette)
+
+
 func _substitute_pic(species: int, back: bool) -> Texture2D:
+	return _boxed_texture("sub:%d" % species, back, func() -> PackedByteArray:
+		return Gen2BattleRenderer.substitute_pixels(
+			_data.overworld_sprite_indices(SUBSTITUTE_SPRITE), back, _data.generation
+		)
+	)
+
+
+func _minimize_pic(back: bool) -> Texture2D:
+	return _boxed_texture("min", back, func() -> PackedByteArray:
+		return Gen2BattleRenderer.minimize_pixels(
+			_data.tile_indices("minimize"), back, _data.generation
+		)
+	)
+
+
+## A picture the host builds a whole square for, cached by [param name], the side
+## and the palette it wears.
+func _boxed_texture(name: String, back: bool, pixels: Callable) -> Texture2D:
 	if _data == null:
 		return null
 	var palette: PackedColorArray = _colors.pic_palette(back)
-	var key: String = "sub:%d:%d:%s" % [species, int(back), str(palette)]
+	var key: String = "%s:%d:%s" % [name, int(back), str(palette)]
 	if _pic_textures.has(key):
 		return _pic_textures[key]
-
 	var side: int = Gen2BattleScreenMap.player_box_side(_data.generation) if back \
 		else Gen2BattleScreenMap.ENEMY_SIDE
-	var box: int = side * SUBSTITUTE_TILE
-	var pixels: PackedByteArray = Gen2BattleRenderer.substitute_pixels(
-		_data.overworld_sprite_indices(SUBSTITUTE_SPRITE), back, _data.generation
-	)
-	if pixels.size() < box * box:
+	var box: int = side * TILE
+	var drawn: PackedByteArray = pixels.call()
+	if drawn.size() < box * box:
 		return null
-	var image: Image = _image(pixels, box, box, palette)
+	var image: Image = _image(drawn, box, box, palette)
 	if image == null:
 		return null
 	var texture: Texture2D = ImageTexture.create_from_image(image)
@@ -435,7 +471,6 @@ func _substitute_pic(species: int, back: bool) -> Texture2D:
 	return texture
 
 const SUBSTITUTE_SPRITE: int = 0x4C
-const SUBSTITUTE_TILE: int = 8
 
 
 func _trainer_pic(trainer_class: int) -> Texture2D:
@@ -550,7 +585,9 @@ func _draw_hud() -> void:
 		var panel: PackedByteArray = _buffer()
 		_hud.draw_enemy(
 			panel, Gen2Screen.WIDTH, String(_view.get("enemy_name", "")),
-			int(_view.get("enemy_level", 0))
+			int(_view.get("enemy_level", 0)), bool(_view.get("enemy_caught", false)),
+			int(_view.get("enemy_status", Gen2Status.NONE)),
+			StringName(_view.get("enemy_gender", &""))
 		)
 		_show(HUD_ENEMY_PANEL, panel, ink)
 		var enemy_bar: PackedByteArray = _buffer()
@@ -566,7 +603,9 @@ func _draw_hud() -> void:
 		var panel: PackedByteArray = _buffer()
 		_hud.draw_player(
 			panel, Gen2Screen.WIDTH, String(_view.get("player_name", "")),
-			int(_view.get("player_level", 0)), player_hp, player_max_hp
+			int(_view.get("player_level", 0)), player_hp, player_max_hp,
+			int(_view.get("player_status", Gen2Status.NONE)),
+			StringName(_view.get("player_gender", &""))
 		)
 		_show(HUD_PLAYER_PANEL, panel, ink)
 		var player_bar: PackedByteArray = _buffer()
