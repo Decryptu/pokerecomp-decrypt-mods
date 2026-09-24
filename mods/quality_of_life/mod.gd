@@ -28,7 +28,7 @@ func register(host: Gen2ModHost, manifest: PokeModManifest) -> void:
 	host.register_battle_info(manifest.id, BattleInfo.new(host))
 	host.register_menu_entry(Gen2ModHost.MENU_START, manifest.id, {
 		"label": "PC",
-		"action": Gen2ModHost.START_ACTION_OPEN_BILLS_PC,
+		"action": Gen2ModHost.START_ACTION_OPEN_PC,
 		"visible": func(_context: Dictionary) -> bool:
 			return Options.enabled(host, Options.PC_ACCESS),
 	})

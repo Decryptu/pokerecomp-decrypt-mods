@@ -9,7 +9,7 @@ Every feature has its own setting, and nothing is on until you turn it on.
   knows Cut, Fly, Surf, Strength, Flash, Whirlpool or Waterfall.
 - `AUTO REPEL` offers the weakest Repel in the pack when the active one runs out.
 - `CATCH EXP` gives normal wild-battle experience after a successful catch.
-- `PC ACCESS` puts Bill's PC in the start menu once you have a Pokemon.
+- `PC ACCESS` puts the Pokemon Center's PC in the start menu.
 - `RUN SHOES` walks you at bike speed while B is held.
 - `MOVE GUIDE` marks super-effective, resisted and ineffective moves once you
   have seen the opponent.
@@ -56,10 +56,10 @@ is the cartridge's own hidden EV gain rather than a rate.
 The move guide uses the spare cell at the right of each move row. Stat stages use
 the empty lower-left command panel for the player and the space above the enemy
 picture for the opponent, and they hide while the move list's type box needs that
-panel. Red, Blue and Yellow stage one SPECIAL, shown as `SPC`. The player's panel holds five rows, so with more stat changes than that
-active at once the last of them are not drawn. Enemy stages and weather get the
-same light background as the battle's name cards so they stay readable over a 3D
-arena.
+panel. Red, Blue and Yellow stage one SPECIAL, shown as `SPC`. The player's panel
+holds five rows, so with more stat changes than that active at once the last of
+them are not drawn. Enemy stages and weather get the same light background as
+the battle's name cards so they stay readable over a 3D arena.
 
 ## What it does not change
 
@@ -69,9 +69,13 @@ until `MULTI EXP` is turned on, which is off by default.
 
 Field moves still require the badge and the HM; on Red, Blue and Yellow that is
 Cut, Fly, Surf, Strength and Flash, the five the cartridge has HMs for. The PC
-row is hidden until you have your first Pokemon, and opens the cartridge's own
-storage on either generation. Battle hints use the current battle state and what the
-Pokedex already knows, and never reveal an unseen opponent.
+row opens the machine a Pokemon Center's PC opens, with the rows the cartridge
+lists at that point in the story: BILL'S PC, your own PC for items (and mail on
+Gold, Silver and Crystal), PROF.OAK'S PC and the Hall of Fame. On Gold, Silver
+and Crystal the row is hidden until you have your first Pokemon, since that
+machine refuses to boot without one. Red, Blue and Yellow's machine refuses
+nothing, so the row is always there. Battle hints use the current battle state
+and what the Pokedex already knows, and never reveal an unseen opponent.
 
 ## Tools
 
@@ -92,6 +96,5 @@ PC storage and the share a bystander is paid all run through the game's existing
 paths. The battle provider gets
 read-only state and returns only text and 8x8 tiles on the cartridge grid, plus a
 host-owned background where black text would otherwise be unreadable. The Repel
-provider is handed the cartridge's own Repel table, so the mod names no item. On
-Red, Blue and Yellow it needs `api_version` 35, the first host with an HM in the
-bag as a field-move source, Exp. All and the cartridge's own PC there.
+provider is handed the cartridge's own Repel table, so the mod names no item. It
+needs `api_version` 42, the first host whose start menu opens the whole PC.
