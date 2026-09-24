@@ -501,7 +501,8 @@ func _draw_hud() -> void:
 	var balls: Array = _view.get("trainer_hud_balls", []) as Array
 	_layer(HUD_TRAINER_BALLS, up and not balls.is_empty(), [balls],
 		_colors.object_palette(Gen2BattleAnimBackground.PAL_OB_YELLOW),
-		func(into: PackedByteArray) -> void: _draw_balls(into, balls))
+		func(into: PackedByteArray) -> void:
+			_hud.draw_party_balls(into, Gen2Screen.WIDTH, balls))
 
 
 func _draw_hp_layer(index: int, shown: bool, side: String, bar: Vector2i) -> void:
@@ -526,38 +527,6 @@ func _layer(
 	var into: PackedByteArray = _buffer()
 	paint.call(into)
 	_show(index, into, palette)
-
-
-## `LoadTrainerHudOAM`'s balls, out of the sheet each generation keeps them in.
-func _draw_balls(into: PackedByteArray, balls: Array) -> void:
-	var sheet_name: String = "battle_balls" if _hud.gen1 else "ball_icons"
-	var sheet: PackedByteArray = _data.tile_indices(sheet_name)
-	@warning_ignore("integer_division")
-	var width: int = int(_data.tile_sheet(sheet_name).get("width", sheet.size() / TILE))
-	if width <= 0:
-		return
-	for entry: Variant in balls:
-		if entry is Dictionary:
-			_blit_ball(into, entry, sheet, width)
-
-
-func _blit_ball(
-	into: PackedByteArray, ball: Dictionary, sheet: PackedByteArray, width: int
-) -> void:
-	var tile: int = int(ball.get("tile", 0))
-	var left: int = int(ball.get("x", 0))
-	var top: int = int(ball.get("y", 0))
-	for row: int in TILE:
-		var y: int = top + row
-		if y < 0 or y >= Gen2Screen.HEIGHT:
-			continue
-		var from: int = row * width + tile * TILE
-		var to: int = y * Gen2Screen.WIDTH + left
-		for column: int in TILE:
-			var x: int = left + column
-			if x < 0 or x >= Gen2Screen.WIDTH or from + column >= sheet.size():
-				continue
-			into[to + column] = sheet[from + column]
 
 
 func _draw_anim() -> void:

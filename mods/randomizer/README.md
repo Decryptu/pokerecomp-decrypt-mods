@@ -20,10 +20,7 @@ depend on dictionary ordering, the clock, the system's randomness, or the order
 settings were changed in. Randomness comes from one written-down generator in
 `rng.gd` rather than the engine's. Each decision opens its own stream, keyed by
 what is being decided and which row it is for, so turning one setting off does
-not move what another produced. Items, badges and shops are the exception: they
-are drawn together as the first candidate the host's progression proof accepts,
-so turning one of the three off, or a host whose proof answers differently, can
-move the other two.
+not move what another produced.
 
 A seed does not carry the cartridge. Each of the six games has its own tables,
 so seed `1234` is six different runs.
@@ -31,11 +28,13 @@ so seed `1234` is six different runs.
 ## A run belongs to its save
 
 The launcher settings describe the next new run. When a save is created, the
-seed, every toggle and an algorithm version are written into that save's own mod
-namespace. Loading it rebuilds the run from those inputs before gameplay reads
-the cartridge. Changing a setting cannot reroll a save already in progress, two
-slots cannot leak into each other, and an older save with no snapshot stays
-vanilla.
+seed, every toggle, an algorithm version and the resolved item and badge
+placement are written into that save's own mod namespace, under 9 KB on every
+cartridge. Loading it rebuilds the run from those before gameplay reads the
+cartridge. Changing a setting cannot reroll a save already in progress, a later
+host whose reachability answers differently cannot move its items or badges, and
+two slots cannot leak into each other. A save with no snapshot, or one made by an
+earlier algorithm version, stays vanilla.
 
 A development run has no save file, so it uses the current settings for that
 session.
@@ -119,17 +118,36 @@ rival's pick still follows the table. Yellow's one starter is its Pikachu.
 **Trades** redraw both sides in the same strength bands, on the trade site the
 host owns, so a second script naming the same trade is not changed by accident.
 
-**Item rewards** are shuffled with their quantities, so the cartridge's whole item
-budget is preserved. **Badges** are shuffled by reward group. **Shops** get one
-cartridge-wide remapping of item ids, keeping shelf sizes and prices.
+**Item rewards** move with their quantities, so the cartridge's whole item budget
+is preserved. **Badges** move by reward group: the sites that gave one badge
+give one other. **Shops** get one cartridge-wide remapping of item ids, keeping
+shelf sizes and prices. Shops gate nothing and take no part in the placement.
 
-Every candidate item and badge placement is checked by the host's progression
-proof before use, up to 1024 candidates. From API 43 the proof includes the
-story's gates, such as OAK'S PARCEL before the Pokedex, and the cell each item
-lies on; an older host proves only its map-level model. Few candidates pass, so
-the search can take from a few seconds to about forty when a save is activated.
-If none passes, which happens on a few seeds of each cartridge, items, badges and
-shops all stay vanilla rather than shipping a placement the host rejected.
+Items and badges are placed by assumed fill over the host's reachability. The
+badges, and the items the story reads or a field move needs, are placed one at
+a time, those with the fewest possible sites first and the seed's order
+otherwise. Each goes to a random empty site the host reaches with every reward
+still waiting in hand and every empty site handing nothing. The other items are
+then dealt into the sites left. The host's reachability covers the story's
+gates, such as OAK'S PARCEL before the Pokedex, and the cell each item lies on,
+so a placement built this way finishes by construction. The host's
+`validate_placement` checks it once more, and a rejection is logged as a warning.
+
+Badges are filled around the cartridge's own items, and items around both the
+cartridge's badges and the filled ones, so ITEMS and BADGES finish in every
+combination and turning one off moves nothing the other placed. A fill can spend
+the one site a later reward needed, and then starts over with new choices. About
+two badge attempts in three do on Gold, Silver and Crystal, and no fill of the
+first ten seeds on Red, Blue and Yellow. A category still unplaced after 64
+attempts, far rarer than one seed in a billion, stays vanilla with a warning.
+
+Creating a save runs the fill once: about one second on Red, Blue and Yellow and
+three to seven on Gold, Silver and Crystal. The host's model errs
+toward passing, so a placement proves there is no lock the model can see, not
+that every story state is beatable. Oak's aides on Red, Blue and Yellow are item
+sites that wait on their Pokedex count, so HM05, the ITEMFINDER and the EXP.ALL
+move with the rest. No item site hands the POKé DOLL, which is only sold, so
+the fill never moves it.
 
 ## What it deliberately leaves alone
 
@@ -149,26 +167,32 @@ Godot --headless --path <pokerecomp> -s tools/randomizer_probe.gd -- \
 	"user://rom_cache/<cache>"
 ```
 
-It exits non-zero on failure. `tools/randomizer_lifecycle_probe.gd <cache>`
-separately proves, through the real host, that saved settings reproduce the same
-run and that installation settings cannot reroll it. `tools/randomizer_shot.gd
-<game> <out.png> <seed> [page]` photographs one party member's stats page under
-a seed, or vanilla for a seed below zero, and `tools/randomizer_shop_shot.gd
-<game> <out.png> <seed>` a shop's shelf through its counter, so a run can be
-seen as well as counted.
+It then turns ITEMS, BADGES and SHOPS off one at a time to show the other two
+unmoved, and places seeds 0 to 9 at the defaults, timing each and asking the
+host to accept it. It exits non-zero on failure.
 
-On Red, Blue and Yellow the mod needs `api_version` 37, the first host that
-catalogues Kanto's sites, proves a placement over its map graph and offers the
-Old and Good Rod as fishing groups.
+`tools/randomizer_lifecycle_probe.gd <cache>` separately proves, through the
+real host, that a save reproduces its run, plays the placement it stored rather
+than a fresh fill, and stays vanilla with no snapshot or an earlier algorithm.
+`tools/randomizer_shot.gd <game> <out.png> <seed> [page]` photographs one party
+member's stats page under a seed, or vanilla for a seed below zero, and
+`tools/randomizer_shop_shot.gd <game> <out.png> <seed>` a shop's shelf through
+its counter, so a run can be seen as well as counted.
+
+The mod needs `api_version` 44, the first host that answers
+`reachable_checks`, lists `progression_items()` and takes `{"item": 0}` and
+`{"badge": -1}` as a site that hands nothing.
 
 ## Layout
 
 ```
-mod.gd       snapshots each run and carries its saved plan to the host
-options.gd   the settings, named once, registered and read back here
-plan.gd      cartridge plus seed -> the patches, as one pure function
-rng.gd       the written-down generator, and the streams drawn off a seed
+mod.gd        snapshots each run and its placement, and carries them to the host
+options.gd    the settings, named once, registered and read back here
+placement.gd  assumed fill of items and badges, shop remapping, the saved form
+plan.gd       cartridge, seed and placement -> the patches, one pure function
+rng.gd        the written-down generator, and the streams drawn off a seed
 ```
 
-`plan.gd` touches no host and no node, which lets the probe build the same plan
-the game does.
+`plan.gd` and `placement.gd` touch no host and no node, the fill asking
+reachability through a callable, which lets the probe build the same plan the
+game does.

@@ -1,8 +1,8 @@
 {
   "id": "randomizer",
   "name": "Randomizer",
-  "version": "0.5.2",
-  "api_version": 37,
+  "version": "0.6.0",
+  "api_version": 44,
   "entry": "mod.gd",
   "games": [
     "red",
@@ -12,5 +12,5 @@
     "silver",
     "crystal"
   ],
-  "description": "Randomizes a playthrough from a four-digit seed: wild Pokemon, gifts, starters, trades, items, badges, shops, stats, types, movesets and trainer teams. The seed is saved with the game, and the mod checks that key items and badges stay reachable."
+  "description": "Randomizes a playthrough from a four-digit seed: wild Pokemon, gifts, starters, trades, items, badges, shops, stats, types, movesets, evolutions, moves and trainer teams. Key items and badges are placed where the run can still reach them, and the seed and that placement are saved with the game."
 }

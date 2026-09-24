@@ -72,6 +72,13 @@ func apply_options(host: Gen2ModHost, id: StringName, spec: String) -> void:
 	_restore_id = id
 
 
+## [param spec] as in [method apply_options], held only while the host creates [param save].
+func create_save(host: Gen2ModHost, id: StringName, spec: String, save: Gen2SaveData) -> void:
+	apply_options(host, id, spec)
+	host.created_save(save)
+	restore()
+
+
 func restore() -> void:
 	if _restore.is_empty():
 		return

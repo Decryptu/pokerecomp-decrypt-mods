@@ -180,6 +180,13 @@ func set_layer_visible(layer: StringName, shown: bool) -> bool:
 	return true
 
 
+## The earthquake's and Generation 1's elevator hSCY: the ground moves by
+## [param pixels], positive south and east, and no sprite does.
+func set_ground_offset(pixels: Vector2) -> void:
+	for layer: StringName in MESH_LAYERS:
+		(_roots[layer] as Node3D).position = Vector3(pixels.x, 0.0, pixels.y)
+
+
 func set_wind_still(still: bool) -> void:
 	_wind.set_still(still)
 
@@ -431,22 +438,16 @@ func begin_cards() -> void:
 func add_standing_card(
 	texture: Texture2D, ground: Vector3, pixel_size: float = 1.0
 ) -> Sprite3D:
-	var card: Sprite3D = _card()
-	card.texture = texture
-	card.pixel_size = pixel_size
-	card.position = ground + Vector3(0.0, texture.get_height() * pixel_size * 0.5, 0.0)
-	card.visible = true
-	return card
+	return add_card(texture, ground, _bottom_centre(texture), pixel_size)
 
 
-func add_centred_card(
-	texture: Texture2D, centre: Vector3, pixel_size: float = 1.0
+## A card whose [param anchor] pixel, counted from its top-left, stands on
+## [param ground].
+func add_card(
+	texture: Texture2D, ground: Vector3, anchor: Vector2, pixel_size: float = 1.0
 ) -> Sprite3D:
 	var card: Sprite3D = _card()
-	card.texture = texture
-	card.pixel_size = pixel_size
-	card.position = centre
-	card.visible = true
+	_stand(card, texture, ground, anchor, pixel_size)
 	return card
 
 
@@ -455,13 +456,30 @@ func end_cards() -> void:
 		_cards[index].visible = false
 
 
-func add_shadow_caster(texture: Texture2D, ground: Vector3, pixel_size: float) -> void:
+func add_shadow_caster(
+	texture: Texture2D, ground: Vector3, pixel_size: float, anchor: Vector2 = Vector2.INF
+) -> void:
 	var caster: Sprite3D = _caster()
-	caster.texture = texture
-	caster.pixel_size = pixel_size
-	caster.position = ground + Vector3(0.0, texture.get_height() * pixel_size * 0.5, 0.0)
+	_stand(caster, texture, ground, _bottom_centre(texture) if anchor == Vector2.INF else anchor,
+		pixel_size)
 	caster.rotation.y = _sun_bearing()
-	caster.visible = true
+
+
+## A sprite's origin is its texture's bottom-left, with y up, so the anchor
+## counted from the top-left is lifted by the rows under it.
+static func _stand(
+	sprite: Sprite3D, texture: Texture2D, ground: Vector3, anchor: Vector2, pixel_size: float
+) -> void:
+	sprite.texture = texture
+	sprite.pixel_size = pixel_size
+	sprite.centered = false
+	sprite.offset = Vector2(-anchor.x, anchor.y - float(texture.get_height()))
+	sprite.position = ground
+	sprite.visible = true
+
+
+static func _bottom_centre(texture: Texture2D) -> Vector2:
+	return Vector2(float(texture.get_width()) * 0.5, float(texture.get_height()))
 
 
 func begin_shadow_casters() -> void:

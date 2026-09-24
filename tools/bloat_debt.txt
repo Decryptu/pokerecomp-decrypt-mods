@@ -1,8 +1,6 @@
 mods/follower/party.gd:member
 mods/randomizer/plan.gd:_families
-mods/randomizer/plan.gd:_placement_candidate
 mods/randomizer/plan.gd:_randomize_learnsets
-mods/randomizer/plan.gd:_randomize_placement
 mods/randomizer/plan.gd:build
 mods/voxel3d/battle/arena.gd:_find_ground
 mods/voxel3d/shape/atlas.gd:build
@@ -61,8 +59,6 @@ mods/voxel3d/shape/model.gd:impostor
 mods/voxel3d/world/far_field.gd:advance
 mods/voxel3d/world/far_foliage.gd:_border_ring
 mods/voxel3d/world/far_houses.gd:_box
-mods/voxel3d/world/renderer.gd:_add_encounter_pulse
-mods/voxel3d/world/renderer.gd:_emote_texture
 tools/achievements_probe.gd:_initialize
 tools/achievements_probe.gd:_once
 tools/achievements_shot.gd:_initialize
@@ -109,7 +105,6 @@ tools/model_shot.gd:_initialize
 tools/mods_menu_shot.gd:_capture
 tools/overworld_encounters_shot.gd:_initialize
 tools/overworld_encounters_shot.gd:_process
-tools/randomizer_lifecycle_probe.gd:_initialize
 tools/randomizer_probe.gd:_placement_is_permutation
 tools/randomizer_probe.gd:_rules
 tools/randomizer_probe.gd:_same_shape

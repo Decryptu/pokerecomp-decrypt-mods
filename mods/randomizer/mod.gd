@@ -1,10 +1,12 @@
 extends RefCounted
 
 const Options := preload("options.gd")
+const Placement := preload("placement.gd")
 const Plan := preload("plan.gd")
-const ALGORITHM_VERSION: int = 2
+const ALGORITHM_VERSION: int = 3
 const SAVE_ALGORITHM: String = "algorithm"
 const SAVE_SETTINGS: String = "settings"
+const SAVE_PLACEMENT: String = "placement"
 
 const NUMBERED_KINDS: Array[StringName] = [
 	Gen2ContentOverlay.KIND_SPECIES,
@@ -27,34 +29,60 @@ func register(host: Gen2ModHost, manifest: PokeModManifest) -> void:
 	host.register_save_lifecycle(manifest, self)
 
 
+## The item and badge placement is resolved here and saved beside the settings,
+## so a later host whose proof answers differently cannot move a run in progress.
 func save_created(save: Gen2SaveData) -> void:
+	var settings: Dictionary = Options.settings(_host)
+	if not _gathered_for(_host.target_game()):
+		return
 	_host.write_save_data(_manifest, save, {
 		SAVE_ALGORITHM: ALGORITHM_VERSION,
-		SAVE_SETTINGS: Options.settings(_host),
+		SAVE_SETTINGS: settings,
+		SAVE_PLACEMENT: Placement.packed(_resolved(settings)),
 	})
 
 
 func save_activated(save: Gen2SaveData) -> void:
 	if save == null:
-		_apply(Options.settings(_host))
+		var settings: Dictionary = Options.settings(_host)
+		if _gathered_for(_host.target_game()):
+			_apply(settings, _resolved(settings))
 		return
 	var snapshot: Dictionary = _host.read_save_data(_manifest, save)
 	if int(snapshot.get(SAVE_ALGORITHM, -1)) != ALGORITHM_VERSION \
-		or not snapshot.get(SAVE_SETTINGS, null) is Dictionary:
+		or not snapshot.get(SAVE_SETTINGS, null) is Dictionary \
+		or not snapshot.get(SAVE_PLACEMENT, null) is Dictionary \
+		or not _gathered_for(_host.target_game()):
 		return
-	_apply(snapshot[SAVE_SETTINGS])
+	_apply(snapshot[SAVE_SETTINGS], Placement.unpacked(snapshot[SAVE_PLACEMENT]))
 
 
 func save_deactivated() -> void:
 	pass
 
 
-func _apply(settings: Dictionary) -> void:
-	if not _gathered_for(_host.target_game()):
-		return
-	var validate := func(candidate: Dictionary) -> Dictionary:
-		return _host.validate_placement(_data, candidate)
-	var patches: Dictionary = Plan.build(_world, settings, validate)
+## The fill answers a placement that finishes by construction; the host's proof
+## is the assertion, and a fill that ran out of sites or a placement the proof
+## rejects is said rather than hidden.
+func _resolved(settings: Dictionary) -> Dictionary:
+	var reach := func(patches: Dictionary, held: Dictionary) -> Array:
+		return _host.reachable_checks(_data, patches, held)["reached"]
+	var resolved: Dictionary = Placement.resolve(_world, settings, reach)
+	var seed_text: String = Options.seed_text(int(settings.get("seed", 0)))
+	for category: String in resolved["unplaced"]:
+		push_warning("Randomizer seed %s: no %s fill finished on %s, so they stay vanilla" % [
+			seed_text, category, String(_data.id),
+		])
+	var verdict: Dictionary = _host.validate_placement(_data, resolved["checks"])
+	if not bool(verdict.get("ok", false)):
+		push_warning("Randomizer seed %s: the host rejects the placement on %s: %s" % [
+			seed_text, String(_data.id), str(verdict.get("missing", verdict)),
+		])
+	return resolved["checks"]
+
+
+func _apply(settings: Dictionary, placement: Dictionary) -> void:
+	var patches: Dictionary = Plan.build(_world, settings, placement)
 	for kind: StringName in NUMBERED_KINDS:
 		_apply_entries(kind, patches[kind], _patch_numbered)
 	_apply_entries(Gen2ContentOverlay.KIND_ENCOUNTER,
