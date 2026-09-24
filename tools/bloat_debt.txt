@@ -106,7 +106,6 @@ tools/maps.gd:_initialize
 tools/mask_print.gd:_initialize
 tools/mesh_cache_probe.gd:_initialize
 tools/mod_fixes_probe.gd:_ledge_corner
-tools/mod_fixes_probe.gd:_population
 tools/model_shot.gd:_initialize
 tools/mods_menu_shot.gd:_capture
 tools/overworld_encounters_shot.gd:_initialize

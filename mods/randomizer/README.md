@@ -146,7 +146,7 @@ Godot --headless --path <pokerecomp> -s tools/randomizer_probe.gd -- \
 	"user://rom_cache/<cache>"
 ```
 
-It exits non-zero on failure. `tools/randomizer_lifecycle_probe.gd <game>`
+It exits non-zero on failure. `tools/randomizer_lifecycle_probe.gd <cache>`
 separately proves, through the real host, that saved settings reproduce the same
 run and that installation settings cannot reroll it. `tools/randomizer_shot.gd
 <game> <out.png> <seed> [page]` photographs one party member's stats page under

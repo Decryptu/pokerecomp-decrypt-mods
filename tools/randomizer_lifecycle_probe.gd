@@ -9,7 +9,7 @@ const DEFAULT_GAME: StringName = &"crystal"
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	Gen2ModHost.reset()
-	var data: GameData = GameData.open(StringName(args[0]) if args.size() > 0 else DEFAULT_GAME)
+	var data: GameData = GameData.open_argument(args[0] if args.size() > 0 else String(DEFAULT_GAME))
 	if data == null:
 		print("no cache for %s" % (args[0] if args.size() > 0 else String(DEFAULT_GAME)))
 		quit(1)

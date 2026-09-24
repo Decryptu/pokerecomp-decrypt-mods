@@ -1,7 +1,7 @@
 {
   "id": "randomizer",
   "name": "Randomizer",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "api_version": 37,
   "entry": "mod.gd",
   "games": [

@@ -26,13 +26,16 @@ func _initialize() -> void:
 func _ledge_corner(data: GameData) -> bool:
 	var repo: String = (get_script() as Script).resource_path.get_base_dir().get_base_dir()
 	var voxel: String = repo.path_join("mods/voxel3d")
+	if data.generation == RomRegistry.GEN1:
+		print("ledge corner: Route 29 is a Generation 2 map, skipped")
+		return true
 	var map: Gen2WorldMap = data.world_map(24, 3)
 	if map == null:
 		print("ledge map 24,3 missing")
 		return false
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 	var shape: RefCounted = (load(voxel.path_join("shape/tile_shape.gd")) as GDScript).new(
-		(load(voxel.path_join("shape/profiles.gd")) as GDScript).of(data), map.tileset
+		(load(voxel.path_join("shape/profiles.gd")) as GDScript).of(data), tileset.name
 	)
 	var source: RefCounted = (load(voxel.path_join("shape/map_source.gd")) as GDScript).new(
 		null, map, tileset, data
@@ -111,49 +114,40 @@ func _population(data: GameData, first_seed: int, second_seed: int) -> bool:
 	context["run_seed"] = first_seed
 	var provider: RefCounted = provider_script.new()
 	provider.set_context(context)
-	var start: String = JSON.stringify(_entry_cells(provider.encounters()))
-	for _frame: int in 95:
+	var paced: bool = _lead_walks_on_its_beat(provider, provider_script.MOVE_FRAMES)
+	print("the lead wild holds %d frames, asks one step and lands on it: %s" % [
+		provider_script.MOVE_FRAMES - 1, "yes" if paced else "NO",
+	])
+	return first == again and first != other and first_population.size() == 8 and paced
+
+
+## The first entry waits out a whole beat, asks the host for one step to an
+## adjacent cell, and stands on that cell the frame after.
+func _lead_walks_on_its_beat(provider: RefCounted, beat: int) -> bool:
+	var lead: Dictionary = provider.encounters()[0]
+	for _frame: int in beat - 1:
 		provider.advance_frame()
-	var held: String = JSON.stringify(_entry_cells(provider.encounters()))
+	var held: Dictionary = provider.encounters()[0]
 	provider.advance_frame()
-	var roamed: String = JSON.stringify(_entry_cells(provider.encounters()))
-	print("roamers hold for 95 frames and move on frame 96: %s" % (
-		"yes" if start == held and held != roamed else "NO"
-	))
-	return first == again and first != other and first_population.size() == 8 \
-		and start == held and held != roamed
+	var asked: Dictionary = provider.encounters()[0]
+	provider.advance_frame()
+	var landed: Dictionary = provider.encounters()[0]
+	var step: Vector2i = asked.get("step", Vector2i.ZERO)
+	return held["cell"] == lead["cell"] and not held.has("step") \
+		and Gen2WorldEncounters.STEP_DIRECTIONS.has(step) \
+		and landed["cell"] == Vector2i(lead["cell"]) + step
 
 
-func _entry_cells(entries: Array) -> Array[Vector2i]:
-	var out: Array[Vector2i] = []
-	for entry: Dictionary in entries:
-		out.append(Vector2i(entry["cell"]))
-	return out
-
-
+## The context the host hands a provider, read off a world opened on the map.
 func _encounter_context(data: GameData, map: Gen2WorldMap) -> Dictionary:
-	var row: Dictionary = data.world_encounter(&"grass", map.group, map.number)
-	var times: Array = row.get("slots", [])
-	var slots: Array = times[1] if times.size() > 1 else times[0]
-	var resolved: Array = []
-	for slot: Dictionary in slots:
-		var level: int = int(slot.get("level", 1))
-		resolved.append({
-			"species": int(slot.get("species", 0)),
-			"min_level": level,
-			"max_level": level,
-		})
-	var cells := PackedVector2Array()
-	for y: int in map.collision_height:
-		for x: int in map.collision_width:
-			var code: int = map.collision_at(x, y)
-			if Gen2WorldCollision.gates_encounter(code) \
-				and Gen2WorldCollision.permission_for(code) == Gen2WorldCollision.LAND_TILE:
-				cells.append(Vector2i(x, y))
+	var world: Gen2WorldAPI = Gen2WorldAPI.open(
+		data, map.group, map.number, Vector2i.ZERO, Gen2WorldState.new()
+	)
 	return {
-		"map": Vector2i(map.group, map.number),
+		"map": world.map_id(),
 		"generation": 1,
-		"eligible": {&"grass": cells},
-		"tables": {&"grass": {"source": &"grass", "slots": resolved}},
+		"eligible": world.visible_encounter_cells(),
+		"occupied": PackedVector2Array(),
+		"tables": world.active_encounter_tables(),
 		"player": {"cell": Vector2i(-1, -1), "facing": 0},
 	}
