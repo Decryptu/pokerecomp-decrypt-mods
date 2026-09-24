@@ -2,6 +2,13 @@ extends SceneTree
 
 const DEFAULT_SEED: int = 1234
 const OTHER_SEED: int = 5678
+const SWEEP_SEEDS: int = 10
+## Each category turned off, and the sites it must leave as they were.
+const INDEPENDENT: Array = [
+	["badges", [&"item", &"shop"]],
+	["items", [&"badge", &"shop"]],
+	["shops", [&"item", &"badge"]],
+]
 const FISHING_LISTS: Array[String] = ["rods", "slots"]
 const SPECIAL_TWINS: Array[String] = ["sp_attack", "sp_defense"]
 
@@ -23,7 +30,8 @@ func _initialize() -> void:
 	var plan: GDScript = load("%s/plan.gd" % mod)
 	var rng: GDScript = load("%s/rng.gd" % mod)
 	var options: GDScript = load("%s/options.gd" % mod)
-	if plan == null or rng == null or options == null:
+	var placement: GDScript = load("%s/placement.gd" % mod)
+	if plan == null or rng == null or options == null or placement == null:
 		print("no mod scripts under %s" % mod)
 		quit(1)
 		return
@@ -34,6 +42,30 @@ func _initialize() -> void:
 	settings["seed"] = seed_value
 
 	var world: Dictionary = plan.gather(data)
+	_census(data, world)
+
+	var host: Gen2ModHost = Gen2ModHost.instance()
+	var validate := func(candidate: Dictionary) -> Dictionary:
+		return host.validate_placement(data, candidate)
+	var reach := func(patches: Dictionary, held: Dictionary) -> Array:
+		return host.reachable_checks(data, patches, held)["reached"]
+	var resolve := func(chosen: Dictionary) -> Dictionary:
+		return placement.resolve(world, chosen, reach)
+	var built := func(chosen: Dictionary) -> Dictionary:
+		return plan.build(world, chosen, resolve.call(chosen)["checks"])
+	var first: Dictionary = built.call(settings)
+	var failures: int = _reproducible(first, built, settings, other_seed, rng, options)
+	_counts(first)
+	_samples(world, first, data)
+	_wild_sample(world, first, data)
+	failures += _rules(world, first, validate)
+	if not (world[&"check"] as Dictionary).is_empty():
+		failures += _independence(world, settings, built)
+		failures += _sweep(world, resolve, options.settings(null), validate)
+	quit(int(failures > 0))
+
+
+func _census(data: GameData, world: Dictionary) -> void:
 	print("cartridge  %s: %d species, %d moves, %d trainer classes, %d types, %d sites" % [
 		data.id, (world["species_numbers"] as Array).size(),
 		(world["move_numbers"] as Array).size(),
@@ -42,28 +74,90 @@ func _initialize() -> void:
 		(world[&"check"] as Dictionary).size(),
 	])
 
-	var host: Gen2ModHost = Gen2ModHost.instance()
-	var validate := func(candidate: Dictionary) -> Dictionary:
-		return host.validate_placement(data, candidate)
-	var first: Dictionary = plan.build(world, settings, validate)
-	var again: Dictionary = plan.build(world, settings, validate)
-	var elsewhere: Dictionary = plan.build(world, _with_seed(settings, other_seed), validate)
-	var first_digest: int = rng.text_hash(_canonical(first))
-	var again_digest: int = rng.text_hash(_canonical(again))
-	var other_digest: int = rng.text_hash(_canonical(elsewhere))
 
+## One seed built twice is one game, and another seed another.
+func _reproducible(
+	first: Dictionary, built: Callable, settings: Dictionary, other_seed: int,
+	rng: GDScript, options: GDScript
+) -> int:
+	var first_digest: int = rng.text_hash(_canonical(first))
+	var again_digest: int = rng.text_hash(_canonical(built.call(settings)))
+	var other_digest: int = rng.text_hash(
+		_canonical(built.call(_with_seed(settings, other_seed)))
+	)
 	print("seed %s     digest %08x, built twice %08x" % [
-		options.seed_text(seed_value), first_digest, again_digest,
+		options.seed_text(int(settings["seed"])), first_digest, again_digest,
 	])
 	print("seed %s     digest %08x" % [options.seed_text(other_seed), other_digest])
 	var failures: int = int(not _report("one seed twice is one game", first_digest == again_digest))
-	failures += int(not _report("two seeds are two games", first_digest != other_digest))
+	return failures + int(not _report("two seeds are two games", first_digest != other_digest))
 
-	_counts(first)
-	_samples(world, first, data)
-	_wild_sample(world, first, data)
-	failures += _rules(world, first, validate)
-	quit(int(failures > 0))
+
+## Turning one category off moves nothing the others produced.
+func _independence(world: Dictionary, settings: Dictionary, built: Callable) -> int:
+	var all: Dictionary = _by_number(built.call(settings)[&"check"])
+	var failures: int = 0
+	for case: Array in INDEPENDENT:
+		var off: Dictionary = settings.duplicate()
+		off[case[0]] = false
+		var without: Dictionary = _by_number(built.call(off)[&"check"])
+		var kept: bool = _same_sites(world, all, without, case[1])
+		failures += int(not _report("%s off leaves %s as they were" % [case[0], str(case[1])], kept))
+	return failures
+
+
+func _same_sites(world: Dictionary, first: Dictionary, second: Dictionary, kinds: Array) -> bool:
+	var rows: Dictionary = world[&"check"]
+	for id: int in rows:
+		if kinds.has(StringName((rows[id] as Dictionary)["kind"])) \
+				and str(first.get(id)) != str(second.get(id)):
+			return false
+	return true
+
+
+## Seeds 0 to 9 at the defaults, each placed, accepted by the host and moved off
+## vanilla, with how long each fill took.
+func _sweep(world: Dictionary, resolve: Callable, settings: Dictionary, validate: Callable) -> int:
+	var passed: Dictionary = {"accepted": true, "moved": true}
+	var spent: Array[int] = []
+	for seed_value: int in SWEEP_SEEDS:
+		settings["seed"] = seed_value
+		var start: int = Time.get_ticks_msec()
+		var resolved: Dictionary = resolve.call(settings)
+		spent.append(Time.get_ticks_msec() - start)
+		var verdict: Dictionary = validate.call(resolved["checks"])
+		var moved: Dictionary = _moved(world, resolved["checks"])
+		print("seed %04d  %6d ms, %3d item and %2d badge sites moved, %d restarts, %s" % [
+			seed_value, spent[-1], moved[&"item"], moved[&"badge"], int(resolved["restarts"]),
+			"accepted" if bool(verdict.get("ok", false)) else "REJECTED %s" % str(verdict),
+		])
+		passed["accepted"] = bool(passed["accepted"]) and bool(verdict.get("ok", false)) \
+			and (resolved["unplaced"] as Array).is_empty()
+		passed["moved"] = bool(passed["moved"]) and moved[&"item"] > 0 and moved[&"badge"] > 0
+	var total: int = 0
+	for ms: int in spent:
+		total += ms
+	print("sweep      %d seeds in %d ms, slowest %d ms" % [SWEEP_SEEDS, total, spent.max()])
+	return int(not _report("seeds 0 to 9 all place and the host accepts each", passed["accepted"])) \
+		+ int(not _report("seeds 0 to 9 all move items and badges", passed["moved"]))
+
+
+func _moved(world: Dictionary, checks: Dictionary) -> Dictionary:
+	var rows: Dictionary = world[&"check"]
+	var out: Dictionary = {&"item": 0, &"badge": 0}
+	for id: int in checks:
+		var row: Dictionary = rows[id]
+		var kind := StringName(row["kind"])
+		if out.has(kind) and not _same_fields(row, checks[id]):
+			out[kind] = int(out[kind]) + 1
+	return out
+
+
+func _same_fields(row: Dictionary, fields: Dictionary) -> bool:
+	for key: Variant in fields:
+		if int(row.get(key, -1)) != int(fields[key]):
+			return false
+	return true
 
 
 func _with_seed(settings: Dictionary, seed_value: int) -> Dictionary:

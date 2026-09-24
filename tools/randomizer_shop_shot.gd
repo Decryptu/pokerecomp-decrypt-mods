@@ -12,7 +12,6 @@ const WINDOW := Vector2i(640, 576)
 const BOX_PRESSES: int = 8
 const SETTLE_FRAMES: int = 6
 const SHUTTER_ON: int = 18
-const ALGORITHM: int = 2
 
 ## Pewter's mart on Kanto and Cherrygrove's on Johto, the cell across the
 ## counter from the clerk, and the way the clerk lies from it.
@@ -76,9 +75,10 @@ func _activate(data: GameData, seed_value: int) -> void:
 		return
 	var save: Gen2SaveData = Gen2SaveStore.create_development_save(data, 0)
 	var options: GDScript = load("user://mods/randomizer/options.gd")
-	var settings: Dictionary = options.settings(null)
-	settings["seed"] = seed_value
-	save.set_mod_data(MOD_ID, {"algorithm": ALGORITHM, "settings": settings})
+	var spec: PackedStringArray = ["seed:%d" % seed_value]
+	for key: StringName in options.TOGGLES:
+		spec.append("%s:1" % key)
+	Staging.new().create_save(Gen2ModHost.instance(), MOD_ID, ",".join(spec), save)
 	Gen2ModHost.instance().activate_save(save)
 
 

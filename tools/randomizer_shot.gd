@@ -16,7 +16,6 @@ const GEN2_TURN: int = PokeButton.RIGHT
 const DEFAULT_SPECIES: int = 4
 const DEFAULT_LEVEL: int = 10
 const CAPTURE_ON: int = 6
-const ALGORITHM: int = 2
 
 var _out: String = ""
 var _scale: int = 1
@@ -75,7 +74,7 @@ func _run(data: GameData, args: PackedStringArray) -> Gen2SaveData:
 		print("no development save for %s" % data.id)
 		return null
 	if seed_value >= 0:
-		save.set_mod_data(MOD_ID, {"algorithm": ALGORITHM, "settings": _settings(seed_value)})
+		Staging.new().create_save(Gen2ModHost.instance(), MOD_ID, _every_setting(seed_value), save)
 	Gen2ModHost.instance().activate_save(save)
 	var mon: Gen2SaveMon = _stage(data, species, level)
 	if mon == null:
@@ -85,11 +84,13 @@ func _run(data: GameData, args: PackedStringArray) -> Gen2SaveData:
 	return save
 
 
-func _settings(seed_value: int) -> Dictionary:
+## Every toggle on at [param seed_value], as `Staging.apply_options` reads it.
+func _every_setting(seed_value: int) -> String:
 	var options: GDScript = load("user://mods/randomizer/options.gd")
-	var out: Dictionary = options.settings(null)
-	out["seed"] = seed_value
-	return out
+	var spec: PackedStringArray = ["seed:%d" % seed_value]
+	for key: StringName in options.TOGGLES:
+		spec.append("%s:1" % key)
+	return ",".join(spec)
 
 
 func _stage(data: GameData, species: int, level: int) -> Gen2SaveMon:

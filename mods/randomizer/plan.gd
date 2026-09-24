@@ -1,6 +1,7 @@
 extends RefCounted
 
 const Rng := preload("rng.gd")
+const Placement := preload("placement.gd")
 
 const STAT_KEYS: Array[String] = [
 	"hp", "attack", "defense", "speed", "sp_attack", "sp_defense",
@@ -27,7 +28,6 @@ const SPECIAL_KINDS: Array[StringName] = [
 	Gen2WorldCatalog.KIND_STATIC,
 	Gen2WorldCatalog.KIND_PRIZE,
 ]
-const PLACEMENT_ATTEMPTS: int = 1024
 
 const EARLY_LEVEL: int = 5
 const EARLY_POWER_MIN: int = 1
@@ -37,8 +37,10 @@ const EARLY_ACCURACY_MIN: int = 204
 const TRAINER_WINDOW: int = 12
 
 
+## The run's patches. [param placement] is the item and badge placement
+## `Placement.resolve` answered, kept with the save that made it.
 static func build(
-	world: Dictionary, settings: Dictionary, validator: Callable = Callable()
+	world: Dictionary, settings: Dictionary, placement: Dictionary = {}
 ) -> Dictionary:
 	var seed_value: int = int(settings.get("seed", 0))
 	var species: Dictionary = {}
@@ -76,7 +78,11 @@ static func build(
 		_randomize_starters(world, seed_value, checks)
 	if bool(settings.get("trades", false)):
 		_randomize_trades(world, seed_value, checks)
-	_randomize_placement(world, settings, seed_value, validator, checks)
+	var sites: Dictionary = placement.duplicate(true)
+	if bool(settings.get("shops", false)):
+		sites.merge(Placement.shops(world[KIND_CHECK], seed_value))
+	for id: int in _sorted(sites):
+		checks.append({"number": id, "fields": sites[id]})
 	return {
 		Gen2ContentOverlay.KIND_SPECIES: _listed(species),
 		Gen2ContentOverlay.KIND_MOVE: _listed(moves),
@@ -140,6 +146,7 @@ static func gather(data: GameData) -> Dictionary:
 		KIND_ROAMING: _indexed(data.world_roaming_mons()),
 		KIND_FISHING_TIME: _indexed(data.world_fishing_time_groups()),
 		KIND_CHECK: _checks(data.catalog()),
+		"progression_items": data.catalog().progression_items(),
 	}
 
 
@@ -499,119 +506,13 @@ static func _randomize_trades(world: Dictionary, seed_value: int, out: Array) ->
 static func _randomize_starters(world: Dictionary, seed_value: int, out: Array) -> void:
 	var rows: Dictionary = world[KIND_CHECK]
 	var used: Array[int] = []
-	for id: int in _check_ids(rows, Gen2WorldCatalog.KIND_STARTER):
+	for id: int in Placement.site_ids(rows, Gen2WorldCatalog.KIND_STARTER):
 		var row: Dictionary = rows[id]
 		var rng := Rng.new()
 		rng.begin(seed_value, "starter", id)
 		var species: int = _near(world, int(row.get("species", 0)), rng, used)
 		used.append(species)
 		out.append({"number": id, "fields": {"species": species}})
-
-
-static func _randomize_placement(
-	world: Dictionary, settings: Dictionary, seed_value: int,
-	validator: Callable, out: Array
-) -> void:
-	var items: bool = bool(settings.get("items", false))
-	var badges: bool = bool(settings.get("badges", false))
-	var shops: bool = bool(settings.get("shops", false))
-	if not items and not badges and not shops:
-		return
-	if (items or badges) and not validator.is_valid():
-		return
-	if items or badges:
-		validator.call({}) # Warm the host's catalog and map graph once.
-	for attempt: int in PLACEMENT_ATTEMPTS:
-		var candidate: Dictionary = _placement_candidate(
-			world, seed_value, attempt, items, badges, shops
-		)
-		if shops and not _shop_shelves_are_unique(world[KIND_CHECK], candidate):
-			continue
-		if items or badges:
-			var result: Variant = validator.call(candidate)
-			if not result is Dictionary or not bool((result as Dictionary).get("ok", false)):
-				continue
-		for id: int in _sorted(candidate):
-			out.append({"number": id, "fields": candidate[id]})
-		return
-
-
-static func _placement_candidate(
-	world: Dictionary, seed_value: int, attempt: int,
-	items: bool, badges: bool, shops: bool
-) -> Dictionary:
-	var rows: Dictionary = world[KIND_CHECK]
-	var out: Dictionary = {}
-	if items:
-		var sites: Array[int] = _check_ids(rows, Gen2WorldCatalog.KIND_ITEM)
-		var rewards: Array = []
-		for id: int in sites:
-			var row: Dictionary = rows[id]
-			rewards.append({
-				"item": int(row.get("item", 0)),
-				"quantity": int(row.get("quantity", 1)),
-			})
-		var rng := Rng.new()
-		rng.begin(seed_value, "item_placement", attempt)
-		rewards = rng.shuffled(rewards)
-		for index: int in sites.size():
-			out[sites[index]] = (rewards[index] as Dictionary).duplicate(true)
-	if badges:
-		var sites: Array[int] = _check_ids(rows, Gen2WorldCatalog.KIND_BADGE)
-		var groups: Dictionary = {}
-		for id: int in sites:
-			var badge: int = int((rows[id] as Dictionary).get("badge", 0))
-			if not groups.has(badge):
-				groups[badge] = [] as Array[int]
-			(groups[badge] as Array[int]).append(id)
-		var originals: Array[int] = _sorted(groups)
-		var rng := Rng.new()
-		rng.begin(seed_value, "badge_placement", attempt)
-		var rewards: Array = rng.shuffled(originals)
-		for index: int in originals.size():
-			for id: int in (groups[originals[index]] as Array[int]):
-				out[id] = {"badge": int(rewards[index])}
-	if shops:
-		var sites: Array[int] = _check_ids(rows, Gen2WorldCatalog.KIND_SHOP)
-		var item_pool: Array[int] = []
-		for id: int in sites:
-			var shelf: Array = (rows[id] as Dictionary).get("items", [])
-			for entry: Dictionary in shelf:
-				var item: int = int(entry.get("item", 0))
-				if not item_pool.has(item):
-					item_pool.append(item)
-		item_pool.sort()
-		var rng := Rng.new()
-		rng.begin(seed_value, "shop_placement", attempt)
-		var replacements: Array = rng.shuffled(item_pool)
-		var mapping: Dictionary = {}
-		for index: int in item_pool.size():
-			mapping[item_pool[index]] = int(replacements[index])
-		for id: int in sites:
-			var shelf: Array = (rows[id] as Dictionary).get("items", []).duplicate(true)
-			for entry: Dictionary in shelf:
-				entry["item"] = int(mapping.get(int(entry.get("item", 0)), entry.get("item", 0)))
-			out[id] = {"items": shelf}
-	return out
-
-
-static func _check_ids(rows: Dictionary, kind: StringName) -> Array[int]:
-	var out: Array[int] = []
-	for id: int in _sorted(rows):
-		if StringName((rows[id] as Dictionary).get("kind", &"")) == kind:
-			out.append(id)
-	return out
-
-
-static func _shop_shelves_are_unique(rows: Dictionary, patches: Dictionary) -> bool:
-	for id: int in _check_ids(rows, Gen2WorldCatalog.KIND_SHOP):
-		var used: Array[int] = []
-		for entry: Dictionary in (patches.get(id, {}) as Dictionary).get("items", []):
-			var item: int = int(entry.get("item", 0))
-			if used.has(item):
-				return false
-			used.append(item)
-	return true
 
 
 static func _substitute(value: Variant, world: Dictionary, rng: RefCounted) -> void:

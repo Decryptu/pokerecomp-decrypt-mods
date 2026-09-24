@@ -1,8 +1,6 @@
 mods/follower/party.gd:member
 mods/randomizer/plan.gd:_families
-mods/randomizer/plan.gd:_placement_candidate
 mods/randomizer/plan.gd:_randomize_learnsets
-mods/randomizer/plan.gd:_randomize_placement
 mods/randomizer/plan.gd:build
 mods/voxel3d/battle/arena.gd:_find_ground
 mods/voxel3d/shape/atlas.gd:build
@@ -107,7 +105,6 @@ tools/model_shot.gd:_initialize
 tools/mods_menu_shot.gd:_capture
 tools/overworld_encounters_shot.gd:_initialize
 tools/overworld_encounters_shot.gd:_process
-tools/randomizer_lifecycle_probe.gd:_initialize
 tools/randomizer_probe.gd:_placement_is_permutation
 tools/randomizer_probe.gd:_rules
 tools/randomizer_probe.gd:_same_shape
