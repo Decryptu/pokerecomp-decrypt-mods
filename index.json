@@ -5,20 +5,20 @@
 		{
 			"id": "voxel3d",
 			"name": "Voxel 3D",
-			"version": "0.8.1",
+			"version": "0.10.0",
 			"games": ["red", "blue", "yellow", "gold", "silver", "crystal"],
 			"description": "Draws the overworld in 3D, built from the cartridge's own tiles, on Kanto and Johto alike. Sky colours follow the clock, water is animated, and you can move the camera. Battles happen on the map you were standing on, while menus stay 2D and pixel-perfect.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.8.1/voxel3d-0.8.1.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.10.0/voxel3d-0.10.0.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/thumbnail.webp"
 		},
 		{
 			"id": "randomizer",
 			"name": "Randomizer",
-			"version": "0.5.1",
+			"version": "0.6.0",
 			"games": ["red", "blue", "yellow", "gold", "silver", "crystal"],
-			"description": "Randomizes a playthrough from a four-digit seed: wild Pokemon, gifts, starters, trades, items, badges, shops, stats, types, movesets and trainer teams. The seed is saved with the game, and the mod checks that key items and badges stay reachable.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/randomizer-0.5.1/randomizer-0.5.1.zip",
+			"description": "Randomizes a playthrough from a four-digit seed: wild Pokemon, gifts, starters, trades, items, badges, shops, stats, types, movesets, evolutions, moves and trainer teams. Key items and badges are placed where the run can still reach them, and the seed and that placement are saved with the game.",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/randomizer-0.6.0/randomizer-0.6.0.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/randomizer/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/randomizer/thumbnail.webp"
 		},
