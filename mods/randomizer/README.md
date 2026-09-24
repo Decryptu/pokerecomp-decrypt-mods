@@ -18,10 +18,12 @@ number. Leading zeros count: `0042` is not `4200`.
 The same seed and the same cartridge always produce the same game. It does not
 depend on dictionary ordering, the clock, the system's randomness, or the order
 settings were changed in. Randomness comes from one written-down generator in
-`rng.gd` rather than the engine's, so an engine update cannot change what a seed
-means. Each decision opens its own stream, keyed by what is being decided and
-which row it is for, so turning one setting off does not move what another
-produced.
+`rng.gd` rather than the engine's. Each decision opens its own stream, keyed by
+what is being decided and which row it is for, so turning one setting off does
+not move what another produced. Items, badges and shops are the exception: they
+are drawn together as the first candidate the host's progression proof accepts,
+so turning one of the three off, or a host whose proof answers differently, can
+move the other two.
 
 A seed does not carry the cartridge. Each of the six games has its own tables,
 so seed `1234` is six different runs.
@@ -122,11 +124,12 @@ budget is preserved. **Badges** are shuffled by reward group. **Shops** get one
 cartridge-wide remapping of item ids, keeping shelf sizes and prices.
 
 Every candidate item and badge placement is checked by the host's progression
-proof before use. The first check decodes and caches the script corpus and can
-take several seconds. If no candidate passes, those three categories stay vanilla
-rather than shipping a placement the host rejected. A pass proves there is no
-self-lock visible to the host's map-level model, not that every cell and story
-state is beatable.
+proof before use, up to 1024 candidates. From API 43 the proof includes the
+story's gates, such as OAK'S PARCEL before the Pokedex, and the cell each item
+lies on; an older host proves only its map-level model. Few candidates pass, so
+the search can take from a few seconds to about forty when a save is activated.
+If none passes, which happens on a few seeds of each cartridge, items, badges and
+shops all stay vanilla rather than shipping a placement the host rejected.
 
 ## What it deliberately leaves alone
 

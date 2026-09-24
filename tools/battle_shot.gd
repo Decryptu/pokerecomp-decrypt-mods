@@ -114,11 +114,13 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_view["battlers"] = battlers
+	_view["enemy_trainer_pic"] = int(battlers["enemy"].get("trainer_class", 0))
+	_view["player_backpic"] = String(battlers["player"].get("backpic", ""))
 	if moment in INTRO_MOMENTS:
 		_view["grayscale"] = true
 		_view["battle_kind"] = &"trainer"
 		_view["trainer_class"] = TRAINER_CLASS
-		_view["player_backpic_palette"] = PLAYER_BACKPIC
+		_view["player_backpic_palette"] = _player_backpic(data)
 		_view["enemy_hud_visible"] = \
 			StringName(battlers["enemy"]["kind"]) == &"mon"
 		_view["player_hud_visible"] = \
@@ -135,7 +137,10 @@ func _initialize() -> void:
 			bool(int(args[15])) if args.size() > 15 else true
 		)
 
-const PLAYER_BACKPIC: String = "chris"
+
+## `GetTrainerBackPic`'s player on each generation.
+static func _player_backpic(data: GameData) -> String:
+	return Gen1Layout.PLAYER_BACKPICS[0] if data.generation == RomRegistry.GEN1 else "chris"
 
 
 ## Every mark a battle panel prints beside the level: the caught ball, a status
@@ -145,6 +150,7 @@ func _mark_huds() -> void:
 	_view["enemy_status"] = Gen2Status.PARALYSIS
 	_view["enemy_gender"] = Gen2BattleMon.GENDER_FEMALE
 	_view["player_gender"] = Gen2BattleMon.GENDER_MALE
+
 const INTRO_MOMENTS: PackedStringArray = ["slide", "stand", "sent", "walkoff"]
 const TRAINER_CLASS: int = 1
 
@@ -191,7 +197,7 @@ func _mon_side(species: int) -> Dictionary:
 
 func _battlers(moment: String, data: GameData) -> Dictionary:
 	var trainer := {
-		"kind": &"trainer", "backpic": PLAYER_BACKPIC, "trainer_class": 0,
+		"kind": &"trainer", "backpic": _player_backpic(data), "trainer_class": 0,
 		"species": 0, "offset_pixels": Vector2.ZERO,
 	}
 	var foe := {
@@ -325,6 +331,8 @@ func _shake_of(rows: PackedInt32Array) -> float:
 
 
 func _process(_delta: float) -> bool:
+	if _renderer == null:
+		return true
 	_frames += 1
 	if _frames == 1:
 		_renderer.set_view(_view)

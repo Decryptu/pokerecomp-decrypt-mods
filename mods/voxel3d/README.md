@@ -166,10 +166,11 @@ because the cartridge moves a picture, not a person.
 The whole picture is grey while the intro runs, which is the cartridge writing its
 own grey over every background palette. Here it is both a pass over the diorama
 and the palette the battlers are drawn in, since greying only the world left two
-colour figures in a black and white one. An Unown is drawn as the letter it
-actually is, a Pokemon behind a substitute is the cartridge's own doll, a
-minimized one is its dot, and Pokemon Tower's unidentified ghost is the GHOST
-picture.
+colour figures in a black and white one. What stands on a square is the host's
+`Gen2BattleRenderer.square_pixels`, the picture the built-in renderer draws: an
+Unown's own letter, the substitute's doll, Minimize's dot, Pokemon Tower's GHOST
+and a link opponent included. The foe's trainer also stands behind their Pokemon
+for the whole fight, which only this view stages.
 
 **The shot is solved, not chosen.** Each battler is pinned to its patch of ground
 and drawn in hardware pixels at the size the cartridge drew it, so the camera
@@ -198,10 +199,10 @@ different period so they never sync. It rides the arm from what the lens is aime
 at, so the battlers stay in the middle of the frame and only the background moves.
 
 **Two layers.** The map is geometry at window resolution; the panels, bars and
-text box stay hardware pixels at whole-number scale. The panels are the host's
-own `Gen2BattleHud`, with the caught ball, the status and the gender sign it
-prints beside the level. Each panel gets a light
-translucent backing, since the cartridge draws black glyphs straight onto white
+text box stay hardware pixels at whole-number scale. The host's
+`Gen2BattleHud.draw_panels` draws both panels, with the caught ball, the status
+and the gender sign beside the level, and each layer is redrawn only when its
+key changes. Each panel gets a light translucent backing, since the cartridge draws black glyphs straight onto white
 and over a route they would be black on grass. What is behind it is blurred as
 well as tinted, because a dithered path shows every texel through the writing and
 the two compete.
