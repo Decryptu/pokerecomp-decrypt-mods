@@ -20,7 +20,7 @@ const COUNTERS: Dictionary = {
 		"map": Vector2i(0, 56), "cell": Vector2i(2, 5), "facing": Gen2WorldSprite.FACING_LEFT,
 	},
 	RomRegistry.GEN2: {
-		"map": Vector2i(26, 3), "cell": Vector2i(2, 5), "facing": Gen2WorldSprite.FACING_LEFT,
+		"map": Vector2i(26, 4), "cell": Vector2i(3, 3), "facing": Gen2WorldSprite.FACING_LEFT,
 	},
 }
 
