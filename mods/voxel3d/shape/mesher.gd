@@ -111,6 +111,9 @@ var _klass := PackedInt32Array()
 var _class_ids: Dictionary = {}
 ## Water the paint lifted onto an upper storey, which no longer sits below zero.
 var _lifted := PackedByteArray()
+## The floor height the paint gives each tile, or `Levels.NOTHING`; empty on a
+## map nobody painted.
+var _painted := PackedInt32Array()
 ## A wall mass the paint marked is the cliff between two storeys, so its own plan
 ## is that cliff's FACE rather than ground anyone stands on. Each is kept as its
 ## box, the storey under it and the storey over it, and every tile of it points
@@ -983,6 +986,7 @@ func _size_grid(source: RefCounted, shape: RefCounted) -> void:
 	_folds = []
 	_fold.resize(count)
 	_fold.fill(-1)
+	_painted = PackedInt32Array()
 
 
 ## A shell tile stands outside the map and wears the room's own wall. Marked in
@@ -1077,7 +1081,7 @@ func _passes(source: RefCounted, shape: RefCounted) -> Array[Callable]:
 	passes.append_array([
 		_measure_columns,
 		_measure_cliffs,
-		_apply_levels.bind(source),
+		_apply_levels.bind(source, shape),
 		_open_plateaus,
 		_measure_plateaus,
 		_settle_plateau_lips,
@@ -1104,7 +1108,7 @@ func _passes(source: RefCounted, shape: RefCounted) -> Array[Callable]:
 		_open_stairs,
 	])
 	for flight: Dictionary in shape.stairs():
-		passes.append(_measure_stair.bind(flight))
+		passes.append(_measure_stair.bind(source, flight))
 	_band_ledges(passes, source)
 	passes.append_array([
 		_measure_fences.bind(shape),
@@ -1156,6 +1160,7 @@ func _band_ramps(passes: Array[Callable]) -> void:
 	_band(passes, _seed_shelf_depths)
 	passes.append(_spread_shelf_depths)
 	_band(passes, _slope_shelves)
+	_band(passes, _slope_banks)
 
 
 func _band_rows(passes: Array[Callable], over: Callable) -> void:
@@ -1178,12 +1183,15 @@ func _fill_rows(from: int, to: int, source: RefCounted, shape: RefCounted) -> vo
 		_fill_row(source, shape, ty)
 
 
-func _apply_levels(source: RefCounted) -> void:
-	var map: Gen2WorldMap = source.map()
-	if map == null or not Levels.has(map.group, map.number):
+func _apply_levels(source: RefCounted, shape: RefCounted) -> void:
+	var cells: PackedInt32Array = _painted_cells(source)
+	if cells.is_empty() and not source.outside():
+		cells = _stair_storeys(source, shape)
+	if cells.is_empty():
 		return
-	var lift: PackedInt32Array = _painted_levels(map)
+	var lift: PackedInt32Array = _tile_lift(cells)
 	_lift_walls(lift)
+	_painted = lift
 	for at: int in lift.size():
 		if lift[at] <= 0 or _tiles[at] < 0:
 			continue
@@ -1198,16 +1206,292 @@ func _apply_levels(source: RefCounted) -> void:
 		_heights[at] += lift[at]
 
 
-func _painted_levels(map: Gen2WorldMap) -> PackedInt32Array:
+## The height the paint gives each walk cell, or empty where nobody painted.
+func _painted_cells(source: RefCounted) -> PackedInt32Array:
+	var rows: Array = Levels.rows_of(source.map(), source.tileset())
+	var cells := PackedInt32Array()
+	if rows.is_empty():
+		return cells
+	var across: Vector2i = _map_cells()
+	cells.resize(across.x * across.y)
+	for cy: int in across.y:
+		for cx: int in across.x:
+			cells[cy * across.x + cx] = Levels.height_in(rows, Vector2i(cx, cy))
+	return cells
+
+
+func _map_cells() -> Vector2i:
+	@warning_ignore("integer_division")
+	return _map_size / CELL_TILES
+
+
+func _tile_lift(cells: PackedInt32Array) -> PackedInt32Array:
+	var across: Vector2i = _map_cells()
 	var lift := PackedInt32Array()
 	lift.resize(_size.x * _size.y)
-	for ty: int in _size.y:
-		for tx: int in _size.x:
-			lift[ty * _size.x + tx] = Levels.height_at(
-				map.group, map.number,
-				Vector2i((tx - _margin.x) >> 1, (ty - _margin.y) >> 1)
-			)
+	lift.fill(Levels.NOTHING)
+	for ty: int in range(_margin.y, _map_end.y):
+		for tx: int in range(_margin.x, _map_end.x):
+			var cell := Vector2i((tx - _margin.x) >> 1, (ty - _margin.y) >> 1)
+			lift[ty * _size.x + tx] = cells[cell.y * across.x + cell.x]
 	return lift
+
+
+## A map nobody painted takes its storeys from its own staircases: the floor at
+## the head of a flight that climbs stands that climb above the floor at its
+## foot. A floor is a region of walk cells that no wall, flight or ledge divides;
+## a ledge is hopped one way only, so it joins no two floors at one height.
+func _stair_storeys(source: RefCounted, shape: RefCounted) -> PackedInt32Array:
+	var flights: Array = _up_flights(shape)
+	if flights.is_empty():
+		return PackedInt32Array()
+	var region: PackedInt32Array = _floor_regions(source, flights)
+	_split_drawn_heads(region, flights)
+	var links: Array = _flight_links(region, flights)
+	if links.is_empty():
+		return PackedInt32Array()
+	var raised: Dictionary = _settle_storeys(links)
+	var cells := PackedInt32Array()
+	cells.resize(region.size())
+	for at: int in region.size():
+		cells[at] = int(raised.get(region[at], 0)) if region[at] >= 0 else Levels.NOTHING
+	return cells
+
+
+## Every flight that climbs, as [its tiles, its step, its rise].
+func _up_flights(shape: RefCounted) -> Array:
+	var found: Array = []
+	for flight: Dictionary in shape.stairs():
+		if bool(flight[&"down"]) or flight.has(&"corner"):
+			continue
+		var pattern: Array = flight[&"tiles"]
+		var across := Vector2i((pattern[0] as Array).size(), pattern.size())
+		for ty: int in range(_margin.y, _map_end.y - across.y + 1):
+			for tx: int in range(_margin.x, _map_end.x - across.x + 1):
+				if _pattern_at(pattern, across, tx, ty):
+					found.append([
+						Rect2i(tx, ty, across.x, across.y), flight[&"step"] as Vector2i,
+						int(flight.get(&"rise", STAIR_RISE)),
+					])
+	return found
+
+
+func _floor_regions(source: RefCounted, flights: Array) -> PackedInt32Array:
+	var region := PackedInt32Array()
+	region.resize(_map_cells().x * _map_cells().y)
+	region.fill(-1)
+	var kind: PackedInt32Array = _divide_at_walls(source, region)
+	_divide_at_flights(region, flights)
+	_divide_at_warps(source, region)
+	var count: int = 0
+	for start: int in region.size():
+		if region[start] == -1:
+			_flood_region(region, kind, start, count)
+			count += 1
+	for at: int in region.size():
+		region[at] = maxi(region[at], -1)
+	return region
+
+
+## Marks every cell that is neither ground nor water, or is a ledge, and answers
+## each cell's permission, which a floor keeps to.
+func _divide_at_walls(source: RefCounted, region: PackedInt32Array) -> PackedInt32Array:
+	var across: Vector2i = _map_cells()
+	var kind := PackedInt32Array()
+	kind.resize(region.size())
+	for cy: int in across.y:
+		for cx: int in across.x:
+			var cell := Vector2i(cx, cy)
+			kind[cy * across.x + cx] = source.permission_at(cell)
+			if not FLOOR_PERMISSIONS.has(kind[cy * across.x + cx]) \
+					or not source.ledge_steps_at(cell).is_empty():
+				region[cy * across.x + cx] = NOT_FLOOR
+	return kind
+
+
+func _divide_at_flights(region: PackedInt32Array, flights: Array) -> void:
+	var across: Vector2i = _map_cells()
+	for flight: Array in flights:
+		var box: Rect2i = flight[0]
+		for ty: int in range(box.position.y, box.end.y):
+			for tx: int in range(box.position.x, box.end.x):
+				var cell: Vector2i = _cell_of_tile(Vector2i(tx, ty))
+				region[cell.y * across.x + cell.x] = NOT_FLOOR
+
+
+const NOT_FLOOR: int = -2
+
+
+## A warp is a way off the map rather than floor, and a cave's mouth is one
+## that would otherwise join the cave to the rock around it.
+func _divide_at_warps(source: RefCounted, region: PackedInt32Array) -> void:
+	var across: Vector2i = _map_cells()
+	for event: Variant in source.map().events.get("warps", []):
+		var cell := Vector2i(
+			int((event as Dictionary).get("x", -1)), int((event as Dictionary).get("y", -1))
+		)
+		if cell.x >= 0 and cell.y >= 0 and cell.x < across.x and cell.y < across.y:
+			region[cell.y * across.x + cell.x] = NOT_FLOOR
+## A lake is a floor of its own: a flight may climb out of it, and it may lie
+## against ground on either side of that flight.
+const FLOOR_PERMISSIONS: Array[int] = [
+	Gen2WorldCollision.LAND_TILE, Gen2WorldCollision.WATER_TILE,
+]
+
+
+func _cell_of_tile(tile: Vector2i) -> Vector2i:
+	return Vector2i((tile.x - _margin.x) >> 1, (tile.y - _margin.y) >> 1)
+
+
+func _flood_region(
+	region: PackedInt32Array, kind: PackedInt32Array, start: int, id: int
+) -> void:
+	var across: Vector2i = _map_cells()
+	var stack: Array[int] = [start]
+	region[start] = id
+	while not stack.is_empty():
+		var at: int = stack.pop_back()
+		for step: Vector2i in STEPS:
+			var to := Vector2i(at % across.x + step.x, at / across.x + step.y)
+			if to.x < 0 or to.y < 0 or to.x >= across.x or to.y >= across.y:
+				continue
+			var index: int = to.y * across.x + to.x
+			if region[index] == -1 and kind[index] == kind[at]:
+				region[index] = id
+				stack.append(index)
+
+
+## [foot region, head region, rise] for every flight between two floors.
+func _flight_links(region: PackedInt32Array, flights: Array) -> Array:
+	var links: Array = []
+	for flight: Array in flights:
+		var foot: int = _region_beyond(region, flight[0], -(flight[1] as Vector2i))
+		var head: int = _region_beyond(region, flight[0], flight[1])
+		if foot >= 0 and head >= 0 and foot != head:
+			links.append([foot, head, flight[2]])
+	return links
+
+
+func _region_beyond(region: PackedInt32Array, box: Rect2i, step: Vector2i) -> int:
+	var at: int = _cell_index(_cell_beyond(box, step))
+	return region[at] if at >= 0 else -1
+
+
+func _cell_beyond(box: Rect2i, step: Vector2i) -> Vector2i:
+	var tile: Vector2i = box.position + box.size / 2
+	if step.x != 0:
+		tile.x = box.end.x if step.x > 0 else box.position.x - 1
+	if step.y != 0:
+		tile.y = box.end.y if step.y > 0 else box.position.y - 1
+	return _cell_of_tile(tile)
+
+
+func _cell_index(cell: Vector2i) -> int:
+	var across: Vector2i = _map_cells()
+	if cell.x < 0 or cell.y < 0 or cell.x >= across.x or cell.y >= across.y:
+		return -1
+	return cell.y * across.x + cell.x
+
+
+## A flight whose head floor runs round to its foot, a platform the cartridge
+## lets you walk off at the back, climbs onto floor drawn unlike its foot: that
+## is split off as a floor of its own when the back is the only side it opens
+## onto other floor.
+func _split_drawn_heads(region: PackedInt32Array, flights: Array) -> void:
+	var next: int = 0
+	for id: int in region:
+		next = maxi(next, id + 1)
+	for flight: Array in flights:
+		var foot: int = _cell_index(_cell_beyond(flight[0], -(flight[1] as Vector2i)))
+		var head: int = _cell_index(_cell_beyond(flight[0], flight[1]))
+		if foot < 0 or head < 0 or region[foot] < 0 or region[foot] != region[head]:
+			continue
+		var platform: PackedInt32Array = _drawn_unlike(region, head, foot)
+		if platform.is_empty() or not _open_only_behind(region, platform, flight[1]):
+			continue
+		for at: int in platform:
+			region[at] = next
+		next += 1
+
+
+func _open_only_behind(
+	region: PackedInt32Array, platform: PackedInt32Array, behind: Vector2i
+) -> bool:
+	var across: Vector2i = _map_cells()
+	for at: int in platform:
+		for step: Vector2i in STEPS:
+			var to: int = _cell_index(Vector2i(at % across.x, at / across.x) + step)
+			if to >= 0 and step != behind and region[to] == region[at] \
+					and not platform.has(to):
+				return false
+	return true
+
+
+## The cells of one floor joined to `start` drawn in none of the tiles `unlike`
+## is drawn in, or empty where `start` shares one.
+func _drawn_unlike(region: PackedInt32Array, start: int, unlike: int) -> PackedInt32Array:
+	var across: Vector2i = _map_cells()
+	var foot: Array = _cell_tiles(unlike)
+	var apart: Callable = func(cell: int) -> bool:
+		return not _cell_tiles(cell).any(func(tile: int) -> bool: return foot.has(tile))
+	if not apart.call(start):
+		return PackedInt32Array()
+	var members := PackedInt32Array([start])
+	var seen: Dictionary = {start: true}
+	var at: int = 0
+	while at < members.size():
+		var here: int = members[at]
+		at += 1
+		for step: Vector2i in STEPS:
+			var to: int = _cell_index(Vector2i(here % across.x, here / across.x) + step)
+			if to < 0 or seen.has(to) or region[to] != region[start]:
+				continue
+			seen[to] = true
+			if apart.call(to):
+				members.append(to)
+	return members
+
+
+func _cell_tiles(at: int) -> Array:
+	var across: Vector2i = _map_cells()
+	var origin: Vector2i = _margin + Vector2i(at % across.x, at / across.x) * CELL_TILES
+	return [
+		_tile_at(origin.x, origin.y), _tile_at(origin.x + 1, origin.y),
+		_tile_at(origin.x, origin.y + 1), _tile_at(origin.x + 1, origin.y + 1),
+	]
+
+
+## Each region joined by flights, lifted so the lowest floor of its group stands
+## on the ground. Where two ways round disagree, the first flight met holds.
+func _settle_storeys(links: Array) -> Dictionary:
+	var raised: Dictionary = {}
+	for link: Array in links:
+		if raised.has(link[0]):
+			continue
+		var group: Array = _walk_links(links, link[0], raised)
+		var lowest: int = 1 << 30
+		for member: int in group:
+			lowest = mini(lowest, int(raised[member]))
+		for member: int in group:
+			raised[member] = int(raised[member]) - lowest
+	return raised
+
+
+func _walk_links(links: Array, start: int, raised: Dictionary) -> Array:
+	raised[start] = 0
+	var group: Array = [start]
+	var at: int = 0
+	while at < group.size():
+		var here: int = group[at]
+		at += 1
+		for link: Array in links:
+			var other: int = link[1] if link[0] == here else (link[0] if link[1] == here else -1)
+			if other < 0 or raised.has(other):
+				continue
+			var climb: int = int(link[2]) if link[0] == here else -int(link[2])
+			raised[other] = int(raised[here]) + climb
+			group.append(other)
+	return group
 
 
 ## A wall carries no level of its own. It is the transition between the floors
@@ -2046,6 +2330,39 @@ func _slope_shelves(from: int, to: int) -> void:
 	for at: int in range(from, to):
 		if _shelf_depth[at] >= 0:
 			_slope_shelf(at)
+
+
+## A painted floor one band above the painted floor beside it is a bank: its edge
+## tile slopes down to that floor at 45 degrees rather than standing a step.
+func _slope_banks(from: int, to: int) -> void:
+	if _painted.is_empty():
+		return
+	for at: int in range(from, to):
+		if _is_bank(at) and _slope_bank(at):
+			_ramp[at] = 1
+
+
+func _is_bank(at: int) -> bool:
+	return (
+		_ramp[at] == 0 and _tiles[at] >= 0 and _art[at] == ART_FLAT
+		and _painted[at] >= BAND and _heights[at] == _painted[at]
+	)
+
+
+func _slope_bank(at: int) -> bool:
+	var tile: Vector2i = _tile_of(at)
+	var foot: int = _painted[at] - BAND
+	var sloped: bool = false
+	for corner: int in 4:
+		var step := Vector2i(-1 if corner % 2 == 0 else 1, -1 if corner < 2 else 1)
+		var high: int = _heights[at]
+		for reach: Vector2i in [Vector2i(step.x, 0), Vector2i(0, step.y), step]:
+			var index: int = _index_of(tile + reach)
+			if index >= 0 and _painted[index] == foot:
+				high = foot
+		_corners[at * 4 + corner] = high
+		sloped = sloped or high < _heights[at]
+	return sloped
 
 
 func _on_shelf_lip(at: int) -> bool:
@@ -3161,7 +3478,7 @@ func _open_stairs() -> void:
 	_stairs.clear()
 
 
-func _measure_stair(flight: Dictionary) -> void:
+func _measure_stair(source: RefCounted, flight: Dictionary) -> void:
 	var pattern: Array = flight[&"tiles"]
 	var across := Vector2i((pattern[0] as Array).size(), pattern.size())
 	for ty: int in _size.y - across.y + 1:
@@ -3170,9 +3487,9 @@ func _measure_stair(flight: Dictionary) -> void:
 				continue
 			var base: int = _cell_floor(tx >> 1, ty >> 1)
 			var index: int = _stairs.size()
-			_stairs.append([flight, Vector2i(tx, ty), base, across])
-			var rise: int = int(flight.get(&"rise", STAIR_RISE))
-			var fall: int = -rise if bool(flight[&"down"]) else 0
+			var climb: int = _flight_rise(source, flight, Rect2i(tx, ty, across.x, across.y), base)
+			_stairs.append([flight, Vector2i(tx, ty), base, across, climb])
+			var fall: int = -climb if bool(flight[&"down"]) else 0
 			for row: int in across.y:
 				for column: int in across.x:
 					var at: int = (ty + row) * _size.x + tx + column
@@ -3182,6 +3499,55 @@ func _measure_stair(flight: Dictionary) -> void:
 					_tufted[at] = 0
 					_release_terrain(at)
 					_heights[at] = base + fall
+
+
+## A flight that climbs climbs to the floor at its head, painted or settled, so
+## it meets that floor rather than stepping past it. A head that is no floor,
+## the wall a warp stair runs into, leaves the flight its own rise.
+func _flight_rise(
+	source: RefCounted, flight: Dictionary, box: Rect2i, base: int
+) -> int:
+	var rise: int = int(flight.get(&"rise", STAIR_RISE))
+	if bool(flight[&"down"]) or flight.has(&"corner"):
+		return rise
+	var head: int = _head_floor(source, box, flight[&"step"])
+	return head - base if head > base else rise
+
+
+## The floor across the head of a flight, or -1 where any of it is not floor.
+func _head_floor(source: RefCounted, box: Rect2i, step: Vector2i) -> int:
+	var floor_px: int = -1
+	for tile: Vector2i in _head_tiles(box, step):
+		var height: int = _walk_floor(source, tile)
+		if height < 0:
+			return -1
+		floor_px = height if floor_px < 0 else mini(floor_px, height)
+	return floor_px
+
+
+## The row of tiles just past a flight's top, across its whole width.
+func _head_tiles(box: Rect2i, step: Vector2i) -> Array[Vector2i]:
+	var tiles: Array[Vector2i] = []
+	var edge := Vector2i(
+		box.end.x if step.x > 0 else box.position.x - 1,
+		box.end.y if step.y > 0 else box.position.y - 1
+	)
+	if step.y != 0:
+		for tx: int in range(box.position.x, box.end.x):
+			tiles.append(Vector2i(tx, edge.y))
+	else:
+		for ty: int in range(box.position.y, box.end.y):
+			tiles.append(Vector2i(edge.x, ty))
+	return tiles
+
+
+func _walk_floor(source: RefCounted, tile: Vector2i) -> int:
+	var at: int = _index_of(tile)
+	if at < 0 or _art[at] != ART_FLAT or _heights[at] < 0:
+		return -1
+	if source.permission_at(_cell_of_tile(tile)) != Gen2WorldCollision.LAND_TILE:
+		return -1
+	return _heights[at]
 
 
 func _measure_ledges(from: int, to: int, source: RefCounted) -> void:
@@ -6353,7 +6719,7 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 	var down: bool = bool(flight[&"down"])
 	var across: Vector2i = entry[3]
 	var steps: int = int(flight.get(&"steps", STAIR_STEPS))
-	var climb: int = int(flight.get(&"rise", STAIR_RISE))
+	var climb: int = int(entry[4])
 	if flight.has(&"corner"):
 		_emit_stair_corner(
 			start, base, flight[&"corner"], across, steps, climb, atlas

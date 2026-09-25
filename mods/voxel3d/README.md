@@ -384,6 +384,16 @@ and a rim is four, one per corner, so a face closed against a rim's single
 measured height is closed against nothing. The lower of the two shared corners is
 what a face reaches down to, which can only add face and never take one away.
 
+**A painted level** says what no drawing does: which storey of a cave a floor is
+on. `shape/levels.gd` gives a walk cell a height in 8 px bands, two to a storey,
+and a mass of wall stands as tall as the tallest floor it touches, which makes a
+cave's band the cliff between its storeys. A floor one band above the painted
+floor beside it is a bank: its edge tile slopes down to that floor at 45
+degrees, the way Whirl Islands draws its raised ground. A painting is keyed by
+the drawing it was painted on, every tile of the map's own blocks, because Gold,
+Silver and Crystal number their maps apart and redraw some of them: it holds on
+every cartridge that draws the map the same way and on none that redraws it.
+
 ## Objects that are not tiles
 
 A chair is drawn as four corners across four tiles, and one tile is the desk's
@@ -444,6 +454,18 @@ perspective view over four tiles, and stepping onto one leaves the floor rather
 than climbing it, so a down flight is a hole: the cell's floor goes a walk cell
 below the ground and everything skirts down to it, which is the same code that
 draws a cliff. A ladder in a shaft is that with the steps taken out.
+
+An up flight climbs to the floor at its head, so it meets that floor whatever
+height it stands at; one that runs into a wall, a warp stair, keeps its own
+rise. On a map nobody painted, the flights decide the storeys: the floors are
+the regions of walk cells, and of water, that no wall, flight, ledge or warp
+divides, and the floor at a flight's head stands that flight's rise above the
+floor at its foot. That lifts a cave's platforms, Olivine Gym's dais and the
+Elite Four's walkways to where their stairs arrive. A platform the cartridge lets
+you walk off at the back is one floor with what lies behind it by the collision,
+so the drawing settles it: the floor drawn in the head's own tiles is split off
+and raised when the back is the only side it opens onto other floor. A carpet
+beside a stair opens onto floor along its length and stays down.
 
 ## Past the edge of the map
 
@@ -934,7 +956,7 @@ shape/gen1/, shape/gen2/  per generation: profile.gd, the hand-authored pins,
                      the objects and the staircases; pass.gd, the generated
                      second table; houses.gd, the houses painted per pixel
 shape/far_drawings.gd  what stands on a far map, read without resolving it
-shape/levels.gd      the ground levels a person painted, where one has
+shape/levels.gd      the ground heights a person painted, where one has
 shape/model.gd       a sprite turned into a model: trees, bushes, boulders
 shape/stems.gd       the flower's stem, drawn by hand because nothing draws one
 shape/mesher.gd      map -> one static mesh

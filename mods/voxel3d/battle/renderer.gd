@@ -226,8 +226,8 @@ const RESOLVED_KEPT: int = 2
 func _resolved_for(
 	map: Gen2WorldMap, tileset: Gen2WorldTileset, source: RefCounted
 ) -> RefCounted:
-	var key: String = "%d,%d,%d,%d" % [
-		map.group, map.number, tileset.number,
+	var key: String = "%s,%d,%d,%d,%d" % [
+		_data.id, map.group, map.number, tileset.number,
 		hash([_context.changed_blocks, _context.written_tiles]),
 	]
 	if _resolved.has(key):
