@@ -389,7 +389,10 @@ on. `shape/levels.gd` gives a walk cell a height in 8 px bands, two to a storey,
 and a mass of wall stands as tall as the tallest floor it touches, which makes a
 cave's band the cliff between its storeys. A floor one band above the painted
 floor beside it is a bank: its edge tile slopes down to that floor at 45
-degrees, the way Whirl Islands draws its raised ground.
+degrees, the way Whirl Islands draws its raised ground. A painting is keyed by
+the drawing it was painted on, every tile of the map's own blocks, because Gold,
+Silver and Crystal number their maps apart and redraw some of them: it holds on
+every cartridge that draws the map the same way and on none that redraws it.
 
 ## Objects that are not tiles
 

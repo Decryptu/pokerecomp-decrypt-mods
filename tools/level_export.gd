@@ -66,7 +66,7 @@ func _initialize() -> void:
 		var cells := Vector2i(
 			map.width_blocks * CELL_TILES, map.height_blocks * CELL_TILES
 		)
-		var start: Array = _painted_start(map, cells)
+		var start: Array = _painted_start(map, tileset, cells)
 		if start.is_empty():
 			start = _measured_start(mesher, shape, cells)
 		var levels: Array = start[0]
@@ -85,6 +85,7 @@ func _initialize() -> void:
 			"group": map.group,
 			"number": map.number,
 			"tileset": map.tileset,
+			"drawing": (load("%s/shape/levels.gd" % MOD) as GDScript).drawing_of(map, tileset),
 			"cells": [cells.x, cells.y],
 			"unit": "band8",
 			"outside": Gen2WorldPhoneHost.is_outside_environment(map.environment),
@@ -110,9 +111,10 @@ func _initialize() -> void:
 
 ## A map somebody painted starts from its painting, so a repaint changes what
 ## it means to and nothing else.
-func _painted_start(map: Gen2WorldMap, cells: Vector2i) -> Array:
+func _painted_start(map: Gen2WorldMap, tileset: Gen2WorldTileset, cells: Vector2i) -> Array:
 	var painted: GDScript = load("%s/shape/levels.gd" % MOD)
-	if not painted.has(map.group, map.number):
+	var rows: Array = painted.rows_of(map, tileset)
+	if rows.is_empty():
 		return []
 	var levels: Array = []
 	var walls: Array = []
@@ -120,7 +122,7 @@ func _painted_start(map: Gen2WorldMap, cells: Vector2i) -> Array:
 		var level_row: Array = []
 		var wall_row: Array = []
 		for cx: int in cells.x:
-			var height: int = painted.height_at(map.group, map.number, Vector2i(cx, cy))
+			var height: int = painted.height_in(rows, Vector2i(cx, cy))
 			wall_row.append(1 if height == painted.WALLED else 0)
 			level_row.append(_band_mark(height))
 		levels.append(level_row)

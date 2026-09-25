@@ -142,7 +142,7 @@ try {
 
 function state(i) {
   const m = MAPS[i];
-  const k = KEY + m.group + "," + m.number;
+  const k = KEY + m.drawing;
   if (!m._levels) {
     let saved = null;
     try { saved = store[k] ? JSON.parse(store[k]) : null; } catch (e) {}
@@ -154,7 +154,7 @@ function state(i) {
 
 function persist(m) {
   try {
-    localStorage.setItem(KEY + m.group + "," + m.number,
+    localStorage.setItem(KEY + m.drawing,
       JSON.stringify({ levels: m._levels, walls: m._walls }));
   } catch (e) {}
   tally();
@@ -426,7 +426,8 @@ function save() {
   const out = { unit: "band8", pixels_per_band: 8, maps: MAPS.map((m, i) => {
     const s = state(i);
     return { group: s.group, number: s.number, tileset: s.tileset,
-             cells: s.cells, levels: s._levels, walls: s._walls };
+             drawing: s.drawing, cells: s.cells, levels: s._levels,
+             walls: s._walls };
   })};
   const a = document.createElement("a");
   a.href = URL.createObjectURL(

@@ -91,7 +91,6 @@ tools/icon_art.gd:_initialize
 tools/icon_art.gd:_paint_art
 tools/icon_art.gd:_paint_layer
 tools/level_export.gd:_initialize
-tools/level_pins.gd:_initialize
 tools/linking_cord_probe.gd:_case
 tools/linking_cord_shot.gd:_capture
 tools/map_art.gd:_initialize

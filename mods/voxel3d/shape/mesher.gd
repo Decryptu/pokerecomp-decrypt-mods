@@ -1184,10 +1184,10 @@ func _fill_rows(from: int, to: int, source: RefCounted, shape: RefCounted) -> vo
 
 
 func _apply_levels(source: RefCounted) -> void:
-	var map: Gen2WorldMap = source.map()
-	if map == null or not Levels.has(map.group, map.number):
+	var rows: Array = Levels.rows_of(source.map(), source.tileset())
+	if rows.is_empty():
 		return
-	var lift: PackedInt32Array = _painted_levels(map)
+	var lift: PackedInt32Array = _painted_levels(rows)
 	_lift_walls(lift)
 	_painted = lift
 	for at: int in lift.size():
@@ -1204,14 +1204,13 @@ func _apply_levels(source: RefCounted) -> void:
 		_heights[at] += lift[at]
 
 
-func _painted_levels(map: Gen2WorldMap) -> PackedInt32Array:
+func _painted_levels(rows: Array) -> PackedInt32Array:
 	var lift := PackedInt32Array()
 	lift.resize(_size.x * _size.y)
 	for ty: int in _size.y:
 		for tx: int in _size.x:
-			lift[ty * _size.x + tx] = Levels.height_at(
-				map.group, map.number,
-				Vector2i((tx - _margin.x) >> 1, (ty - _margin.y) >> 1)
+			lift[ty * _size.x + tx] = Levels.height_in(
+				rows, Vector2i((tx - _margin.x) >> 1, (ty - _margin.y) >> 1)
 			)
 	return lift
 
