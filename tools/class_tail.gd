@@ -8,6 +8,10 @@ const MOD := "user://mods/voxel3d"
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
+	if args.size() < 2:
+		print("usage: <cache> <shape class> [tileset]")
+		quit(1)
+		return
 	var data: GameData = GameData.open_argument(args[0])
 	if data == null:
 		print("no cache")

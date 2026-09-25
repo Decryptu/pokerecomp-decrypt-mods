@@ -333,12 +333,15 @@ storeys, like Ecruteak's seven-gallery dance hall.
 
 `shape/gen2/houses.gd` holds 103 drawings painted per pixel and matched by
 arrangement, produced with `tools/house_export.gd`, `house_page.py` and
-`house_pins.gd`. 92 of them reach the game: 246 placements on 64 maps, standing
-up 348 buildings. `tools/house_claim.gd` counts it. `shape/gen1/houses.gd` holds
-Kanto's 50, every one of them the pre-fill accepted as it came
-(`house_page.py --accept`): a Generation I building is a striped pitch drawn
-face-on over walls, with a hatched flat roof between the pitches on the big ones,
-and each of those is one tile class, so nothing needed painting by hand.
+`house_pins.gd`. `house_rows.py` numbers a drawing's rows with the word each is
+painted, `house_paint_art.py` draws a painting over its own art, and
+`house_learn.py` carries paintings to the houses not yet done. 92 of them reach
+the game: 246 placements on 64 maps, standing up 348 buildings.
+`tools/house_claim.gd` counts it. `shape/gen1/houses.gd` holds Kanto's 50, every
+one of them the pre-fill accepted as it came (`house_page.py --accept`): a
+Generation I building is a striped pitch drawn face-on over walls, with a
+hatched flat roof between the pitches on the big ones, and each of those is one
+tile class, so nothing needed painting by hand.
 
 ## Ledges, doors and two levels of ground
 
@@ -729,8 +732,10 @@ from above, which is depth and no height, so its height is authored per class.
 is drawn looked down on, so there is a bloom and no stem, and a bloom carved
 where it is drawn hangs in the air. The stem is drawn by hand in
 `shape/stems.gd` rather than guessed at as a thickness, because a stem is thin
-and it bends and no number says either. It goes to the same sink the standing
-tufts do, hinged at the soil rather than at the stem's head.
+and it bends and no number says either. `tools/stem_export.gd` exports the flower
+seen from the front, a person draws the stem on `tools/stem_page.py`, and
+`tools/stem_pins.py` writes `shape/stems.gd`. It goes to the same sink the
+standing tufts do, hinged at the soil rather than at the stem's head.
 
 **Motes** are the other invention: leaves drift across the daylight and
 fireflies come out at night. Forty of them ride a box around wherever the camera
@@ -872,6 +877,23 @@ collision change is the wrong fix.
 the same ringed pictures are read tile by tile and the answers become pins. The
 hand table wins wherever both name a tile. All thirty-five tilesets are covered:
 2168 of 3618 tiles have pins; the rest use automatic resolution.
+
+The first loop's review pages are `tools/survey_label.py` for blocks and
+`tools/survey_tiles.py` for a tile with the world around it; `survey_pins.py`
+turns the answers into profile pins. The pass is the second loop:
+
+```bash
+Godot --path <pokerecomp> -s <this checkout>/tools/survey_context.gd -- <cache> all out/ all
+python3 tools/survey_pass.py out/
+python3 tools/pass_page.py out/
+python3 tools/pass_pins.py out/ <generation> --write
+```
+
+`survey_context.gd` rings every tile where the cartridge uses it,
+`survey_pass.py` writes the brief an agent answers a tileset from,
+`pass_page.py` asks a person only what the pass could not settle, and
+`pass_pins.py` writes `shape/gen<n>/pass.gd`. `ask_page.py` builds any other page
+of questions from a written spec.
 
 `shape/gen1/profile.gd` is Kanto's hand table, checked against survey sheets
 and cartridge art. Its pass, `shape/gen1/pass.gd`, is empty: the twenty-five
