@@ -836,10 +836,9 @@ puts in the world carries a span of its own. Walking New Bark Town at 120 Hz,
 
 `tools/voxel_view_probe.gd` checks the arithmetic with no display: that two
 positions inside one surface pixel are the same drawn frame, that every snapped
-point stands a whole number of steps from every other, that both hold at every
-pitch and bearing the view can be steered to, and that a step moves on every
-drawn frame. `tools/motion_bench.gd` is the table above, measured through the
-game.
+point stands a whole number of steps from every other, and that both hold at
+every pitch and bearing the view can be steered to. `tools/motion_bench.gd` is
+the table above, measured through the game.
 
 ## Surveying a tileset
 

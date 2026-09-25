@@ -97,6 +97,27 @@ The launcher lists what loaded and names anything it refused. A mod that fails i
 skipped and reported through `Gen2ModHost.failures()`; it never stops the game or
 the other mods.
 
+## Probes
+
+The strongest proof is the game played: pokerecomp's `tools/validate.gd --
+played --mods` runs every cartridge to its second badge with the mods loaded,
+and a shot driver leaves a picture anyone can check again. A probe in `tools/`
+covers what play does not reach, through the host's real seams on every
+cartridge the mod names.
+
+- Before writing a check, write down the ways the mod could fail, then the check
+  that catches one. A check written after the code to agree with it catches
+  nothing.
+- Each check names the behaviour or contract it guards, the regression that makes
+  it fail, and why nothing stronger already catches it: the host's own tests,
+  another probe, the played run or a picture.
+- Leave out checks that restate the code: an expected value computed by the
+  helper under test, a copy of a constant the mod owns, a print with no verdict,
+  a second check of a contract another check owns, and a mod function that only
+  a probe calls.
+- A regression check fails on the code before the fix. A check that cannot fail
+  is repaired or deleted.
+
 ## What a tool is given
 
 A tool takes the cartridge as its first argument, written `<cartridge>`, and

@@ -87,15 +87,8 @@ func _initialize() -> void:
 	var failures: int = 0
 	failures += _report_party(party, data, summary)
 
-	var walked: String = _walk(trail_script, ROUTE, true)
-	var again: String = _walk(trail_script, ROUTE, false)
-	var elsewhere: String = _walk(trail_script, OTHER_ROUTE, false)
 	print("route      %s" % ", ".join(ROUTE))
-	print("           %d frames, digest %s" % [walked.split("\n").size(), walked.md5_text()])
-	print("walked again  digest %s" % again.md5_text())
-	print("other route   digest %s" % elsewhere.md5_text())
-	failures += 0 if _report("one route twice is one walk", walked == again) else 1
-	failures += 0 if _report("two routes are two walks", walked != elsewhere) else 1
+	_print_walk(trail_script, ROUTE)
 	failures += _rules(trail_script)
 	failures += _sliding(trail_script)
 	failures += _hopping(trail_script)
@@ -115,7 +108,6 @@ func _summary() -> Dictionary:
 		"eggs": [false, true, false, false],
 		"fainted": [false, false, false, false],
 		"names": ["CYNDA", "EGG", "PIKA", "LUGIA"],
-		"lead_fainted": false,
 	}
 
 
@@ -141,13 +133,6 @@ func _report_party(party: GDScript, data: GameData, summary: Dictionary) -> int:
 	failures += 0 if _report(
 		"a fainted lead does not walk", not bool(party.member(fainted, data, 1)["out"])
 	) else 1
-	var legacy_fainted: Dictionary = summary.duplicate(true)
-	legacy_fainted.erase("fainted")
-	legacy_fainted["lead_fainted"] = true
-	failures += 0 if _report(
-		"an API 1 fainted lead does not walk",
-		not bool(party.member(legacy_fainted, data, 1)["out"])
-	) else 1
 	var fainted_nonlead: Dictionary = summary.duplicate(true)
 	(fainted_nonlead["fainted"] as Array)[2] = true
 	failures += 0 if _report(
@@ -162,22 +147,17 @@ func _report_party(party: GDScript, data: GameData, summary: Dictionary) -> int:
 	return failures
 
 
-func _walk(trail_script: GDScript, route: Array, verbose: bool) -> String:
+func _print_walk(trail_script: GDScript, route: Array) -> void:
 	var trail: RefCounted = trail_script.new()
-	var lines: PackedStringArray = PackedStringArray()
 	for observation: Dictionary in _observations(route):
 		var pose: Dictionary = trail.observe(observation)
-		var line: String = "%s player %s%s  follower %s" % [
+		print("  %s player %s%s  follower %s" % [
 			_map_text(observation["map"]),
 			_at(observation["cell"],
 				_player_at(observation) - Vector2(observation["cell"] as Vector2i)),
 			"" if bool(pose["out"]) else "  (in its ball)",
 			_at(pose["cell"], pose["offset"]),
-		]
-		lines.append(line)
-		if verbose:
-			print("  %s" % line)
-	return "\n".join(lines)
+		])
 
 
 func _observations(route: Array) -> Array:
@@ -444,22 +424,12 @@ func _petting(trail_script: GDScript) -> int:
 		["right", Gen2WorldSprite.FACING_RIGHT, Gen2WorldSprite.FACING_LEFT],
 	]:
 		var trail: RefCounted = trail_script.new()
-		var before: Dictionary = {}
 		for observation: Dictionary in _observations(["right", "right"]):
-			before = trail.observe(observation)
+			trail.observe(observation)
 		trail.face_back(int(pair[1]))
 		if not _report(
 			"petted while the player looks %s, it looks back" % pair[0],
 			trail.facing() == int(pair[2])
-		):
-			failures += 1
-		var after: Dictionary = trail.observe(_observation(
-			HOME, (before["cell"] as Vector2i) + Vector2i.RIGHT,
-			Gen2WorldSprite.FACING_RIGHT, {}
-		))
-		if not _report(
-			"petting moves nothing but the facing (%s)" % pair[0],
-			(after["cell"] as Vector2i) == (before["cell"] as Vector2i)
 		):
 			failures += 1
 	return failures

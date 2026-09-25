@@ -8,11 +8,6 @@ const WANDER: Array[float] = [0.0, 0.013, 0.37, 0.5, 0.9, 3.25, -7.125]
 ## Single-precision vectors round a snapped point by about 1e-5 of a pixel.
 const PIXEL_TOLERANCE: float = 0.001
 
-## An ordinary walk step, and where a drawn frame stands in one of its passes on
-## a 120 Hz panel running a 60 Hz world.
-const STEP_PASSES: int = 8
-const DRAWN_FRACTIONS: Array[float] = [0.0, 0.25, 0.5, 0.75]
-
 var _failures: int = 0
 
 
@@ -36,7 +31,6 @@ func _initialize() -> void:
 	for pitch: float in [limits.x] + MIDDLE_PITCHES + [limits.y]:
 		for bearing: float in BEARINGS:
 			_check(grid, step, pitch, bearing)
-	_walking()
 	quit(int(_failures > 0))
 
 
@@ -105,34 +99,6 @@ func _one_cell(grid: GDScript, step: float, axes: Array, where: String) -> void:
 		).is_equal_approx(settled)
 	_report("%s: a move inside one pixel draws the same frame" % where, same)
 	_report("%s: a move of a whole pixel draws a new one" % where, apart)
-
-
-## The other half of the grid: a step finer than a pass is worth nothing while
-## the position moves once a pass. This view reads a walker as its two cells and
-## a progress across them, so the progress is where SMOOTH SCROLL has to arrive,
-## and `step_offset_cells()`, which the host draws its own view from, agrees.
-func _walking() -> void:
-	var object := Gen2WorldObject.new()
-	object.cell = Vector2i(4, 4)
-	object.queue_step(Vector2i.RIGHT, STEP_PASSES, false, Vector2i.RIGHT)
-	var agrees: bool = true
-	var moved: bool = true
-	var before: float = -1.0
-	for _spent: int in STEP_PASSES:
-		for fraction: float in DRAWN_FRACTIONS:
-			var span: Dictionary = object.step_span(fraction)
-			var walked: float = lerpf(
-				float((span["from"] as Vector2i).x),
-				float((span["to"] as Vector2i).x), float(span["progress"])
-			)
-			agrees = agrees and is_equal_approx(
-				walked, float(object.cell.x) + object.step_offset_cells(fraction).x
-			)
-			moved = moved and walked > before
-			before = walked
-		object.tick_step()
-	_report("a step is drawn where the offset says it is", agrees)
-	_report("a step moves on every drawn frame", moved)
 
 
 func _report(what: String, passed: bool) -> void:

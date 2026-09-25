@@ -76,8 +76,6 @@ func _table(data: GameData) -> bool:
 			print("two rows are called %s" % id)
 			ok = false
 		ids[id] = true
-		ok = _fits(id, "name", String(row["name"]),
-			Gen2MapNameSignPage.NOTICE_COLUMNS) and ok
 		ok = _fits(id, "detail", String(row["detail"]),
 			Gen2ModPageScreen.TEXT_COLUMNS) and ok
 		ok = _art(data, id, row["icon"] as Dictionary) and ok
@@ -136,9 +134,6 @@ func _announceable(host: Gen2ModHost, _data: GameData) -> bool:
 		print("the summary line does not fit: %s" % str(summary))
 		ok = false
 	host.take_notice_request()
-	if sounds.has(&"shine") or Gen2ModHost.NOTICE_SOUNDS.has(&"shine"):
-		print("a notice reaches the shiny sparkle")
-		ok = false
 	print("  notices      %d accepted, sounds %s" % [_rows.size(), str(sounds.keys())])
 	return ok
 

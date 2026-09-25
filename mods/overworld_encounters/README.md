@@ -78,7 +78,6 @@ palette path.
 
 A shiny never glows and cannot: shininess pins three DVs at 10 and caps ATTACK
 at 15, so 45 is the highest total a shiny can have.
-`tools/overworld_encounters_probe.gd` checks all 65536 DV words and proves it.
 
 The glow changes nothing else. The DVs are the ones carried into the battle, and
 a Pokemon caught without noticing its glow is the same Pokemon.

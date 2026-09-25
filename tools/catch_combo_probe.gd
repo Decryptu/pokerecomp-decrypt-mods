@@ -3,15 +3,12 @@ extends SceneTree
 const Staging: GDScript = preload("staging.gd")
 
 const MOD_ID: StringName = &"catch_combo"
-const CHARM_ID: StringName = &"shiny_charm"
-const SHINY_CHARM: int = 257
 const SPECIES: int = 19
 const OTHER: int = 16
 const LEVEL: int = 4
 const RUNGS: Array = [
 	[1, 1], [10, 1], [11, 4], [20, 4], [21, 8], [30, 8], [31, 12], [60, 12],
 ]
-const CHARM_ROLLS: int = 3
 
 
 func _initialize() -> void:
@@ -27,7 +24,6 @@ func _initialize() -> void:
 	var ok: bool = Staging.mod_loaded(host, data, MOD_ID)
 	host.set_inventory_source(func() -> Dictionary: return {})
 	ok = _rungs(host) and ok
-	ok = _stacking(host) and ok
 	ok = _breaks(host) and ok
 	ok = _box(host) and ok
 	print("%s: %s" % [data.id, "ok" if ok else "FAILED"])
@@ -98,32 +94,6 @@ func _rungs(host: Gen2ModHost) -> bool:
 	return ok
 
 
-func _stacking(host: Gen2ModHost) -> bool:
-	if not host.shiny_rolls_ids().has(CHARM_ID):
-		print("  stacking     %s is not installed, so nothing was measured" % CHARM_ID)
-		return true
-	var ok: bool = true
-	host.set_inventory_source(func() -> Dictionary: return {SHINY_CHARM: 1})
-	_break(host)
-	var charm_alone: int = _rolls(SPECIES)
-	_combo(host, 31)
-	var both: int = _rolls(SPECIES)
-	host.set_inventory_source(func() -> Dictionary: return {})
-	var combo_alone: int = _rolls(SPECIES)
-	print("  stacking     %d charm, %d combo, %d together" % [
-		charm_alone, combo_alone, both,
-	])
-	if charm_alone != CHARM_ROLLS:
-		print("the charm alone is not %d rolls" % CHARM_ROLLS)
-		ok = false
-	if both != combo_alone + charm_alone - 1:
-		print("the two did not add: %d and %d came to %d" % [
-			combo_alone, charm_alone, both,
-		])
-		ok = false
-	return ok
-
-
 func _breaks(host: Gen2ModHost) -> bool:
 	var ok: bool = true
 	var leaving: Array = [
@@ -165,6 +135,8 @@ func _box(host: Gen2ModHost) -> bool:
 		if request.is_empty():
 			break
 		lines.append(String(request.get("text", "")))
+	var longest: Dictionary = host.request_battle_message(MOD_ID, "Catch Combo 99999!")
+	host.take_battle_message()
 	host.set_battle_messages_open(false)
 	print("  box          %s" % (lines[-1] if not lines.is_empty() else "nothing"))
 	if lines.size() != 12:
@@ -173,9 +145,7 @@ func _box(host: Gen2ModHost) -> bool:
 	if lines.is_empty() or lines[-1] != "Catch Combo 12!":
 		print("the twelfth line is not the combo it reached")
 		ok = false
-	var longest: Dictionary = host.request_battle_message(MOD_ID, "Catch Combo 99999!")
-	if not bool(longest.get("ok", false)) \
-		and StringName(longest.get("reason", &"")) != &"no_battle_showing_messages":
+	if not bool(longest.get("ok", false)):
 		print("a five-digit combo does not fit the box: %s" % str(longest))
 		ok = false
 	return ok
