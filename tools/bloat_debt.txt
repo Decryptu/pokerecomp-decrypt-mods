@@ -39,7 +39,6 @@ mods/voxel3d/shape/mesher.gd:_object_model
 mods/voxel3d/shape/mesher.gd:_object_terminal
 mods/voxel3d/shape/mesher.gd:_object_wrap
 mods/voxel3d/shape/mesher.gd:_plan_line
-mods/voxel3d/shape/mesher.gd:_ramp_side
 mods/voxel3d/shape/mesher.gd:_regions
 mods/voxel3d/shape/mesher.gd:_settle_house_ground
 mods/voxel3d/shape/mesher.gd:_skirt_column

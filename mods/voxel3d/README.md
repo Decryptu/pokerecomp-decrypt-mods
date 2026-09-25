@@ -341,7 +341,10 @@ the game: 246 placements on 64 maps, standing up 348 buildings.
 one of them the pre-fill accepted as it came (`house_page.py --accept`): a
 Generation I building is a striped pitch drawn face-on over walls, with a
 hatched flat roof between the pitches on the big ones, and each of those is one
-tile class, so nothing needed painting by hand.
+tile class, so nothing needed painting by hand. A wall column painted up through
+the fascia band, as a Kanto centre's corners are, is a pillar standing in the
+eave: its rows there are the band's face, so it reaches the eave and the walls
+keep the painting's own height.
 
 ## Ledges, doors and two levels of ground
 
@@ -379,10 +382,15 @@ side and has nothing in it to measure, so it keeps what the column pass made of
 it, capped at the tallest face the map does draw: without the cap a rim sixteen
 tiles long came out sixteen tiles tall.
 
-What stands beside a tile is read at the edge the two share. A box is one height
-and a rim is four, one per corner, so a face closed against a rim's single
-measured height is closed against nothing. The lower of the two shared corners is
-what a face reaches down to, which can only add face and never take one away.
+What stands beside a tile is read at the edge the two share, and every side,
+wedge end and skirt asks it the same way. A box is one height and a rim is four,
+one per corner, so a face closed against a rim's single measured height is closed
+against nothing. The lower of the two shared corners is what a face reaches down
+to, which can only add face and never take one away. A roof answers at the mean
+corners it is tilted by, a ledge at its wedge, a cutout at the floor it stands
+on, a narrowed wall at the strip of floor it leaves, and past the edge of the
+grid the floor the ring carries out. A drop that ends part-way through a band,
+down to a roof fallen partly away, closes with that band cropped.
 
 **A painted level** says what no drawing does: which storey of a cave a floor is
 on. `shape/levels.gd` gives a walk cell a height in 8 px bands, two to a storey,

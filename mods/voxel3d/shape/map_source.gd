@@ -288,20 +288,20 @@ const STEP_FACINGS: Dictionary = {
 }
 
 
-## The directions a ledge hop crosses this cell in, empty for a cell that is
-## not a ledge: Generation 2's code names them, Generation 1's tile names one.
+## The directions a ledge hop leaves this cell in, over the ledge in the next
+## cell: Generation 2 names them here, Generation 1 by the tile hopped over.
 func ledge_steps_at(cell: Vector2i) -> Array:
-	var code: int = code_at(cell)
 	var out: Array = []
 	if _gen1:
-		var facing: int = -1 if _tileset == null \
-			else Gen2WorldCollision.gen1_ledge_direction(_tileset.number, code)
+		if _tileset == null:
+			return out
 		for step: Vector2i in STEP_FACINGS:
-			if STEP_FACINGS[step] == facing:
+			var ahead: int = code_at(cell + step)
+			if Gen2WorldCollision.gen1_ledge_direction(_tileset.number, ahead) \
+					== STEP_FACINGS[step]:
 				out.append(step)
 		return out
-	if (code & 0xF0) != Gen2WorldCollision.HI_NYBBLE_LEDGES:
-		return out
+	var code: int = code_at(cell)
 	for step: Vector2i in STEP_FACINGS:
 		if Gen2WorldCollision.allows_hop(code, step):
 			out.append(step)
