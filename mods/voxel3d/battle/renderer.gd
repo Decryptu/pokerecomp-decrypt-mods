@@ -200,6 +200,7 @@ func _build_arena() -> void:
 		return
 
 	var source: RefCounted = MapSourceScript.new(null, map, tileset, _data)
+	source.set_map_as_it_stood(_context.changed_blocks, _context.written_tiles)
 	_stage.set_time_of_day(_context.time_of_day)
 	if _atlas.build(_data, map, tileset, _context.time_of_day):
 		_stage.set_texture(_atlas.texture)
@@ -225,7 +226,10 @@ const RESOLVED_KEPT: int = 2
 func _resolved_for(
 	map: Gen2WorldMap, tileset: Gen2WorldTileset, source: RefCounted
 ) -> RefCounted:
-	var key: String = "%d,%d,%d" % [map.group, map.number, tileset.number]
+	var key: String = "%d,%d,%d,%d" % [
+		map.group, map.number, tileset.number,
+		hash([_context.changed_blocks, _context.written_tiles]),
+	]
 	if _resolved.has(key):
 		return _resolved[key]
 	var mesher: RefCounted = MesherScript.new()

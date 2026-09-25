@@ -10,8 +10,8 @@ extends SceneTree
 ## A PATH is one letter a step: `u d l r` walk, `a` presses A, and a capital
 ## uses a field move where the player stands, `C` Cut, `F` Flash, `H` Headbutt,
 ## `S` Surf, `W` Waterfall, `P` Whirlpool, through the screen's own preview pair.
-## `A` sails the S.S. Anne out of Vermilion Dock, `E` erases it, and `X` flashes
-## a poison step. `every=N` keeps a frame every N frames of a step, which is how
+## `A` runs the S.S. Anne's departure from Vermilion Dock and `X` flashes a
+## poison step, through the screen's own previews. `every=N` keeps a frame every N frames of a step, which is how
 ## a climb is watched rather than counted. ONE ACT A DRIVER FRAME, since the
 ## world and the mesh both move on real ones.
 
@@ -24,9 +24,7 @@ const MOVES: Dictionary = {
 	"C": &"field_move", "F": &"flash", "S": &"surf", "W": &"waterfall", "P": &"whirlpool",
 }
 const ROW_MOVES: Dictionary = {"H": Gen2WorldFieldMove.MOVE_HEADBUTT}
-const EDITS: Dictionary = {
-	"A": &"_sail_ss_anne", "E": &"_erase_ss_anne", "X": &"_flash_poison",
-}
+const EDITS: Dictionary = {"A": &"preview_ss_anne_leaves", "X": &"preview_poison_step"}
 const STEPS: Dictionary = {
 	"u": Vector2i.UP, "d": Vector2i.DOWN, "l": Vector2i.LEFT, "r": Vector2i.RIGHT,
 }
@@ -152,7 +150,7 @@ func _process(_delta: float) -> bool:
 
 func _use(letter: String) -> void:
 	if EDITS.has(letter):
-		call(EDITS[letter])
+		_screen.call(EDITS[letter])
 	elif ROW_MOVES.has(letter):
 		_screen.preview_field_move_row(ROW_MOVES[letter])
 		_screen.advance_frames(SHUTTER)
@@ -167,30 +165,6 @@ func _use(letter: String) -> void:
 		letter,
 		str((_screen.world_snapshot() as Dictionary).get("player_cell")),
 	])
-
-
-## `VermilionDockSSAnneLeavesScript`'s drift, whose band scrolls over the
-## frames the step spends, and its erase: the five water blocks and the rows.
-func _sail_ss_anne() -> void:
-	_screen._effects.start_gen1_ss_anne()
-
-
-func _erase_ss_anne() -> void:
-	var world: Gen2WorldAPI = _screen.world()
-	world.erase_screen_rows(
-		Gen1Layout.SS_ANNE_BAND_TOP / PokeTiles.TILE_HEIGHT,
-		(Gen1Layout.SS_ANNE_BAND_BOTTOM - Gen1Layout.SS_ANNE_BAND_TOP) / PokeTiles.TILE_HEIGHT,
-		Gen1Layout.SS_ANNE_WATER_TILE
-	)
-	for column: int in Gen1Layout.SS_ANNE_ERASE_BLOCKS:
-		world.change_block(
-			Gen1Layout.SS_ANNE_ERASE_AT.x + column, Gen1Layout.SS_ANNE_ERASE_AT.y,
-			Gen1Layout.SS_ANNE_WATER_BLOCK
-		)
-
-
-func _flash_poison() -> void:
-	_screen._start_poison_flash()
 
 
 ## Frames, one a driver frame so the renderer moves with them. Spent inside a

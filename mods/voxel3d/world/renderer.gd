@@ -51,8 +51,7 @@ var _resolving: bool = false
 var _recolouring: bool = false
 var _standing: bool = false
 var _first_build: bool = true
-var _block_revision: int = -1
-var _band: Dictionary = {}
+var _drawn_revision: int = -1
 var _band_offset: float = 0.0
 var _flooded: bool = false
 var _chunks: Array = []
@@ -330,16 +329,13 @@ func _resolve() -> void:
 		_stage.set_tufts([])
 		_stage.far_field().configure(null, _time_of_day, true)
 		return
-	_block_revision = _world.block_revision
-	_band = _screen_band()
+	_drawn_revision = _draw_list.drawn_revision() if _draw_list != null else -1
 	var tileset: StringName = _world.current_tileset.name
 	if _shape == null or tileset != _shape_tileset:
 		_shape = TileShapeScript.new(Profiles.of(_world.data), tileset)
 		_shape_tileset = tileset
 	var source: RefCounted = MapSourceScript.new(_world)
-	source.set_screen_edits(
-		_draw_list.tile_overrides().duplicate() if _draw_list != null else {}, _band
-	)
+	source.set_draw_list(_draw_list)
 	_outside = source.outside()
 	if _build_atlas():
 		_stage.set_texture(_atlas.texture)
@@ -356,19 +352,10 @@ func _resolve() -> void:
 ## a new `set_world`, and the terrain standing stays up until its replacement is
 ## built.
 func _follow_map_edits() -> void:
-	if _world == null or _resolving:
+	if _world == null or _draw_list == null or _resolving:
 		return
-	if _world.block_revision != _block_revision or _screen_band() != _band:
+	if _draw_list.drawn_revision() != _drawn_revision:
 		_resolve()
-
-
-func _screen_band() -> Dictionary:
-	if _draw_list == null or _world == null:
-		return {}
-	return MapSourceScript.band_of(
-		_draw_list.band_scroll(),
-		Vector2i((_world.visible_origin_cells() * CELL).floor())
-	)
 
 
 ## Measuring a map is sliced the way emitting it is, except on the first build,
@@ -446,8 +433,6 @@ func _ring_on(cells: Vector2) -> void:
 
 
 func _begin_terrain(window: Rect2i) -> void:
-	if not _band.is_empty() and window.has_area():
-		window = window.grow_side(SIDE_RIGHT, MesherScript.SCROLL_REACH_TILES)
 	_chunks = []
 	_water = []
 	_tufts = []

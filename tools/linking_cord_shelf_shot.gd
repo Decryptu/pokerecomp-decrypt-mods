@@ -90,7 +90,7 @@ func _process(_delta: float) -> bool:
 
 ## Talk across the counter, take BUY, walk down the shelf.
 func _stage() -> void:
-	_screen._world.player_facing = int(_counter["facing"])
+	_screen.world().player_facing = int(_counter["facing"])
 	_screen.interact()
 	_clear_boxes()
 	_screen.press_button(PokeButton.A)
