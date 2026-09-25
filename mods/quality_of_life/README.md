@@ -53,7 +53,11 @@ halving, level ups, moves learned and evolutions all follow from it, and a
 capture with `CATCH EXP` on scales too. Stat experience is left alone, since it
 is the cartridge's own hidden EV gain rather than a rate.
 
-The move guide uses the spare cell at the right of each move row. Stat stages use
+The move guide uses the spare cell at the right of each move row. From pokerecomp
+0.1.48 (API 43) a mark is what the move would actually deal: a status move is
+marked only when the target is immune to it, and a move that ignores type, such
+as a fixed-damage one, is never marked. An older game marks every move off the
+type chart. Stat stages use
 the empty lower-left command panel for the player and the space above the enemy
 picture for the opponent, and they hide while the move list's type box needs that
 panel. Red, Blue and Yellow stage one SPECIAL, shown as `SPC`. The player's panel

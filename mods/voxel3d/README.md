@@ -806,8 +806,9 @@ the draw list's `drawn_revision` moves, and every edited tile is the one its
   ship stands in the wake. A face across the band's edge drops to the lowest
   ground the band holds, since what stands beside it moves.
 - Headbutt takes the tree's model away while the tree's own sprite shakes in its
-  place. The hidden tree is an overlay outside `drawn_revision`, so the map is
-  not built again.
+  place. From pokerecomp 0.1.51 (API 46) the hidden tree is an overlay outside
+  `drawn_revision`, so the map is not built again; an older game builds it again
+  at the start and end of the shake, and the picture is the same.
 - The poison flash floods every background colour, the far field included, and
   the sprites keep theirs.
 
