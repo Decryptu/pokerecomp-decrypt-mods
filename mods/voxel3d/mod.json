@@ -1,7 +1,7 @@
 {
   "id": "voxel3d",
   "name": "Voxel 3D",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "api_version": 44,
   "entry": "mod.gd",
   "games": [
