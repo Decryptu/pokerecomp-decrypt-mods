@@ -20,6 +20,19 @@ tools/motion_bench.gd how far a 3D view's camera moves per drawn frame, walking
 tools/horizon_shot.gd photographs the horizon through the game's own screen
 tools/far_drawings.gd checks the horizon's drawings and cards against a resolve
 tools/mod_icons.sh    repaints every icon from one cartridge; see icon_art.gd
+tools/foliage.gd      every foliage drawing beside the models made of it;
+                      foliage_sheet.py numbers the strips into sheets
+tools/model_shot.gd   chosen drawings' models side by side on a plain floor
+tools/model_cost.gd   a drawn window's triangles by layer and by drawing
+tools/clean_frame.gd  the cartridge screen alone, for the shot drivers
+tools/tile_read.gd    what one rectangle of a map resolves to, as text
+tools/census.gd       how many tiles resolve to each shape class
+tools/class_tail.gd   every drawing that resolves to one class, and where
+tools/mask_print.gd   one drawing's palette indices as text
+tools/block_art.gd    one block painted the way the cartridge draws it
+tools/border_ring.gd  what the ring of blocks round each map is made of
+tools/doors.gd        every warp that is a door
+tools/buildings.gd    how many distinct buildings the game draws
 docs/icons_4x/<id>.png  the same icon at 4x, for the README table only
 .github/workflows/    announce.yml posts a published release to Discord
 ```
@@ -96,6 +109,27 @@ godot --path /path/to/pokerecomp
 The launcher lists what loaded and names anything it refused. A mod that fails is
 skipped and reported through `Gen2ModHost.failures()`; it never stops the game or
 the other mods.
+
+## Probes
+
+The strongest proof is the game played: pokerecomp's `tools/validate.gd --
+played --mods` runs every cartridge to its second badge with the mods loaded,
+and a shot driver leaves a picture anyone can check again. A probe in `tools/`
+covers what play does not reach, through the host's real seams on every
+cartridge the mod names.
+
+- Before writing a check, write down the ways the mod could fail, then the check
+  that catches one. A check written after the code to agree with it catches
+  nothing.
+- Each check names the behaviour or contract it guards, the regression that makes
+  it fail, and why nothing stronger already catches it: the host's own tests,
+  another probe, the played run or a picture.
+- Leave out checks that restate the code: an expected value computed by the
+  helper under test, a copy of a constant the mod owns, a print with no verdict,
+  a second check of a contract another check owns, and a mod function that only
+  a probe calls.
+- A regression check fails on the code before the fix. A check that cannot fail
+  is repaired or deleted.
 
 ## What a tool is given
 

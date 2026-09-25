@@ -193,19 +193,6 @@ func _evolves(data: GameData) -> bool:
 		ok = _case(data, case) and ok
 	for case: Dictionary in NAME_CASES:
 		ok = _names(data, case) and ok
-	var trade_evolutions: Array[String] = []
-	for species: int in range(1, data.species_count() + 1):
-		for row: Dictionary in data.evolutions(species):
-			if int(row.get("method", 0)) != Gen2Layout.EVOLVE_TRADE:
-				continue
-			var held: int = int(row.get("parameter", Gen2Evolution.TRADE_NO_ITEM))
-			trade_evolutions.append("%s -> %s%s" % [
-				String(data.species(species).get("name", "?")),
-				String(data.species(int(row.get("target", 0))).get("name", "?")),
-				"" if held == Gen2Evolution.TRADE_NO_ITEM \
-					else " holding %s" % String(data.item(held).get("name", "?")),
-			])
-	print("  %d trade evolutions: %s" % [trade_evolutions.size(), ", ".join(trade_evolutions)])
 	return ok
 
 

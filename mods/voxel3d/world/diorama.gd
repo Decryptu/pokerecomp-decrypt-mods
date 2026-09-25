@@ -6,6 +6,7 @@ const Wind3D: GDScript = preload("wind.gd")
 const Frame3D: GDScript = preload("frame.gd")
 const Motes3D: GDScript = preload("motes.gd")
 const FarField3D: GDScript = preload("far_field.gd")
+const Grid: GDScript = preload("grid.gd")
 
 const CELL: float = 16.0
 
@@ -507,7 +508,7 @@ func aim_camera(eye: Vector3, target: Vector3) -> void:
 	if direction.length_squared() < 0.001:
 		return
 	var up := Vector3.UP
-	if absf(direction.normalized().dot(Vector3.UP)) > 0.999:
+	if Grid.is_vertical(direction):
 		up = Vector3.FORWARD
 	camera.look_at_from_position(eye, target, up)
 	if _frame.wants_eye():

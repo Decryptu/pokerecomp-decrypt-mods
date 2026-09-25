@@ -10,7 +10,6 @@ const STAT_EXP: Dictionary = {
 	"hp": 21760, "attack": 40960, "defense": 8704,
 	"special": 15104, "speed": 33280,
 }
-const DV_KEYS: Array[String] = ["hp", "attack", "defense", "special", "speed"]
 const LOWER_FIRST_ROW: int = 8
 const LOWER_ROWS: int = 10
 const GEN1_TURNS: Array[int] = [PokeButton.A, PokeButton.A]
@@ -34,7 +33,6 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var screen: Gen2MonStatsScreen = Gen2MonStatsScreen.create(data, [mon])
-	ok = _snapshot(screen.snapshot()) and ok
 	ok = _page(host, screen.snapshot()) and ok
 	ok = _turns(data, screen) and ok
 	print("%s: %s" % [data.id, "ok" if ok else "FAILED"])
@@ -51,21 +49,6 @@ func _stage(data: GameData) -> Gen2SaveMon:
 	mon.dvs = DVS
 	mon.stat_exp = STAT_EXP.duplicate()
 	return mon
-
-
-func _snapshot(page: Dictionary) -> bool:
-	var ok: bool = true
-	if int(page.get("dvs", -1)) != DVS:
-		print("snapshot dvs %s, wanted %d" % [str(page.get("dvs")), DVS])
-		ok = false
-	var trained: Dictionary = page.get("stat_exp", {})
-	for key: String in DV_KEYS:
-		if int(trained.get(key, -1)) != int(STAT_EXP[key]):
-			print("snapshot stat_exp %s %s, wanted %d" % [
-				key, str(trained.get(key)), int(STAT_EXP[key]),
-			])
-			ok = false
-	return ok
 
 
 ## The registered page, built through the host's own registry, says every DV

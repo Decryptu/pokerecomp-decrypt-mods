@@ -1,4 +1,3 @@
-mods/follower/party.gd:member
 mods/randomizer/plan.gd:_families
 mods/randomizer/plan.gd:_randomize_learnsets
 mods/randomizer/plan.gd:build
@@ -62,7 +61,6 @@ mods/voxel3d/world/far_houses.gd:_box
 tools/achievements_probe.gd:_initialize
 tools/achievements_probe.gd:_once
 tools/achievements_shot.gd:_initialize
-tools/aura_sheet.gd:_initialize
 tools/battle_shot.gd:_initialize
 tools/battle_shot.gd:_load_anim
 tools/block_art.gd:_initialize

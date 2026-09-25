@@ -10,12 +10,15 @@ static func step(frame_world_height: float, surface_pixels: float) -> float:
 	return frame_world_height / surface_pixels
 
 
+## Godot's `look_at` refuses an up parallel to the view by this same test.
+static func is_vertical(direction: Vector3) -> bool:
+	return Vector3.UP.cross(direction.normalized()).is_zero_approx()
+
+
 static func axes(forward: Vector3) -> Array:
-	if forward.length_squared() <= 0.0:
+	if forward.length_squared() <= 0.0 or is_vertical(forward):
 		return []
 	var ahead: Vector3 = forward.normalized()
-	if absf(ahead.dot(Vector3.UP)) > 0.999:
-		return []
 	var right: Vector3 = Vector3.UP.cross(ahead).normalized()
 	return [right, ahead.cross(right)]
 

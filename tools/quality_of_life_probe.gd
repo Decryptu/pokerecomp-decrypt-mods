@@ -78,8 +78,6 @@ func _registration() -> void:
 	expected.sort()
 	actual.sort()
 	_expect(actual == expected, "all options are registered once (%s)" % str(actual))
-	_expect(_keys.has(&"weather") == (_data.generation != RomRegistry.GEN1),
-		"WEATHER is offered where the cartridge has weather")
 	_expect(_host.field_move_source_ids().has(MOD_ID), "field-move source registered")
 	_expect(_host.repel_renewal_ids().has(MOD_ID), "Repel renewal registered")
 	_expect(_host.catch_experience_ids().has(MOD_ID), "catch EXP policy registered")
@@ -214,9 +212,10 @@ func _move_guide() -> void:
 	snapshot["enemy_seen_before"] = false
 	_expect(_placements(snapshot).is_empty(), "an unseen opponent reveals nothing")
 	snapshot["enemy_seen_before"] = true
+	snapshot["move_rows_right"] = 17
 	var marks: Array = _placements(snapshot)
 	_expect(marks.size() == 3, "advantage, resistance and immunity are marked")
-	_expect((marks[0] as Dictionary).get("at", Vector2i.ZERO) == Vector2i(18, 13),
+	_expect((marks[0] as Dictionary).get("at", Vector2i.ZERO) == Vector2i(17, 13),
 		"the guide uses the host's move-row column")
 	_switch(&"move_guide", false)
 

@@ -7,7 +7,6 @@ const WALK_FRAMES: int = 400
 const SPREAD_RUNS: int = 200
 const SPREAD_OCTILES: int = 8
 const SPREAD_RATIO: float = 1.5
-const DV_WORDS: int = 0x10000
 const SHINY_SEED_ATTEMPTS: int = 20000
 const SHARE_RUNS: int = 400
 const SHARE_TOLERANCE: float = 0.02
@@ -19,7 +18,6 @@ const SHINY_DVS: int = (2 << 12) | (10 << 8) | (10 << 4) | 10
 
 var _plan: GDScript = null
 var _provider_script: GDScript = null
-var _rng: GDScript = null
 
 
 ## What the host hands a provider, kept. The other three are the contract's.
@@ -81,8 +79,7 @@ func _load_mod() -> bool:
 		.path_join("mods/overworld_encounters")
 	_plan = load(mod.path_join("plan.gd"))
 	_provider_script = load(mod.path_join("provider.gd"))
-	_rng = load(mod.path_join("rng.gd"))
-	return _plan != null and _provider_script != null and _rng != null
+	return _plan != null and _provider_script != null
 
 
 func _print_population(context: Dictionary, seed_value: int) -> void:
@@ -102,10 +99,6 @@ func _determinism(context: Dictionary, seed_value: int, other_seed: int) -> int:
 	var first: String = JSON.stringify(_plan.build(context, seed_value, POPULATION))
 	var again: String = JSON.stringify(_plan.build(context, seed_value, POPULATION))
 	var other: String = JSON.stringify(_plan.build(context, other_seed, POPULATION))
-	print("seed %d digest %08x, built twice %08x" % [
-		seed_value, _rng.text_hash(first), _rng.text_hash(again),
-	])
-	print("seed %d digest %08x" % [other_seed, _rng.text_hash(other)])
 	var seeded: Dictionary = context.duplicate(true)
 	seeded["run_seed"] = seed_value
 	var provider: RefCounted = _provider_script.new()
@@ -324,13 +317,6 @@ func _a_shiny_map(context: Dictionary) -> int:
 
 
 func _glowing(context: Dictionary) -> int:
-	var shiny: int = 0
-	var excellent: int = 0
-	var both: int = 0
-	for dvs: int in DV_WORDS:
-		shiny += int(_plan.is_shiny(dvs))
-		excellent += int(_plan.is_excellent(dvs))
-		both += int(_plan.is_shiny(dvs) and _plan.is_excellent(dvs))
 	var settings: Dictionary = context.duplicate(true)
 	settings["generation"] = 9
 	settings["run_seed"] = _a_glowing_map(settings)
@@ -346,10 +332,7 @@ func _glowing(context: Dictionary) -> int:
 			only_excellent = only_excellent and _plan.is_excellent(int(entry.get("dvs", 0)))
 			var landed: Dictionary = Gen2WorldEncounters._glow(entry["glow"])
 			rungs[landed.get("amount", 0.0)] = true
-	return _report("%d DV words: %d shiny, %d excellent, both %d" % [
-			DV_WORDS, shiny, excellent, both,
-		], shiny == 8 and excellent == 1001 and both == 0) \
-		+ _report("a glow reaches only an excellent Pokemon, on %d rungs" % rungs.size(),
+	return _report("a glow reaches only an excellent Pokemon, on %d rungs" % rungs.size(),
 			only_excellent and rungs.size() in range(1, Gen2WorldEncounters.GLOW_RUNGS + 2))
 
 

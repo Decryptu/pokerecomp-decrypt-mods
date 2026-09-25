@@ -147,8 +147,7 @@ Godot --headless --path <pokerecomp> -s tools/follower_probe.gd -- \
 ```
 
 It prints the icon row for each party slot, then one line per frame, then checks
-every frame of two routes. One route walked twice digests to the same number and
-a different route does not. It exits non-zero on failure.
+every frame of two routes. It exits non-zero on failure.
 
 ## Layout
 

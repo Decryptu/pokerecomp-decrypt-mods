@@ -14,8 +14,7 @@ static func member(summary: Dictionary, data: GameData, slot: int) -> Dictionary
 	if index < eggs.size() and bool(eggs[index]):
 		return _in_ball(&"egg")
 	var fainted: Array = summary.get("fainted", [])
-	if (index < fainted.size() and bool(fainted[index])) \
-		or (fainted.is_empty() and index == 0 and bool(summary.get("lead_fainted", false))):
+	if index < fainted.size() and bool(fainted[index]):
 		return _in_ball(&"fainted")
 	var number: int = int(species[index])
 	var icon: int = data.mon_menu_icon(number)
