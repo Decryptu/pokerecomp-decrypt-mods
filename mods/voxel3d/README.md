@@ -149,9 +149,10 @@ step is taken to the level flat rather than left at a saturated hue.
 ## The battle
 
 `Gen2BattleScreen` hands over display values and, once per battle, a
-`Gen2BattleWorldContext` saying where the encounter happened. That is enough to
-rebuild the map with the same mesher the overworld uses and stand the battlers on
-it.
+`Gen2BattleWorldContext` saying where the encounter happened and how the map
+stood: its changed blocks and written tiles. That is enough to rebuild the map
+with the same mesher the overworld uses, a cut tree still gone, and stand the
+battlers on it.
 
 **What happens to a battler.** Two trainers slide in from opposite sides, the
 opponent sends out first, the player's picture walks off, and a ball puts a
@@ -786,19 +787,22 @@ as far as the far field draws their ground.
 ## What the screen edits under the sprites
 
 The draw list also carries edits to the map beneath its rows, and each is drawn
-where it lands: in the geometry, not on a card.
+where it lands: in the geometry, not on a card. The map is resolved again when
+the draw list's `drawn_revision` moves, and every edited tile is the one its
+`drawn_tile_at` answers.
 
 - A tile the screen writes into the background, which is how Vermilion Dock
   erases the S.S. Anne, resolves the map again like a `changeblock`. On Red,
   Blue and Yellow a cell's collision is the tile drawn at its foot, so a written
   tile shapes the cell as well as painting it.
-- While the S.S. Anne leaves, its band of screen lines is emitted as chunks of
-  its own that slide west by the scroll. The band reaches 32 tiles further east
-  than the rest, since rSCX is a byte, so the water the cartridge copies in
-  behind the ship stands in the wake. A face across the band's edge drops to the
-  lowest ground the band holds, since what stands beside it moves.
+- While the S.S. Anne leaves, the draw list's `band` rows are emitted as chunks
+  of their own that slide west by the scroll. They reach as far east past the
+  rest as the band's `reach`, so the water the cartridge copies in behind the
+  ship stands in the wake. A face across the band's edge drops to the lowest
+  ground the band holds, since what stands beside it moves.
 - Headbutt takes the tree's model away while the tree's own sprite shakes in its
-  place.
+  place. The hidden tree is an overlay outside `drawn_revision`, so the map is
+  not built again.
 - The poison flash floods every background colour, the far field included, and
   the sprites keep theirs.
 

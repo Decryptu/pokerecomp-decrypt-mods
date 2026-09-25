@@ -2,18 +2,16 @@ extends SceneTree
 
 ## The draw list's edits under the sprites, as Voxel 3D takes them: a written
 ## tile and the S.S. Anne's band through `MapSource`, the band's own sliding
-## pieces and the risers beside them, a Headbutt tree's model footprint, and the
-## poison flash's flood.
+## pieces and the risers beside them, a battle staged on the map as it stood, a
+## Headbutt tree's model footprint, and the poison flash's flood.
 ##
 ##   -- <cartridge>
 
 const MOD := "user://mods/voxel3d"
 const DOCK := Vector2i(0, 94)
-## Vermilion Dock's screen corner in world pixels with the player on the
-## gangway at cell 14,2, and the water tile `EraseSSAnne` writes.
-const DOCK_CORNER := Vector2i(160, -32)
-const WATER_TILE: int = 0x14
-const GANGWAY_FOOT := Rect2(224.0, 48.0, 16.0, 0.0)
+## Where the player stands on Vermilion Dock while the ship leaves.
+const GANGWAY := Vector2i(14, 2)
+const CELL_PIXELS: float = 16.0
 
 var _failed: int = 0
 
@@ -44,10 +42,12 @@ func _report(what: String, passed: bool) -> void:
 		_failed += 1
 
 
-func _source(data: GameData, map: Gen2WorldMap) -> RefCounted:
-	return (load("%s/shape/map_source.gd" % MOD) as GDScript).new(
-		null, map, data.world_tileset(map.tileset), data
-	)
+func _source(world: Gen2WorldAPI) -> RefCounted:
+	return (load("%s/shape/map_source.gd" % MOD) as GDScript).new(world)
+
+
+func _staged(data: GameData, map: Gen2WorldMap, cell: Vector2i) -> Gen2WorldAPI:
+	return Gen2WorldAPI.new(data, map, data.world_tileset(map.tileset), cell)
 
 
 func _dock(data: GameData) -> void:
@@ -55,25 +55,48 @@ func _dock(data: GameData) -> void:
 	if map == null:
 		_report("Vermilion Dock is in the cache", false)
 		return
-	var source: RefCounted = _source(data, map)
-	var plain: RefCounted = _source(data, map)
-	source.set_screen_edits({Vector2i(28, 7): WATER_TILE})
-	_report("a written tile is drawn", source.tile_at(28, 7) == WATER_TILE)
-	_report("a written foot tile is its cell's code", source.code_at(Vector2i(14, 3)) == WATER_TILE)
-	var band: Dictionary = source.band_of(
-		{"top": Gen1Layout.SS_ANNE_BAND_TOP, "bottom": Gen1Layout.SS_ANNE_BAND_BOTTOM, "offset": 1},
-		DOCK_CORNER
-	)
-	source.set_screen_edits({}, band)
-	_report("the band covers tile rows 6 to 11", source.band_rows() == Vector2i(6, 12))
-	_report("the band past the screen copies its last two columns",
-		source.tile_at(45, 8) == plain.tile_at(39, 8)
-			and source.tile_at(44, 8) == plain.tile_at(38, 8))
-	_report("the band inside the screen is the map", source.tile_at(30, 8) == plain.tile_at(30, 8))
-	_band_pieces(data, map, source)
+	_written(data, map)
+	_band(data, map)
+	_battle(_staged(data, map, GANGWAY), Gen1Layout.SS_ANNE_ERASE_AT, Gen1Layout.SS_ANNE_WATER_BLOCK)
 
 
-func _band_pieces(data: GameData, map: Gen2WorldMap, source: RefCounted) -> void:
+func _written(data: GameData, map: Gen2WorldMap) -> void:
+	var world: Gen2WorldAPI = _staged(data, map, GANGWAY)
+	var list := Gen2WorldDrawList.new(world, Gen2WorldEffects.new())
+	var foot := Vector2i(world.screen_origin_tile().x + 8, GANGWAY.y * 2 + 1)
+	_write_row(world, foot.y)
+	var source: RefCounted = _source(world)
+	source.set_draw_list(list)
+	_report("a written tile is drawn",
+		source.tile_at(foot.x, foot.y) == Gen1Layout.SS_ANNE_WATER_TILE)
+	_report("a written foot tile is its cell's code",
+		source.code_at(Vector2i(foot.x / 2, GANGWAY.y)) == Gen1Layout.SS_ANNE_WATER_TILE)
+
+
+func _write_row(world: Gen2WorldAPI, tile_y: int) -> void:
+	world.erase_screen_rows(tile_y - world.screen_origin_tile().y, 1, Gen1Layout.SS_ANNE_WATER_TILE)
+
+
+func _band(data: GameData, map: Gen2WorldMap) -> void:
+	var world: Gen2WorldAPI = _staged(data, map, GANGWAY)
+	var effects := Gen2WorldEffects.new()
+	var list := Gen2WorldDrawList.new(world, effects)
+	effects.start_gen1_ss_anne()
+	while effects.ss_anne_band_offset() == 0:
+		effects.advance_frame()
+	var source: RefCounted = _source(world)
+	source.set_draw_list(list)
+	var band: Dictionary = list.band()
+	var rows: Vector2i = band["rows"]
+	var same: bool = true
+	for y: int in range(rows.x - 1, rows.y + 1):
+		for x: int in map.width_blocks * 4 + source.band_reach_tiles():
+			same = same and source.tile_at(x, y) == list.drawn_tile_at(Vector2i(x, y))
+	_report("the map around and inside the band is the tile the host draws", same)
+	_band_pieces(data, map, source, rows)
+
+
+func _band_pieces(data: GameData, map: Gen2WorldMap, source: RefCounted, rows: Vector2i) -> void:
 	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
 	var atlas: RefCounted = (load("%s/shape/atlas.gd" % MOD) as GDScript).new()
 	atlas.build(data, map, tileset, Gen2WorldPalette.TIME_DAY)
@@ -83,31 +106,57 @@ func _band_pieces(data: GameData, map: Gen2WorldMap, source: RefCounted) -> void
 	)
 	var meshes: Array = mesher.build(source, shape, atlas) + mesher.take_water()
 	var width: float = float(map.width_blocks * 32)
+	var band := Vector2(rows) * float(PokeTiles.TILE_HEIGHT)
 	var inside: bool = true
 	var reached: bool = false
 	var still_past: bool = false
 	for mesh: ArrayMesh in meshes:
 		var box: AABB = mesh.get_aabb()
 		if mesh.has_meta(&"scrolled"):
-			inside = inside and box.position.z >= 48.0 and box.end.z <= 96.0
+			inside = inside and box.position.z >= band.x and box.end.z <= band.y
 			reached = reached or box.end.x > width
 		else:
 			still_past = still_past or box.end.x > width
 	_report("scrolled pieces stay in the band's rows", inside)
 	_report("the band reaches past the map to stand behind the ship", reached)
 	_report("nothing else reaches past the map", not still_past)
-	_report("the gangway has a riser down to the water", _has_riser(meshes))
+	_report("the gangway has a riser down to the water", _has_riser(
+		meshes, Rect2(float(GANGWAY.x) * CELL_PIXELS, band.x, CELL_PIXELS, 0.0)
+	))
 
 
-func _has_riser(meshes: Array) -> bool:
+## A battle staged from `Gen2BattleWorldContext` sees the map as it stood: a
+## changed block, and on Generation 1 a written tile.
+func _battle(world: Gen2WorldAPI, at: Vector2i, block: int) -> void:
+	var gen1: bool = world.data.generation == RomRegistry.GEN1
+	var tileset: Gen2WorldTileset = world.current_tileset
+	world.change_block(at.x, at.y, block)
+	var written := Vector2i(world.screen_origin_tile().x, GANGWAY.y * 2 + 1)
+	if gen1:
+		_write_row(world, written.y)
+	var context: Gen2BattleWorldContext = Gen2BattleWorldContext.capture(world)
+	var source: RefCounted = (load("%s/shape/map_source.gd" % MOD) as GDScript).new(
+		null, world.current_map, tileset, world.data
+	)
+	source.set_map_as_it_stood(context.changed_blocks, context.written_tiles)
+	var tile: Vector2i = at * Gen2Layout.MAP_BLOCK_TILE_WIDTH
+	_report("a battle's arena has the changed block",
+		source.tile_at(tile.x, tile.y) == tileset.tile_index(block, 0)
+			and source.code_at(at * Gen2Layout.MAP_BLOCK_CELL_WIDTH)
+				== source.code_in_block(world.data, tileset, block, 0, 0))
+	if gen1:
+		_report("a battle's arena has the written tile",
+			source.tile_at(written.x, written.y) == Gen1Layout.SS_ANNE_WATER_TILE)
+
+
+func _has_riser(meshes: Array, foot: Rect2) -> bool:
 	for mesh: ArrayMesh in meshes:
 		if mesh.has_meta(&"scrolled"):
 			continue
 		var vertices: PackedVector3Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 		for vertex: Vector3 in vertices:
-			if vertex.z == GANGWAY_FOOT.position.y and vertex.y < 0.0 \
-					and vertex.x >= GANGWAY_FOOT.position.x \
-					and vertex.x <= GANGWAY_FOOT.end.x:
+			if vertex.z == foot.position.y and vertex.y < 0.0 \
+					and vertex.x >= foot.position.x and vertex.x <= foot.end.x:
 				return true
 	return false
 
@@ -126,7 +175,9 @@ func _headbutt(data: GameData) -> void:
 	var shape: RefCounted = (load("%s/shape/tile_shape.gd" % MOD) as GDScript).new(
 		(load("%s/shape/profiles.gd" % MOD) as GDScript).of(data), tileset.name
 	)
-	mesher.build(_source(data, map), shape, atlas)
+	mesher.build((load("%s/shape/map_source.gd" % MOD) as GDScript).new(
+		null, map, tileset, data
+	), shape, atlas)
 	var tiles := Rect2i(cell * 2, Vector2i(2, 2))
 	var covered: bool = false
 	for model: Array in mesher.take_models():
@@ -134,6 +185,29 @@ func _headbutt(data: GameData) -> void:
 			covered = covered or footprint.intersects(tiles)
 	_report("map %d,%d's Headbutt tree at %s has a model to take away" % [
 		map.group, map.number, str(cell)], covered)
+	_hidden_tree(data, map, cell)
+	var block: Vector2i = cell / Gen2Layout.MAP_BLOCK_CELL_WIDTH
+	_battle(
+		_staged(data, map, cell + Vector2i.DOWN), block,
+		maxi((map.block_at(block.x, block.y) + 1) % tileset.block_count, 1)
+	)
+
+
+## A hidden tree is the model's to take away: the map is not built again and
+## reads the tree where it stands.
+func _hidden_tree(data: GameData, map: Gen2WorldMap, cell: Vector2i) -> void:
+	var world: Gen2WorldAPI = _staged(data, map, cell + Vector2i.DOWN)
+	var effects := Gen2WorldEffects.new()
+	var list := Gen2WorldDrawList.new(world, effects)
+	var revision: int = list.drawn_revision()
+	var tile: Vector2i = cell * 2
+	var standing: int = list.drawn_tile_at(tile)
+	effects.start_headbutt_tree(cell)
+	var source: RefCounted = _source(world)
+	source.set_draw_list(list)
+	_report("a hidden tree builds nothing again",
+		not list.hidden_tree_cells().is_empty() and list.drawn_revision() == revision
+			and source.tile_at(tile.x, tile.y) == standing)
 
 
 ## The first `COLL_HEADBUTT_TREE` with open ground south of it, the cell a

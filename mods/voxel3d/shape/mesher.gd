@@ -236,9 +236,6 @@ const CHUNK_TILES: int = 16
 const MODEL_CHUNK_TILES: int = CHUNK_TILES
 
 const CACHE_MARGIN_CHUNKS: int = 2
-## rSCX is a byte, so a scrolled band slides at most 255 pixels west: its pieces
-## reach this far east past everything else to stand behind it.
-const SCROLL_REACH_TILES: int = 32
 
 var _emit_atlas: RefCounted = null
 var _chunks: Array[Rect2i] = []
@@ -262,7 +259,10 @@ var _selected: Dictionary = {}
 ## The grid rows a scrolled band of the screen covers, empty for none. A chunk
 ## crossing it is emitted in pieces, and a piece inside it is marked
 ## [code]scrolled[/code] so the stage can slide it while the rest stands still.
+## Its pieces reach `_scroll_reach` tiles east past everything else, as far as
+## the band slides, to stand behind it.
 var _scroll_rows := Vector2i.ZERO
+var _scroll_reach: int = 0
 var _scroll_floor: int = 0
 var _split_keys: Dictionary = {}
 var _structure_owner: Dictionary = {}
@@ -280,11 +280,12 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 		return false
 	var reach: int = maxi(BORDER_TILES - _margin.x, 0) if _outside else 0
 	var box := Rect2i(-Vector2i(reach, reach), _size + Vector2i(reach, reach) * 2)
-	var reached: Rect2i = box if _scroll_rows == Vector2i.ZERO \
-		else box.grow_side(SIDE_RIGHT, SCROLL_REACH_TILES)
+	var reached: Rect2i = box.grow_side(SIDE_RIGHT, _scroll_reach)
 	var view := reached
 	if window.size.x > 0 and window.size.y > 0:
-		view = reached.intersection(Rect2i(window.position + _margin, window.size))
+		view = reached.intersection(
+			Rect2i(window.position + _margin, window.size).grow_side(SIDE_RIGHT, _scroll_reach)
+		)
 	if view.size.x <= 0 or view.size.y <= 0:
 		return false
 	_emit_atlas = atlas
@@ -911,6 +912,7 @@ func begin_resolve(source: RefCounted, shape: RefCounted) -> void:
 	var band: Vector2i = source.band_rows()
 	_scroll_rows = band + Vector2i(_margin.y, _margin.y) if band != Vector2i.ZERO \
 		else Vector2i.ZERO
+	_scroll_reach = source.band_reach_tiles() if band != Vector2i.ZERO else 0
 	_resolve_passes = _passes(source, shape)
 
 
