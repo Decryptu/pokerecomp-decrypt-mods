@@ -455,6 +455,16 @@ than climbing it, so a down flight is a hole: the cell's floor goes a walk cell
 below the ground and everything skirts down to it, which is the same code that
 draws a cliff. A ladder in a shaft is that with the steps taken out.
 
+An up flight climbs to the floor at its head, so it meets that floor whatever
+height it stands at; one that runs into a wall, a warp stair, keeps its own
+rise. On a map nobody painted, the flights decide the storeys: the floors are
+the regions of walk cells, and of water, that no wall, flight, ledge or warp
+divides, and the floor at a flight's head stands that flight's rise above the
+floor at its foot. That lifts a cave's platforms, Olivine Gym's dais and the
+Elite Four's walkways to where their stairs arrive. A platform the cartridge lets
+you walk off at the back is one floor with what lies behind it, so nothing but a
+painting raises it.
+
 ## Past the edge of the map
 
 Past its edge the cartridge repeats the map's own border block, and so does this,
