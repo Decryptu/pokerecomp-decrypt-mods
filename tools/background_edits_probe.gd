@@ -185,11 +185,29 @@ func _headbutt(data: GameData) -> void:
 			covered = covered or footprint.intersects(tiles)
 	_report("map %d,%d's Headbutt tree at %s has a model to take away" % [
 		map.group, map.number, str(cell)], covered)
+	_hidden_tree(data, map, cell)
 	var block: Vector2i = cell / Gen2Layout.MAP_BLOCK_CELL_WIDTH
 	_battle(
 		_staged(data, map, cell + Vector2i.DOWN), block,
 		maxi((map.block_at(block.x, block.y) + 1) % tileset.block_count, 1)
 	)
+
+
+## A hidden tree is the model's to take away: the map is not built again and
+## reads the tree where it stands.
+func _hidden_tree(data: GameData, map: Gen2WorldMap, cell: Vector2i) -> void:
+	var world: Gen2WorldAPI = _staged(data, map, cell + Vector2i.DOWN)
+	var effects := Gen2WorldEffects.new()
+	var list := Gen2WorldDrawList.new(world, effects)
+	var revision: int = list.drawn_revision()
+	var tile: Vector2i = cell * 2
+	var standing: int = list.drawn_tile_at(tile)
+	effects.start_headbutt_tree(cell)
+	var source: RefCounted = _source(world)
+	source.set_draw_list(list)
+	_report("a hidden tree builds nothing again",
+		not list.hidden_tree_cells().is_empty() and list.drawn_revision() == revision
+			and source.tile_at(tile.x, tile.y) == standing)
 
 
 ## The first `COLL_HEADBUTT_TREE` with open ground south of it, the cell a
