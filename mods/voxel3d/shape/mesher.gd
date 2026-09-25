@@ -1394,9 +1394,9 @@ func _cell_index(cell: Vector2i) -> int:
 
 
 ## A flight whose head floor runs round to its foot, a platform the cartridge
-## lets you walk off at the back, climbs onto the floor drawn like its head:
-## that is split off as a floor of its own when the back is the only side it
-## opens onto other floor.
+## lets you walk off at the back, climbs onto floor drawn unlike its foot: that
+## is split off as a floor of its own when the back is the only side it opens
+## onto other floor.
 func _split_drawn_heads(region: PackedInt32Array, flights: Array) -> void:
 	var next: int = 0
 	for id: int in region:
@@ -1406,8 +1406,8 @@ func _split_drawn_heads(region: PackedInt32Array, flights: Array) -> void:
 		var head: int = _cell_index(_cell_beyond(flight[0], flight[1]))
 		if foot < 0 or head < 0 or region[foot] < 0 or region[foot] != region[head]:
 			continue
-		var platform: PackedInt32Array = _drawn_like(region, head)
-		if not _open_only_behind(region, platform, flight[1]):
+		var platform: PackedInt32Array = _drawn_unlike(region, head, foot)
+		if platform.is_empty() or not _open_only_behind(region, platform, flight[1]):
 			continue
 		for at: int in platform:
 			region[at] = next
@@ -1427,12 +1427,15 @@ func _open_only_behind(
 	return true
 
 
-## The cells of one floor joined to `start` that are drawn only in its tiles.
-func _drawn_like(region: PackedInt32Array, start: int) -> PackedInt32Array:
+## The cells of one floor joined to `start` drawn in none of the tiles `unlike`
+## is drawn in, or empty where `start` shares one.
+func _drawn_unlike(region: PackedInt32Array, start: int, unlike: int) -> PackedInt32Array:
 	var across: Vector2i = _map_cells()
-	var drawn: Dictionary = {}
-	for tile: int in _cell_tiles(start):
-		drawn[tile] = true
+	var foot: Array = _cell_tiles(unlike)
+	var apart: Callable = func(cell: int) -> bool:
+		return not _cell_tiles(cell).any(func(tile: int) -> bool: return foot.has(tile))
+	if not apart.call(start):
+		return PackedInt32Array()
 	var members := PackedInt32Array([start])
 	var seen: Dictionary = {start: true}
 	var at: int = 0
@@ -1444,7 +1447,7 @@ func _drawn_like(region: PackedInt32Array, start: int) -> PackedInt32Array:
 			if to < 0 or seen.has(to) or region[to] != region[start]:
 				continue
 			seen[to] = true
-			if _cell_tiles(to).all(func(tile: int) -> bool: return drawn.has(tile)):
+			if apart.call(to):
 				members.append(to)
 	return members
 
