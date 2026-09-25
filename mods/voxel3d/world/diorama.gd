@@ -65,6 +65,15 @@ var _far: RefCounted = null
 var _reach: float = FAR_DEFAULT
 var _roots: Dictionary = {}
 var _hidden: Dictionary = {}
+var _atlas: Texture2D = null
+var _flood := Color(0.0, 0.0, 0.0, 0.0)
+var _flood_sheet: ImageTexture = null
+var _band_offset: float = 0.0
+## Per model instance, its own placements and the tiles each one stands on.
+var _placements: Array = []
+var _footprints: Array = []
+var _felled_cells: Array = []
+var _felled: Array = []
 
 
 func _init() -> void:
@@ -305,12 +314,31 @@ func set_terrain(meshes: Array) -> void:
 			_terrain.append(instance)
 		_terrain[index].mesh = meshes[index]
 		_terrain[index].visible = true
+		_slide(_terrain[index])
 	for index: int in range(meshes.size(), _terrain.size()):
 		_terrain[index].mesh = null
 		_terrain[index].visible = false
 
 
+## `VermilionDock_SyncScrollWithLY`: the ground the mesher marked as the
+## scrolled band slides [param pixels] west, and nothing else moves.
+func set_band_offset(pixels: float) -> void:
+	if pixels == _band_offset:
+		return
+	_band_offset = pixels
+	for instance: MeshInstance3D in _terrain + _water + _tufts:
+		_slide(instance)
+
+
+func _slide(instance: MeshInstance3D) -> void:
+	var banded: bool = instance.mesh != null and instance.mesh.has_meta(&"scrolled")
+	instance.position.x = -_band_offset if banded else 0.0
+
+
 func set_models(models: Array) -> void:
+	_felled.clear()
+	_placements.resize(models.size())
+	_footprints.resize(models.size())
 	for index: int in models.size():
 		if index >= _models.size():
 			var instance := MultiMeshInstance3D.new()
@@ -327,6 +355,8 @@ func set_models(models: Array) -> void:
 		multi.mesh = models[index][0]
 		var placements: Array[Transform3D] = models[index][1]
 		var phases: PackedFloat32Array = models[index][2]
+		_placements[index] = placements
+		_footprints[index] = models[index][4] if models[index].size() > 4 else []
 		multi.instance_count = placements.size()
 		for spot: int in placements.size():
 			multi.set_instance_transform(spot, placements[spot])
@@ -337,6 +367,38 @@ func set_models(models: Array) -> void:
 	for index: int in range(models.size(), _models.size()):
 		_models[index].multimesh = null
 		_models[index].visible = false
+	_fell(_felled_cells)
+
+
+## `HideHeadbuttTree`: the models standing on these walk cells are taken away
+## while the tree's own sprite shakes in their place, and given back after.
+func hide_model_cells(cells: Array) -> void:
+	if cells == _felled_cells:
+		return
+	for spot: Vector2i in _felled:
+		var multi: MultiMesh = _models[spot.x].multimesh
+		if multi != null:
+			multi.set_instance_transform(spot.y, _placements[spot.x][spot.y])
+	_felled.clear()
+	_fell(cells.duplicate())
+
+
+func _fell(cells: Array) -> void:
+	_felled_cells = cells
+	for cell: Vector2i in cells:
+		var tiles := Rect2i(cell * 2, Vector2i(2, 2))
+		for index: int in _footprints.size():
+			var footprints: Array = _footprints[index]
+			for spot: int in footprints.size():
+				if (footprints[spot] as Rect2i).intersects(tiles):
+					_fell_one(index, spot)
+
+
+func _fell_one(index: int, spot: int) -> void:
+	var multi: MultiMesh = _models[index].multimesh
+	var stood: Transform3D = _placements[index][spot]
+	multi.set_instance_transform(spot, Transform3D(Basis().scaled(Vector3.ZERO), stood.origin))
+	_felled.append(Vector2i(index, spot))
 
 
 func set_bank(field: Texture2D, world: Vector2, origin: Vector2, span: float) -> void:
@@ -357,6 +419,7 @@ func set_water(meshes: Array) -> void:
 			_water.append(instance)
 		_water[index].mesh = meshes[index]
 		_water[index].visible = true
+		_slide(_water[index])
 	for index: int in range(meshes.size(), _water.size()):
 		_water[index].mesh = null
 		_water[index].visible = false
@@ -371,6 +434,7 @@ func set_tufts(meshes: Array) -> void:
 			_tufts.append(instance)
 		_tufts[index].mesh = meshes[index]
 		_tufts[index].visible = true
+		_slide(_tufts[index])
 	for index: int in range(meshes.size(), _tufts.size()):
 		_tufts[index].mesh = null
 		_tufts[index].visible = false
@@ -381,11 +445,33 @@ func set_walker(at: Vector3) -> void:
 
 
 func set_texture(texture: Texture2D) -> void:
-	if _material.albedo_texture == texture:
+	if _atlas == texture:
 		return
-	_material.albedo_texture = texture
+	_atlas = texture
+	_material.albedo_texture = _sheet()
 	_water_shader.set_atlas(texture)
 	_wind.set_atlas(texture)
+
+
+## `LoadPoisonBGPals`: every background colour is [param color] and the sprites
+## keep theirs. A clear colour gives the map its own back.
+func set_flood(color: Color) -> void:
+	if color == _flood:
+		return
+	_flood = color
+	_flood_sheet = null
+	if color.a > 0.0:
+		var one := Image.create(1, 1, false, Image.FORMAT_RGBA8)
+		one.fill(color)
+		_flood_sheet = ImageTexture.create_from_image(one)
+	_material.albedo_texture = _sheet()
+	_water_shader.set_flood(color)
+	_wind.set_flood(color)
+	_far.set_flood(color, _flood_sheet)
+
+
+func _sheet() -> Texture2D:
+	return _flood_sheet if _flood_sheet != null else _atlas
 
 
 func set_background(

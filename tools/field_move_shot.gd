@@ -7,11 +7,13 @@ extends SceneTree
 ##   -- <game> <group> <number> <out dir> path=Sdrrruu [cell=x,y]
 ##      [view=voxel3d] [window=WxH] [hold=] [every=] [party=155,...]
 ##
-## A PATH is one letter a step: `u d l r` walk, and a capital uses a field move
-## where the player stands, `C` Cut, `F` Flash, `S` Surf, `W` Waterfall, `P` Whirlpool,
-## through the screen's own preview pair. `every=N` keeps a frame every N frames of a step,
-## which is how a climb is watched rather than counted. ONE ACT A DRIVER FRAME,
-## since the world and the mesh both move on real ones.
+## A PATH is one letter a step: `u d l r` walk, `a` presses A, and a capital
+## uses a field move where the player stands, `C` Cut, `F` Flash, `H` Headbutt,
+## `S` Surf, `W` Waterfall, `P` Whirlpool, through the screen's own preview pair.
+## `A` sails the S.S. Anne out of Vermilion Dock, `E` erases it, and `X` flashes
+## a poison step. `every=N` keeps a frame every N frames of a step, which is how
+## a climb is watched rather than counted. ONE ACT A DRIVER FRAME, since the
+## world and the mesh both move on real ones.
 
 const WINDOW_SIZE := Vector2i(960, 540)
 const SETTLE_FRAMES: int = 90
@@ -20,6 +22,10 @@ const SHUTTER: int = 8
 const Staging: GDScript = preload("staging.gd")
 const MOVES: Dictionary = {
 	"C": &"field_move", "F": &"flash", "S": &"surf", "W": &"waterfall", "P": &"whirlpool",
+}
+const ROW_MOVES: Dictionary = {"H": Gen2WorldFieldMove.MOVE_HEADBUTT}
+const EDITS: Dictionary = {
+	"A": &"_sail_ss_anne", "E": &"_erase_ss_anne", "X": &"_flash_poison",
 }
 const STEPS: Dictionary = {
 	"u": Vector2i.UP, "d": Vector2i.DOWN, "l": Vector2i.LEFT, "r": Vector2i.RIGHT,
@@ -88,8 +94,10 @@ func _script() -> Array:
 	var out: Array = [["settle", SETTLE_FRAMES], ["keep", "stood"]]
 	for step: int in _path.length():
 		var letter: String = _path[step]
-		if MOVES.has(letter):
+		if MOVES.has(letter) or ROW_MOVES.has(letter) or EDITS.has(letter):
 			out.append(["move", letter])
+		elif letter == "a":
+			out.append(["press", letter])
 		elif STEPS.has(letter):
 			out.append(["step", letter])
 		else:
@@ -131,6 +139,9 @@ func _process(_delta: float) -> bool:
 			_spend(_hold())
 		"move":
 			_use(String(act[1]))
+		"press":
+			_screen.press_button(PokeButton.A)
+			_spend(_hold())
 		"tick":
 			_screen.advance_frames(1)
 		"keep":
@@ -140,15 +151,46 @@ func _process(_delta: float) -> bool:
 
 
 func _use(letter: String) -> void:
-	var pair: String = "preview_%s_use" % String(MOVES[letter])
-	_screen.call(pair)
-	_screen.advance_frames(SHUTTER)
-	_screen.call(pair)
+	if EDITS.has(letter):
+		call(EDITS[letter])
+	elif ROW_MOVES.has(letter):
+		_screen.preview_field_move_row(ROW_MOVES[letter])
+		_screen.advance_frames(SHUTTER)
+		_screen.preview_field_move_row_use(ROW_MOVES[letter])
+	else:
+		var pair: String = "preview_%s_use" % String(MOVES[letter])
+		_screen.call(pair)
+		_screen.advance_frames(SHUTTER)
+		_screen.call(pair)
 	_spend(_hold())
 	print("   %s  cell %s" % [
-		String(MOVES[letter]),
+		letter,
 		str((_screen.world_snapshot() as Dictionary).get("player_cell")),
 	])
+
+
+## `VermilionDockSSAnneLeavesScript`'s drift, whose band scrolls over the
+## frames the step spends, and its erase: the five water blocks and the rows.
+func _sail_ss_anne() -> void:
+	_screen._effects.start_gen1_ss_anne()
+
+
+func _erase_ss_anne() -> void:
+	var world: Gen2WorldAPI = _screen.world()
+	world.erase_screen_rows(
+		Gen1Layout.SS_ANNE_BAND_TOP / PokeTiles.TILE_HEIGHT,
+		(Gen1Layout.SS_ANNE_BAND_BOTTOM - Gen1Layout.SS_ANNE_BAND_TOP) / PokeTiles.TILE_HEIGHT,
+		Gen1Layout.SS_ANNE_WATER_TILE
+	)
+	for column: int in Gen1Layout.SS_ANNE_ERASE_BLOCKS:
+		world.change_block(
+			Gen1Layout.SS_ANNE_ERASE_AT.x + column, Gen1Layout.SS_ANNE_ERASE_AT.y,
+			Gen1Layout.SS_ANNE_WATER_BLOCK
+		)
+
+
+func _flash_poison() -> void:
+	_screen._start_poison_flash()
 
 
 ## Frames, one a driver frame so the renderer moves with them. Spent inside a

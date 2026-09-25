@@ -5,6 +5,9 @@ extends RefCounted
 ## Generation 1 cell holds the tile it draws, which the tileset's own tables
 ## answer for.
 
+const TILE_PIXELS: float = 8.0
+const SCREEN_COLUMNS: int = 20
+
 var _world: Gen2WorldAPI = null
 var _map: Gen2WorldMap = null
 var _tileset: Gen2WorldTileset = null
@@ -12,6 +15,10 @@ var _data: GameData = null
 var _gen1: bool = false
 var _carried_blocks: Dictionary = {}
 var _records_placements: Dictionary = {}
+var _written: Dictionary = {}
+var _band_rows := Vector2i.ZERO
+var _band_left: int = 0
+var _edited_any: bool = false
 
 
 func _init(
@@ -51,9 +58,40 @@ func size_cells() -> Vector2i:
 	return Vector2i(_map.width_blocks, _map.height_blocks) * Gen2Layout.MAP_BLOCK_CELL_WIDTH
 
 
+## `Gen2WorldDrawList.tile_overrides`, and its `band_scroll` placed on the map
+## by [method band_of].
+func set_screen_edits(written: Dictionary, band: Dictionary = {}) -> void:
+	_written = written
+	_band_rows = band.get("rows", Vector2i.ZERO)
+	_band_left = int(band.get("left", 0))
+	_edited_any = not written.is_empty() or _band_rows != Vector2i.ZERO
+
+
+## The tile rows a band covers and the screen's left tile column, with the
+## screen's corner at [param corner] in world pixels.
+static func band_of(scroll: Dictionary, corner: Vector2i) -> Dictionary:
+	if scroll.is_empty():
+		return {}
+	var top: int = floori(float(corner.y + int(scroll["top"])) / TILE_PIXELS)
+	var bottom: int = floori(float(corner.y + int(scroll["bottom"])) / TILE_PIXELS)
+	return {
+		"rows": Vector2i(top, bottom),
+		"left": floori(float(corner.x) / TILE_PIXELS),
+	}
+
+
+func band_rows() -> Vector2i:
+	return _band_rows
+
+
 func tile_at(tile_x: int, tile_y: int) -> int:
 	if _map == null or _tileset == null:
 		return -1
+	if _edited_any:
+		if _in_band(tile_y):
+			tile_x = _band_column(tile_x)
+		elif _written.has(Vector2i(tile_x, tile_y)):
+			return int(_written[Vector2i(tile_x, tile_y)])
 	var block: int = _block_at(
 		floori(float(tile_x) / float(Gen2Layout.MAP_BLOCK_TILE_WIDTH)),
 		floori(float(tile_y) / float(Gen2Layout.MAP_BLOCK_TILE_WIDTH))
@@ -65,6 +103,24 @@ func tile_at(tile_x: int, tile_y: int) -> int:
 		posmod(tile_y, Gen2Layout.MAP_BLOCK_TILE_WIDTH) * Gen2Layout.MAP_BLOCK_TILE_WIDTH
 			+ posmod(tile_x, Gen2Layout.MAP_BLOCK_TILE_WIDTH),
 	)
+
+
+func _in_band(tile_y: int) -> bool:
+	return tile_y >= _band_rows.x and tile_y < _band_rows.y
+
+
+func _edited(tile: Vector2i) -> bool:
+	if _in_band(tile.y):
+		return _band_column(tile.x) != tile.x
+	return _written.has(tile)
+
+
+## Past the screen, `ScheduleEastColumnRedraw` copies its last two columns.
+func _band_column(tile_x: int) -> int:
+	var along: int = tile_x - _band_left
+	if along < SCREEN_COLUMNS:
+		return tile_x
+	return _band_left + SCREEN_COLUMNS - 2 + (along & 1)
 
 
 func block_at(block_x: int, block_y: int) -> int:
@@ -142,11 +198,13 @@ func outside() -> bool:
 
 
 ## The raw byte the cartridge tests at a cell, off the map from the block drawn
-## there: a permission on Generation 2, the tile at the cell's foot on
-## Generation 1.
+## there: a permission on Generation 2, the tile drawn at the cell's foot on
+## Generation 1, the screen's own writes included.
 func code_at(cell: Vector2i) -> int:
 	if _map == null:
 		return -1
+	if _gen1 and _edited_any and _edited(Vector2i(cell.x * 2, cell.y * 2 + 1)):
+		return tile_at(cell.x * 2, cell.y * 2 + 1)
 	if cell.x < 0 or cell.y < 0 \
 			or cell.x >= _map.width_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH \
 			or cell.y >= _map.height_blocks * Gen2Layout.MAP_BLOCK_CELL_WIDTH:

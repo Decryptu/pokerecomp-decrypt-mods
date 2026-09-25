@@ -236,6 +236,9 @@ const CHUNK_TILES: int = 16
 const MODEL_CHUNK_TILES: int = CHUNK_TILES
 
 const CACHE_MARGIN_CHUNKS: int = 2
+## rSCX is a byte, so a scrolled band slides at most 255 pixels west: its pieces
+## reach this far east past everything else to stand behind it.
+const SCROLL_REACH_TILES: int = 32
 
 var _emit_atlas: RefCounted = null
 var _chunks: Array[Rect2i] = []
@@ -256,6 +259,12 @@ var _chunk_skirt_fences: Array = []
 var _chunk_spots: Array = []
 var _chunk_shared: bool = false
 var _selected: Dictionary = {}
+## The grid rows a scrolled band of the screen covers, empty for none. A chunk
+## crossing it is emitted in pieces, and a piece inside it is marked
+## [code]scrolled[/code] so the stage can slide it while the rest stands still.
+var _scroll_rows := Vector2i.ZERO
+var _scroll_floor: int = 0
+var _split_keys: Dictionary = {}
 var _structure_owner: Dictionary = {}
 
 
@@ -271,12 +280,15 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 		return false
 	var reach: int = maxi(BORDER_TILES - _margin.x, 0) if _outside else 0
 	var box := Rect2i(-Vector2i(reach, reach), _size + Vector2i(reach, reach) * 2)
-	var view := box
+	var reached: Rect2i = box if _scroll_rows == Vector2i.ZERO \
+		else box.grow_side(SIDE_RIGHT, SCROLL_REACH_TILES)
+	var view := reached
 	if window.size.x > 0 and window.size.y > 0:
-		view = box.intersection(Rect2i(window.position + _margin, window.size))
+		view = reached.intersection(Rect2i(window.position + _margin, window.size))
 	if view.size.x <= 0 or view.size.y <= 0:
 		return false
 	_emit_atlas = atlas
+	_measure_scroll_floor()
 	for key: String in _model_spots:
 		_model_spots[key] = {}
 	_object_done.clear()
@@ -294,28 +306,67 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 		floori(float(view.end.y - 1) / CHUNK_TILES)
 	)
 	_selected = {}
+	_split_keys = {}
 	_emitted = Rect2i()
 	for cy: int in range(first.y, last.y + 1):
 		for cx: int in range(first.x, last.x + 1):
 			var at := Vector2i(cx, cy)
 			var chunk := Rect2i(
 				at * CHUNK_TILES, Vector2i(CHUNK_TILES, CHUNK_TILES)
-			).intersection(box)
-			if chunk.size.x <= 0 or chunk.size.y <= 0:
-				continue
-			_selected[at] = true
-			_emitted = chunk if _emitted.size == Vector2i.ZERO else _emitted.merge(chunk)
-			if _reusable(at, chunk):
-				_reuse(at)
-				continue
-			_chunks.append(chunk)
-			_chunk_keys.append(at)
+			).intersection(reached)
+			if chunk.size.x > 0 and chunk.size.y > 0:
+				_select_chunk(at, chunk, box)
 	_forget_chunks(_selected)
 	if _chunks.is_empty():
 		return not _ready.is_empty() or not _water_ready.is_empty() \
 			or not _tuft_ready.is_empty()
 	_open_chunk()
 	return true
+
+
+## A chunk whole, or its pieces either side of a scrolled band. Only the band's
+## own pieces reach past [param box].
+func _select_chunk(at: Vector2i, chunk: Rect2i, box: Rect2i) -> void:
+	_selected[at] = true
+	_note_emitted(chunk.intersection(box))
+	var pieces: Array[Rect2i] = _scroll_pieces(chunk)
+	if pieces.size() > 1 or not box.encloses(chunk):
+		_split_keys[at] = true
+	elif _reusable(at, chunk):
+		_reuse(at)
+		return
+	for piece: Rect2i in pieces:
+		_queue_piece(at, piece if _scrolled(piece) else piece.intersection(box))
+
+
+func _note_emitted(held: Rect2i) -> void:
+	if held.has_area():
+		_emitted = held if _emitted.size == Vector2i.ZERO else _emitted.merge(held)
+
+
+func _queue_piece(at: Vector2i, piece: Rect2i) -> void:
+	if piece.has_area():
+		_chunks.append(piece)
+		_chunk_keys.append(at)
+
+
+## [param chunk] cut on the band's two edges, top to bottom.
+func _scroll_pieces(chunk: Rect2i) -> Array[Rect2i]:
+	var pieces: Array[Rect2i] = []
+	var top: int = chunk.position.y
+	for edge: int in [_scroll_rows.x, _scroll_rows.y, chunk.end.y]:
+		if _scroll_rows == Vector2i.ZERO and edge != chunk.end.y:
+			continue
+		var bottom: int = clampi(edge, top, chunk.end.y)
+		if bottom > top:
+			pieces.append(Rect2i(chunk.position.x, top, chunk.size.x, bottom - top))
+			top = bottom
+	return pieces
+
+
+func _scrolled(piece: Rect2i) -> bool:
+	return _scroll_rows != Vector2i.ZERO and piece.position.y >= _scroll_rows.x \
+		and piece.end.y <= _scroll_rows.y
 
 
 func _owned_here(key: String) -> bool:
@@ -534,13 +585,15 @@ func _close_chunk() -> void:
 	var tufts: ArrayMesh = _mesh_of(
 		_tuft_vertices, _tuft_normals, _tuft_uvs, _tuft_colors, _tuft_uv2s
 	) if not _tuft_vertices.is_empty() else null
+	if _scrolled(_chunks[_chunk_at]):
+		_mark_scrolled([terrain, water, tufts])
 	if terrain != null:
 		_ready.append(terrain)
 	if water != null:
 		_water_ready.append(water)
 	if tufts != null:
 		_tuft_ready.append(tufts)
-	if _chunk_shared:
+	if _chunk_shared or _split_keys.has(_chunk_keys[_chunk_at]):
 		_chunk_cache.erase(_chunk_keys[_chunk_at])
 		return
 	_chunk_cache[_chunk_keys[_chunk_at]] = {
@@ -551,6 +604,12 @@ func _close_chunk() -> void:
 		"skirt_fences": _chunk_skirt_fences, "spots": _chunk_spots,
 		"ring_at": _ring_at, "ring_reach": _ring_reach,
 	}
+
+
+static func _mark_scrolled(meshes: Array) -> void:
+	for mesh: ArrayMesh in meshes:
+		if mesh != null:
+			mesh.set_meta(&"scrolled", true)
 
 
 func _mesh_of(
@@ -849,6 +908,9 @@ func begin_resolve(source: RefCounted, shape: RefCounted) -> void:
 	_room_wall = [] if _outside else shape.room_wall()
 	_ground_table = shape.ground_table()
 	_size_grid(source, shape)
+	var band: Vector2i = source.band_rows()
+	_scroll_rows = band + Vector2i(_margin.y, _margin.y) if band != Vector2i.ZERO \
+		else Vector2i.ZERO
 	_resolve_passes = _passes(source, shape)
 
 
@@ -3467,7 +3529,34 @@ func occlusion_height_at_position(position: Vector3) -> int:
 	return top + ceili(float(box.size.y) * TILE * stretch)
 
 
+## What stands beside a tile, as a side face drops to it. Across a scrolled
+## band's edge the neighbour slides, so the face drops to the lowest ground the
+## band and its two edge rows hold.
 func _beside(tx: int, ty: int, step: Vector2i) -> int:
+	var height: int = _beside_height(tx, ty, step)
+	if step.y != 0 and _scroll_rows != Vector2i.ZERO \
+			and _in_scroll_row(ty) != _in_scroll_row(ty + step.y):
+		return mini(height, _scroll_floor)
+	return height
+
+
+func _in_scroll_row(ty: int) -> bool:
+	return ty >= _scroll_rows.x and ty < _scroll_rows.y
+
+
+func _measure_scroll_floor() -> void:
+	_scroll_floor = 0
+	if _scroll_rows == Vector2i.ZERO:
+		return
+	var first: bool = true
+	for ty: int in range(maxi(_scroll_rows.x - 1, 0), mini(_scroll_rows.y + 1, _size.y)):
+		for tx: int in _size.x:
+			var height: int = _heights[ty * _size.x + tx]
+			_scroll_floor = height if first else mini(_scroll_floor, height)
+			first = false
+
+
+func _beside_height(tx: int, ty: int, step: Vector2i) -> int:
 	var to := Vector2i(tx + step.x, ty + step.y)
 	if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
 		return 0
@@ -3823,6 +3912,7 @@ func _place_model(tx: int, ty: int, atlas: RefCounted, base: float = INF) -> voi
 			Transform3D(Basis(Vector3(0.0, 1.0, 0.0), turn), spot),
 			_hash_spot(anchor + Vector2i(0, 53)),
 			_model_chunk(start),
+			Rect2i(start - _margin, across),
 		]
 		(_model_spots[worn] as Dictionary)[str(start)] = placed
 		_chunk_spots.append([worn, str(start), placed])
@@ -4122,13 +4212,16 @@ func take_models() -> Array:
 		for cell: Vector2i in groups:
 			var placed: Array[Transform3D] = []
 			var phases := PackedFloat32Array()
+			var footprints: Array[Rect2i] = []
 			for entry: Array in groups[cell] as Array:
 				placed.append(entry[0] as Transform3D)
 				phases.append(float(entry[1]))
+				footprints.append(entry[3] as Rect2i)
 			out.append([
 				_model_meshes[key], placed, phases,
 				_model_cutouts.get(key.trim_suffix(IMPOSTOR_SUFFIX)) \
 					if key.ends_with(IMPOSTOR_SUFFIX) else null,
+				footprints,
 			])
 	return out
 
@@ -5513,6 +5606,7 @@ func _object_model(
 			)),
 			0.0,
 			_model_chunk(start),
+			Rect2i(start - _margin, across),
 		]
 		(_model_spots[key] as Dictionary)[str(start)] = placed
 		_chunk_spots.append([key, str(start), placed])

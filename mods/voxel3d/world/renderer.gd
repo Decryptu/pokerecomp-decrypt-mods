@@ -52,6 +52,9 @@ var _recolouring: bool = false
 var _standing: bool = false
 var _first_build: bool = true
 var _block_revision: int = -1
+var _band: Dictionary = {}
+var _band_offset: float = 0.0
+var _flooded: bool = false
 var _chunks: Array = []
 var _water: Array = []
 var _tufts: Array = []
@@ -234,7 +237,7 @@ func refresh_animation() -> void:
 
 
 func refresh() -> void:
-	_follow_block_changes()
+	_follow_map_edits()
 	_frame_camera()
 	_rebuild_actors()
 
@@ -249,7 +252,7 @@ func _process(delta: float) -> void:
 	if _resolving:
 		_advance_resolve()
 		return
-	_follow_block_changes()
+	_follow_map_edits()
 	_advance_build()
 	_advance_recolour()
 	_recentre_window()
@@ -328,11 +331,15 @@ func _resolve() -> void:
 		_stage.far_field().configure(null, _time_of_day, true)
 		return
 	_block_revision = _world.block_revision
+	_band = _screen_band()
 	var tileset: StringName = _world.current_tileset.name
 	if _shape == null or tileset != _shape_tileset:
 		_shape = TileShapeScript.new(Profiles.of(_world.data), tileset)
 		_shape_tileset = tileset
 	var source: RefCounted = MapSourceScript.new(_world)
+	source.set_screen_edits(
+		_draw_list.tile_overrides().duplicate() if _draw_list != null else {}, _band
+	)
 	_outside = source.outside()
 	if _build_atlas():
 		_stage.set_texture(_atlas.texture)
@@ -344,12 +351,24 @@ func _resolve() -> void:
 	_advance_resolve()
 
 
-## A `changeblock` (a Cut tree, an opened door, a gate) edits the loaded map
-## without a new `set_world`, and the terrain standing stays up until its
-## replacement is built.
-func _follow_block_changes() -> void:
-	if _world != null and not _resolving and _world.block_revision != _block_revision:
+## A `changeblock` (a Cut tree, an opened door, a gate), a tile the screen
+## writes, or a band starting or stopping its scroll edits the loaded map without
+## a new `set_world`, and the terrain standing stays up until its replacement is
+## built.
+func _follow_map_edits() -> void:
+	if _world == null or _resolving:
+		return
+	if _world.block_revision != _block_revision or _screen_band() != _band:
 		_resolve()
+
+
+func _screen_band() -> Dictionary:
+	if _draw_list == null or _world == null:
+		return {}
+	return MapSourceScript.band_of(
+		_draw_list.band_scroll(),
+		Vector2i((_world.visible_origin_cells() * CELL).floor())
+	)
 
 
 ## Measuring a map is sliced the way emitting it is, except on the first build,
@@ -427,6 +446,8 @@ func _ring_on(cells: Vector2) -> void:
 
 
 func _begin_terrain(window: Rect2i) -> void:
+	if not _band.is_empty() and window.has_area():
+		window = window.grow_side(SIDE_RIGHT, MesherScript.SCROLL_REACH_TILES)
 	_chunks = []
 	_water = []
 	_tufts = []
@@ -553,6 +574,24 @@ func _rebuild_actors() -> void:
 	_stage.end_cards()
 	_stage.end_shadow_casters()
 	_stage.set_ground_offset(_draw_list.background_offset())
+	_edit_background()
+
+
+## The frame's edits under the sprites that change faster than a rebuild: the
+## band's scroll, which holds its last offset until the terrain without it
+## stands, the Headbutt tree's hiding and the poison flash.
+func _edit_background() -> void:
+	var scroll: Dictionary = _draw_list.band_scroll()
+	if not scroll.is_empty():
+		_band_offset = float(scroll["offset"])
+	_stage.set_band_offset(_band_offset)
+	_stage.hide_model_cells(_draw_list.hidden_tree_cells())
+	if _draw_list.poison_flash == _flooded:
+		return
+	_flooded = _draw_list.poison_flash
+	_stage.set_flood(
+		Gen2WorldPalette.poison_flash_palette()[0] if _flooded else Color(0, 0, 0, 0)
+	)
 
 
 func _bank() -> void:

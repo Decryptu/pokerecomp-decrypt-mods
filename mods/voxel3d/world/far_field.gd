@@ -38,6 +38,7 @@ uniform vec3 water_two : source_color = vec3(0.0);
 uniform vec3 water_three : source_color = vec3(0.0);
 uniform vec3 sky_horizon : source_color = vec3(0.0);
 uniform float water_mix = 0.0;
+uniform vec4 flood = vec4(0.0);
 
 varying highp vec3 ground;
 
@@ -79,7 +80,7 @@ void fragment() {
 		|| distance(texel, water_three) < 0.01)) {
 		texel = mix(texel, sky_horizon, water_mix);
 	}
-	ALBEDO = texel;
+	ALBEDO = mix(texel, flood.rgb, flood.a);
 }
 """
 
@@ -107,6 +108,7 @@ var _here_sheet: RefCounted = null
 var _tiles: Dictionary = {}
 var _here_blocks: ImageTexture = null
 var _here_revision: int = -1
+var _flood := Color(0.0, 0.0, 0.0, 0.0)
 
 
 func _init() -> void:
@@ -173,6 +175,13 @@ func set_sky(horizon: Color, share: float) -> void:
 			&"sky_horizon", Vector3(horizon.r, horizon.g, horizon.b)
 		)
 		material.set_shader_parameter(&"water_mix", share)
+
+
+## The poison flash's one colour over every far map, and [param sheet] of it for
+## the buildings, which sample a sheet; a clear colour and null give theirs back.
+func set_flood(color: Color, sheet: Texture2D) -> void:
+	_flood = color
+	_houses.set_flood(sheet)
 
 
 func set_hole(rect: Rect2) -> void:
@@ -350,6 +359,7 @@ func _dress(
 		&"sky_horizon", Vector3(_sky_horizon.r, _sky_horizon.g, _sky_horizon.b)
 	)
 	material.set_shader_parameter(&"water_mix", _water_mix)
+	material.set_shader_parameter(&"flood", _flood)
 
 
 func _block_count(tileset_number: int) -> int:

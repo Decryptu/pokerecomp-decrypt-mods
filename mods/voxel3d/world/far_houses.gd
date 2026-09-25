@@ -7,6 +7,7 @@ var root: Node3D = null
 var _built: Dictionary = {}
 var _pool: Array[MeshInstance3D] = []
 var _used: int = 0
+var _flood: Texture2D = null
 
 
 func _init() -> void:
@@ -16,6 +17,10 @@ func _init() -> void:
 
 func set_enabled(on: bool) -> void:
 	root.visible = on
+
+
+func set_flood(sheet: Texture2D) -> void:
+	_flood = sheet
 
 
 func forget() -> void:
@@ -38,6 +43,8 @@ func place(
 	var node: MeshInstance3D = _instance()
 	node.mesh = made[0]
 	node.material_override = made[1]
+	(made[1] as StandardMaterial3D).albedo_texture = _flood if _flood != null \
+		else sheet.texture
 	node.position = Vector3(origin.x, 0.0, origin.y)
 	node.visible = true
 
