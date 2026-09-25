@@ -17,11 +17,11 @@ const SHUTTER_ON: int = 18
 ## how many rows down the cord sits after the cartridge's own shelf.
 const COUNTERS: Dictionary = {
 	RomRegistry.GEN1: {
-		"map": Vector2i(0, 125), "cell": Vector2i(5, 5),
+		"map": &"CELADON_MART_4F", "cell": Vector2i(5, 5),
 		"facing": Gen2WorldSprite.FACING_DOWN, "downs": 5,
 	},
 	RomRegistry.GEN2: {
-		"map": Vector2i(11, 12), "cell": Vector2i(11, 6),
+		"map": &"GOLDENROD_DEPT_STORE_2F", "cell": Vector2i(11, 6),
 		"facing": Gen2WorldSprite.FACING_RIGHT, "downs": 8,
 	},
 }
@@ -58,8 +58,9 @@ func _initialize() -> void:
 	root.set_content_scale_size(WINDOW)
 	root.size = WINDOW
 	_screen = (load("res://game/world/world_screen.tscn") as PackedScene).instantiate()
-	_screen.map_group = (_counter["map"] as Vector2i).x
-	_screen.map_number = (_counter["map"] as Vector2i).y
+	var map: Gen2WorldMap = data.world_map_named(_counter["map"])
+	_screen.map_group = map.group
+	_screen.map_number = map.number
 	_screen.start_cell = _counter["cell"]
 	_screen.encounter_seed = 1
 	_screen.set_data(data)
