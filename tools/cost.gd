@@ -1,6 +1,7 @@
 extends SceneTree
 
-## What every map in the game COSTS to resolve and to emit, in one run.
+## What every map in the game COSTS to resolve and to emit, in one run. Each
+## row also carries a hash of the map's geometry, so two runs diff map by map.
 
 const MOD := "user://mods/voxel3d"
 const WORST: int = 8
@@ -88,10 +89,12 @@ func _initialize() -> void:
 		var emitted: int = Time.get_ticks_usec() - at
 
 		var faces: int = 0
+		var shape_hash: int = 0
 		for mesh: ArrayMesh in meshes + mesher.take_water() + mesher.take_tufts():
 			for surface: int in mesh.get_surface_count():
-				faces += (mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
-					as PackedVector3Array).size()
+				var points: PackedVector3Array = mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
+				faces += points.size()
+				shape_hash = hash([shape_hash, points])
 		var stamps: int = 0
 		var drawn: int = 0
 		var held: Dictionary = {}
@@ -104,6 +107,7 @@ func _initialize() -> void:
 			if not held.has(mesh.get_instance_id()):
 				held[mesh.get_instance_id()] = true
 				faces += model_faces
+			shape_hash = hash([shape_hash, model_faces, model[1]])
 			stamps += (model[1] as Array).size()
 			drawn += model_faces * (model[1] as Array).size()
 		@warning_ignore("integer_division")
@@ -122,6 +126,7 @@ func _initialize() -> void:
 			"pass_ms": float(measured[1]) / 1000.0,
 			"pass": measured[2],
 			"emit_ms": float(emitted) / 1000.0,
+			"shape": "%08x" % (shape_hash & 0xffffffff),
 		})
 		triangles += count
 		rasterised += on_screen
