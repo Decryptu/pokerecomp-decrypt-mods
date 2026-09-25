@@ -18,6 +18,8 @@ uniform vec2 wind;
 uniform float period;
 uniform float gust_length;
 uniform float jitter;
+// `LoadPoisonBGPals`' one colour over everything, or nothing at zero alpha.
+uniform vec4 flood;
 
 // One wave travelling along the wind, plus a small per-thing offset so the
 // world is many things rather than one sheet.
@@ -57,7 +59,7 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = texture(atlas, UV).rgb * COLOR.rgb;
+	ALBEDO = mix(texture(atlas, UV).rgb * COLOR.rgb, flood.rgb, flood.a);
 }
 """
 
@@ -79,7 +81,7 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = COLOR.rgb;
+	ALBEDO = mix(COLOR.rgb, flood.rgb, flood.a);
 }
 """
 
@@ -104,7 +106,7 @@ void fragment() {
 	if (drawn.a < 0.5) {
 		discard;
 	}
-	ALBEDO = drawn.rgb;
+	ALBEDO = mix(drawn.rgb, flood.rgb, flood.a);
 }
 """
 
@@ -112,6 +114,7 @@ var grass: ShaderMaterial = null
 var foliage: ShaderMaterial = null
 var _sprites: Dictionary = {}
 var _period: float = SWAY_PERIOD
+var _flood := Color(0.0, 0.0, 0.0, 0.0)
 
 
 func _init() -> void:
@@ -130,6 +133,7 @@ func _material(code: String, reach: float) -> ShaderMaterial:
 	made.set_shader_parameter("gust_length", GUST_LENGTH)
 	made.set_shader_parameter("jitter", CLUMP_JITTER)
 	made.set_shader_parameter("reach", reach)
+	made.set_shader_parameter("flood", _flood)
 	return made
 
 
@@ -140,6 +144,13 @@ func set_still(still: bool) -> void:
 	_period = STILL_PERIOD if still else SWAY_PERIOD
 	for material: ShaderMaterial in ([grass, foliage] + _sprites.values()):
 		material.set_shader_parameter("period", _period)
+
+
+## Every blade and model in [param color], and a clear one gives back their own.
+func set_flood(color: Color) -> void:
+	_flood = color
+	for material: ShaderMaterial in ([grass, foliage] + _sprites.values()):
+		material.set_shader_parameter("flood", _flood)
 
 
 func sprite_material(cutout: Texture2D) -> ShaderMaterial:

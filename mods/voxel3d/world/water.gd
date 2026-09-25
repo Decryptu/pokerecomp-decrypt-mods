@@ -58,6 +58,7 @@ uniform float shallow_strength;
 uniform float deep_begin;
 uniform float deep_reach;
 uniform float deep_strength;
+uniform vec4 flood;
 
 // The surface's own height field, in world pixels, and its slope. Two travelling
 // waves crossing at an angle: one alone lays parallel bars across a lake.
@@ -129,6 +130,7 @@ void fragment() {
 	float band = 1.0 - smoothstep(foam_inner, foam_outer, edge);
 	float cell = mod(floor(FRAGCOORD.x / 2.0) + floor(FRAGCOORD.y / 2.0), 2.0);
 	ALBEDO = mix(ALBEDO, foam_color, step(0.30 + cell * 0.30, band) * bank_ready);
+	ALBEDO = mix(ALBEDO, flood.rgb, flood.a);
 }
 """
 
@@ -175,6 +177,10 @@ func set_sun(direction: Vector3, color: Color) -> void:
 
 func set_atlas(texture: Texture2D) -> void:
 	material.set_shader_parameter("atlas", texture)
+
+
+func set_flood(color: Color) -> void:
+	material.set_shader_parameter("flood", color)
 
 
 func set_sky(horizon: Color, zenith: Color) -> void:
