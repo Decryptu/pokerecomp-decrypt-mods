@@ -35,20 +35,20 @@ def parse(text):
             tileset = found.group(1)
             table[tileset] = {}
         else:
-            table[tileset][found.group(2)] = sorted(
-                {int(t) for t in re.findall(r"\d+", found.group(3))}
-            )
+            table[tileset][found.group(2)] = list(dict.fromkeys(
+                int(t) for t in re.findall(r"\d+", found.group(3))
+            ))
     return text[:start], table, text[end:]
 
 
 def serialise(table):
     lines = ["const TILESETS: Dictionary = {"]
-    for tileset in sorted(table):
+    for tileset in table:
         pins = {name: tiles for name, tiles in table[tileset].items() if tiles}
         if not pins:
             continue
         lines.append('\t&"%s": {' % tileset)
-        for name in sorted(pins):
+        for name in pins:
             lines.extend(_list_lines(name, pins[name]))
         lines.append("\t},")
     lines.append("}")
@@ -87,9 +87,11 @@ def main():
     tileset = sys.argv[3]
     pins = table.setdefault(tileset, {})
     if command == "set":
-        pins[sys.argv[4]] = sorted({int(t) for t in sys.argv[5:]})
+        pins[sys.argv[4]] = list(dict.fromkeys(int(t) for t in sys.argv[5:]))
     elif command == "add":
-        pins[sys.argv[4]] = sorted(set(pins.get(sys.argv[4], [])) | {int(t) for t in sys.argv[5:]})
+        pins[sys.argv[4]] = list(dict.fromkeys(
+            pins.get(sys.argv[4], []) + [int(t) for t in sys.argv[5:]]
+        ))
     elif command == "drop":
         gone = {int(t) for t in sys.argv[4:]}
         for name in list(pins):
