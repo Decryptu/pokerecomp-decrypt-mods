@@ -384,6 +384,13 @@ and a rim is four, one per corner, so a face closed against a rim's single
 measured height is closed against nothing. The lower of the two shared corners is
 what a face reaches down to, which can only add face and never take one away.
 
+**A painted level** says what no drawing does: which storey of a cave a floor is
+on. `shape/levels.gd` gives a walk cell a height in 8 px bands, two to a storey,
+and a mass of wall stands as tall as the tallest floor it touches, which makes a
+cave's band the cliff between its storeys. A floor one band above the painted
+floor beside it is a bank: its edge tile slopes down to that floor at 45
+degrees, the way Whirl Islands draws its raised ground.
+
 ## Objects that are not tiles
 
 A chair is drawn as four corners across four tiles, and one tile is the desk's
@@ -934,7 +941,7 @@ shape/gen1/, shape/gen2/  per generation: profile.gd, the hand-authored pins,
                      the objects and the staircases; pass.gd, the generated
                      second table; houses.gd, the houses painted per pixel
 shape/far_drawings.gd  what stands on a far map, read without resolving it
-shape/levels.gd      the ground levels a person painted, where one has
+shape/levels.gd      the ground heights a person painted, where one has
 shape/model.gd       a sprite turned into a model: trees, bushes, boulders
 shape/stems.gd       the flower's stem, drawn by hand because nothing draws one
 shape/mesher.gd      map -> one static mesh

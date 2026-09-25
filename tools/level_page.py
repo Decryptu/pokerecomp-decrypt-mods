@@ -4,10 +4,10 @@
     tools/level_page.py <levels dir>
 
 The directory contains `level_export.gd` data and scale-1 `map_art.gd` images.
-Paint uses whole 16 px walk-cell levels; half levels cannot form consistent
-water surfaces on these maps. Water and ledges are resolved per 8 px tile and
-are not painted. The page starts from measured levels and saves `levels.json`
-with a level and wall matrix for each map.
+Paint counts 8 px bands per walk cell, two to a storey. A floor one band above
+the floor beside it is a bank, and its edge slopes at 45 degrees. Water and
+ledges are resolved per 8 px tile and are not painted. The page starts from
+measured heights and saves `levels.json` with a band and wall matrix per map.
 """
 
 import json
@@ -35,7 +35,7 @@ PAGE = """<!doctype html>
           border: 1px solid #2c2c34; border-radius: 8px; overflow: hidden; }
   canvas { display: block; image-rendering: pixelated; cursor: crosshair; }
   .levels { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-  .lv { width: 40px; height: 34px; border-radius: 6px; border: 2px solid #3a3a44;
+  .lv { width: 34px; height: 30px; border-radius: 6px; border: 2px solid #3a3a44;
         display: flex; align-items: center; justify-content: center;
         font-weight: 600; cursor: pointer; color: #000; }
   .lv.on { border-color: #fff; box-shadow: 0 0 0 2px #6ea8fe; }
@@ -64,7 +64,7 @@ PAGE = """<!doctype html>
   <p class="hint">
     <b>Hold and drag to paint.</b> <kbd>B</kbd> brush, <kbd>R</kbd> rectangle,
     <kbd>F</kbd> fill,
-    <kbd>0</kbd>-<kbd>5</kbd> pick a level, <kbd>-</kbd> and <kbd>=</kbd> step it,
+    <kbd>0</kbd>-<kbd>9</kbd> pick a storey, <kbd>-</kbd> and <kbd>=</kbd> step half a one,
     <kbd>W</kbd> the wall, <kbd>Ctrl</kbd>+<kbd>Z</kbd>
     undoes a whole stroke, <kbd>[</kbd> <kbd>]</kbd> zoom. Every cell shows its
     level and a colour; a cell you have changed carries a white dot. Painting a
@@ -81,18 +81,16 @@ PAGE = """<!doctype html>
     collision, so you never have to say which cells those are. What a level
     painted on one means is the level of the lake's SURFACE, and that is the one
     thing about a lake only you can settle: a lake with shores at different
-    levels cannot exist, so you pick the one it sits at. The 8 pixels it is
-    recessed by is a rendering choice of mine, not the cartridge's, and is not a
-    level.
+    levels cannot exist, so you pick the one it sits at. The mesher recesses the
+    water below that level by itself; do not paint the recess.
   </p>
   <p class="hint">
-    <b>Whole levels only, and water and ledges are not painted.</b> A level is 16
-    pixels. There is no half, because these maps are not consistent spaces: one
-    lake has ground at different half heights all the way round it, and a half
-    step only lets that impossibility be written down. Water, a jumping ledge and
-    the little bank between water and ground are all single TILES, a quarter of a
-    cell each, and the mesher gives each its own shape. Paint the level of the
-    GROUND those things sit against and nothing else.
+    <b>A storey is 16 pixels, and a half is 8.</b> Paint whole storeys unless
+    the drawing shows ground raised with sloped sides: a floor half a storey above
+    the floor beside it is a bank, and its edge slopes down at 45 degrees. Water, a jumping ledge
+    and the little bank between water and ground are all single TILES, a quarter
+    of a cell each, and the mesher gives each its own shape. Paint the level of
+    the GROUND those things sit against and nothing else.
   </p>
   <p class="hint">
     <b>A wall is a TRANSITION, and it carries no level.</b> A hatched cell is
@@ -118,26 +116,23 @@ PAGE = """<!doctype html>
 <script>
 const MAPS = __MAPS__;
 const CELL = 16;
-// Up to 13, because a cave is two storeys and the wall between them is as many
-// levels tall as the waterfall down it. Most maps use three of these.
-const BANDS = [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
-// Tint zero so painted cells remain distinguishable from untouched art.
-const COLORS = {
-  "-1": "#4a63c8", "0": "#6b7280", "1": "#4fae4f", "2": "#d8c95a",
-  "3": "#e09a4a", "4": "#d4603c", "5": "#c04a8a", "6": "#8f57c8",
-  "7": "#3f8fd0", "8": "#2f9c8c", "9": "#7fb040", "10": "#b8a030",
-  "11": "#b06a2c", "12": "#a03f3f", "13": "#8c3f70",
-};
+// Every mark `shape/levels.gd` has: a cave is two storeys and the wall between
+// them is as tall as the waterfall down it.
+const BANDS = Array.from({ length: 36 }, (_, b) => b);
+// Grey at zero so painted cells stay distinguishable from untouched art; a
+// half storey shares its storey's hue, lighter.
+const colour = (b) => b === 0 ? "#6b7280"
+  : `hsl(${(Math.floor(b / 2) * 47) % 360} 55% ${b % 2 ? 72 : 52}%)`;
 const WALL = "wall";
 const TINT = 0.55;
 let at = 0, band = 1, paintWall = false, scale = 3, tool = "brush";
 const undo = [];
 
-const label = (b) => String(b);
+const label = (b) => (b === 1 ? "" : String(Math.floor(b / 2))) + (b % 2 ? "\u00bd" : "");
 
 const $ = (id) => document.getElementById(id);
 const store = {};
-const KEY = "voxel3dlevels:";
+const KEY = "voxel3dbands:";
 try {
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
@@ -182,7 +177,7 @@ function draw() {
       const lv = m._levels[cy][cx];
       const isWall = m._walls[cy][cx] === 1;
       g.globalAlpha = TINT;
-      g.fillStyle = isWall ? "#1a1a20" : (COLORS[String(lv)] || "#6b7280");
+      g.fillStyle = isWall ? "#1a1a20" : (lv === null ? "#6b7280" : colour(lv));
       g.fillRect(x, y, s, s); g.globalAlpha = 1;
       if (isWall) {
         g.strokeStyle = "rgba(255,255,255,0.6)"; g.lineWidth = 1;
@@ -255,7 +250,7 @@ function build() {
   // remember. A mode you can leave switched on is a mode you paint fifty cells
   // through by mistake.
   $("palette").innerHTML = BANDS.map((b) =>
-    `<span class="lv" data-l="${b}" style="background:${COLORS[String(b)]}">${label(b)}</span>`
+    `<span class="lv" data-l="${b}" style="background:${colour(b)}">${label(b)}</span>`
   ).join("") +
     `<span class="lv" data-l="${WALL}" style="background:#2c2c34;color:#e8e8ee">wall</span>`;
   $("palette").onclick = (e) => {
@@ -281,7 +276,7 @@ function build() {
     }
     if (e.key === "-") { paintWall = false; band--; marks(); }
     if (e.key === "=" || e.key === "+") { paintWall = false; band++; marks(); }
-    if (/^[0-5]$/.test(e.key)) { paintWall = false; band = +e.key; marks(); }
+    if (/^[0-9]$/.test(e.key)) { paintWall = false; band = 2 * e.key; marks(); }
     if (e.key === "w" || e.key === "W") { paintWall = true; marks(); }
     if (e.key === "[") { scale = Math.max(1, scale - 1); draw(); }
     if (e.key === "]") { scale = Math.min(6, scale + 1); draw(); }
@@ -428,7 +423,7 @@ function load() {
 function save() {
   // The unit travels WITH the numbers, so nothing downstream has to guess what
   // a 2 counts.
-  const out = { unit: "level16", pixels_per_level: 16, maps: MAPS.map((m, i) => {
+  const out = { unit: "band8", pixels_per_band: 8, maps: MAPS.map((m, i) => {
     const s = state(i);
     return { group: s.group, number: s.number, tileset: s.tileset,
              cells: s.cells, levels: s._levels, walls: s._walls };

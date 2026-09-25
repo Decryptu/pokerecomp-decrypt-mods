@@ -111,6 +111,9 @@ var _klass := PackedInt32Array()
 var _class_ids: Dictionary = {}
 ## Water the paint lifted onto an upper storey, which no longer sits below zero.
 var _lifted := PackedByteArray()
+## The floor height the paint gives each tile, or `Levels.NOTHING`; empty on a
+## map nobody painted.
+var _painted := PackedInt32Array()
 ## A wall mass the paint marked is the cliff between two storeys, so its own plan
 ## is that cliff's FACE rather than ground anyone stands on. Each is kept as its
 ## box, the storey under it and the storey over it, and every tile of it points
@@ -983,6 +986,7 @@ func _size_grid(source: RefCounted, shape: RefCounted) -> void:
 	_folds = []
 	_fold.resize(count)
 	_fold.fill(-1)
+	_painted = PackedInt32Array()
 
 
 ## A shell tile stands outside the map and wears the room's own wall. Marked in
@@ -1156,6 +1160,7 @@ func _band_ramps(passes: Array[Callable]) -> void:
 	_band(passes, _seed_shelf_depths)
 	passes.append(_spread_shelf_depths)
 	_band(passes, _slope_shelves)
+	_band(passes, _slope_banks)
 
 
 func _band_rows(passes: Array[Callable], over: Callable) -> void:
@@ -1184,6 +1189,7 @@ func _apply_levels(source: RefCounted) -> void:
 		return
 	var lift: PackedInt32Array = _painted_levels(map)
 	_lift_walls(lift)
+	_painted = lift
 	for at: int in lift.size():
 		if lift[at] <= 0 or _tiles[at] < 0:
 			continue
@@ -2046,6 +2052,39 @@ func _slope_shelves(from: int, to: int) -> void:
 	for at: int in range(from, to):
 		if _shelf_depth[at] >= 0:
 			_slope_shelf(at)
+
+
+## A painted floor one band above the painted floor beside it is a bank: its edge
+## tile slopes down to that floor at 45 degrees rather than standing a step.
+func _slope_banks(from: int, to: int) -> void:
+	if _painted.is_empty():
+		return
+	for at: int in range(from, to):
+		if _is_bank(at) and _slope_bank(at):
+			_ramp[at] = 1
+
+
+func _is_bank(at: int) -> bool:
+	return (
+		_ramp[at] == 0 and _tiles[at] >= 0 and _art[at] == ART_FLAT
+		and _painted[at] >= BAND and _heights[at] == _painted[at]
+	)
+
+
+func _slope_bank(at: int) -> bool:
+	var tile: Vector2i = _tile_of(at)
+	var foot: int = _painted[at] - BAND
+	var sloped: bool = false
+	for corner: int in 4:
+		var step := Vector2i(-1 if corner % 2 == 0 else 1, -1 if corner < 2 else 1)
+		var high: int = _heights[at]
+		for reach: Vector2i in [Vector2i(step.x, 0), Vector2i(0, step.y), step]:
+			var index: int = _index_of(tile + reach)
+			if index >= 0 and _painted[index] == foot:
+				high = foot
+		_corners[at * 4 + corner] = high
+		sloped = sloped or high < _heights[at]
+	return sloped
 
 
 func _on_shelf_lip(at: int) -> bool:

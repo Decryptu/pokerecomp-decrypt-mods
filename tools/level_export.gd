@@ -4,11 +4,13 @@ extends SceneTree
 
 const MOD := "user://mods/voxel3d"
 const CELL_TILES: int = 2
-const BAND: int = 16
+const BAND: int = 8
 const ART_FLAT: int = 0
 const ART_UPRIGHT: int = 2
+const FACED: int = -1
 
-const CAVE_TILESETS: Array[int] = [24, 29, 30]
+## Tileset numbers differ between cartridges, so a cave is found by name.
+const CAVE_TILESETS: Array[StringName] = [&"CAVE", &"ICE_PATH", &"DARK_CAVE", &"CAVERN"]
 
 
 func _initialize() -> void:
@@ -37,7 +39,7 @@ func _initialize() -> void:
 	var selector: String = args[2]
 	for map: Gen2WorldMap in data.world_maps():
 		if selector == "caves":
-			if CAVE_TILESETS.has(map.tileset):
+			if _is_cave(data, map):
 				wanted.append(map)
 			continue
 		if selector == "stairs":
@@ -64,41 +66,19 @@ func _initialize() -> void:
 		var cells := Vector2i(
 			map.width_blocks * CELL_TILES, map.height_blocks * CELL_TILES
 		)
-		var levels: Array = []
-		var walls: Array = []
+		var start: Array = _painted_start(map, cells)
+		if start.is_empty():
+			start = _measured_start(mesher, shape, cells)
+		var levels: Array = start[0]
+		var walls: Array = start[1]
 		var waters: Array = []
 		for cy: int in cells.y:
-			var level_row: Array = []
-			var wall_row: Array = []
 			var water_row: Array = []
 			for cx: int in cells.x:
 				water_row.append(
 					1 if source.permission_at(Vector2i(cx, cy))
 					== Gen2WorldCollision.WATER_TILE else 0
 				)
-				var floor_px: int = 1 << 30
-				var faces: bool = false
-				for ty: int in range(cy * CELL_TILES, (cy + 1) * CELL_TILES):
-					for tx: int in range(cx * CELL_TILES, (cx + 1) * CELL_TILES):
-						var at: int = mesher.grid_index(Vector2i(tx, ty))
-						if at < 0:
-							continue
-						if shape.is_cliff(mesher._tiles[at]):
-							faces = true
-						if mesher._art[at] != ART_FLAT:
-							continue
-						var height: int = mesher._heights[at]
-						if height >= 0:
-							floor_px = mini(floor_px, height)
-				if faces:
-					level_row.append(null)
-					wall_row.append(1)
-					continue
-				var height_px: int = 0 if floor_px >= (1 << 30) else floor_px
-				level_row.append(floori(float(height_px) / float(BAND)))
-				wall_row.append(0)
-			levels.append(level_row)
-			walls.append(wall_row)
 			waters.append(water_row)
 
 		var record: Dictionary = {
@@ -106,7 +86,7 @@ func _initialize() -> void:
 			"number": map.number,
 			"tileset": map.tileset,
 			"cells": [cells.x, cells.y],
-			"unit": "level16",
+			"unit": "band8",
 			"outside": Gen2WorldPhoneHost.is_outside_environment(map.environment),
 			"art": "level_%d_%d.png" % [map.group, map.number],
 			"levels": levels,
@@ -126,6 +106,70 @@ func _initialize() -> void:
 		])
 	print("wrote ", written, " maps to ", out)
 	quit()
+
+
+## A map somebody painted starts from its painting, so a repaint changes what
+## it means to and nothing else.
+func _painted_start(map: Gen2WorldMap, cells: Vector2i) -> Array:
+	var painted: GDScript = load("%s/shape/levels.gd" % MOD)
+	if not painted.has(map.group, map.number):
+		return []
+	var levels: Array = []
+	var walls: Array = []
+	for cy: int in cells.y:
+		var level_row: Array = []
+		var wall_row: Array = []
+		for cx: int in cells.x:
+			var height: int = painted.height_at(map.group, map.number, Vector2i(cx, cy))
+			wall_row.append(1 if height == painted.WALLED else 0)
+			level_row.append(_band_mark(height))
+		levels.append(level_row)
+		walls.append(wall_row)
+	return [levels, walls]
+
+
+## The floor under each walk cell as the mesher measures it; a cell holding a
+## cliff face is a wall.
+func _measured_start(mesher: RefCounted, shape: RefCounted, cells: Vector2i) -> Array:
+	var levels: Array = []
+	var walls: Array = []
+	for cy: int in cells.y:
+		var level_row: Array = []
+		var wall_row: Array = []
+		for cx: int in cells.x:
+			var floor_px: int = _cell_floor(mesher, shape, cx, cy)
+			wall_row.append(1 if floor_px == FACED else 0)
+			level_row.append(_band_mark(floor_px))
+		levels.append(level_row)
+		walls.append(wall_row)
+	return [levels, walls]
+
+
+## A height in bands, or null for a cell with no floor of its own.
+func _band_mark(height_px: int) -> Variant:
+	if height_px < 0:
+		return null
+	return floori(float(height_px) / BAND)
+
+
+## A cell's lowest flat floor in pixels, 0 where it has none, or `FACED`.
+func _cell_floor(mesher: RefCounted, shape: RefCounted, cx: int, cy: int) -> int:
+	var floor_px: int = 1 << 30
+	for ty: int in range(cy * CELL_TILES, (cy + 1) * CELL_TILES):
+		for tx: int in range(cx * CELL_TILES, (cx + 1) * CELL_TILES):
+			var at: int = mesher.grid_index(Vector2i(tx, ty))
+			if at < 0:
+				continue
+			if shape.is_cliff(mesher._tiles[at]):
+				return FACED
+			if mesher._art[at] == ART_FLAT and mesher._heights[at] >= 0:
+				floor_px = mini(floor_px, mesher._heights[at])
+	return 0 if floor_px >= (1 << 30) else floor_px
+
+
+func _is_cave(data: GameData, map: Gen2WorldMap) -> bool:
+	var tileset: Gen2WorldTileset = data.world_tileset(map.tileset)
+	return tileset != null and CAVE_TILESETS.has(tileset.name)
 
 
 func _has_stairs(
