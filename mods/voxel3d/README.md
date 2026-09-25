@@ -462,8 +462,10 @@ the regions of walk cells, and of water, that no wall, flight, ledge or warp
 divides, and the floor at a flight's head stands that flight's rise above the
 floor at its foot. That lifts a cave's platforms, Olivine Gym's dais and the
 Elite Four's walkways to where their stairs arrive. A platform the cartridge lets
-you walk off at the back is one floor with what lies behind it, so nothing but a
-painting raises it.
+you walk off at the back is one floor with what lies behind it by the collision,
+so the drawing settles it: the floor drawn in the head's own tiles is split off
+and raised when the back is the only side it opens onto other floor. A carpet
+beside a stair opens onto floor along its length and stays down.
 
 ## Past the edge of the map
 

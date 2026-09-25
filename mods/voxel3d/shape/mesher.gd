@@ -1246,6 +1246,7 @@ func _stair_storeys(source: RefCounted, shape: RefCounted) -> PackedInt32Array:
 	if flights.is_empty():
 		return PackedInt32Array()
 	var region: PackedInt32Array = _floor_regions(source, flights)
+	_split_drawn_heads(region, flights)
 	var links: Array = _flight_links(region, flights)
 	if links.is_empty():
 		return PackedInt32Array()
@@ -1372,16 +1373,89 @@ func _flight_links(region: PackedInt32Array, flights: Array) -> Array:
 
 
 func _region_beyond(region: PackedInt32Array, box: Rect2i, step: Vector2i) -> int:
+	var at: int = _cell_index(_cell_beyond(box, step))
+	return region[at] if at >= 0 else -1
+
+
+func _cell_beyond(box: Rect2i, step: Vector2i) -> Vector2i:
 	var tile: Vector2i = box.position + box.size / 2
 	if step.x != 0:
 		tile.x = box.end.x if step.x > 0 else box.position.x - 1
 	if step.y != 0:
 		tile.y = box.end.y if step.y > 0 else box.position.y - 1
-	var cell: Vector2i = _cell_of_tile(tile)
+	return _cell_of_tile(tile)
+
+
+func _cell_index(cell: Vector2i) -> int:
 	var across: Vector2i = _map_cells()
 	if cell.x < 0 or cell.y < 0 or cell.x >= across.x or cell.y >= across.y:
 		return -1
-	return region[cell.y * across.x + cell.x]
+	return cell.y * across.x + cell.x
+
+
+## A flight whose head floor runs round to its foot, a platform the cartridge
+## lets you walk off at the back, climbs onto the floor drawn like its head:
+## that is split off as a floor of its own when the back is the only side it
+## opens onto other floor.
+func _split_drawn_heads(region: PackedInt32Array, flights: Array) -> void:
+	var next: int = 0
+	for id: int in region:
+		next = maxi(next, id + 1)
+	for flight: Array in flights:
+		var foot: int = _cell_index(_cell_beyond(flight[0], -(flight[1] as Vector2i)))
+		var head: int = _cell_index(_cell_beyond(flight[0], flight[1]))
+		if foot < 0 or head < 0 or region[foot] < 0 or region[foot] != region[head]:
+			continue
+		var platform: PackedInt32Array = _drawn_like(region, head)
+		if not _open_only_behind(region, platform, flight[1]):
+			continue
+		for at: int in platform:
+			region[at] = next
+		next += 1
+
+
+func _open_only_behind(
+	region: PackedInt32Array, platform: PackedInt32Array, behind: Vector2i
+) -> bool:
+	var across: Vector2i = _map_cells()
+	for at: int in platform:
+		for step: Vector2i in STEPS:
+			var to: int = _cell_index(Vector2i(at % across.x, at / across.x) + step)
+			if to >= 0 and step != behind and region[to] == region[at] \
+					and not platform.has(to):
+				return false
+	return true
+
+
+## The cells of one floor joined to `start` that are drawn only in its tiles.
+func _drawn_like(region: PackedInt32Array, start: int) -> PackedInt32Array:
+	var across: Vector2i = _map_cells()
+	var drawn: Dictionary = {}
+	for tile: int in _cell_tiles(start):
+		drawn[tile] = true
+	var members := PackedInt32Array([start])
+	var seen: Dictionary = {start: true}
+	var at: int = 0
+	while at < members.size():
+		var here: int = members[at]
+		at += 1
+		for step: Vector2i in STEPS:
+			var to: int = _cell_index(Vector2i(here % across.x, here / across.x) + step)
+			if to < 0 or seen.has(to) or region[to] != region[start]:
+				continue
+			seen[to] = true
+			if _cell_tiles(to).all(func(tile: int) -> bool: return drawn.has(tile)):
+				members.append(to)
+	return members
+
+
+func _cell_tiles(at: int) -> Array:
+	var across: Vector2i = _map_cells()
+	var origin: Vector2i = _margin + Vector2i(at % across.x, at / across.x) * CELL_TILES
+	return [
+		_tile_at(origin.x, origin.y), _tile_at(origin.x + 1, origin.y),
+		_tile_at(origin.x, origin.y + 1), _tile_at(origin.x + 1, origin.y + 1),
+	]
 
 
 ## Each region joined by flights, lifted so the lowest floor of its group stands
