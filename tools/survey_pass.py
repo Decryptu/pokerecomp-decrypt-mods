@@ -16,11 +16,15 @@ an agent what a "separator wall in a building" or a "jumping ledge" looks like
 in this game.
 
     tools/survey_context.gd <cache> <ts|all> <dir> all   # renders and lists
-    tools/survey_pass.py <dir> [tileset...] [blind]      # writes brief_ts<n>.md
+    tools/survey_pass.py <dir> [tileset...] [blind] [unpinned]  # brief_ts<n>.md
 
 `blind` withholds the examples, which is only for measuring a pass against a
 tileset the reviewer has already answered: agreement means nothing if the answer
 key was in the brief.
+
+`unpinned` asks only about the tiles the hand table does not name, since the
+hand table wins wherever both do, and lists the hand pins as what the tileset's
+world is made of.
 
 Every answer file in the survey directory is calibration, whatever it is called:
 `answers*.txt` from the human rounds and `verdict*.txt` from the reviewer's
@@ -56,7 +60,7 @@ CLASSES = """
 | `unsure` | you cannot tell, or it is two things at once | goes to the human |
 """
 
-BRIEF = """# Tileset {number}: name every tile
+BRIEF = """# Tileset {number}, {name}: name every tile
 
 {count} tiles. For each one there is a picture, `{sample}`, showing most of a
 Game Boy screen of a REAL map with that tile RINGED TWICE, in magenta outside and
@@ -82,7 +86,7 @@ enjoy. Four things, in this order, in one plain sentence or two:
 
 1. **Name the object.** Not "a brown thing", but "a wooden desk", "a rock face",
    "the lower-right quarter of a doorway".
-2. **Say which surface the drawing depicts.** Generation II packs several
+2. **Say which surface the drawing depicts.** A Game Boy map packs several
    facings into one flat image: seen from ABOVE, seen FACE-ON, or its own
    silhouette cut out. This is the question the geometry turns on.
 3. **Say how it sits in a real world.** Tall like a wall, low and flat like a
@@ -114,7 +118,7 @@ and one that cannot be seen in the ring is not an answer.
    shop, a cave, a route.
 2. Find the magenta and white ring. What is it drawn around, as part of that
    place?
-3. Ask which surface it depicts. Generation II draws roofs and floors from
+3. Ask which surface it depicts. The cartridge draws roofs and floors from
    ABOVE and walls FACE-ON in the same picture, so the question is never "what
    colour is it" but "if this were real, which way is this surface facing".
 4. The collision counts below are strong evidence and not proof. A tile found
@@ -128,7 +132,16 @@ words.
 ## The tiles
 
 {tiles}
-{examples}"""
+{pinned}{examples}"""
+
+PINNED = """
+## Already pinned by hand, not asked about
+
+The hand table names these and wins over this pass. They say what this
+tileset's world is made of.
+
+{lines}
+"""
 
 EXAMPLES = """
 ## The reviewer's own words, for tiles of this tileset they have already named
@@ -170,6 +183,7 @@ def main():
         return 1
     directory = pathlib.Path(sys.argv[1])
     blind = "blind" in sys.argv[2:]
+    unpinned = "unpinned" in sys.argv[2:]
     wanted = [int(n) for n in sys.argv[2:] if n.isdigit()]
     answers = read_answers(directory.parent if directory.name == "pass" else directory)
 
@@ -180,7 +194,11 @@ def main():
             continue
         rows = ["| tile | picture | placed | in walkable cells | in blocked cells | in water | pinned now |",
                 "| --- | --- | --- | --- | --- | --- | --- |"]
-        for tile in sorted(sheet["tiles"], key=lambda t: -t["count"]):
+        asked = [t for t in sheet["tiles"] if not (unpinned and t.get("pinned"))]
+        held = [t for t in sheet["tiles"] if unpinned and t.get("pinned")]
+        if not asked:
+            continue
+        for tile in sorted(asked, key=lambda t: -t["count"]):
             rows.append("| %d | `%s` | %d | %d | %d | %d | %s |" % (
                 tile["tile"], tile["file"], tile["count"], tile.get("walkable", 0),
                 tile.get("blocked", 0), tile.get("water", 0),
@@ -193,10 +211,15 @@ def main():
                 "- tile %d: %s" % (tile, words) for tile, words in sorted(known.items())
             ))
         out = directory / ("brief_ts%d.md" % number)
+        pinned = PINNED.format(lines="\n".join(
+            "- tile %d: `%s`" % (t["tile"], t["pinned"])
+            for t in sorted(held, key=lambda t: t["tile"])
+        )) if held else ""
         out.write_text(BRIEF.format(
-            number=number, count=len(sheet["tiles"]),
-            sample=sheet["tiles"][0]["file"], out="pass_ts%d.txt" % number,
-            classes=CLASSES, tiles="\n".join(rows), examples=examples,
+            number=number, name=sheet["name"], count=len(asked),
+            sample=asked[0]["file"], out="pass_ts%d.txt" % number,
+            classes=CLASSES, tiles="\n".join(rows), pinned=pinned,
+            examples=examples,
         ))
         print(out)
     return 0

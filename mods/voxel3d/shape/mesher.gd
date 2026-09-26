@@ -744,12 +744,13 @@ func _open_sweep() -> void:
 	_sweep_walked = 0
 
 
-func _sweep_step(accept: Callable, settle: Callable) -> bool:
+## `joins`, where given, is asked of every step between two accepted tiles.
+func _sweep_step(accept: Callable, settle: Callable, joins := Callable()) -> bool:
 	var spent: int = 0
 	while spent < BAND_TILES:
 		if _sweep_walked >= _sweep_members.size() and not _sweep_open(accept):
 			return false
-		spent += _sweep_grow(accept, settle, BAND_TILES - spent)
+		spent += _sweep_grow(accept, settle, BAND_TILES - spent, joins)
 	return true
 
 
@@ -766,10 +767,12 @@ func _sweep_open(accept: Callable) -> bool:
 	return false
 
 
-func _sweep_grow(accept: Callable, settle: Callable, budget: int) -> int:
+func _sweep_grow(
+	accept: Callable, settle: Callable, budget: int, joins: Callable
+) -> int:
 	var from: int = _sweep_walked
 	_sweep_walked = _spread_step(
-		_sweep_members, _sweep_walked, _sweep_seen, accept, budget
+		_sweep_members, _sweep_walked, _sweep_seen, accept, budget, joins
 	)
 	if _sweep_walked >= _sweep_members.size():
 		settle.call(_sweep_members)
@@ -784,12 +787,14 @@ var _sweep_walked: int = 0
 
 func _spread_step(
 	region: PackedInt32Array, walked: int, seen: PackedByteArray,
-	accept: Callable, budget: int
+	accept: Callable, budget: int, joins := Callable()
 ) -> int:
 	var until: int = walked + budget
 	while walked < region.size() and walked < until:
-		for index: int in _neighbours(region[walked]):
-			if seen[index] == 0 and accept.call(index):
+		var from: int = region[walked]
+		for index: int in _neighbours(from):
+			if seen[index] == 0 and accept.call(index) \
+					and (not joins.is_valid() or joins.call(from, index)):
 				seen[index] = 1
 				region.append(index)
 		walked += 1
@@ -1080,13 +1085,15 @@ func _passes(source: RefCounted, shape: RefCounted) -> Array[Callable]:
 	var passes: Array[Callable] = [_mark_shell]
 	_band_rows(passes, _fill_rows.bind(source, shape))
 	_band_houses(passes, source, shape)
+	passes.append(_open_hops)
+	_band_cells(passes, _read_hops.bind(source))
 	passes.append_array([
 		_measure_columns,
 		_measure_cliffs,
 		_apply_levels.bind(source, shape),
-		_open_plateaus,
-		_measure_plateaus,
-		_settle_plateau_lips,
+	])
+	_band_plateaus(passes, source)
+	passes.append_array([
 		_open_sweep,
 		_settle_ponds,
 		_open_beds,
@@ -1111,7 +1118,7 @@ func _passes(source: RefCounted, shape: RefCounted) -> Array[Callable]:
 	])
 	for flight: Dictionary in shape.stairs():
 		passes.append(_measure_stair.bind(source, flight))
-	_band_ledges(passes, source)
+	_band_ledges(passes)
 	passes.append_array([
 		_measure_fences.bind(shape),
 		_measure_mouths,
@@ -1146,14 +1153,31 @@ func _band_houses(
 	passes.append(_paint_houses.bind(shape))
 
 
-func _band_ledges(passes: Array[Callable], source: RefCounted) -> void:
-	@warning_ignore("integer_division")
-	var cell_rows: int = _size.y / CELL_TILES
-	var per: int = maxi(BAND_TILES / maxi(_size.x * CELL_TILES, 1), 1)
-	_band_over(passes, _measure_ledges.bind(source), cell_rows, per)
+func _band_ledges(passes: Array[Callable]) -> void:
+	_band_cells(passes, _measure_ledges)
 	passes.append(_open_ledge_corners)
 	_band_rows(passes, _join_ledge_corners)
 	passes.append(_add_ledge_corners)
+
+
+## The cells a plateau floods through are read a few rows a slice, since a map
+## with a cliff asks the source about every cell.
+func _band_plateaus(passes: Array[Callable], source: RefCounted) -> void:
+	passes.append(_open_plateau_cells)
+	@warning_ignore("integer_division")
+	_band_over(
+		passes, _read_plateau_rows.bind(source), _size.y / CELL_TILES + 2,
+		maxi(BAND_TILES / maxi(_size.x, 1), 1)
+	)
+	passes.append_array([_open_plateaus, _measure_plateaus, _settle_plateau_lips])
+
+
+## A pass over the grid's rows of walk cells.
+func _band_cells(passes: Array[Callable], over: Callable) -> void:
+	@warning_ignore("integer_division")
+	var cell_rows: int = _size.y / CELL_TILES
+	var per: int = maxi(BAND_TILES / maxi(_size.x * CELL_TILES, 1), 1)
+	_band_over(passes, over, cell_rows, per)
 
 
 func _band_ramps(passes: Array[Callable]) -> void:
@@ -1305,8 +1329,7 @@ func _divide_at_walls(source: RefCounted, region: PackedInt32Array) -> PackedInt
 		for cx: int in across.x:
 			var cell := Vector2i(cx, cy)
 			kind[cy * across.x + cx] = source.permission_at(cell)
-			if not FLOOR_PERMISSIONS.has(kind[cy * across.x + cx]) \
-					or not source.ledge_steps_at(cell).is_empty():
+			if not FLOOR_PERMISSIONS.has(kind[cy * across.x + cx]) or _hops.has(cell):
 				region[cy * across.x + cx] = NOT_FLOOR
 	return kind
 
@@ -2640,6 +2663,7 @@ func _measure_doors(shape: RefCounted) -> void:
 			continue
 		_heights[at] = high
 		_doorway[at] = 1
+		_cap_doorway(at, high)
 		for corner: int in 4:
 			_corners[at * 4 + corner] = high
 
@@ -2659,8 +2683,20 @@ func _measure_collision_doors(from: int, to: int, source: RefCounted) -> void:
 			continue
 		_heights[at] = high
 		_doorway[at] = 1
+		_cap_doorway(at, high)
 		for corner: int in 4:
 			_corners[at * 4 + corner] = high
+
+
+## A doorway's drawing is its face, and its top is the ground over the wall it
+## is cut into, where that ground stands level with it.
+func _cap_doorway(at: int, high: int) -> void:
+	var walk: int = at - _size.x
+	while walk >= 0 and _doorway[walk] == 1:
+		walk -= _size.x
+	if walk < 0 or _art[walk] != ART_FLAT or _heights[walk] != high:
+		return
+	_floor_art[at] = Vector2i(_tiles[walk], high)
 
 
 func _flat_and_free(at: int) -> bool:
@@ -2781,6 +2817,7 @@ func _measure_cliffs() -> void:
 	var tallest: int = 0
 	for bands: int in banded:
 		tallest = maxi(tallest, bands)
+	_tallest_face = tallest * BAND
 	for index: int in structures.size():
 		var members: PackedInt32Array = structures[index]
 		var bands: int = banded[index]
@@ -2831,24 +2868,42 @@ func _cliff_base(at: int) -> int:
 
 
 func _open_plateaus() -> void:
-	_plateau_seeds = {}
-	_plateau_fronts = {}
-	_plateau_patches = {}
-	_plateau_any = _cliff_evidence(
-		_plateau_seeds, _plateau_fronts, _plateau_patches
-	)
+	_plateau_own = _plateau_evidence()
+	_plateau_ring = _plateau_evidence()
+	_plateau_any = _cliff_evidence()
+	_plateau_lips = _lip_evidence() if _plateau_any else {}
 	_open_sweep()
 
 
+func _plateau_evidence() -> Dictionary:
+	return {&"seeds": {}, &"fronts": {}, &"patches": {}}
+
+
 func _measure_plateaus() -> bool:
-	return _plateau_any and _sweep_step(_is_plateau_floor, _settle_plateau)
+	return _plateau_any and _sweep_step(
+		_is_plateau_floor, _settle_plateau, _plateau_joins
+	)
+
+
+## Past the map's edge the drawing is the next map's or the border block's, and
+## two maps' drawings meet there out of step, so a step touching the ring carries
+## the floor on only between tiles drawn alike that agree whether a body can
+## stand on them: a street does not run on into the fill beside a town.
+func _plateau_joins(from: int, to: int) -> bool:
+	var a: Vector2i = _tile_of(from)
+	var b: Vector2i = _tile_of(to)
+	if _in_map(a.x, a.y) and _in_map(b.x, b.y):
+		return true
+	return _plateau_walk[from] == _plateau_walk[to] and _tiles[from] == _tiles[to]
 
 
 func _settle_plateau(members: PackedInt32Array) -> void:
-	var raise: int = _plateau_height(
-		members, _plateau_seeds, _plateau_fronts, _plateau_patches
-	)
-	if raise < 0:
+	var raise: int = _plateau_height(members, _plateau_own)
+	if raise == NO_EVIDENCE:
+		raise = _plateau_height(members, _plateau_ring)
+	if raise == NO_EVIDENCE and _under_lip(members):
+		raise = maxi(_tallest_face, PLATEAU_FLOOR)
+	if raise <= 0:
 		return
 	for at: int in members:
 		_heights[at] = raise
@@ -2861,33 +2916,70 @@ func _settle_plateau_lips() -> void:
 		_settle_lips()
 
 
-var _plateau_seeds: Dictionary = {}
-var _plateau_fronts: Dictionary = {}
-var _plateau_patches: Dictionary = {}
+## Seeds, fronts and patches read off the map's own faces, and off the ring's.
+## The ring cuts drawings wherever it stops, so it speaks only for a region the
+## map's own faces say nothing about.
+var _plateau_own: Dictionary = {}
+var _plateau_ring: Dictionary = {}
+## The floor just inside each of the map's own lips. A lip is a plateau's far
+## rim, so this is top ground even where the plateau's face is off the map; it
+## stands as tall as the tallest face the map draws, and a storey where the map
+## draws none.
+var _plateau_lips: Dictionary = {}
+var _tallest_face: int = 0
+## A doorway stands in its wall, so it divides the floor on either side of it.
+## Doors are stood up after plateaus, so they are marked for the flood first.
+var _plateau_walls := PackedByteArray()
+## A flight joins the floor at its foot to the one at its head without making
+## them one floor, as the painted storeys read it.
+var _plateau_flight: int = -1
+var _plateau_walk := PackedByteArray()
 var _plateau_any: bool = false
+
+
+const NO_EVIDENCE: int = -2
 
 
 ## A plateau rises to its lowest seed. A front anywhere in it blocks the lift
 ## outright; a patch seed, which comes off a face under a walk cell, speaks only
 ## for a region small enough to be a rock rather than a town.
-func _plateau_height(
-	members: PackedInt32Array, seeds: Dictionary, fronts: Dictionary,
-	patches: Dictionary
-) -> int:
-	var lift: int = -1
-	var patch: int = -1
+func _plateau_height(members: PackedInt32Array, evidence: Dictionary) -> int:
+	var seeds: Dictionary = evidence[&"seeds"]
+	var fronts: Dictionary = evidence[&"fronts"]
+	var patches: Dictionary = evidence[&"patches"]
+	var lift: int = NO_EVIDENCE
+	var patch: int = NO_EVIDENCE
 	for at: int in members:
 		if fronts.has(at):
 			return -1
 		if seeds.has(at):
-			var height: int = int(seeds[at])
-			lift = height if lift < 0 else mini(lift, height)
+			lift = _lower_seed(lift, int(seeds[at]))
 		if patches.has(at):
-			var height: int = int(patches[at])
-			patch = height if patch < 0 else mini(patch, height)
-	if lift >= 0:
+			patch = _lower_seed(patch, int(patches[at]))
+	if lift >= 0 or patch == NO_EVIDENCE:
 		return lift
 	return patch if members.size() <= PATCH_TILES else -1
+
+
+func _under_lip(members: PackedInt32Array) -> bool:
+	for at: int in members:
+		if _plateau_lips.has(at):
+			return true
+	return false
+
+
+func _lip_evidence() -> Dictionary:
+	var under: Dictionary = {}
+	for ty: int in range(_margin.y, _map_end.y - 1):
+		for tx: int in range(_margin.x, _map_end.x):
+			var below: int = (ty + 1) * _size.x + tx
+			if _lip[ty * _size.x + tx] == 1 and _is_plateau_floor(below):
+				under[below] = true
+	return under
+
+
+func _lower_seed(held: int, height: int) -> int:
+	return height if held == NO_EVIDENCE else mini(held, height)
 
 
 func _settle_lips() -> void:
@@ -2999,9 +3091,7 @@ func _is_water(at: int) -> bool:
 	)
 
 
-func _cliff_evidence(
-	seeds: Dictionary, fronts: Dictionary, patches: Dictionary
-) -> bool:
+func _cliff_evidence() -> bool:
 	var any: bool = false
 	for tx: int in _size.x:
 		var ty: int = 0
@@ -3013,19 +3103,20 @@ func _cliff_evidence(
 			var run: int = 0
 			while ty + run < _size.y and _cliff[(ty + run) * _size.x + tx] == 1:
 				run += 1
-			_seed_above(tx, ty, seeds, patches)
-			_front_below(tx, ty + run, fronts)
+			_seed_above(tx, ty)
+			_front_below(tx, ty + run)
 			ty += run
 	return any
 
 
-func _seed_above(
-	tx: int, top: int, seeds: Dictionary, patches: Dictionary
-) -> void:
+func _seed_above(tx: int, top: int) -> void:
 	var above: int = top - 1
 	if _front[top * _size.x + tx] == 0 or above < 0 \
 			or not _is_plateau_floor(above * _size.x + tx):
 		return
+	var evidence: Dictionary = _plateau_own if _in_map(tx, top) else _plateau_ring
+	var seeds: Dictionary = evidence[&"seeds"]
+	var patches: Dictionary = evidence[&"patches"]
 	var height: int = _front_height(tx, top)
 	var index: int = above * _size.x + tx
 	if height >= PLATEAU_FLOOR:
@@ -3034,11 +3125,12 @@ func _seed_above(
 		patches[index] = mini(int(patches.get(index, height)), height)
 
 
-func _front_below(tx: int, below: int, fronts: Dictionary) -> void:
+func _front_below(tx: int, below: int) -> void:
 	if _front[(below - 1) * _size.x + tx] == 0 or below >= _size.y \
 			or not _is_plateau_floor(below * _size.x + tx):
 		return
-	fronts[below * _size.x + tx] = true
+	var evidence: Dictionary = _plateau_own if _in_map(tx, below) else _plateau_ring
+	(evidence[&"fronts"] as Dictionary)[below * _size.x + tx] = true
 
 
 ## The ground above a cliff stands on top of its front, so a run that turns a
@@ -3056,7 +3148,47 @@ func _is_plateau_floor(at: int) -> bool:
 	return (
 		_tiles[at] >= 0 and _art[at] == ART_FLAT and _heights[at] == 0
 		and _lip[at] == 0 and _void[at] == 0
+		and (_plateau_walls.is_empty() or _plateau_walls[at] == 0)
+		and _klass[at] != _plateau_flight
 	)
+
+
+## Which tiles are a doorway and which a body can stand on, read once a cell
+## and only on a map with a cliff, which is the only kind the plateau pass reads.
+func _open_plateau_cells() -> void:
+	_plateau_flight = int(_class_ids.get(&"stairs", -1))
+	_plateau_walls = PackedByteArray()
+	_plateau_walk = PackedByteArray()
+	if not _cliff.has(1):
+		return
+	_plateau_walls.resize(_size.x * _size.y)
+	_plateau_walk.resize(_size.x * _size.y)
+
+
+## Rows of walk cells, counted from the one the grid's first tile is in.
+func _read_plateau_rows(from: int, to: int, source: RefCounted) -> void:
+	if _plateau_walk.is_empty():
+		return
+	var first := Vector2i(
+		floori(-float(_margin.x) / CELL_TILES), floori(-float(_margin.y) / CELL_TILES)
+	)
+	var last_x: int = floori(float(_size.x - _margin.x) / CELL_TILES)
+	for cy: int in range(first.y + from, first.y + to):
+		for cx: int in range(first.x, last_x + 1):
+			var cell := Vector2i(cx, cy)
+			var origin: Vector2i = cell * CELL_TILES + _margin
+			if source.is_door_at(cell):
+				_mark_cell(_plateau_walls, origin)
+			if source.permission_at(cell) == Gen2WorldCollision.LAND_TILE:
+				_mark_cell(_plateau_walk, origin)
+
+
+func _mark_cell(marks: PackedByteArray, origin: Vector2i) -> void:
+	for dy: int in CELL_TILES:
+		for dx: int in CELL_TILES:
+			var index: int = _index(origin.x + dx, origin.y + dy)
+			if index >= 0:
+				marks[index] = 1
 
 
 func _regions(cells: Vector2i) -> PackedInt32Array:
@@ -3445,9 +3577,10 @@ func _stand_object(
 		object, start, across, _object_front(source, object, start, across),
 	])
 	var floors := PackedInt32Array()
+	var doorstep: int = _doorstep(object, start, across)
 	for row: int in across.y:
 		for column: int in across.x:
-			floors.append(_cell_floor(
+			floors.append(doorstep if doorstep >= 0 else _cell_floor(
 				(start.x + column) >> 1, (start.y + row) >> 1
 			))
 	for row: int in across.y:
@@ -3458,6 +3591,17 @@ func _stand_object(
 				object, index, Vector2i(start.x + column, start.y + row),
 				floors[row * across.x + column]
 			)
+
+
+## A building with a door stands on the floor a walker enters it from, which is
+## the plinth it is drawn on where it has one. -1 where it has no door.
+func _doorstep(object: Dictionary, start: Vector2i, across: Vector2i) -> int:
+	if not object.has(&"door"):
+		return -1
+	var at: int = _index(start.x + int((object[&"door"] as Array)[0]), start.y + across.y)
+	if at < 0 or _tiles[at] < 0 or _art[at] != ART_FLAT:
+		return -1
+	return _heights[at]
 
 
 func _cover_object(
@@ -3497,9 +3641,10 @@ func _measure_stair(source: RefCounted, flight: Dictionary) -> void:
 		for tx: int in _size.x - across.x + 1:
 			if not _pattern_at(pattern, across, tx, ty):
 				continue
-			var base: int = _cell_floor(tx >> 1, ty >> 1)
+			var box := Rect2i(tx, ty, across.x, across.y)
+			var base: int = _box_floor(box)
 			var index: int = _stairs.size()
-			var climb: int = _flight_rise(source, flight, Rect2i(tx, ty, across.x, across.y), base)
+			var climb: int = _flight_rise(source, flight, box, base)
 			_stairs.append([flight, Vector2i(tx, ty), base, across, climb])
 			var fall: int = -climb if bool(flight[&"down"]) else 0
 			for row: int in across.y:
@@ -3562,12 +3707,44 @@ func _walk_floor(source: RefCounted, tile: Vector2i) -> int:
 	return _heights[at]
 
 
-func _measure_ledges(from: int, to: int, source: RefCounted) -> void:
+func _open_hops() -> void:
+	_hops = {}
+
+
+## The collision's ledges, read before anything is measured: the lip a hop
+## passes over is a ledge whatever it is drawn as, so it is never a cliff's face.
+func _read_hops(from: int, to: int, source: RefCounted) -> void:
 	@warning_ignore("integer_division")
 	var cells := Vector2i(_size.x / CELL_TILES, _size.y / CELL_TILES)
 	for cy: int in range(from, mini(to, cells.y)):
 		for cx: int in cells.x:
-			var steps: Array = source.ledge_steps_at(Vector2i(cx, cy) - _margin_cells())
+			var cell: Vector2i = Vector2i(cx, cy) - _margin_cells()
+			var steps: Array = source.ledge_steps_at(cell)
+			if steps.is_empty():
+				continue
+			_hops[cell] = steps
+			for step: Vector2i in steps:
+				_release_lip(Vector2i(cx, cy) + step, step)
+
+
+func _release_lip(over: Vector2i, step: Vector2i) -> void:
+	for tile: Vector2i in _far_half(over, step):
+		var at: int = _index_of(tile)
+		if at >= 0:
+			_cliff[at] = 0
+			_front[at] = 0
+
+
+## Each map cell a ledge hop leaves, with the directions it leaves in.
+var _hops: Dictionary = {}
+
+
+func _measure_ledges(from: int, to: int) -> void:
+	@warning_ignore("integer_division")
+	var cells := Vector2i(_size.x / CELL_TILES, _size.y / CELL_TILES)
+	for cy: int in range(from, mini(to, cells.y)):
+		for cx: int in cells.x:
+			var steps: Array = _hops.get(Vector2i(cx, cy) - _margin_cells(), [])
 			if steps.is_empty():
 				continue
 			var base: int = _cell_floor(cx, cy)
@@ -3685,6 +3862,18 @@ func _ledge_steps(facings: int) -> Array[Vector2i]:
 		if (facings & facing) != 0:
 			out.append(_ledge_step(facing))
 	return out
+
+
+## The floor a flight stands on: its own tiles, which are the whole walk cell
+## for a flight a cell deep and the cell's front half for one a tile deep.
+func _box_floor(box: Rect2i) -> int:
+	var best: int = 0
+	for ty: int in range(box.position.y, mini(box.end.y, _size.y)):
+		for tx: int in range(box.position.x, mini(box.end.x, _size.x)):
+			var at: int = ty * _size.x + tx
+			if _art[at] == ART_FLAT and _heights[at] > best:
+				best = _heights[at]
+	return best
 
 
 func _cell_floor(cell_x: int, cell_y: int) -> int:
@@ -4650,6 +4839,9 @@ func _object_texel(
 
 
 func _object_base(object: Dictionary, start: Vector2i, across: Vector2i) -> float:
+	var doorstep: int = _doorstep(object, start, across)
+	if doorstep >= 0:
+		return float(doorstep)
 	var tx: int = start.x
 	var ty: int = start.y + across.y - 1
 	var base: float = float(_ground_art(tx, ty).y)
@@ -7000,6 +7192,9 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 		)
 		return
 	var step: Vector2i = flight[&"step"]
+	if flight.get(&"side_on", false) and not down and step.x != 0:
+		_emit_side_flight(start, base, step, across, steps, climb, atlas)
+		return
 	var run: int = (across.x if step.x != 0 else across.y) * int(TILE)
 	var rise: float = float(climb) / float(steps)
 	_stair_head(
@@ -7047,6 +7242,125 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 					start, faces, riser, minf(height, above), maxf(height, above),
 					Vector2(x0, z0), Vector2(x1, z1), uv
 				)
+
+
+## A flight drawn side-on, the way Generation I draws one climbing along a wall,
+## is its own sides: the drawing stands on them, foot on the floor. A tread
+## wears the step's own colour, found under the outline that draws its edge, and
+## a riser or the head wears the drawing's column one pixel inside that outline.
+func _emit_side_flight(
+	start: Vector2i, base: float, step: Vector2i, across: Vector2i, steps: int,
+	climb: int, atlas: RefCounted
+) -> void:
+	var drawing: Vector2i = across * int(TILE)
+	var scale: float = float(climb) / float(drawing.y)
+	var whole := SideFlight.new(start, drawing, base, scale, atlas)
+	var end: int = drawing.x if step.x > 0 else 0
+	_side_riser(whole, Vector2i(end, end - signi(step.x)), -step, 0, drawing.y)
+	for tread: int in steps:
+		var from: int = _stair_edge(drawing.x, steps, tread)
+		var to: int = _stair_edge(drawing.x, steps, tread + 1)
+		var span := Vector2i(from, to) if step.x > 0 \
+			else Vector2i(drawing.x - to, drawing.x - from)
+		var top: int = drawing.y - _stair_edge(drawing.y, steps, tread + 1)
+		var low: int = drawing.y - _stair_edge(drawing.y, steps, tread)
+		_side_tread(whole, span, top)
+		var edge: int = span.x if step.x > 0 else span.y
+		_side_riser(whole, Vector2i(edge, edge + signi(step.x)), step, top, low)
+		_side_walls(whole, span, top)
+
+
+## One side-on flight as its treads are laid: where the drawing starts, how big
+## it is, and the height of its bottom row.
+class SideFlight:
+	var start: Vector2i
+	var drawing: Vector2i
+	var base: float
+	var scale: float
+	var atlas: RefCounted
+
+	func _init(
+		at: Vector2i, size: Vector2i, floor_px: float, per_row: float, sheet: RefCounted
+	) -> void:
+		start = at
+		drawing = size
+		base = floor_px
+		scale = per_row
+		atlas = sheet
+
+	func height(row: int) -> float:
+		return base + float(drawing.y - row) * scale
+
+
+func _side_uv(flight: SideFlight, box: Rect2i) -> Rect2:
+	var tile: int = _tile_at(
+		flight.start.x + box.position.x / int(TILE), flight.start.y + box.position.y / int(TILE)
+	)
+	return flight.atlas.uv_box(tile, Rect2i(
+		box.position.x % int(TILE), box.position.y % int(TILE), box.size.x, box.size.y
+	))
+
+
+func _side_tread(flight: SideFlight, span: Vector2i, top: int) -> void:
+	var column: int = (span.x + span.y) >> 1
+	var colour := Rect2i(column, _below_outline(flight, column, top), 1, 1)
+	var x0: float = _world_x(flight.start.x) + float(span.x)
+	var x1: float = _world_x(flight.start.x) + float(span.y)
+	var z0: float = _world_z(flight.start.y)
+	var z1: float = z0 + float(flight.drawing.y)
+	var high: float = flight.height(top)
+	_quad(
+		Vector3(x0, high, z1), Vector3(x1, high, z1),
+		Vector3(x1, high, z0), Vector3(x0, high, z0),
+		Vector3.UP, _side_uv(flight, colour), SHADE_TOP_FLAT
+	)
+
+
+## The first row at or under `top` in a column of the drawing that is not the
+## outline: the step's own colour, wherever its edge is actually drawn.
+func _below_outline(flight: SideFlight, column: int, top: int) -> int:
+	for row: int in range(clampi(top, 0, flight.drawing.y - 1), flight.drawing.y):
+		var tile: int = _tile_at(
+			flight.start.x + column / int(TILE), flight.start.y + row / int(TILE)
+		)
+		var index: int = flight.atlas.pixel(tile, column % int(TILE), row % int(TILE))
+		if not flight.atlas.is_dark(tile, index, 1):
+			return row
+	return flight.drawing.y - 1
+
+
+## `edge` is where the upright stands, in drawing pixels, and the column it wears.
+func _side_riser(
+	flight: SideFlight, edge: Vector2i, step: Vector2i, top: int, low: int
+) -> void:
+	var column: int = clampi(edge.y - (0 if step.x > 0 else 1), 0, flight.drawing.x - 1)
+	var x: float = _world_x(flight.start.x) + float(edge.x)
+	var z0: float = _world_z(flight.start.y)
+	var deep: float = float(flight.drawing.y)
+	for piece: Rect2i in _tile_pieces(Rect2i(column, top, 1, low - top)):
+		var bottom: float = flight.height(piece.end.y)
+		var up := Vector3(0.0, flight.height(piece.position.y) - bottom, 0.0)
+		var uv: Rect2 = _side_uv(flight, piece)
+		if step.x > 0:
+			_panel(Vector3(x, bottom, z0), Vector3(0.0, 0.0, deep), up, uv, SHADE_SIDE)
+		else:
+			_panel(Vector3(x, bottom, z0 + deep), Vector3(0.0, 0.0, -deep), up, uv, SHADE_SIDE)
+
+
+func _side_walls(flight: SideFlight, span: Vector2i, top: int) -> void:
+	var box := Rect2i(span.x, top, span.y - span.x, flight.drawing.y - top)
+	var north: float = _world_z(flight.start.y)
+	var south: float = north + float(flight.drawing.y)
+	for piece: Rect2i in _tile_pieces(box):
+		var x0: float = _world_x(flight.start.x) + float(piece.position.x)
+		var wide: float = float(piece.size.x)
+		var bottom: float = flight.height(piece.end.y)
+		var up := Vector3(0.0, flight.height(piece.position.y) - bottom, 0.0)
+		var uv: Rect2 = _side_uv(flight, piece)
+		_panel(Vector3(x0, bottom, south), Vector3(wide, 0.0, 0.0), up, uv, SHADE_SOUTH)
+		_panel(
+			Vector3(x0 + wide, bottom, north), Vector3(-wide, 0.0, 0.0), up, uv, SHADE_NORTH
+		)
 
 
 ## The upright between two treads, facing the way a walker on the lower of them
@@ -8263,19 +8577,21 @@ func _tuft_box(
 var _commonest_index: Dictionary = {}
 
 
+## The colour a tuft grows out of. A tie goes to the lower index, the page the
+## cartridge draws on, rather than to the colour the scan counted up first.
 func _commonest(tile: int, atlas: RefCounted) -> int:
 	if _commonest_index.has(tile):
 		return int(_commonest_index[tile])
 	var counts: Dictionary = {}
-	var best: int = -1
-	var most: int = -1
 	for py: int in int(TILE):
 		for px: int in int(TILE):
 			var index: int = atlas.pixel(tile, px, py)
 			counts[index] = int(counts.get(index, 0)) + 1
-			if int(counts[index]) > most:
-				most = int(counts[index])
-				best = index
+	var best: int = -1
+	for index: int in counts:
+		var ahead: bool = best < 0 or int(counts[index]) > int(counts[best])
+		if ahead or (int(counts[index]) == int(counts[best]) and index < best):
+			best = index
 	_commonest_index[tile] = best
 	return best
 

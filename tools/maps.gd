@@ -44,7 +44,7 @@ func _initialize() -> void:
 				if only_tileset >= 0 and map.tileset != only_tileset:
 					continue
 		rows.append([map.group, map.number, map.tileset, map.environment,
-			wide, high, outside, data.landmark_name(map.location)])
+			wide, high, outside, String(map.name)])
 
 	rows.sort_custom(func(a: Array, b: Array) -> bool:
 		return a[4] * a[5] > b[4] * b[5]

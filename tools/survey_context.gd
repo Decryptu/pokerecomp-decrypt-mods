@@ -87,7 +87,7 @@ func _ask(number: int, profile: GDScript) -> void:
 				if not _every:
 					if permission != Gen2WorldCollision.WALL_TILE:
 						continue
-					if profile.pinned_class(number, tile) != &"":
+					if not _held(profile, tileset.name, tile).is_empty():
 						continue
 				var entry: Dictionary = seen.get(tile, {
 					"count": 0, "blocked": 0, "walkable": 0, "water": 0,
@@ -133,7 +133,7 @@ func _ask(number: int, profile: GDScript) -> void:
 			record["blocked"] = entry["blocked"]
 			record["walkable"] = entry["walkable"]
 			record["water"] = entry["water"]
-			record["pinned"] = String(profile.pinned_class(number, tile))
+			record["pinned"] = _held(profile, tileset.name, tile)
 		records.append(record)
 	records.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return int(a["count"]) > int(b["count"]))
@@ -147,6 +147,15 @@ func _ask(number: int, profile: GDScript) -> void:
 	}, "  "))
 	file.close()
 	print("tileset %d: %d tiles to ask about" % [number, records.size()])
+
+
+## A pin, or `unpinned` for a tile the profile keeps out of the pass.
+func _held(profile: GDScript, tileset: StringName, tile: int) -> String:
+	var pinned: String = String(profile.pinned_class(tileset, tile))
+	var taken: Variant = profile.UNPINNED.get(tileset, null)
+	if pinned.is_empty() and taken is Array and (taken as Array).has(tile):
+		return "unpinned"
+	return pinned
 
 
 func _paint(map: Gen2WorldMap, tileset: Gen2WorldTileset) -> Image:
