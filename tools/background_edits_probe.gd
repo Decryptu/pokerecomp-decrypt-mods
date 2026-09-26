@@ -143,7 +143,7 @@ func _battle(world: Gen2WorldAPI, at: Vector2i, block: int) -> void:
 	_report("a battle's arena has the changed block",
 		source.tile_at(tile.x, tile.y) == tileset.tile_index(block, 0)
 			and source.code_at(at * Gen2Layout.MAP_BLOCK_CELL_WIDTH)
-				== source.code_in_block(world.data, tileset, block, 0, 0))
+				== Gen2WorldCollision.cell_code(world.data, tileset, block, 0, 0))
 	if gen1:
 		_report("a battle's arena has the written tile",
 			source.tile_at(written.x, written.y) == Gen1Layout.SS_ANNE_WATER_TILE)

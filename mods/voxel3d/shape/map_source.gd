@@ -1,9 +1,7 @@
 extends RefCounted
 
-## What the mesher reads a map through. Every question about a cell is answered
-## here on both generations: a Generation 2 cell holds a permission byte, and a
-## Generation 1 cell holds the tile it draws, which the tileset's own tables
-## answer for.
+## What the mesher reads a map through, live or recorded. The host's
+## `Gen2WorldCollision` answers what a cell's code means on either generation.
 
 var _world: Gen2WorldAPI = null
 var _map: Gen2WorldMap = null
@@ -194,10 +192,8 @@ func outside() -> bool:
 	return _map != null and _map.is_outside()
 
 
-## The raw byte the cartridge tests at a cell, off the map from the block drawn
-## there: a permission on Generation 2, the tile drawn at the cell's foot on
-## Generation 1, the screen's own writes and a recorded map's changed blocks
-## included.
+## The byte the cartridge tests at a cell, off the map from the block drawn
+## there, with the screen's writes and a recorded map's changed blocks.
 func code_at(cell: Vector2i) -> int:
 	if _map == null:
 		return -1
@@ -223,7 +219,7 @@ func _code_in_drawn_block(cell: Vector2i) -> int:
 	if _tileset == null:
 		return -1
 	var block: Vector2i = _block_of(cell)
-	return code_in_block(
+	return Gen2WorldCollision.cell_code(
 		_data, _tileset, _block_at(block.x, block.y),
 		posmod(cell.x, Gen2Layout.MAP_BLOCK_CELL_WIDTH),
 		posmod(cell.y, Gen2Layout.MAP_BLOCK_CELL_WIDTH)
@@ -237,25 +233,10 @@ static func _block_of(cell: Vector2i) -> Vector2i:
 	)
 
 
-## The code one of a block's four cells carries, off the tileset alone.
-static func code_in_block(
-	data: GameData, of: Gen2WorldTileset, block: int, cell_x: int, cell_y: int
-) -> int:
-	if data != null and data.generation == RomRegistry.GEN1:
-		return of.tile_index(block, Gen1Layout.cell_tile_index(cell_x, cell_y))
-	return of.collision_index(block, cell_x, cell_y)
-
-
-static func permission_of(data: GameData, of: Gen2WorldTileset, code: int) -> int:
-	if data != null and data.generation == RomRegistry.GEN1:
-		return Gen2WorldCollision.gen1_permission(of, code)
-	return Gen2WorldCollision.permission_for(code)
-
-
 func permission_at(cell: Vector2i) -> int:
 	if _map == null:
 		return Gen2WorldCollision.WALL_TILE
-	return permission_of(_data, _tileset, code_at(cell))
+	return Gen2WorldCollision.cell_permission(_data, _tileset, code_at(cell))
 
 
 ## `Gen2WorldCollision.grass_kind` on Generation 2; on Generation 1 the
@@ -273,36 +254,17 @@ func grass_at(cell: Vector2i) -> int:
 ## A doorway in a wall: the cell is walked through and stands as tall as what
 ## is around it. A warp carpet is a floor and is not one.
 func is_door_at(cell: Vector2i) -> bool:
-	var code: int = code_at(cell)
-	if _gen1:
-		return _tileset != null \
-			and Gen2WorldCollision.gen1_is_door_tile(_tileset.number, code)
-	return code == Gen2WorldCollision.COLL_DOOR \
-		or code == Gen2WorldCollision.COLL_DOOR_79 \
-		or code == Gen2WorldCollision.COLL_CAVE
+	return Gen2WorldCollision.cell_is_door(_data, _tileset, code_at(cell))
 
 
-const STEP_FACINGS: Dictionary = {
-	Vector2i.DOWN: Gen2WorldSprite.FACING_DOWN, Vector2i.UP: Gen2WorldSprite.FACING_UP,
-	Vector2i.LEFT: Gen2WorldSprite.FACING_LEFT, Vector2i.RIGHT: Gen2WorldSprite.FACING_RIGHT,
-}
+const HOPS: Array[Vector2i] = [Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT]
 
 
-## The directions a ledge hop leaves this cell in, over the ledge in the next
-## cell: Generation 2 names them here, Generation 1 by the tile hopped over.
+## The directions a ledge hop leaves this cell in, over the ledge in the next.
 func ledge_steps_at(cell: Vector2i) -> Array:
 	var out: Array = []
-	if _gen1:
-		if _tileset == null:
-			return out
-		for step: Vector2i in STEP_FACINGS:
-			var ahead: int = code_at(cell + step)
-			if Gen2WorldCollision.gen1_ledge_direction(_tileset.number, ahead) \
-					== STEP_FACINGS[step]:
-				out.append(step)
-		return out
-	var code: int = code_at(cell)
-	for step: Vector2i in STEP_FACINGS:
-		if Gen2WorldCollision.allows_hop(code, step):
+	var here: int = code_at(cell)
+	for step: Vector2i in HOPS:
+		if Gen2WorldCollision.cell_hops(_data, _tileset, here, code_at(cell + step), step):
 			out.append(step)
 	return out
