@@ -86,8 +86,8 @@ func _filler(tileset: Gen2WorldTileset, blocks: Array) -> int:
 		var walkable: bool = true
 		for cell_y: int in BLOCK_CELLS:
 			for cell_x: int in BLOCK_CELLS:
-				var permission: int = _map_source.permission_of(
-					_data, tileset, _map_source.code_in_block(_data, tileset, block, cell_x, cell_y)
+				var permission: int = Gen2WorldCollision.cell_permission(
+					_data, tileset, Gen2WorldCollision.cell_code(_data, tileset, block, cell_x, cell_y)
 				)
 				if permission != Gen2WorldCollision.LAND_TILE:
 					walkable = false
@@ -138,7 +138,7 @@ func _grid_map(source: Gen2WorldMap, tileset: Gen2WorldTileset, blocks: Array) -
 			var block: int = map.block_at(block_x, block_y)
 			for cell_y: int in BLOCK_CELLS:
 				for cell_x: int in BLOCK_CELLS:
-					var index: int = _map_source.code_in_block(
+					var index: int = Gen2WorldCollision.cell_code(
 						_data, tileset, block, cell_x, cell_y
 					)
 					map.collision[
@@ -195,7 +195,7 @@ func _verdict(
 	for cell_y: int in BLOCK_CELLS:
 		for cell_x: int in BLOCK_CELLS:
 			var cell := Vector2i(at.x * BLOCK_CELLS + cell_x, at.y * BLOCK_CELLS + cell_y)
-			permissions.append(_map_source.permission_of(
+			permissions.append(Gen2WorldCollision.cell_permission(
 				_data, tileset, map.collision_at(cell.x, cell.y)
 			))
 			heights.append(_mesher.height_at_position(

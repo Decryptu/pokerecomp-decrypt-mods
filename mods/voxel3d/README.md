@@ -12,10 +12,10 @@ generations share, and the three places a Generation I cartridge answers
 differently are answered in one place each:
 
 - **A cell.** Generation II keeps a permission byte per walk cell; Generation I
-  keeps the tile the cell draws and asks the tileset's own tables what it means.
-  `shape/map_source.gd` answers every cell question, walkable, water, grass, a
-  door, a ledge and which way it is hopped, on either cartridge, so the mesher
-  never sees a raw byte.
+  keeps the tile the cell draws. `shape/map_source.gd` finds the byte a cell
+  holds and the host's `Gen2WorldCollision` says what it means on either
+  cartridge, walkable, water, a door, a ledge and which way it is hopped, so the
+  mesher never sees a raw byte.
 - **A tile.** Every table is keyed by the tileset's cartridge name,
   `POKECENTER`, which the host stamps on each tileset: Gold and Silver number
   their tilesets differently from Crystal past the third, and a table keyed by
