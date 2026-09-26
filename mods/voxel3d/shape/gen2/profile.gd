@@ -364,6 +364,28 @@ const OBJECTS: Dictionary = {
 	&"JOHTO": [
 		{
 			&"name": &"bell_tower",
+			&"tower": true,
+			&"door": [2, 3],
+			&"axis": 13,
+			&"layers": [
+				{&"tiles": 2, &"half": 3, &"art": [1, 14, 6, 2]},
+				{&"tiles": 1, &"half": 4, &"top_half": 3, &"art": [1, 13, 6, 1]},
+				{&"tiles": 2, &"half": 3, &"art": [1, 12, 6, 1]},
+				{&"tiles": 1, &"half": 4, &"top_half": 3, &"art": [1, 11, 6, 1]},
+				{&"tiles": 2, &"half": 3, &"art": [1, 10, 6, 1]},
+				{&"tiles": 1, &"half": 4, &"top_half": 3, &"art": [1, 9, 6, 1]},
+				{&"tiles": 2, &"half": 3, &"art": [1, 8, 6, 1]},
+				{&"tiles": 1, &"half": 4, &"top_half": 3, &"art": [1, 7, 6, 1]},
+				{&"tiles": 2, &"half": 3, &"art": [1, 6, 6, 1]},
+				{&"tiles": 1, &"half": 4, &"top_half": 3, &"art": [1, 5, 6, 1]},
+				{&"tiles": 2, &"half": 3, &"art": [1, 4, 6, 1]},
+				{&"tiles": 1, &"half": 4, &"top_half": 3, &"art": [1, 3, 6, 1]},
+				{&"tiles": 2, &"half": 3, &"art": [1, 2, 6, 1]},
+				{&"tiles": 1, &"half": 4, &"top_half": 3, &"art": [1, 1, 6, 1]},
+				{&"tiles": 2, &"half": 3, &"art": [1, 0, 6, 1]},
+				{&"tiles": 1, &"half": 4, &"top_half": 2, &"art": [1, 1, 6, 1],
+					&"top": [1, 1, 6, 1]},
+			],
 			&"tiles": [
 				[34, 65, 148, 149, 149, 150, 68, 37],
 				[80, 81, 82, 82, 82, 82, 84, 85],
@@ -381,15 +403,12 @@ const OBJECTS: Dictionary = {
 				[80, 81, 82, 82, 82, 82, 84, 85],
 				[59, 26, 39, 40, 149, 150, 28, 61],
 				[59, 151, 41, 42, 152, 152, 153, 61],
-				[59, 6, 6, 6, 6, 6, 6, 61],
-				[75, 76, 154, 154, 76, 76, 76, 77],
 			],
 			&"window": Rect2i(0, 0, 64, 128),
 			&"filled": true,
 			&"top": 0,
-			&"cap": 8,
 			&"depth": 64,
-			&"height": 128,
+			&"height": 192,
 		},
 		{
 			&"name": &"sprout_tower",
@@ -416,8 +435,6 @@ const OBJECTS: Dictionary = {
 				[80, 81, 82, 82, 82, 82, 84, 85],
 				[59, 26, 39, 40, 149, 150, 28, 61],
 				[59, 151, 41, 42, 152, 152, 153, 61],
-				[59, 6, 6, 6, 6, 6, 6, 61],
-				[75, 76, 154, 154, 76, 76, 76, 77],
 			],
 			&"window": Rect2i(0, 0, 64, 80),
 			&"filled": true,
@@ -732,6 +749,14 @@ const OBJECTS: Dictionary = {
 }
 
 const STAIRS: Dictionary = {
+	&"JOHTO": [
+		{
+			&"tiles": [[154, 154]],
+			&"down": false,
+			&"step": Vector2i(0, -1),
+			&"steps": 2,
+		},
+	],
 	&"HOUSE": [
 		{
 			&"tiles": [[76, 77], [92, 93]],
@@ -1134,7 +1159,7 @@ const TILESETS: Dictionary = {
 		&"planter": [8, 9, 10, 11, 24, 25, 26, 27],
 	},
 	&"JOHTO": {
-		&"ground": [154],
+		&"stairs": [154],
 		&"sapling": [19, 21, 29, 69],
 		&"wall": [70, 71, 86, 87],
 		&"fence": [74, 89, 90],

@@ -360,13 +360,17 @@ you and coming back there is a small wall in front of you. Where perpendicular
 runs meet at a corner, their intersection inherits both slopes. The player and
 scripted NPCs follow the host's own jump arc while crossing; the body rises
 and lands on its card while the card and the camera stay on the ground. 1380 cells on 72
-maps are hopped over.
+maps are hopped over. The hops are read before anything is measured, because
+Generation I draws a hopped lip in the same rock it draws a mountain's face in:
+the lip a hop passes over is a ledge whatever it is drawn as, never a face.
 
 **A door** is walkable but stands in a wall. A cell whose collision is a door,
 its second door code or a cave takes the height
 of the wall around it and the face machinery paints its drawing on. Warp carpets
 are deliberately excluded, since a carpet is a floor you walk onto and every map
-edge has one.
+edge has one. The drawing is the doorway's face; its top is the ground over the
+wall it is cut into, so a cave mouth is a hole in a cliff and not a dark block
+standing out of one.
 
 **A rock wall is two heights**, the wall and the stone floor standing on top of
 it, and no measurement of a column reaches that, because the column through the
@@ -375,10 +379,24 @@ named in the profile, and the run of face in each column says the flat ground
 north of it is on top and the flat ground under its front band is the ground
 plane. Under the FRONT rather than under the run, because a column at a corner
 carries the front at the top and then runs on down the rim beside the plateau,
-so what lies under the bottom of it is more plateau.
+so what lies under the bottom of it is more plateau. Kanto's mountains are named
+alike on all six cartridges, since the KANTO tileset of Gold, Silver and Crystal
+keeps Generation I's numbers for the rock, the rims and the top.
 Both answers are carried across by flooding, because a plateau is a region and
 not a strip, and a region that ends up with both is left alone: a plateau always
-opens somewhere, so a leak is a contradiction rather than a wrong height.
+opens somewhere, so a leak is a contradiction rather than a wrong height. What
+the flood does not cross is part of that answer. A doorway stands in its wall
+and a flight joins two floors without making them one, so neither is floor to
+it. Past the map's edge the ring is the next map's drawing or the border
+block's, and two maps' drawings meet there out of step, so a step touching the
+ring carries the floor on only between tiles drawn alike that agree whether a
+body can stand on them. The ring's own faces speak for a region only where the
+map's faces say nothing, and a front whose foot is in the ring is the ring's.
+
+A **lip** is a plateau's far rim, the dashed edge Kanto draws along a
+mountain's north side, so the floor just inside it is top ground even where the
+plateau's face is off the map. A region no face speaks for stands under its lip
+as tall as the tallest face the map draws, or a storey where it draws none.
 
 How tall a face stands is read per connected structure, off the runs of front its
 columns draw. A structure that draws no front anywhere is a rim seen from the
@@ -456,6 +474,15 @@ so each plate is as thick as the drawing's nearest leg reaches in from its edge
 and closed round its own silhouette. A front leg and the side's picture of the
 same leg then stand as one post.
 
+A **tower** is stacked rather than folded: storeys and flared eaves, each a band
+of the drawing wrapped round a square, narrowing to the top. Sprout Tower is
+three tiers and Bell Tower seven, the tiers its drawing repeats; Bell Tower runs
+off the top of Ecruteak, so its last eave is its roof. A building with a door
+stands on the floor a walker enters it from, and both towers stand on a plinth
+that is terrain rather than tower: the rock rim that rings it is a one-band
+cliff front, so the floor inside lifts as a rock patch and its edges slope 45
+degrees, and the steps in the rim are a two-tile flight.
+
 A **kerb** is terrain rather than an object: one course of masonry standing half a
 cell, which rings a flower bed and holds the water in a fountain. A **sea rock**
 is stone drawn in the water rather than standing on it, so the tile stays flat
@@ -475,6 +502,13 @@ below the ground and everything skirts down to it, which is the same code that
 draws a cliff. Where the floor beside a down flight lies below its treads, as
 the sea does beside Olivine Port's stair, the flight shows its own sides and
 head down to that floor. A ladder in a shaft is that with the steps taken out.
+
+Generation I draws a flight side-on instead, climbing along a wall, and a flight
+declared `side_on` is built that way: the drawing is its sides, stood up with
+its foot on the floor, and each tread, riser and the head wear the drawing's own
+row or column at that edge, one pixel inside the outline that draws the edge.
+A flight stands on its own tiles, which are the whole walk cell for a flight a
+cell deep and the front half of it for Sprout Tower's two steps a tile deep.
 
 An up flight climbs to the floor at its head, so it meets that floor whatever
 height it stands at; one that runs into a wall, a warp stair, keeps its own
@@ -727,7 +761,10 @@ tile, so the player walks between the two rows of a cell exactly as the 2D view
 meant. The blades are cut into the largest rectangles that fit inside the drawing
 rather than one box per row of pixels, and the sway is read off each vertex, going
 by the square of how far up its clump a point stands so a tall box leans more at
-its top than its foot.
+its top than its foot. A blade is every pixel not in the tile's commonest colour,
+and a tie goes to the lower index, the page the cartridge draws on: Viridian
+Forest's grass is as much pale as green, and read the other way its page stood
+up as a slab.
 
 **A tree is modelled, not carved.** A Game Boy sprite of a tree is a portrait at a
 fixed angle: the crown is drawn flat and wide so it reads against the grass, and
@@ -940,9 +977,13 @@ python3 tools/pass_pins.py out/ <generation> --write
 of questions from a written spec.
 
 `shape/gen1/profile.gd` is Kanto's hand table, checked against survey sheets
-and cartridge art. Its pass, `shape/gen1/pass.gd`, is empty: the twenty-five
-tilesets have not had the full tile-by-tile pass yet, and what the hand table
-does not name is left to the automatic resolution.
+and cartridge art. Its pass, `shape/gen1/pass.gd`, read the 404 tiles of the
+twenty-five tilesets the hand table does not name, from `survey_pass.py <dir>
+unpinned`, which lists the hand pins as context and asks about the rest: 304 of
+them are pinned, 29 the pass could not settle stay with the automatic
+resolution, and the plain walls it named need no pin. A tile the profile keeps
+out of the pass on purpose is in its `UNPINNED`, as Kanto's mountain rock is:
+the cliff tables measure it, and a pass pin would lay its face flat.
 
 ## Layout
 

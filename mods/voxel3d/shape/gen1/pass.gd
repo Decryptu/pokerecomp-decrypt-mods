@@ -6,7 +6,111 @@ extends RefCounted
 ## A pin only changes how a tile LOOKS. A tile the pass read as a plain standing
 ## wall is absent: the automatic resolution stands it up and measures its height.
 
-const TILESETS: Dictionary = {}
+const TILESETS: Dictionary = {
+	&"OVERWORLD": {
+		&"ground": [13, 29, 35, 44, 48, 57, 60, 82, 91],
+		&"water": [20, 50, 51, 84],
+	},
+	&"REDS_HOUSE_1": {
+		&"ground": [1],
+		&"stairs": [12, 13, 28, 29],
+	},
+	&"MART": {
+		&"ground": [1, 11, 12, 17, 26, 27, 28, 54],
+		&"on_furniture": [58, 59, 74, 75],
+		&"stand": [7, 9, 13, 66, 70, 82, 86, 88],
+		&"surface": [10],
+	},
+	&"FOREST": {
+		&"bush": [84, 85, 86, 87],
+		&"facade": [1, 40, 41, 42, 43, 44, 56, 58, 59, 60],
+		&"ground": [30, 32, 48, 52, 55, 57, 80, 81, 82, 83, 94, 95],
+		&"roof": [8, 9, 12, 24, 25, 28],
+		&"stairs": [64, 65],
+		&"statue": [10, 11, 26, 27, 75, 76],
+		&"water": [20, 72, 73, 74, 77, 78],
+	},
+	&"REDS_HOUSE_2": {
+		&"ground": [1],
+		&"stairs": [10, 11, 26, 27],
+	},
+	&"DOJO": {
+		&"ground": [6, 17, 22, 88, 89, 90],
+		&"on_furniture": [54, 55, 91, 92],
+		&"stairs": [72, 73, 74, 75],
+		&"statue": [2, 18, 19, 34, 35, 50, 51, 56],
+	},
+	&"POKECENTER": {
+		&"ground": [1, 11, 12, 17, 26, 27, 28, 54, 57, 60],
+	},
+	&"GYM": {
+		&"ground": [1, 3, 9, 10, 17, 25, 26, 43, 60, 61, 63, 76, 77],
+		&"water": [20],
+	},
+	&"HOUSE": {
+		&"ground": [1, 40, 55],
+		&"lie": [12, 13, 28, 29, 34, 37, 42, 43, 44, 53, 56, 68, 69],
+	},
+	&"FOREST_GATE": {
+		&"ground": [1, 17],
+	},
+	&"MUSEUM": {
+		&"ground": [1, 17],
+		&"stairs": [10, 11, 12, 13, 26, 27, 28, 29],
+	},
+	&"UNDERGROUND": {
+		&"ground": [11, 12, 21, 24],
+		&"stairs": [3, 4, 19, 20],
+	},
+	&"GATE": {
+		&"ground": [1, 17, 55, 56, 94],
+		&"stairs": [10, 11, 12, 13, 26, 27, 28, 29],
+	},
+	&"SHIP": {
+		&"ground": [4, 13, 29, 35, 36, 52, 74],
+		&"stairs": [39, 40, 41, 42, 55, 56, 57, 58],
+		&"water": [20],
+	},
+	&"SHIP_PORT": {
+		&"ground": [10],
+		&"stairs": [50, 59],
+		&"water": [20],
+	},
+	&"CEMETERY": {
+		&"ground": [1, 34],
+		&"stairs": [3, 4, 11, 12, 19, 20, 27, 28],
+	},
+	&"INTERIOR": {
+		&"ground": [15, 65, 66, 67, 69, 70, 71, 80, 83, 84, 85, 86],
+	},
+	&"LOBBY": {
+		&"ground": [32, 55, 69],
+		&"stairs": [10, 11, 12, 13, 26, 27, 28, 29],
+	},
+	&"MANSION": {
+		&"facade": [81, 82, 83, 84],
+		&"ground": [1, 5, 17],
+		&"stairs": [10, 11, 12, 13, 26, 27, 28, 29],
+	},
+	&"LAB": {
+		&"ground": [1, 12, 13, 38, 39, 55],
+	},
+	&"CLUB": {
+		&"ground": [10, 15, 26, 31, 40, 41, 44, 45, 46, 47, 53],
+	},
+	&"FACILITY": {
+		&"ground": [1, 17, 32, 33, 48, 49, 66, 82, 94],
+		&"stairs": [3, 4, 19, 52, 67, 78, 90, 91],
+	},
+	&"PLATEAU": {
+		&"facade": [11, 12, 27, 28],
+		&"ground": [35, 44, 45, 69],
+		&"water": [20],
+	},
+	&"BEACH_HOUSE": {
+		&"stand": [8, 9, 24, 25, 68, 69, 70, 71],
+	},
+}
 
 
 static func pinned_class(tileset: StringName, tile: int) -> StringName:

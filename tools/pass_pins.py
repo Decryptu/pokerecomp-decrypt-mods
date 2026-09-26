@@ -67,8 +67,8 @@ const TILESETS: Dictionary = {{
 {body}}}
 
 
-static func pinned_class(tileset_number: int, tile: int) -> StringName:
-\tvar groups: Variant = TILESETS.get(tileset_number, null)
+static func pinned_class(tileset: StringName, tile: int) -> StringName:
+\tvar groups: Variant = TILESETS.get(tileset, null)
 \tif not groups is Dictionary:
 \t\treturn &""
 \tfor shape_class: StringName in (groups as Dictionary):

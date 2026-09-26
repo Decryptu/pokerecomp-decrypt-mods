@@ -20,6 +20,7 @@ const STAIRS: Dictionary = {
 		{
 			&"tiles": [[12, 13], [28, 29]],
 			&"down": false,
+			&"side_on": true,
 			&"step": Vector2i(1, 0),
 			&"steps": 4,
 		},
@@ -36,6 +37,7 @@ const STAIRS: Dictionary = {
 		{
 			&"tiles": [[12, 13], [28, 29]],
 			&"down": false,
+			&"side_on": true,
 			&"step": Vector2i(1, 0),
 			&"steps": 4,
 		},
@@ -50,6 +52,7 @@ const STAIRS: Dictionary = {
 		{
 			&"tiles": [[3, 4], [19, 20]],
 			&"down": false,
+			&"side_on": true,
 			&"step": Vector2i(1, 0),
 			&"steps": 4,
 		},
@@ -58,6 +61,7 @@ const STAIRS: Dictionary = {
 		{
 			&"tiles": [[12, 13], [28, 29]],
 			&"down": false,
+			&"side_on": true,
 			&"step": Vector2i(1, 0),
 			&"steps": 4,
 		},
@@ -72,6 +76,7 @@ const STAIRS: Dictionary = {
 		{
 			&"tiles": [[41, 42], [57, 58]],
 			&"down": false,
+			&"side_on": true,
 			&"step": Vector2i(1, 0),
 			&"steps": 4,
 		},
@@ -86,6 +91,7 @@ const STAIRS: Dictionary = {
 		{
 			&"tiles": [[3, 4], [19, 20]],
 			&"down": false,
+			&"side_on": true,
 			&"step": Vector2i(1, 0),
 			&"steps": 4,
 		},
@@ -114,6 +120,7 @@ const STAIRS: Dictionary = {
 		{
 			&"tiles": [[3, 4], [19, 78]],
 			&"down": false,
+			&"side_on": true,
 			&"step": Vector2i(1, 0),
 			&"steps": 4,
 		},
@@ -132,10 +139,17 @@ const STAIRS: Dictionary = {
 	],
 }
 
-const CLIFFS: Dictionary = {}
-const FRONTS: Dictionary = {}
+const CLIFFS: Dictionary = {
+	&"OVERWORLD": [55, 19, 53, 36, 39, 30, 2],
+}
 
-const LIPS: Dictionary = {}
+const FRONTS: Dictionary = {
+	&"OVERWORLD": [55, 19, 53],
+}
+
+const LIPS: Dictionary = {
+	&"OVERWORLD": [1],
+}
 
 const FENCES: Dictionary = {
 	&"OVERWORLD": [[14], [85]],
@@ -157,7 +171,9 @@ const TILESETS: Dictionary = {
 			37, 38, 40, 41, 47, 63, 66, 67, 68, 69, 74, 75, 78, 79, 92, 93,
 		],
 		&"fence": [14, 85],
-		&"ledge": [39, 52, 54, 55],
+		&"flower": [3],
+		&"ground": [1, 17],
+		&"ledge": [52, 54],
 		&"roof": [18, 56, 76, 77, 83, 90],
 		&"sapling": [45, 46, 61, 62],
 		&"sign_post": [70, 71, 86, 87],
@@ -393,7 +409,9 @@ const TILESETS: Dictionary = {
 	},
 }
 
-const UNPINNED: Dictionary = {}
+const UNPINNED: Dictionary = {
+	&"OVERWORLD": [2, 19, 30, 36, 39, 53, 55],
+}
 
 
 static func pinned_class(tileset: StringName, tile: int) -> StringName:
