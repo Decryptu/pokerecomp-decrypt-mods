@@ -5,10 +5,10 @@
 		{
 			"id": "voxel3d",
 			"name": "Voxel 3D",
-			"version": "0.12.1",
+			"version": "0.13.0",
 			"games": ["red", "blue", "yellow", "gold", "silver", "crystal"],
 			"description": "Draws the overworld in 3D, built from the cartridge's own tiles, on Kanto and Johto alike. Sky colours follow the clock, water is animated, and you can move the camera. Battles happen on the map you were standing on, while menus stay 2D and pixel-perfect.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.12.1/voxel3d-0.12.1.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/voxel3d-0.13.0/voxel3d-0.13.0.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/voxel3d/thumbnail.webp"
 		},
