@@ -62,6 +62,8 @@ var _sink: int = SINK_TERRAIN
 var _sink_uv2 := Vector2.ZERO
 
 ## Art modes, kept per tile as a byte because every tile of every map carries one.
+## The three bodies come first: `_beside_height` reads everything past
+## ART_UPRIGHT as a ledge or a detail standing on its own floor.
 const ART_FLAT: int = 0
 const ART_TOP: int = 1
 const ART_UPRIGHT: int = 2
@@ -945,7 +947,7 @@ func _forget() -> void:
 		_model_spots, _model_bodies, _model_measures, _model_inputs,
 		_model_cutouts, _chunk_cache, _structure_owner, _commonest_index,
 		_house_where, _house_found, _house_offered, _offer_spots, _plan,
-		_sweep_seen, _sweep_members, _shelf_stack
+		_sweep_seen, _sweep_members, _shelf_stack, _ground_memo
 	]:
 		held.clear()
 	# `_house_plans` is not among them: a plan is read off the drawing alone and
@@ -3251,6 +3253,12 @@ func _floor_beside(tx: int, ty: int) -> Vector2i:
 	return Vector2i(-1, 0)
 
 
+func _stands_between(at: int) -> bool:
+	if _stair_at[at] >= 0 or _ramp[at] == 1:
+		return true
+	return _art[at] == ART_UPRIGHT or _art[at] == ART_TOP or _art[at] == ART_LEDGE
+
+
 func _box_start(tx: int, ty: int, across: Vector2i) -> Vector2i:
 	var map_x: int = tx - _margin.x
 	var map_y: int = ty - _margin.y
@@ -3926,25 +3934,44 @@ func _measure_scroll_floor() -> void:
 
 func _beside_height(tx: int, ty: int, step: Vector2i) -> int:
 	var to := Vector2i(tx + step.x, ty + step.y)
-	if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-		return 0
-	var index: int = to.y * _size.x + to.x
+	var index: int = _index(to.x, to.y)
+	if index < 0:
+		return _skirt_beside(to.x, to.y)
+	var art: int = _art[index]
+	if art > ART_UPRIGHT:
+		return _ledge_beside(index, step) if art == ART_LEDGE else _ground_art(to.x, to.y).y
+	if _ramp[index] == 1 or _part[index] == PART_ROOF or _pitched[index] == 1:
+		return _sloped_beside(to, index, step)
+	if _narrowed_toward(index, step):
+		return mini(_heights[index], _ground_art(to.x, to.y).y)
+	return _heights[index]
+
+
+## A ramp or a tilted roof at the lower of the two corners on the shared edge.
+func _sloped_beside(to: Vector2i, index: int, step: Vector2i) -> int:
 	if _ramp[index] == 1:
 		var corners: Vector2i = _shared_corners(step)
 		return mini(_corners[index * 4 + corners.x], _corners[index * 4 + corners.y])
-	if _art[index] == ART_LEDGE:
-		var steps: Array[Vector2i] = _ledge_steps(_ledge[index])
-		var base: int = _heights[index]
-		var u: int = int(step.x < 0)
-		var v: int = int(step.y < 0)
-		if step.x == 0:
-			return int(minf(
-				_wedge_y(base, steps, 0, v), _wedge_y(base, steps, 1, v)
-			))
-		return int(minf(
-			_wedge_y(base, steps, u, 0), _wedge_y(base, steps, u, 1)
-		))
-	return _heights[index]
+	var ends: Vector2 = _roof_edge(to.x, to.y, -step)
+	return floori(minf(ends.x, ends.y))
+
+
+## A narrowed tile stands back from the edge a step crosses into it, leaving
+## its strip of floor there.
+func _narrowed_toward(index: int, step: Vector2i) -> bool:
+	if step.x > 0:
+		return _margin_left[index] > 0
+	return step.x < 0 and _margin_right[index] > 0
+
+
+func _ledge_beside(index: int, step: Vector2i) -> int:
+	var steps: Array[Vector2i] = _ledge_steps(_ledge[index])
+	var base: int = _heights[index]
+	var u: int = int(step.x < 0)
+	var v: int = int(step.y < 0)
+	if step.x == 0:
+		return int(minf(_wedge_y(base, steps, 0, v), _wedge_y(base, steps, 1, v)))
+	return int(minf(_wedge_y(base, steps, u, 0), _wedge_y(base, steps, u, 1)))
 
 
 func _shared_corners(step: Vector2i) -> Vector2i:
@@ -4875,6 +4902,11 @@ func _object_sides(
 			it.face_rows, it.left, it.right, it.front, it.back, it.base, it.high,
 			ends
 		)
+		if ends.size != Vector2.ZERO:
+			_object_edges(it, _object_texel(
+				atlas, it.tiles, it.across, it.mask, it.span, it.window,
+				it.face_from, it.face_from + it.face_rows
+			), true)
 		return
 	var side: Rect2 = _object_texel(
 		atlas, it.tiles, it.across, it.mask, it.span, it.window,
@@ -4908,18 +4940,27 @@ func _object_back(it: Standing, side: Rect2) -> void:
 
 ## Walls along the silhouette's own boundary, so the extrusion is closed where
 ## the drawing stops rather than open along every edge of it. The lid owns the
-## face's first row, and the rows above it lie across the depth already.
-func _object_edges(it: Standing, side: Rect2) -> void:
+## face's first row, and the rows above it lie across the depth already. A box
+## has its ends plated and stands on the floor, so [param inner] walls only the
+## gaps inside the drawing, such as the space between a shelf's legs.
+func _object_edges(it: Standing, side: Rect2, inner: bool = false) -> void:
+	var first: int = it.window.position.x
+	var last: int = first + it.window.size.x
 	for py: int in range(it.face_from, it.face_from + it.face_rows):
 		for run: Vector2i in _object_row_runs(it, py):
-			_object_upright(it, side, run.x, py, -1.0)
-			_object_upright(it, side, run.y, py, 1.0)
-	for px: int in range(
-		it.window.position.x, it.window.position.x + it.window.size.x
-	):
-		for run: Vector2i in _object_column_runs(it, px):
-			if run.x > it.face_from:
-				_object_level(it, side, px, run.x, 1.0)
+			if not inner or run.x > first:
+				_object_upright(it, side, run.x, py, -1.0)
+			if not inner or run.y < last:
+				_object_upright(it, side, run.y, py, 1.0)
+	for px: int in range(first, last):
+		_object_levels(it, side, px, inner)
+
+
+func _object_levels(it: Standing, side: Rect2, px: int, inner: bool) -> void:
+	for run: Vector2i in _object_column_runs(it, px):
+		if run.x > it.face_from:
+			_object_level(it, side, px, run.x, 1.0)
+		if not inner or run.y < it.face_from + it.face_rows:
 			_object_level(it, side, px, run.y, -1.0)
 
 
@@ -6201,7 +6242,7 @@ func _house_body(
 		paint, rows, left, right, tops, eave_from, eave_to, cap_from, cap_to
 	)
 	var top_row: int = reach.x
-	var peak: int = reach.y
+	var peak: int = _house_pillars(left, right, tops, eave_from, eave_to, reach.y)
 	_house_carry(cap_from, cap_to, left, right)
 	var rival: PackedInt32Array = _house_rivals(cols, boxes, groups, body)
 	var cover: Vector2i = _house_reach(
@@ -6295,6 +6336,41 @@ func _house_roof_rows(
 		elif eave_from[x] >= 0:
 			top_row = mini(top_row, eave_from[x])
 	return Vector2i(top_row, peak)
+
+
+## A wall column painted up through the fascia band is a pillar standing in
+## the eave, as the corners of a Kanto centre are: its rows in the band are the
+## band's own face, not more wall. Taken as wall they stand the pillar a band
+## short of the eave and stretch every wall of the house to the pillar's top.
+## Answers the peak again once the pillars are in the band.
+func _house_pillars(
+	left: int, right: int, tops: PackedInt32Array,
+	eave_from: PackedInt32Array, eave_to: PackedInt32Array, peak: int
+) -> int:
+	var band: Vector2i = _house_eave_band(left, right, eave_from, eave_to)
+	if band.x < 0:
+		return peak
+	var lowest: int = -1
+	for x: int in range(left, right + 1):
+		if eave_from[x] < 0 and tops[x] >= band.x and tops[x] <= band.y:
+			eave_from[x] = tops[x]
+			eave_to[x] = band.y
+			tops[x] = band.y + 1
+		if tops[x] >= 0:
+			lowest = tops[x] if lowest < 0 else mini(lowest, tops[x])
+	return lowest
+
+
+## The rows the eave spans over the whole body, or -1 where it has none.
+func _house_eave_band(
+	left: int, right: int, eave_from: PackedInt32Array, eave_to: PackedInt32Array
+) -> Vector2i:
+	var band := Vector2i(-1, -1)
+	for x: int in range(left, right + 1):
+		if eave_from[x] >= 0:
+			band.x = eave_from[x] if band.x < 0 else mini(band.x, eave_from[x])
+			band.y = maxi(band.y, eave_to[x])
+	return band
 
 
 func _house_paint_run(
@@ -7577,8 +7653,19 @@ func _tile_at(tx: int, ty: int) -> int:
 	return maxi(_tiles[ty * _size.x + tx], 0)
 
 
+## The floor art under a tile and its height. A detail stands on it, and a
+## neighbour's side drops to it. Nothing asks before `_measure_surfaces`, after
+## every pass that moves a floor, so it is found once a resolve.
 func _ground_art(tx: int, ty: int) -> Vector2i:
 	var at: int = ty * _size.x + tx
+	if not _ground_memo.has(at):
+		_ground_memo[at] = _find_ground_art(tx, ty, at)
+	return _ground_memo[at]
+
+var _ground_memo: Dictionary = {}
+
+
+func _find_ground_art(tx: int, ty: int, at: int) -> Vector2i:
 	var released: Vector2i = _house_ground.get(at, Vector2i(-1, 0))
 	if released.x >= 0:
 		return released
@@ -7602,8 +7689,9 @@ func _ground_art(tx: int, ty: int) -> Vector2i:
 	return Vector2i(maxi(_tiles[at], 0), 0)
 
 
-## Flat ground one tile out, then two. A stair or a ramp in a direction stops
-## that direction being looked down any further: its floor is not this floor.
+## Flat ground one tile out, then two. A stair, a ramp or a standing body such
+## as a kerb stops that direction being looked down any further: the floor past
+## it is not this floor.
 func _floor_beside_ring(tx: int, ty: int) -> Vector2i:
 	var blocked: Dictionary = {}
 	for ring: int in [1, 2]:
@@ -7613,7 +7701,7 @@ func _floor_beside_ring(tx: int, ty: int) -> Vector2i:
 			var index: int = _index(tx + way.x * ring, ty + way.y * ring)
 			if index < 0:
 				continue
-			if _stair_at[index] >= 0 or _ramp[index] == 1:
+			if _stands_between(index):
 				blocked[way] = true
 				continue
 			if _art[index] == ART_FLAT and _heights[index] >= 0:
@@ -7658,8 +7746,7 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 	if _fold_of(tx, ty) >= 0 and _fold_of(tx, ty + 1) >= 0:
 		return
 	var art: int = _art[at]
-	if art == ART_CUTOUT or art == ART_RAILING or art == ART_FENCE \
-			or art == ART_BALL:
+	if _is_detail(at):
 		_emit_detail(tx, ty, at, atlas)
 		return
 	if art == ART_LEDGE:
@@ -7670,6 +7757,11 @@ func _emit(tx: int, ty: int, atlas: RefCounted) -> void:
 		_ramp_tile(tx, ty, atlas)
 		return
 	_emit_body(tx, ty, at, tile, atlas)
+
+
+func _is_detail(at: int) -> bool:
+	var art: int = _art[at]
+	return art == ART_CUTOUT or art == ART_RAILING or art == ART_FENCE or art == ART_BALL
 
 
 func _emit_detail(tx: int, ty: int, at: int, atlas: RefCounted) -> void:
@@ -7995,7 +8087,7 @@ func _wedge_end(
 		return
 	if (_ledge_facing(side) & facings) != 0:
 		return
-	if _height_at(nx, ny) >= top:
+	if _beside(tx, ty, side) >= top:
 		return
 	var x0: float = _world_x(tx)
 	var x1: float = x0 + TILE
@@ -8278,9 +8370,8 @@ func _skirt_reach() -> int:
 	return maxi(BORDER_TILES - _margin.x, 0) if _outside else 0
 
 
+## The floor out past the grid at a tile off it, or 0 past the skirt's reach.
 func _skirt_beside(tx: int, ty: int) -> int:
-	if tx >= 0 and ty >= 0 and tx < _size.x and ty < _size.y:
-		return _heights[ty * _size.x + tx]
 	var reach: int = _skirt_reach()
 	if tx < -reach or ty < -reach \
 			or tx >= _size.x + reach or ty >= _size.y + reach:
@@ -8293,42 +8384,17 @@ func _skirt_side(
 	tx: int, ty: int, step: Vector2i, floor_at: Vector2i, atlas: RefCounted
 ) -> void:
 	var here: int = floor_at.y
-	var neighbour: int = _skirt_beside(tx + step.x, ty + step.y)
+	var neighbour: int = _beside_height(tx, ty, step)
 	if neighbour >= here:
 		return
-	var x0: float = _world_x(tx)
-	var x1: float = x0 + TILE
-	var z0: float = _world_z(ty)
-	var z1: float = _world_z(ty + 1)
-	var full: Rect2 = atlas.uv(floor_at.x)
 	var shade: Color = SHADE_SOUTH if step.y > 0 else (
 		SHADE_NORTH if step.y < 0 else SHADE_SIDE
 	)
 	var normal := Vector3(float(step.x), 0.0, float(step.y))
-	var low: float = float(neighbour)
-	while low < float(here):
-		var high: float = minf(low + TILE, float(here))
-		var uv: Rect2 = full
-		if high - low < TILE:
-			uv.size.y = full.size.y * (high - low) / TILE
-		var a := Vector3.ZERO
-		var b := Vector3.ZERO
-		if step.y > 0:
-			a = Vector3(x0, low, z1)
-			b = Vector3(x1, low, z1)
-		elif step.y < 0:
-			a = Vector3(x1, low, z0)
-			b = Vector3(x0, low, z0)
-		elif step.x > 0:
-			a = Vector3(x1, low, z1)
-			b = Vector3(x1, low, z0)
-		else:
-			a = Vector3(x0, low, z0)
-			b = Vector3(x0, low, z1)
-		_quad(
-			a, b, Vector3(b.x, high, b.z), Vector3(a.x, high, a.z), normal, uv, shade
-		)
-		low = high
+	var edge: Array = _edge_line(tx, ty, step)
+	_stand_bands(
+		edge[0], edge[1], neighbour, here, normal, shade, Vector2i(tx, ty), atlas, floor_at.x
+	)
 
 var _skirt_fence_done: Dictionary = {}
 
@@ -8381,7 +8447,7 @@ func _skirt_column(edge: Vector2i, inward: Vector2i) -> Vector2i:
 		if at.x < 0 or at.y < 0 or at.x >= _size.x or at.y >= _size.y:
 			break
 		var index: int = at.y * _size.x + at.x
-		if _doorway[index] == 1:
+		if _doorway[index] == 1 or _ramp[index] == 1:
 			continue
 		if _art[index] == ART_FLAT and _tiles[index] >= 0:
 			return Vector2i(_tiles[index], _heights[index])
@@ -8439,37 +8505,61 @@ func _emit_margined(
 		Vector3(x1, float(here), z0), Vector3(x0, float(here), z0),
 		Vector3.UP, uv, SHADE_TOP_VOLUME
 	)
+	var west_of: int = _beside(tx, ty, Vector2i(-1, 0))
+	var east_of: int = _beside(tx, ty, Vector2i(1, 0))
+	var south_of: int = _beside(tx, ty, Vector2i(0, 1))
 	if left > 0:
-		_margin_floor(tx, ty, _world_x(tx), x0, _height_at(tx - 1, ty), atlas)
+		_margin_floor(tx, ty, Vector2(_world_x(tx), x0), here, west_of, atlas)
 	if right > 0:
-		_margin_floor(tx, ty, x1, _world_x(tx) + TILE, _height_at(tx + 1, ty), atlas)
+		_margin_floor(tx, ty, Vector2(x1, _world_x(tx) + TILE), here, east_of, atlas)
 
-	_side_span(tx, ty, x0, x1, here, _height_at(tx, ty + 1),
+	_side_span(tx, ty, x0, x1, here, south_of,
 		Vector3(0.0, 0.0, 1.0), SHADE_SOUTH, atlas)
-	_side_span(tx, ty, x0, x1, here, _height_at(tx, ty - 1),
+	_side_span(tx, ty, x0, x1, here, _beside(tx, ty, Vector2i(0, -1)),
 		Vector3(0.0, 0.0, -1.0), SHADE_NORTH, atlas)
-	var west: int = _height_at(tx - 1, ty) if left == 0 else mini(
-		_height_at(tx - 1, ty), _height_at(tx, ty + 1)
-	)
-	var east: int = _height_at(tx + 1, ty) if right == 0 else mini(
-		_height_at(tx + 1, ty), _height_at(tx, ty + 1)
-	)
+	var west: int = west_of if left == 0 else mini(west_of, south_of)
+	var east: int = east_of if right == 0 else mini(east_of, south_of)
 	_side_at(x1, z0, z1, here, east, Vector3(1.0, 0.0, 0.0), tx, ty, atlas)
 	_side_at(x0, z0, z1, here, west, Vector3(-1.0, 0.0, 0.0), tx, ty, atlas)
 
 
+## The strip a narrowed tile leaves open, floored level with what it opens
+## onto.
 func _margin_floor(
-	tx: int, ty: int, x0: float, x1: float, height: int, atlas: RefCounted
+	tx: int, ty: int, span: Vector2, here: int, height: int, atlas: RefCounted
 ) -> void:
 	var z0: float = _world_z(ty)
 	var z1: float = _world_z(ty + 1)
 	var ground: Vector2i = _ground_art(tx, ty)
 	var uv: Rect2 = atlas.uv(ground.x)
-	var y: float = float(maxi(height, ground.y))
+	var y: int = maxi(height, ground.y)
 	_quad(
-		Vector3(x0, y, z1), Vector3(x1, y, z1),
-		Vector3(x1, y, z0), Vector3(x0, y, z0),
+		Vector3(span.x, y, z1), Vector3(span.y, y, z1),
+		Vector3(span.y, y, z0), Vector3(span.x, y, z0),
 		Vector3.UP, uv, SHADE_TOP_FLAT
+	)
+	for step: Vector2i in [Vector2i(0, -1), Vector2i(0, 1)]:
+		if _index(tx, ty + step.y) >= 0:
+			_margin_end(tx, ty, span, here, y, step, atlas)
+
+
+## A neighbour north or south reads the narrowed tile's full height and knows
+## nothing of its strip, so the strip closes its own ends: down to a lower
+## neighbour, and up to a higher one as far as the tile's own height, above
+## which the neighbour's side already stands.
+func _margin_end(
+	tx: int, ty: int, span: Vector2, here: int, strip: int, step: Vector2i,
+	atlas: RefCounted
+) -> void:
+	var beside: int = _beside(tx, ty, step)
+	var outward := Vector3(0.0, 0.0, float(step.y))
+	var shade: Color = SHADE_SOUTH if step.y > 0 else SHADE_NORTH
+	if beside < strip:
+		_side_span(tx, ty, span.x, span.y, strip, beside, outward, shade, atlas)
+		return
+	_side_span(
+		tx, ty + step.y, span.x, span.y, mini(beside, here), strip, -outward,
+		SHADE_SOUTH if step.y < 0 else SHADE_NORTH, atlas
 	)
 
 
@@ -8479,25 +8569,10 @@ func _side_span(
 ) -> void:
 	if neighbour >= here:
 		return
-	var z0: float = _world_z(ty)
-	var z1: float = _world_z(ty + 1)
-	@warning_ignore("integer_division")
-	for step: int in (here - neighbour) / BAND:
-		var low: float = float(neighbour + step * BAND)
-		var high: float = low + TILE
-		var uv: Rect2 = atlas.uv(_face_tile(tx, ty, maxi(floori(low / TILE), 0)))
-		if normal.z > 0.0:
-			_quad(
-				Vector3(x0, low, z1), Vector3(x1, low, z1),
-				Vector3(x1, high, z1), Vector3(x0, high, z1),
-				normal, uv, shade
-			)
-		else:
-			_quad(
-				Vector3(x1, low, z0), Vector3(x0, low, z0),
-				Vector3(x0, high, z0), Vector3(x1, high, z0),
-				normal, uv, shade
-			)
+	var z: float = _world_z(ty + 1) if normal.z > 0.0 else _world_z(ty)
+	var a := Vector3(x0 if normal.z > 0.0 else x1, 0.0, z)
+	var b := Vector3(x1 if normal.z > 0.0 else x0, 0.0, z)
+	_stand_bands(a, b, neighbour, here, normal, shade, Vector2i(tx, ty), atlas)
 
 
 func _side_at(
@@ -8506,23 +8581,9 @@ func _side_at(
 ) -> void:
 	if neighbour >= here:
 		return
-	@warning_ignore("integer_division")
-	for step: int in (here - neighbour) / BAND:
-		var low: float = float(neighbour + step * BAND)
-		var high: float = low + TILE
-		var uv: Rect2 = atlas.uv(_face_tile(tx, ty, maxi(floori(low / TILE), 0)))
-		if normal.x > 0.0:
-			_quad(
-				Vector3(x, low, z1), Vector3(x, low, z0),
-				Vector3(x, high, z0), Vector3(x, high, z1),
-				normal, uv, SHADE_SIDE
-			)
-		else:
-			_quad(
-				Vector3(x, low, z0), Vector3(x, low, z1),
-				Vector3(x, high, z1), Vector3(x, high, z0),
-				normal, uv, SHADE_SIDE
-			)
+	var a := Vector3(x, 0.0, z1 if normal.x > 0.0 else z0)
+	var b := Vector3(x, 0.0, z0 if normal.x > 0.0 else z1)
+	_stand_bands(a, b, neighbour, here, normal, SHADE_SIDE, Vector2i(tx, ty), atlas)
 
 
 func _tilted(at: int) -> bool:
@@ -8537,7 +8598,67 @@ func _roof_side(
 	if tilted and at.x >= 0 and at.y >= 0 and at.x < _size.x and at.y < _size.y \
 			and _tilted(at.y * _size.x + at.x):
 		return
-	_side(tx, ty, here, _beside(tx, ty, step), normal, shade, atlas)
+	if not tilted:
+		_side(tx, ty, here, _beside(tx, ty, step), normal, shade, atlas)
+		return
+	_tilted_side(tx, ty, _beside(tx, ty, step), step, normal, shade, atlas)
+
+
+## A tilted tile's side rises to the two roof corners on its edge, not to the
+## tile's flat height: whole bands up to the lower corner, then one piece
+## sloping to meet the roof.
+func _tilted_side(
+	tx: int, ty: int, neighbour: int, step: Vector2i,
+	normal: Vector3, shade: Color, atlas: RefCounted
+) -> void:
+	var ends: Vector2 = _roof_edge(tx, ty, step)
+	if float(neighbour) >= maxf(ends.x, ends.y) or not _room_faces(tx, ty, normal):
+		return
+	var banded: int = neighbour
+	if minf(ends.x, ends.y) > float(neighbour):
+		@warning_ignore("integer_division")
+		banded += (floori(minf(ends.x, ends.y)) - neighbour) / BAND * BAND
+		_side(tx, ty, banded, neighbour, normal, shade, atlas)
+	var low: float = float(banded)
+	var tall: float = maxf(ends.x, ends.y) - low
+	if tall <= 0.01:
+		return
+	var corners: Array = _edge_line(tx, ty, step)
+	var a: Vector3 = corners[0]
+	var b: Vector3 = corners[1]
+	var uv: Rect2 = atlas.uv(_face_tile(tx, ty, maxi(floori(low / TILE), 0)))
+	uv.size.y *= minf(tall / TILE, 1.0)
+	_quad(
+		Vector3(a.x, low, a.z), Vector3(b.x, low, b.z),
+		Vector3(b.x, maxf(ends.y, low), b.z), Vector3(a.x, maxf(ends.x, low), a.z),
+		normal, uv, shade
+	)
+
+
+## The roof's height at the two ends of a tile's edge, in the order `_side`
+## lays that edge's quad.
+func _roof_edge(tx: int, ty: int, step: Vector2i) -> Vector2:
+	if step.y > 0:
+		return Vector2(_roof_corner(tx, ty, -1, 1), _roof_corner(tx, ty, 1, 1))
+	if step.y < 0:
+		return Vector2(_roof_corner(tx, ty, 1, -1), _roof_corner(tx, ty, -1, -1))
+	if step.x > 0:
+		return Vector2(_roof_corner(tx, ty, 1, 1), _roof_corner(tx, ty, 1, -1))
+	return Vector2(_roof_corner(tx, ty, -1, -1), _roof_corner(tx, ty, -1, 1))
+
+
+func _edge_line(tx: int, ty: int, step: Vector2i) -> Array:
+	var x0: float = _world_x(tx)
+	var x1: float = x0 + TILE
+	var z0: float = _world_z(ty)
+	var z1: float = _world_z(ty + 1)
+	if step.y > 0:
+		return [Vector3(x0, 0.0, z1), Vector3(x1, 0.0, z1)]
+	if step.y < 0:
+		return [Vector3(x1, 0.0, z0), Vector3(x0, 0.0, z0)]
+	if step.x > 0:
+		return [Vector3(x1, 0.0, z1), Vector3(x1, 0.0, z0)]
+	return [Vector3(x0, 0.0, z0), Vector3(x0, 0.0, z1)]
 
 
 func _roof_corner(tx: int, ty: int, dx: int, dy: int) -> float:
@@ -8605,15 +8726,7 @@ func _ramp_side(
 	tx: int, ty: int, step: Vector2i, first: float, second: float,
 	normal: Vector3, shade: Color, uv: Rect2
 ) -> void:
-	var to := Vector2i(tx + step.x, ty + step.y)
-	var floor_y: float = 0.0
-	if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-		floor_y = float(_skirt_beside(to.x, to.y))
-	else:
-		var index: int = to.y * _size.x + to.x
-		if _shelf[index] == 1:
-			return
-		floor_y = float(_heights[index])
+	var floor_y: float = float(_beside_height(tx, ty, step))
 	if floor_y >= first and floor_y >= second:
 		return
 	var x0: float = _world_x(tx)
@@ -8662,40 +8775,32 @@ func _side(
 		return
 	if not _room.is_empty() and _room[ty * _size.x + tx] != 0:
 		shade = SHADE_SOUTH
-	var x0: float = _world_x(tx)
-	var x1: float = x0 + TILE
-	var z0: float = _world_z(ty)
-	var z1: float = _world_z(ty + 1)
-	for step: int in (here - neighbour) / BAND:
-		var low: float = float(neighbour + step * BAND)
-		var high: float = low + TILE
+	var edge: Array = _edge_line(tx, ty, Vector2i(roundi(normal.x), roundi(normal.z)))
+	_stand_bands(edge[0], edge[1], neighbour, here, normal, shade, Vector2i(tx, ty), atlas, art)
+
+
+## An upright face along one edge, from a neighbour's floor up to a height, a
+## band at a time, each band wearing the art drawn at its own height or the
+## one tile given. A drop that ends part-way through a band, such as down to a
+## roof that has fallen partly away, closes with that band cropped.
+func _stand_bands(
+	a: Vector3, b: Vector3, neighbour: int, here: int, normal: Vector3, shade: Color,
+	tile: Vector2i, atlas: RefCounted, art: int = -1
+) -> void:
+	var low: int = neighbour
+	while low < here:
+		var high: int = mini(low + BAND, here)
 		var uv: Rect2 = atlas.uv(
-			art if art >= 0 else _face_tile(tx, ty, maxi(floori(low / TILE), 0))
+			art if art >= 0 else _face_tile(tile.x, tile.y, maxi(floori(float(low) / TILE), 0))
 		)
-		if normal.z > 0.0:
-			_quad(
-				Vector3(x0, low, z1), Vector3(x1, low, z1),
-				Vector3(x1, high, z1), Vector3(x0, high, z1),
-				normal, uv, shade
-			)
-		elif normal.z < 0.0:
-			_quad(
-				Vector3(x1, low, z0), Vector3(x0, low, z0),
-				Vector3(x0, high, z0), Vector3(x1, high, z0),
-				normal, uv, shade
-			)
-		elif normal.x > 0.0:
-			_quad(
-				Vector3(x1, low, z1), Vector3(x1, low, z0),
-				Vector3(x1, high, z0), Vector3(x1, high, z1),
-				normal, uv, shade
-			)
-		else:
-			_quad(
-				Vector3(x0, low, z0), Vector3(x0, low, z1),
-				Vector3(x0, high, z1), Vector3(x0, high, z0),
-				normal, uv, shade
-			)
+		if high - low < BAND:
+			uv.size.y *= float(high - low) / float(BAND)
+		_quad(
+			Vector3(a.x, low, a.z), Vector3(b.x, low, b.z),
+			Vector3(b.x, high, b.z), Vector3(a.x, high, a.z),
+			normal, uv, shade
+		)
+		low = high
 
 
 func _turned(point: Vector3) -> Vector3:
