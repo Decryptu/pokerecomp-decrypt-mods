@@ -2721,7 +2721,9 @@ func _measure_shores() -> void:
 
 
 ## A shore corner rises to meet the bank across it, so the water laps up rather
-## than meeting the land in a step. Answers whether any corner moved.
+## than meeting the land in a step. A bank meets the water within one band of
+## it; a corner standing higher is a wall or a cliff, whose foot the water meets
+## level. Answers whether any corner moved.
 func _slope_shore(at: int) -> bool:
 	var tile: Vector2i = _tile_of(at)
 	var sloped: bool = false
@@ -2732,7 +2734,9 @@ func _slope_shore(at: int) -> bool:
 			var index: int = _index_of(tile + reach)
 			if index < 0 or _tiles[index] < 0 or _heights[index] <= _heights[at]:
 				continue
-			high = maxi(high, _corners[index * 4 + _corner_across(step, reach)])
+			var bank: int = _corners[index * 4 + _corner_across(step, reach)]
+			if bank <= _heights[at] + BAND:
+				high = maxi(high, bank)
 		_corners[at * 4 + corner] = high
 		sloped = sloped or high > _heights[at]
 	return sloped
@@ -4907,6 +4911,8 @@ func _object_sides(
 				atlas, it.tiles, it.across, it.mask, it.span, it.window,
 				it.face_from, it.face_from + it.face_rows
 			), true)
+		else:
+			_wrap_slabs(it, atlas)
 		return
 	var side: Rect2 = _object_texel(
 		atlas, it.tiles, it.across, it.mask, it.span, it.window,
@@ -5913,6 +5919,185 @@ func _object_wrap(
 				)
 
 
+## One plate of a `wrap` shell: which drawing columns it wears, where the first
+## of them stands, the way the columns run and the way into the object.
+class Plate:
+	var first: int = 0
+	var last: int = 0
+	var origin := Vector3.ZERO
+	var along := Vector3.ZERO
+	var inward := Vector3.ZERO
+
+	func _init(
+		from: int, to: int, corner: Vector3, step: Vector3, into: Vector3
+	) -> void:
+		first = from
+		last = to
+		origin = corner
+		along = step
+		inward = into
+
+	func at(column: float, y: float, depth: float) -> Vector3:
+		var point: Vector3 = origin + along * (column - float(first)) + inward * depth
+		return Vector3(point.x, y, point.z)
+
+
+func _wrap_plates(it: Standing) -> Array[Plate]:
+	var first: int = it.window.position.x
+	var last: int = first + it.window.size.x
+	var deep: int = int(roundf(it.front - it.back))
+	return [
+		Plate.new(
+			first, last, Vector3(it.left, 0.0, it.front), Vector3.RIGHT, Vector3.FORWARD
+		),
+		Plate.new(
+			first, last, Vector3(it.left, 0.0, it.back), Vector3.RIGHT, Vector3.BACK
+		),
+		Plate.new(
+			first, mini(last, first + deep), Vector3(it.left, 0.0, it.front),
+			Vector3.FORWARD, Vector3.RIGHT
+		),
+		Plate.new(
+			maxi(first, last - deep), last, Vector3(it.right, 0.0, it.back),
+			Vector3.BACK, Vector3.LEFT
+		),
+	]
+
+
+## A `wrap` object seen through its own gaps, a table between its legs, shows
+## the inside of its plates. Each plate is thickened and closed round its
+## silhouette, and the lid gets an underside.
+func _wrap_slabs(it: Standing, atlas: RefCounted) -> void:
+	var thick: float = _wrap_thickness(it)
+	if thick <= 0.0:
+		return
+	var side: Rect2 = _object_texel(
+		atlas, it.tiles, it.across, it.mask, it.span, it.window,
+		it.face_from, it.face_from + it.face_rows
+	)
+	for plate: Plate in _wrap_plates(it):
+		for row: int in it.face_rows:
+			_slab_row(it, atlas, plate, thick, it.face_from + row, side)
+		for py: int in range(it.face_from + 1, it.face_from + it.face_rows):
+			_slab_levels(it, plate, thick, py, side)
+	_panel(
+		Vector3(it.left, it.high, it.back), Vector3(it.right - it.left, 0.0, 0.0),
+		Vector3(0.0, 0.0, it.front - it.back), side, SHADE_NORTH
+	)
+
+
+## How far the nearest leg reaches in from the window's edge. The side plates
+## wear the same columns turned through a right angle, so a front leg and the
+## side's picture of it then stand as one square post. A drawing with no run
+## stopping inside the window has no gap to see into and needs no thickness.
+func _wrap_thickness(it: Standing) -> float:
+	var first: int = it.window.position.x
+	var last: int = first + it.window.size.x
+	var reach: int = 0
+	for py: int in range(it.face_from, it.face_from + it.face_rows):
+		for run: Vector2i in _object_row_runs(it, py):
+			if run.x == first and run.y == last:
+				continue
+			var inward: int = mini(run.y - first, last - run.x)
+			reach = inward if reach == 0 else mini(reach, inward)
+	return minf(float(reach), (it.front - it.back) * 0.5)
+
+
+func _slab_row(
+	it: Standing, atlas: RefCounted, plate: Plate, thick: float, py: int, side: Rect2
+) -> void:
+	var low: float = _object_y(it, py + 1)
+	var high: float = _object_y(it, py)
+	for run: Vector2i in _object_row_runs(it, py):
+		var a: int = maxi(run.x, plate.first)
+		var b: int = mini(run.y, plate.last)
+		if b <= a:
+			continue
+		_slab_inside(it, atlas, plate, thick, py, a, b, low, high)
+		if a > plate.first:
+			_slab_end(plate, thick, a, -plate.along, low, high, side)
+		if b < plate.last:
+			_slab_end(plate, thick, b, plate.along, low, high, side)
+
+
+## The plate's inner face wears the drawing, turned the way it is seen from
+## inside.
+func _slab_inside(
+	it: Standing, atlas: RefCounted, plate: Plate, thick: float, py: int,
+	a: int, b: int, low: float, high: float
+) -> void:
+	var right: Vector3 = Vector3.UP.cross(plate.inward)
+	var forward: bool = right.is_equal_approx(plate.along)
+	@warning_ignore("integer_division")
+	var tile: int = int(it.tiles[(py / int(TILE)) * it.across.x + a / int(TILE)])
+	var uv: Rect2 = atlas.uv_box(tile, Rect2i(a % int(TILE), py % int(TILE), b - a, 1))
+	if not forward:
+		uv = Rect2(uv.end.x, uv.position.y, -uv.size.x, uv.size.y)
+	_panel(
+		plate.at(float(a if forward else b), low, thick),
+		right * float(b - a), Vector3(0.0, high - low, 0.0), uv, SHADE_SIDE
+	)
+
+
+func _slab_end(
+	plate: Plate, thick: float, column: int, facing: Vector3,
+	low: float, high: float, side: Rect2
+) -> void:
+	var right: Vector3 = Vector3.UP.cross(facing)
+	var depth: float = 0.0 if right.dot(plate.inward) > 0.0 else thick
+	_panel(
+		plate.at(float(column), low, depth), right * thick,
+		Vector3(0.0, high - low, 0.0), side, SHADE_SIDE
+	)
+
+
+## Where a column of the plate starts or stops between two face rows, the
+## plate's thickness shows as a strip facing up or down.
+func _slab_levels(
+	it: Standing, plate: Plate, thick: float, py: int, side: Rect2
+) -> void:
+	var y: float = _object_y(it, py)
+	for facing: float in [1.0, -1.0]:
+		var column: int = plate.first
+		while column < plate.last:
+			var stop: int = column
+			while stop < plate.last and _slab_boundary(it, stop, py, facing):
+				stop += 1
+			if stop > column:
+				_slab_level(plate, thick, column, stop, y, facing, side)
+				column = stop
+				continue
+			column += 1
+
+
+func _slab_boundary(it: Standing, px: int, py: int, facing: float) -> bool:
+	var here: bool = _drawn(it.mask, it.span, px, py)
+	var above: bool = _drawn(it.mask, it.span, px, py - 1)
+	return here and not above if facing > 0.0 else above and not here
+
+
+func _slab_level(
+	plate: Plate, thick: float, from: int, to: int, y: float, facing: float,
+	side: Rect2
+) -> void:
+	var run: Vector3 = plate.along * float(to - from)
+	var depth: Vector3 = plate.inward * thick
+	var up: bool = run.cross(depth).y * facing > 0.0
+	_panel(
+		plate.at(float(from), y, 0.0), run if up else depth, depth if up else run,
+		side, SHADE_TOP_FLAT if facing > 0.0 else SHADE_NORTH
+	)
+
+
+## A quad from its corner along [param right] and [param up], facing the way
+## the two turn.
+func _panel(corner: Vector3, right: Vector3, up: Vector3, uv: Rect2, shade: Color) -> void:
+	_quad(
+		corner, corner + right, corner + right + up, corner + up,
+		right.cross(up).normalized(), uv, shade
+	)
+
+
 func _object_cap(
 	atlas: RefCounted, tiles: Array, across: Vector2i, mask: PackedByteArray,
 	span: Vector2i, window: Rect2i, rows: int,
@@ -6520,8 +6705,6 @@ func _house_side(
 	if length <= 0 or source.is_empty():
 		return
 	var tops: PackedInt32Array = plan["tops"]
-	var eave_from: PackedInt32Array = plan["eave_from"]
-	var eave_to: PackedInt32Array = plan["eave_to"]
 	var left: int = int(plan["left"])
 	var right: int = int(plan["right"])
 	var foot: int = int(plan["foot"])
@@ -6531,8 +6714,9 @@ func _house_side(
 	var high := PackedFloat32Array()
 	for at: int in length:
 		var over: int = clampi(over_first + over_step * at, left, right)
-		from_row.append(eave_from[over] if slab else tops[over])
-		to_row.append(eave_to[over] if slab else foot)
+		var band: Vector2i = _house_band(plan, over)
+		from_row.append(band.x if slab else tops[over])
+		to_row.append(band.y if slab else foot)
 	for at: int in length + 1:
 		var rise: float = _house_rise(plan, edge_first + edge_step * float(at))
 		low.append(base + rise if slab else base)
@@ -6543,6 +6727,21 @@ func _house_side(
 	)
 
 
+## The rows of the roof-front band over one column. The slab is as thick over
+## every column, so a column painted with no band, one along a diagonal eave,
+## wears its nearest neighbour's rather than leaving the slab open.
+func _house_band(plan: Dictionary, column: int) -> Vector2i:
+	var eave_from: PackedInt32Array = plan["eave_from"]
+	var eave_to: PackedInt32Array = plan["eave_to"]
+	var left: int = int(plan["left"])
+	var right: int = int(plan["right"])
+	for reach: int in right - left + 1:
+		for side: int in [column - reach, column + reach]:
+			if side >= left and side <= right and eave_from[side] >= 0:
+				return Vector2i(eave_from[side], eave_to[side])
+	return Vector2i(-1, -1)
+
+
 func _house_cap(
 	tiles: Array, across: Vector2i, plan: Dictionary, origin_x: float,
 	base: float, thick: float, near: float, far: float, under: bool,
@@ -6550,15 +6749,14 @@ func _house_cap(
 ) -> void:
 	var cap_from: PackedInt32Array = plan["cap_from"]
 	var cap_to: PackedInt32Array = plan["cap_to"]
-	var eave_to: PackedInt32Array = plan["eave_to"]
 	var left: int = int(plan["left"])
 	var right: int = int(plan["right"])
 	var column: int = int(plan["cover_left"])
 	var last_column: int = int(plan["cover_right"])
 	while column <= last_column:
 		var read: int = clampi(column, left, right)
-		var top: int = eave_to[read] if under else cap_from[read]
-		var bottom: int = eave_to[read] if under else cap_to[read]
+		var top: int = _house_band(plan, read).y if under else cap_from[read]
+		var bottom: int = _house_band(plan, read).y if under else cap_to[read]
 		if top < 0 or bottom < top:
 			column += 1
 			continue
@@ -6568,7 +6766,7 @@ func _house_cap(
 				break
 			var next: int = clampi(column + run, left, right)
 			if under:
-				if eave_to[next] != top:
+				if _house_band(plan, next).y != top:
 					break
 			elif cap_from[next] != top or cap_to[next] != bottom:
 				break
@@ -6804,8 +7002,10 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 	var step: Vector2i = flight[&"step"]
 	var run: int = (across.x if step.x != 0 else across.y) * int(TILE)
 	var rise: float = float(climb) / float(steps)
-	if not down:
-		_stair_head(start, base, step, across, climb, atlas)
+	_stair_head(
+		start, base, step, across, base + (float(climb) if not down else -rise),
+		down, atlas
+	)
 	for tread: int in steps:
 		var from: int = _stair_edge(run, steps, tread)
 		var deep: int = _stair_edge(run, steps, tread + 1) - from
@@ -6838,11 +7038,10 @@ func _emit_stairs(index: int, atlas: RefCounted) -> void:
 					Vector3(x1, height, z0), Vector3(x0, height, z0),
 					Vector3.UP, uv, SHADE_TOP_FLAT
 				)
-			if not down:
-				_stair_flank(
-					step, base, height, piece, box,
-					Vector2(x0, z0), Vector2(x1, z1), uv
-				)
+			_stair_flank(
+				step, _stair_beside(start, step, across, piece, down, base),
+				height, piece, box, Vector2(x0, z0), Vector2(x1, z1), uv
+			)
 			if tread > 0 or not down:
 				_stair_riser(
 					start, faces, riser, minf(height, above), maxf(height, above),
@@ -7006,87 +7205,124 @@ func _stair_edge(run: int, steps: int, tread: int) -> int:
 	return roundi(float(tread * run) / float(steps))
 
 
+## The upright at a flight's top end. A rising flight's stands from its base to
+## the landing; a descending one is cut into the floor, whose own edge stands
+## there, and shows a head only above floor lying lower beyond it.
 func _stair_head(
-	start: Vector2i, base: float, step: Vector2i, across: Vector2i, climb: int,
-	atlas: RefCounted
+	start: Vector2i, base: float, step: Vector2i, across: Vector2i, top: float,
+	down: bool, atlas: RefCounted
 ) -> void:
 	var edge: int = int(TILE)
+	var outward: Vector2i = -step if down else step
 	var run: int = (across.x if step.x != 0 else across.y) * edge
-	var wide: int = (across.y if step.x != 0 else across.x)
-	var high: float = base + float(climb)
-	for piece: int in wide:
-		var along: int = piece * edge
-		var tile: int = _tile_at(
-			start.x + _stair_offset(step.x, across.x, piece),
-			start.y + _stair_offset(step.y, across.y, piece)
-		)
-		var uv: Rect2 = atlas.uv_box(tile, Rect2i(0, 0, edge, edge))
-		if step.x != 0:
-			var x: float = _world_x(start.x) + float(run if step.x > 0 else 0)
-			var z0: float = _world_z(start.y) + float(along)
-			var z1: float = z0 + float(edge)
-			if step.x > 0:
-				_quad(
-					Vector3(x, base, z1), Vector3(x, base, z0),
-					Vector3(x, high, z0), Vector3(x, high, z1),
-					Vector3(1.0, 0.0, 0.0), uv, SHADE_SIDE
-				)
-			else:
-				_quad(
-					Vector3(x, base, z0), Vector3(x, base, z1),
-					Vector3(x, high, z1), Vector3(x, high, z0),
-					Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
-				)
+	var at: int = run if outward.x + outward.y > 0 else 0
+	for piece: int in (across.y if step.x != 0 else across.x):
+		var cell: Vector2i = start + _stair_beyond(outward, across, piece)
+		var low: float = _floor_height(cell.x, cell.y) if down else base
+		if top <= low:
 			continue
-		var z: float = _world_z(start.y) + float(run if step.y > 0 else 0)
-		var x0: float = _world_x(start.x) + float(along)
-		var x1: float = x0 + float(edge)
-		if step.y > 0:
-			_quad(
-				Vector3(x0, base, z), Vector3(x1, base, z),
-				Vector3(x1, high, z), Vector3(x0, high, z),
-				Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
-			)
-		else:
-			_quad(
-				Vector3(x1, base, z), Vector3(x0, base, z),
-				Vector3(x0, high, z), Vector3(x1, high, z),
-				Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
-			)
+		var tile: int = _tile_at(
+			start.x + _stair_offset(outward.x, across.x, piece),
+			start.y + _stair_offset(outward.y, across.y, piece)
+		)
+		_stair_head_piece(
+			start, outward, at, piece * edge, low, top,
+			atlas.uv_box(tile, Rect2i(0, 0, edge, edge))
+		)
 
 
+## The cell past a flight's top end, beside one piece of it.
+func _stair_beyond(outward: Vector2i, across: Vector2i, piece: int) -> Vector2i:
+	if outward.x != 0:
+		return Vector2i(across.x if outward.x > 0 else -1, piece)
+	return Vector2i(piece, across.y if outward.y > 0 else -1)
+
+
+func _stair_head_piece(
+	start: Vector2i, outward: Vector2i, at: int, along: int, low: float, high: float,
+	uv: Rect2
+) -> void:
+	var edge := float(TILE)
+	var up := Vector3(0.0, high - low, 0.0)
+	var across: bool = outward.x != 0
+	var x: float = _world_x(start.x) + float(at if across else along)
+	var z: float = _world_z(start.y) + float(along if across else at)
+	if across and outward.x > 0:
+		_panel(Vector3(x, low, z + edge), Vector3(0.0, 0.0, -edge), up, uv, SHADE_SIDE)
+	elif across:
+		_panel(Vector3(x, low, z), Vector3(0.0, 0.0, edge), up, uv, SHADE_SIDE)
+	elif outward.y > 0:
+		_panel(Vector3(x, low, z), Vector3(edge, 0.0, 0.0), up, uv, SHADE_SOUTH)
+	else:
+		_panel(Vector3(x + edge, low, z), Vector3(-edge, 0.0, 0.0), up, uv, SHADE_NORTH)
+
+
+## What a flight's two flanks stand down to beside one piece. A rising flight
+## stands on its base; a descending one is cut into a floor that walls it, and
+## shows a flank only above floor lying lower beside it, the sea beside a
+## port's stair.
+func _stair_beside(
+	start: Vector2i, step: Vector2i, across: Vector2i, piece: Rect2i, down: bool,
+	base: float
+) -> Vector2:
+	if not down:
+		return Vector2(base, base)
+	@warning_ignore("integer_division")
+	var column := Vector2i(piece.position.x / int(TILE), piece.position.y / int(TILE))
+	if step.x != 0:
+		return Vector2(
+			_floor_height(start.x + column.x, start.y - 1),
+			_floor_height(start.x + column.x, start.y + across.y)
+		)
+	return Vector2(
+		_floor_height(start.x - 1, start.y + column.y),
+		_floor_height(start.x + across.x, start.y + column.y)
+	)
+
+
+func _floor_height(tx: int, ty: int) -> float:
+	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
+		return INF
+	return float(_heights[ty * _size.x + tx])
+
+
+## The flight's sides, each from what it stands down to up to the tread.
 func _stair_flank(
-	step: Vector2i, base: float, height: float, piece: Rect2i, box: Rect2i,
+	step: Vector2i, beside: Vector2, height: float, piece: Rect2i, box: Rect2i,
 	near: Vector2, far: Vector2, uv: Rect2
 ) -> void:
-	var low: float = minf(base, height)
-	var high: float = maxf(base, height)
+	var first: bool = piece.position.y == box.position.y if step.x != 0 \
+		else piece.position.x == box.position.x
+	var last: bool = piece.end.y == box.end.y if step.x != 0 \
+		else piece.end.x == box.end.x
+	if first and height > beside.x:
+		_stair_side(step, true, beside.x, height, near, far, uv)
+	if last and height > beside.y:
+		_stair_side(step, false, beside.y, height, near, far, uv)
+
+
+func _stair_side(
+	step: Vector2i, first: bool, low: float, high: float, near: Vector2, far: Vector2,
+	uv: Rect2
+) -> void:
 	if step.x != 0:
-		if piece.position.y == box.position.y:
-			_quad(
-				Vector3(far.x, low, near.y), Vector3(near.x, low, near.y),
-				Vector3(near.x, high, near.y), Vector3(far.x, high, near.y),
-				Vector3(0.0, 0.0, -1.0), uv, SHADE_NORTH
-			)
-		if piece.end.y == box.end.y:
-			_quad(
-				Vector3(near.x, low, far.y), Vector3(far.x, low, far.y),
-				Vector3(far.x, high, far.y), Vector3(near.x, high, far.y),
-				Vector3(0.0, 0.0, 1.0), uv, SHADE_SOUTH
-			)
+		var z: float = near.y if first else far.y
+		var west: Vector3 = Vector3(near.x, low, z)
+		var east: Vector3 = Vector3(far.x, low, z)
+		var up := Vector3(0.0, high - low, 0.0)
+		if first:
+			_panel(east, west - east, up, uv, SHADE_NORTH)
+		else:
+			_panel(west, east - west, up, uv, SHADE_SOUTH)
 		return
-	if piece.position.x == box.position.x:
-		_quad(
-			Vector3(near.x, low, near.y), Vector3(near.x, low, far.y),
-			Vector3(near.x, high, far.y), Vector3(near.x, high, near.y),
-			Vector3(-1.0, 0.0, 0.0), uv, SHADE_SIDE
-		)
-	if piece.end.x == box.end.x:
-		_quad(
-			Vector3(far.x, low, far.y), Vector3(far.x, low, near.y),
-			Vector3(far.x, high, near.y), Vector3(far.x, high, far.y),
-			Vector3(1.0, 0.0, 0.0), uv, SHADE_SIDE
-		)
+	var x: float = near.x if first else far.x
+	var north: Vector3 = Vector3(x, low, near.y)
+	var south: Vector3 = Vector3(x, low, far.y)
+	var rise := Vector3(0.0, high - low, 0.0)
+	if first:
+		_panel(north, south - north, rise, uv, SHADE_SIDE)
+	else:
+		_panel(south, north - south, rise, uv, SHADE_SIDE)
 
 
 func _tile_pieces(box: Rect2i) -> Array:

@@ -337,14 +337,18 @@ arrangement, produced with `tools/house_export.gd`, `house_page.py` and
 painted, `house_paint_art.py` draws a painting over its own art, and
 `house_learn.py` carries paintings to the houses not yet done. 92 of them reach
 the game: 246 placements on 64 maps, standing up 348 buildings.
-`tools/house_claim.gd` counts it. `shape/gen1/houses.gd` holds Kanto's 50, every
-one of them the pre-fill accepted as it came (`house_page.py --accept`): a
-Generation I building is a striped pitch drawn face-on over walls, with a
-hatched flat roof between the pitches on the big ones, and each of those is one
-tile class, so nothing needed painting by hand. A wall column painted up through
-the fascia band, as a Kanto centre's corners are, is a pillar standing in the
-eave: its rows there are the band's face, so it reaches the eave and the walls
-keep the painting's own height.
+`tools/house_claim.gd` counts it. `shape/gen1/houses.gd` holds Kanto's 50, the
+pre-fill as it came (`house_page.py --accept`): a Generation I building is a
+striped pitch drawn face-on over walls, with a hatched flat roof between the
+pitches on the big ones, and each of those is one tile class. The one correction
+is the plain tile between a door and a window, which is ground everywhere else
+and wall there; `house_pins.gd` refuses a painting that leaves it as a slot
+through the front. A wall column painted up through the fascia band, as a Kanto
+centre's corners are, is a pillar standing in the eave: its rows there are the
+band's face, so it reaches the eave and the walls keep the painting's own
+height. The roof slab is as thick over every column, so a column painted with no
+fascia band, one along Battle Tower's diagonal eave, wears its nearest
+neighbour's.
 
 ## Ledges, doors and two levels of ground
 
@@ -445,6 +449,13 @@ The bench is the one with a back, and it is why objects have their own builder:
 its three drawn rows are the back, the seat and a leg at each end, so what is
 authored is the depth and the three heights.
 
+A table, a bench or a chair declared `wrap` is a shell: the drawing stands as
+its front and back plates, and its first and last columns turn through a right
+angle to make the sides. Seen between its legs, the inside of that shell shows,
+so each plate is as thick as the drawing's nearest leg reaches in from its edge
+and closed round its own silhouette. A front leg and the side's picture of the
+same leg then stand as one post.
+
 A **kerb** is terrain rather than an object: one course of masonry standing half a
 cell, which rings a flower bed and holds the water in a fountain. A **sea rock**
 is stone drawn in the water rather than standing on it, so the tile stays flat
@@ -461,7 +472,9 @@ A **staircase** is found the same way. Generation II draws a flight as a
 perspective view over four tiles, and stepping onto one leaves the floor rather
 than climbing it, so a down flight is a hole: the cell's floor goes a walk cell
 below the ground and everything skirts down to it, which is the same code that
-draws a cliff. A ladder in a shaft is that with the steps taken out.
+draws a cliff. Where the floor beside a down flight lies below its treads, as
+the sea does beside Olivine Port's stair, the flight shows its own sides and
+head down to that floor. A ladder in a shaft is that with the steps taken out.
 
 An up flight climbs to the floor at its head, so it meets that floor whatever
 height it stands at; one that runs into a wall, a warp stair, keeps its own

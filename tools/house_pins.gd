@@ -72,6 +72,11 @@ func _initialize() -> void:
 			notes.append("%s: a wall and a roof but no roof-from-the-front, so its"
 				% name + " roof has no thickness. Look at the rows just above the"
 				+ " wall")
+		var slots: int = _slots(paint)
+		if slots > 0:
+			complaints.append("%s: %d px columns left unpainted between a" % [name, slots]
+				+ " roof-from-the-front and the wall under it, which stand as slots"
+				+ " through the front")
 		var cut: int = _cut(paint)
 		if cut > 0:
 			notes.append("%s: %d of its %d tiles are painted two ways, so it is read"
@@ -118,6 +123,23 @@ func _rows_of(paint: Array, word: String) -> int:
 		if row.contains(word):
 			count += 1
 	return count
+
+
+func _slots(paint: Array) -> int:
+	var slots: int = 0
+	for x: int in String(paint[0]).length():
+		var above: String = NONE
+		var gap: int = 0
+		for row: String in paint:
+			var stroke: String = row[x]
+			if stroke == NONE:
+				gap += 1
+				continue
+			if gap > 0 and above == FRONT and stroke == WALL:
+				slots += 1
+			above = stroke
+			gap = 0
+	return slots
 
 
 func _cut(paint: Array) -> int:
