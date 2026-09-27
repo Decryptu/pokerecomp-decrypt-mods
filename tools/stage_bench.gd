@@ -100,7 +100,6 @@ func _initialize() -> void:
 			_stage.set_background(atlas.void_color(), false)
 	_mesher.resolve(source, shape)
 	_origin = Vector3((float(cell.x) + 0.5) * CELL, 0.0, (float(cell.y) + 0.5) * CELL)
-	_mesher.set_detail_ring(_origin, _ring(named) * CELL)
 	var window_tiles: Rect2i = _window_of(cell, distance)
 	if distance > 0:
 		_stage.set_view_distance(float(distance) * CELL, true)
@@ -124,6 +123,7 @@ func _initialize() -> void:
 		_mesher.bank_span()
 	)
 	_stage.set_tufts(_mesher.take_tufts())
+	_stage.get_script().set("solid_cells", _ring(named))
 	_stage.set_models(_mesher.take_models())
 	print("map        %s,%s at %s, window %s, distance %d" % [
 		args[1], args[2], str(cell), str(window), distance,
@@ -166,12 +166,10 @@ func _splits_taken() -> String:
 	return "4"
 
 
-## How far a model keeps its solid mesh before it wears its impostor. The
-## renderer owns the number; a run says `ring=` to price another one.
-static func _ring(named: Dictionary) -> float:
-	var script: GDScript = load(Staging.RENDERER)
-	var fallback: float = script.solid_cells if script != null else 0.0
-	return float(named.get("ring", str(fallback)))
+## How far a model keeps its solid mesh before it wears its far form. The
+## stage owns the number; a run says `ring=` to price another one.
+func _ring(named: Dictionary) -> float:
+	return float(named.get("ring", str(_stage.get_script().get("solid_cells"))))
 
 
 func _window_of(cell: Vector2i, distance: int) -> Rect2i:

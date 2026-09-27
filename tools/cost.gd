@@ -99,6 +99,8 @@ func _initialize() -> void:
 		var drawn: int = 0
 		var held: Dictionary = {}
 		for model: Array in mesher.take_models():
+			if model[5] == &"far":
+				continue
 			var mesh: ArrayMesh = model[0]
 			var model_faces: int = 0
 			for surface: int in mesh.get_surface_count():

@@ -5,6 +5,7 @@ extends RefCounted
 ## borrows and gives back.
 
 const RENDERER := "user://mods/voxel3d/world/renderer.gd"
+const DIORAMA := "user://mods/voxel3d/world/diorama.gd"
 const ROOM_CELLS: int = 24
 const SEARCH_CELLS: int = 40
 const PARTY_LEVEL: int = 5
@@ -38,22 +39,30 @@ static func _spec_value(text: String) -> Variant:
 	return int(text)
 
 
-## `static=name:value,...`, the renderer's own static fields.
+## `static=name:value,...`, the view's own statics, on its renderer or stage.
 static func apply_statics(spec: String) -> void:
-	var script: GDScript = load(RENDERER)
-	if script == null:
-		print("no renderer script at %s" % RENDERER)
-		return
 	for pair: String in spec.split(",", false):
 		var parts: PackedStringArray = pair.split(":")
 		if parts.size() != 2:
 			continue
 		var name: String = parts[0].strip_edges()
+		var script: GDScript = _static_owner(name)
+		if script == null:
+			print("no view script has a static %s" % name)
+			continue
 		var value: Variant = _spec_value(parts[1].strip_edges())
 		if script.get(name) is bool:
 			value = bool(value)
 		script.set(name, value)
 		print("static     %s = %s" % [name, str(script.get(name))])
+
+
+static func _static_owner(name: String) -> GDScript:
+	for path: String in [RENDERER, DIORAMA]:
+		var script: GDScript = load(path)
+		if script != null and script.get(name) != null:
+			return script
+	return null
 
 
 ## `set=key:value,...`, the mod's own settings. Held so `restore` gives back what
