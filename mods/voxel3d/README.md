@@ -279,8 +279,17 @@ flood cannot reach through them is the drawing.
 That fails on tree canopies, drawn in the same two greens the grass under them is
 dithered from, so those classes flood through every pixel that is not the
 drawing's darkest shade, which is its outline. How many shades bound one is per
-drawing: a tree rings itself in one, a drawing meeting the ground in a paler
-shade needs two.
+class: a tree rings itself in one, a drawing meeting the ground in a paler shade
+needs two. The second is the next darkest shade the ground does not wear, so
+Viridian Forest's floor, dithered in the forest's second-darkest shade, stays
+floor round its trees and signs.
+
+An outline can be broken: Viridian Forest's small trees and Yellow's overworld
+trees close theirs with a paler shade here and there, and are filled with the
+ground's own colours. A flood that has left the ground's colours never steps
+back onto them, so it takes the gap and not the inside behind it. An island of
+ground colour it stops short of, no bigger than a speck, is a dither of the
+ground with another shade, and stays ground.
 
 **A drawing bigger than one cell** is masked over the whole drawing, or the flood
 runs along the seam between its cells. What the extra rows mean is the drawing's
@@ -396,7 +405,11 @@ map's faces say nothing, and a front whose foot is in the ring is the ring's.
 A **lip** is a plateau's far rim, the dashed edge Kanto draws along a
 mountain's north side, so the floor just inside it is top ground even where the
 plateau's face is off the map. A region no face speaks for stands under its lip
-as tall as the tallest face the map draws, or a storey where it draws none.
+as tall as the tallest face the map draws, or a storey where it draws none, above
+the floor beyond the lip. Terraces drawn one inside another, as on Route 23 in
+front of Indigo Plateau, stack a storey each, and a faceless rock flank beside a
+stacked terrace stands as tall as it. A terrace banks down to the terrace it
+stands on the way it banks down to open ground.
 
 How tall a face stands is read per connected structure, off the runs of front its
 columns draw. A structure that draws no front anywhere is a rim seen from the
@@ -563,10 +576,18 @@ the cartridge draws only the wall the player looks at, which from any bearing bu
 due north read as furniture on a floor with no room around it. So the map is
 ringed one cell deep and two cells tall with the blank wall course that tileset
 is drawn with, and the wall the cartridge does draw is raised to meet it.
-Twenty-nine tilesets name that course, covering 308 of the game's 311 interiors.
-A cavern gets a ring cut from its own rock face. The three interiors with no
-shell are a gym whose perimeter the cartridge really does draw, and two maps the
-game files as caves and paints as forest.
+Twenty-nine tilesets name that course on Crystal, covering 308 of its 311
+interiors, and twenty-one on Red, Blue and Yellow, covering 185 of Yellow's 191.
+A cavern gets a ring cut from its own rock face. The interiors with no shell are
+a gym whose perimeter the cartridge really does draw, maps the game files as
+caves and paints as forest, and the open dock the S.S. Anne lies at.
+
+The wall the cartridge draws is the solid run down from the top of each column,
+and it ends at furniture below a course of wall: a desk against the wall stands
+in front of it at its own height, while a bookcase drawn up to the top of the
+room is that stretch of the wall's course and stands as tall as the room.
+Whatever stands against the wall under an authored object, a partition, a PC or
+a screen, has the wall stood flush behind it.
 
 The floor out there is a solid and not a lid: it is read per column, so two
 columns of one edge answer at two heights wherever the perimeter steps, and each

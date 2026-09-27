@@ -209,6 +209,9 @@ var _shelf := PackedByteArray()
 var _ramp := PackedByteArray()
 var _corners := PackedInt32Array()
 var _shelf_depth := PackedInt32Array()
+## The height of the ground a shelf rises from, which is a lower shelf's where
+## one terrace stands inside another.
+var _shelf_foot := PackedInt32Array()
 var _shelf_stack := PackedInt32Array()
 var _shelf_head: int = 0
 var _doorway := PackedByteArray()
@@ -987,7 +990,7 @@ func _size_grid(source: RefCounted, shape: RefCounted) -> void:
 	_ledge.fill(LEDGE_NONE)
 	_stair_at.resize(count)
 	_stair_at.fill(-1)
-	for cleared: Variant in [_shelf, _doorway, _room, _lifted]:
+	for cleared: Variant in [_shelf, _shelf_foot, _doorway, _room, _lifted]:
 		cleared.resize(count)
 		cleared.fill(0)
 	_folds = []
@@ -2345,7 +2348,7 @@ func _spread_shelf_depths() -> bool:
 		_shelf_head += 1
 		for index: int in _neighbours(at):
 			if _shelf_depth[index] < 0 and _shelf[index] == 1 \
-					and _heights[index] > 0:
+					and _heights[index] > 0 and _shelf_foot[index] == _shelf_foot[at]:
 				_shelf_depth[index] = _shelf_depth[at] + 1
 				_shelf_stack.append(index)
 	return _shelf_head < _shelf_stack.size()
@@ -2397,9 +2400,17 @@ func _on_shelf_lip(at: int) -> bool:
 		var index: int = _index_of(to)
 		if index < 0 or not _in_map(to.x, to.y):
 			continue
-		if _shelf[index] == 0 and _heights[index] < _heights[at]:
+		if _is_shelf_foot(at, index):
 			return true
 	return false
+
+
+## The ground a shelf's edge banks down to: open ground below it, or the shelf it
+## stands on.
+func _is_shelf_foot(at: int, index: int) -> bool:
+	return _heights[index] < _heights[at] and (
+		_shelf[index] == 0 or _heights[index] <= _shelf_foot[at]
+	)
 
 
 func _slope_shelf(at: int) -> void:
@@ -2410,7 +2421,7 @@ func _slope_shelf(at: int) -> void:
 		var near: int = _shelf_depth[at]
 		for reach: Vector2i in [Vector2i(step.x, 0), Vector2i(0, step.y), step]:
 			near = _shelf_near(at, tile + reach, near)
-		var high: int = mini(near * BAND, _heights[at])
+		var high: int = mini(_shelf_foot[at] + near * BAND, _heights[at])
 		_corners[at * 4 + corner] = high
 		sloped = sloped or high < _heights[at]
 	if sloped:
@@ -2423,8 +2434,10 @@ func _shelf_near(at: int, to: Vector2i, near: int) -> int:
 	var index: int = _index_of(to)
 	if index < 0 or not _in_map(to.x, to.y):
 		return near
-	if _shelf[index] == 0:
-		return 0 if _heights[index] < _heights[at] else near
+	if _is_shelf_foot(at, index):
+		return 0
+	if _shelf[index] == 0 or _shelf_foot[index] != _shelf_foot[at]:
+		return near
 	return mini(near, maxi(_shelf_depth[index], 0))
 
 
@@ -2792,26 +2805,7 @@ func _measure_cliffs() -> void:
 	for start: int in seen.size():
 		if seen[start] == 1 or _cliff[start] == 0:
 			continue
-		var members := PackedInt32Array()
-		var stack: Array[int] = [start]
-		seen[start] = 1
-		while not stack.is_empty():
-			var at: int = stack.pop_back()
-			members.append(at)
-			var tx: int = at % _size.x
-			@warning_ignore("integer_division")
-			var ty: int = at / _size.x
-			for step: Vector2i in [
-				Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
-			]:
-				var to := Vector2i(tx + step.x, ty + step.y)
-				if to.x < 0 or to.y < 0 or to.x >= _size.x or to.y >= _size.y:
-					continue
-				var index: int = to.y * _size.x + to.x
-				if seen[index] == 1 or _cliff[index] == 0:
-					continue
-				seen[index] = 1
-				stack.append(index)
+		var members: PackedInt32Array = _cliff_structure(start, seen)
 		structures.append(members)
 		banded.append(_face_bands(members))
 	var tallest: int = 0
@@ -2819,22 +2813,35 @@ func _measure_cliffs() -> void:
 		tallest = maxi(tallest, bands)
 	_tallest_face = tallest * BAND
 	for index: int in structures.size():
-		var members: PackedInt32Array = structures[index]
-		var bands: int = banded[index]
-		if bands <= 0:
-			if tallest <= 0:
-				continue
-			for at: int in members:
-				if _heights[at] <= tallest * BAND:
-					continue
-				_heights[at] = tallest * BAND
-				_bases[at] = _cliff_base(at)
-				_shelf[at] = 1
+		_settle_cliff(structures[index], banded[index])
+
+
+## A cliff stands as tall as its faces; a faceless one taller than the tallest
+## face on the map is cut down to it.
+func _settle_cliff(members: PackedInt32Array, bands: int) -> void:
+	if bands <= 0 and _tallest_face <= 0:
+		return
+	for at: int in members:
+		if bands <= 0 and _heights[at] <= _tallest_face:
 			continue
-		for at: int in members:
-			_heights[at] = bands * BAND
-			_bases[at] = _cliff_base(at)
-			_shelf[at] = 1
+		_heights[at] = bands * BAND if bands > 0 else _tallest_face
+		_bases[at] = _cliff_base(at)
+		_shelf[at] = 1
+
+
+## The cliff tiles joined to `start`, each marked in `seen`.
+func _cliff_structure(start: int, seen: PackedByteArray) -> PackedInt32Array:
+	var members := PackedInt32Array()
+	var stack: Array[int] = [start]
+	seen[start] = 1
+	while not stack.is_empty():
+		var at: int = stack.pop_back()
+		members.append(at)
+		for index: int in _neighbours(at):
+			if seen[index] == 0 and _cliff[index] == 1:
+				seen[index] = 1
+				stack.append(index)
+	return members
 
 
 func _face_bands(members: PackedInt32Array) -> int:
@@ -2902,7 +2909,8 @@ func _settle_plateau(members: PackedInt32Array) -> void:
 	if raise == NO_EVIDENCE:
 		raise = _plateau_height(members, _plateau_ring)
 	if raise == NO_EVIDENCE and _under_lip(members):
-		raise = maxi(_tallest_face, PLATEAU_FLOOR)
+		_lip_regions.append(members)
+		raise = _lip_rise()
 	if raise <= 0:
 		return
 	for at: int in members:
@@ -2913,7 +2921,75 @@ func _settle_plateau(members: PackedInt32Array) -> void:
 ## A map with no cliff has no lip either, so the lips go with the evidence.
 func _settle_plateau_lips() -> void:
 	if _plateau_any:
+		_stack_lip_regions()
 		_settle_lips()
+
+
+## How far a lip's floor stands above the ground beyond it: as tall as the
+## tallest face the map draws, and a storey where it draws none.
+func _lip_rise() -> int:
+	return maxi(_tallest_face, PLATEAU_FLOOR)
+
+
+## A lip is the far rim of the ground inside it, so that ground stands a rise
+## above the ground beyond the lip, and terraces drawn one inside another stack.
+## One pass a region is enough for a chain of any length to reach its top.
+func _stack_lip_regions() -> void:
+	for _pass: int in _lip_regions.size():
+		var moved: bool = false
+		for members: PackedInt32Array in _lip_regions:
+			moved = _stack_lip_region(members) or moved
+		if not moved:
+			break
+	for members: PackedInt32Array in _lip_regions:
+		_raise_flanks(members)
+	_lip_regions.clear()
+
+
+func _stack_lip_region(members: PackedInt32Array) -> bool:
+	var foot: int = _beyond_lips(members)
+	if foot + _lip_rise() <= _heights[members[0]]:
+		return false
+	for at: int in members:
+		_heights[at] = foot + _lip_rise()
+		_shelf_foot[at] = foot
+	return true
+
+
+## The highest floor across the region's lips, other than the region itself.
+func _beyond_lips(members: PackedInt32Array) -> int:
+	var own: Dictionary = {}
+	for at: int in members:
+		own[at] = true
+	var high: int = 0
+	for at: int in members:
+		var beyond: int = at - 2 * _size.x
+		if not _plateau_lips.has(at) or beyond < 0 or own.has(beyond):
+			continue
+		if _art[beyond] == ART_FLAT:
+			high = maxi(high, _heights[beyond])
+	return high
+
+
+## A faceless cliff beside a stacked floor is that floor's flank, drawn from the
+## side, and stands as tall as the floor.
+func _raise_flanks(members: PackedInt32Array) -> void:
+	var top: int = _heights[members[0]]
+	for at: int in members:
+		for index: int in _neighbours(at):
+			if _cliff[index] == 1 and _heights[index] < top:
+				_raise_flank(index, top)
+
+
+func _raise_flank(start: int, top: int) -> void:
+	var seen := PackedByteArray()
+	seen.resize(_cliff.size())
+	var flank: PackedInt32Array = _cliff_structure(start, seen)
+	for at: int in flank:
+		if _front[at] == 1:
+			return
+	for at: int in flank:
+		_heights[at] = maxi(_heights[at], top)
 
 
 ## Seeds, fronts and patches read off the map's own faces, and off the ring's.
@@ -2926,6 +3002,7 @@ var _plateau_ring: Dictionary = {}
 ## stands as tall as the tallest face the map draws, and a storey where the map
 ## draws none.
 var _plateau_lips: Dictionary = {}
+var _lip_regions: Array[PackedInt32Array] = []
 var _tallest_face: int = 0
 ## A doorway stands in its wall, so it divides the floor on either side of it.
 ## Doors are stood up after plateaus, so they are marked for the flood first.
@@ -2988,9 +3065,10 @@ func _settle_lips() -> void:
 			var at: int = ty * _size.x + tx
 			if _lip[at] == 0 or ty + 1 >= _size.y:
 				continue
-			var under: int = _heights[(ty + 1) * _size.x + tx]
-			if _art[(ty + 1) * _size.x + tx] == ART_FLAT and under > 0:
-				_heights[at] = under
+			var below: int = (ty + 1) * _size.x + tx
+			if _art[below] == ART_FLAT and _heights[below] > 0:
+				_heights[at] = _heights[below]
+				_shelf_foot[at] = _shelf_foot[below]
 				_shelf[at] = 1
 
 
@@ -4265,18 +4343,21 @@ func _mask_island(
 	while not stack.is_empty():
 		var at: int = stack.pop_back()
 		island.append(at)
-		@warning_ignore("integer_division")
-		var from := Vector2i(at % size.x, at / size.x)
 		for step: Vector2i in STEPS:
-			var to: Vector2i = from + step
-			if to.x < 0 or to.y < 0 or to.x >= size.x or to.y >= size.y:
-				continue
-			var index: int = to.y * size.x + to.x
-			if mask[index] == 0 or seen[index] == 1:
-				continue
-			seen[index] = 1
-			stack.append(index)
+			var index: int = _pixel_step(at, step, size)
+			if index >= 0 and mask[index] == 1 and seen[index] == 0:
+				seen[index] = 1
+				stack.append(index)
 	return island
+
+
+## A pixel the flood may cross: the ground the cell's border is mostly made of,
+## or, for a drawing bounded by its darkest shades, any other shade. A flood
+## that has left the ground's colours never steps back onto them, so a gap in a
+## broken outline lets it take the gap and not the ground-coloured inside.
+const SHUT: int = 0
+const GROUND: int = 1
+const OFF_GROUND: int = 2
 
 
 func _mask_frame(
@@ -4286,32 +4367,66 @@ func _mask_frame(
 	var size := Vector2i(across.x * int(TILE), across.y * int(TILE))
 	var indices := PackedInt32Array()
 	indices.resize(size.x * size.y)
+	var darkest := PackedByteArray()
+	darkest.resize(size.x * size.y)
+	for at: int in indices.size():
+		var tile: int = _pixel_tile(tiles, across, at, size.x)
+		@warning_ignore("integer_division")
+		var index: int = atlas.frame_pixel(
+			tile, (at % size.x) % int(TILE), (at / size.x) % int(TILE), frame
+		)
+		indices[at] = index
+		darkest[at] = int(outline > 0 and atlas.is_dark(tile, index, 1))
+	var ground: Dictionary = _ring_ground(indices, darkest, size)
+	var bounds: Dictionary = {}
 	var open := PackedByteArray()
-	open.resize(size.x * size.y)
-	for py: int in size.y:
-		for px: int in size.x:
-			@warning_ignore("integer_division")
-			var tile: int = tiles[(py / int(TILE)) * across.x + px / int(TILE)]
-			var index: int = atlas.frame_pixel(
-				tile, px % int(TILE), py % int(TILE), frame
-			)
-			indices[py * size.x + px] = index
-			if outline > 0:
-				open[py * size.x + px] = 0 if atlas.is_dark(tile, index, outline) else 1
+	open.resize(indices.size())
+	for at: int in indices.size():
+		var tile: int = _pixel_tile(tiles, across, at, size.x)
+		if not bounds.has(tile):
+			bounds[tile] = _bounding_shades(atlas, tile, outline, ground)
+		if (bounds[tile] as Dictionary).has(indices[at]):
+			open[at] = SHUT
+		elif ground.has(indices[at]):
+			open[at] = GROUND
+		elif outline > 0:
+			open[at] = OFF_GROUND
+	return _flood(size, open, filled)
 
-	if outline > 0:
-		return _flood(size, open, filled)
 
+func _pixel_tile(tiles: Array, across: Vector2i, at: int, wide: int) -> int:
+	@warning_ignore("integer_division")
+	return int(tiles[(at / wide / int(TILE)) * across.x + (at % wide) / int(TILE)])
+
+
+## An outline of `count` shades is the drawing's darkest shade and the next
+## darkest the ground does not wear: a floor dithered in a dark shade is still
+## floor, and the flood runs on through it.
+func _bounding_shades(
+	atlas: RefCounted, tile: int, count: int, ground: Dictionary
+) -> Dictionary:
+	var out: Dictionary = {}
+	for index: int in atlas.shade_order(tile):
+		if out.size() >= count:
+			break
+		if out.is_empty() or not ground.has(index):
+			out[index] = true
+	return out
+
+
+## The indices making up most of the cell's border ring, less its darkest
+## shade, which is an outline wherever it touches the border.
+func _ring_ground(
+	indices: PackedInt32Array, dark: PackedByteArray, size: Vector2i
+) -> Dictionary:
 	var ring: Dictionary = {}
 	var ring_count: int = 0
 	for px: int in size.x:
-		_ring_pixel(ring, indices, px)
-		_ring_pixel(ring, indices, (size.y - 1) * size.x + px)
-		ring_count += 2
+		ring_count += _ring_pixel(ring, indices, dark, px)
+		ring_count += _ring_pixel(ring, indices, dark, (size.y - 1) * size.x + px)
 	for py: int in size.y:
-		_ring_pixel(ring, indices, py * size.x)
-		_ring_pixel(ring, indices, py * size.x + size.x - 1)
-		ring_count += 2
+		ring_count += _ring_pixel(ring, indices, dark, py * size.x)
+		ring_count += _ring_pixel(ring, indices, dark, py * size.x + size.x - 1)
 	var ranked: Array = ring.keys()
 	ranked.sort_custom(func(a: int, b: int) -> bool: return ring[a] > ring[b])
 	var ground: Dictionary = {}
@@ -4321,10 +4436,7 @@ func _mask_frame(
 			break
 		ground[index] = true
 		covered += int(ring[index])
-
-	for at: int in indices.size():
-		open[at] = int(ground.has(indices[at]))
-	return _flood(size, open, filled)
+	return ground
 
 
 func _flood(
@@ -4343,39 +4455,89 @@ func _flood(
 	while not stack.is_empty():
 		var at: int = stack[stack.size() - 1]
 		stack.remove_at(stack.size() - 1)
-		if mask[at] == 0 or open[at] == 0:
+		if mask[at] == 0 or open[at] == SHUT:
 			continue
 		mask[at] = 0
-		@warning_ignore("integer_division")
-		var py: int = at / size.x
-		var px: int = at % size.x
-		if px > 0:
-			stack.append(at - 1)
-		if px < size.x - 1:
-			stack.append(at + 1)
-		if py > 0:
-			stack.append(at - size.x)
-		if py < size.y - 1:
-			stack.append(at + size.x)
-
+		_flood_on(stack, at, open, size)
+	_release_dither(mask, open, size)
 	if filled:
-		for px: int in size.x:
-			var first: int = -1
-			var last: int = -1
-			for py: int in size.y:
-				if mask[py * size.x + px] == 1:
-					if first < 0:
-						first = py
-					last = py
-			for py: int in range(first, last + 1):
-				if first >= 0:
-					mask[py * size.x + px] = 1
-
+		_fill_columns(mask, size)
 	return mask
 
 
-func _ring_pixel(ring: Dictionary, indices: PackedInt32Array, at: int) -> void:
+## Ground the flood stopped short of, beside what it reached, in islands no
+## bigger than a speck, is a dither of the ground with another shade.
+func _release_dither(
+	mask: PackedByteArray, open: PackedByteArray, size: Vector2i
+) -> void:
+	var left := PackedByteArray()
+	left.resize(mask.size())
+	for at: int in mask.size():
+		left[at] = int(mask[at] == 1 and open[at] == GROUND)
+	var seen := PackedByteArray()
+	seen.resize(mask.size())
+	var released := PackedInt32Array()
+	for start: int in mask.size():
+		if left[start] == 0 or seen[start] == 1:
+			continue
+		var island: PackedInt32Array = _mask_island(left, seen, size, start)
+		if island.size() <= SPECK and _touches_outside(island, mask, size):
+			released.append_array(island)
+	for at: int in released:
+		mask[at] = 0
+
+
+func _touches_outside(
+	island: PackedInt32Array, mask: PackedByteArray, size: Vector2i
+) -> bool:
+	for at: int in island:
+		for step: Vector2i in STEPS:
+			var index: int = _pixel_step(at, step, size)
+			if index >= 0 and mask[index] == 0:
+				return true
+	return false
+
+
+## The pixel a step away from `at` inside a drawing `size` wide, or -1 past its
+## edge.
+func _pixel_step(at: int, step: Vector2i, size: Vector2i) -> int:
+	@warning_ignore("integer_division")
+	var to := Vector2i(at % size.x + step.x, at / size.x + step.y)
+	if to.x < 0 or to.y < 0 or to.x >= size.x or to.y >= size.y:
+		return -1
+	return to.y * size.x + to.x
+
+
+func _flood_on(
+	stack: PackedInt32Array, at: int, open: PackedByteArray, size: Vector2i
+) -> void:
+	for step: Vector2i in STEPS:
+		var index: int = _pixel_step(at, step, size)
+		if index >= 0 and (open[index] != GROUND or open[at] == GROUND):
+			stack.append(index)
+
+
+## Closes every column of the mask between its first and last pixel.
+func _fill_columns(mask: PackedByteArray, size: Vector2i) -> void:
+	for px: int in size.x:
+		var first: int = -1
+		var last: int = -1
+		for py: int in size.y:
+			if mask[py * size.x + px] == 1:
+				if first < 0:
+					first = py
+				last = py
+		for py: int in range(maxi(first, 0), last + 1):
+			mask[py * size.x + px] = 1
+
+
+func _ring_pixel(
+	ring: Dictionary, indices: PackedInt32Array, dark: PackedByteArray, at: int
+) -> int:
+	if dark[at] == 1:
+		return 0
 	ring[indices[at]] = int(ring.get(indices[at], 0)) + 1
+	return 1
 
 
 func _cell_levels(
@@ -8822,11 +8984,9 @@ func _measure_room() -> void:
 			_heights[at] = tall
 			_bases[at] = floor_row if ty >= _map_end.y else ty
 			_release_terrain(at)
+	var furniture: Dictionary = _furniture_ids()
 	for tx: int in range(_margin.x, _map_end.x):
-		var run: int = 0
-		while _margin.y + run < _map_end.y \
-				and _volume[(_margin.y + run) * _size.x + tx] == 1:
-			run += 1
+		var run: int = _wall_course(tx, furniture)
 		if run == 0:
 			continue
 		var base: int = _margin.y + run - 1
@@ -8838,6 +8998,29 @@ func _measure_room() -> void:
 			_bases[at] = base
 			_release_terrain(at)
 			_room[at] = ROOM_DRAWN
+
+
+func _furniture_ids() -> Dictionary:
+	var out: Dictionary = {}
+	for shape_class: StringName in Classes.FURNITURE:
+		if _class_ids.has(shape_class):
+			out[int(_class_ids[shape_class])] = true
+	return out
+
+
+## How many tiles from the top of a column the back wall is drawn in: the solid
+## tiles there, up to furniture standing below a course of wall.
+func _wall_course(tx: int, furniture: Dictionary) -> int:
+	var run: int = 0
+	var walled: bool = false
+	while _margin.y + run < _map_end.y:
+		var at: int = (_margin.y + run) * _size.x + tx
+		var furnished: bool = furniture.has(_klass[at])
+		if _volume[at] == 0 or (walled and furnished):
+			break
+		walled = walled or not furnished
+		run += 1
+	return run
 
 
 func _measure_room_fill() -> void:
