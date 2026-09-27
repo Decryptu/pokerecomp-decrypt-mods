@@ -98,7 +98,7 @@ const ROUND: Dictionary = {
 const OUTLINE: Dictionary = {
 	&"canopy": 1,
 	&"tree": 1,
-	&"tree_round": 1,
+	&"tree_round": 2,
 	&"bush": 1,
 	&"sapling": 1,
 	&"boulder": 1,
@@ -138,6 +138,15 @@ const SHRUB: Dictionary = {
 	&"sea_rock": true,
 	&"stool": true,
 	&"post": true,
+}
+
+## Furniture drawn below a room's wall course stands in front of the wall.
+const FURNITURE: Dictionary = {
+	&"counter": true,
+	&"table": true,
+	&"desk": true,
+	&"bed": true,
+	&"bookcase": true,
 }
 
 const POTTED: Dictionary = {

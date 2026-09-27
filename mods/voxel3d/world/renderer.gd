@@ -64,6 +64,8 @@ var _transition: Control = null
 var _fade_order: int = Gen2WorldPalette.FADE_IDENTITY
 var _transition_order: int = Gen2BattleTransition.IDENTITY
 var _pending_hole := Rect2()
+const NO_MAP := Vector2i(-1, -1)
+var _resolved_map := NO_MAP
 
 
 func _init() -> void:
@@ -324,11 +326,14 @@ func _rebuild() -> void:
 func _resolve() -> void:
 	_building = false
 	if _world == null or _world.current_map == null or _world.current_tileset == null:
-		_stage.set_terrain([])
-		_stage.set_water([])
-		_stage.set_tufts([])
+		_clear_stage()
+		_resolved_map = NO_MAP
 		_stage.far_field().configure(null, _time_of_day, true)
 		return
+	var map := Vector2i(_world.current_map.group, _world.current_map.number)
+	if map != _resolved_map:
+		_clear_stage()
+		_resolved_map = map
 	_drawn_revision = _draw_list.drawn_revision() if _draw_list != null else -1
 	var tileset: StringName = _world.current_tileset.name
 	if _shape == null or tileset != _shape_tileset:
@@ -345,6 +350,15 @@ func _resolve() -> void:
 	_window_centre = Vector2i.MAX
 	_resolving = true
 	_advance_resolve()
+
+
+## Another map's terrain no longer describes the world, and would wear this
+## map's atlas until the new one stands, so it goes when the new map is read.
+func _clear_stage() -> void:
+	_stage.set_terrain([])
+	_stage.set_water([])
+	_stage.set_tufts([])
+	_stage.set_models([])
 
 
 ## A `changeblock` (a Cut tree, an opened door, a gate), a tile the screen
