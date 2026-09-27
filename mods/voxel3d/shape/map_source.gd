@@ -2,6 +2,8 @@ extends RefCounted
 
 ## What the mesher reads a map through, live or recorded. The host's
 ## `Gen2WorldCollision` answers what a cell's code means on either generation.
+## Each tile, cell code and code's meaning is read once, so a resolve sliced
+## over frames reads one state of the map.
 
 var _world: Gen2WorldAPI = null
 var _map: Gen2WorldMap = null
@@ -16,6 +18,18 @@ var _written: Dictionary = {}
 var _band_rows := Vector2i.ZERO
 var _band_reach: int = 0
 var _edited_any: bool = false
+
+const UNREAD: int = -2
+const CODES: int = 256
+## How far past the map a read is held; the mesher's border ring stays inside.
+const HELD_PAD_CELLS: int = 24
+var _held_from := Vector2i.ZERO
+var _held_cells := Vector2i.ZERO
+var _held_codes := PackedInt32Array()
+var _held_tiles := PackedInt32Array()
+var _permission_of := PackedInt32Array()
+var _door_of := PackedInt32Array()
+var _hops_of: Dictionary = {}
 
 
 func _init(
@@ -33,6 +47,9 @@ func _init(
 	else:
 		_map = map_record
 		_tileset = tileset_record
+	for table: PackedInt32Array in [_permission_of, _door_of]:
+		table.resize(CODES)
+		table.fill(UNREAD)
 
 
 func valid() -> bool:
@@ -64,6 +81,7 @@ func set_draw_list(draw_list: Gen2WorldDrawList) -> void:
 	_band_reach = ceili(float(band.get("reach", 0)) / float(PokeTiles.TILE_WIDTH))
 	_written = draw_list.tile_overrides().duplicate() if draw_list != null else {}
 	_edited_any = not _written.is_empty() or _band_rows != Vector2i.ZERO
+	_forget_held()
 
 
 ## A recorded map as it stood: `Gen2BattleWorldContext.changed_blocks` and
@@ -73,6 +91,46 @@ func set_map_as_it_stood(changed_blocks: Dictionary, written_tiles: Dictionary) 
 	_written = written_tiles
 	_carried_blocks = {}
 	_edited_any = not _written.is_empty()
+	_forget_held()
+
+
+func _forget_held() -> void:
+	_held_cells = Vector2i.ZERO
+	_held_codes = PackedInt32Array()
+	_held_tiles = PackedInt32Array()
+
+
+func _hold() -> void:
+	var size: Vector2i = size_cells()
+	if size == Vector2i.ZERO:
+		return
+	_held_from = -Vector2i(HELD_PAD_CELLS, HELD_PAD_CELLS)
+	_held_cells = size + Vector2i(HELD_PAD_CELLS, HELD_PAD_CELLS) * 2
+	_held_codes.resize(_held_cells.x * _held_cells.y)
+	_held_codes.fill(UNREAD)
+	_held_tiles.resize(_held_codes.size() * CELL_TILES * CELL_TILES)
+	_held_tiles.fill(UNREAD)
+
+
+## The slot a cell's reads are held in, or -1 past the held border.
+func _cell_slot(cell: Vector2i) -> int:
+	if _held_cells == Vector2i.ZERO:
+		_hold()
+	var local: Vector2i = cell - _held_from
+	if local.x < 0 or local.y < 0 or local.x >= _held_cells.x or local.y >= _held_cells.y:
+		return -1
+	return local.y * _held_cells.x + local.x
+
+
+func _tile_slot(tile_x: int, tile_y: int) -> int:
+	if _held_cells == Vector2i.ZERO:
+		_hold()
+	var width: int = _held_cells.x * CELL_TILES
+	var local := Vector2i(tile_x, tile_y) - _held_from * CELL_TILES
+	if local.x < 0 or local.y < 0 or local.x >= width \
+			or local.y >= _held_cells.y * CELL_TILES:
+		return -1
+	return local.y * width + local.x
 
 
 func band_rows() -> Vector2i:
@@ -84,7 +142,19 @@ func band_reach_tiles() -> int:
 	return _band_reach
 
 
+const CELL_TILES: int = Gen2Layout.MAP_BLOCK_CELL_WIDTH
+
+
 func tile_at(tile_x: int, tile_y: int) -> int:
+	var slot: int = _tile_slot(tile_x, tile_y)
+	if slot < 0:
+		return _read_tile(tile_x, tile_y)
+	if _held_tiles[slot] == UNREAD:
+		_held_tiles[slot] = _read_tile(tile_x, tile_y)
+	return _held_tiles[slot]
+
+
+func _read_tile(tile_x: int, tile_y: int) -> int:
 	if _map == null or _tileset == null:
 		return -1
 	if _edited_any and _edited(Vector2i(tile_x, tile_y)):
@@ -114,6 +184,21 @@ func _drawn_edit(tile: Vector2i) -> int:
 	if _draw_list != null:
 		return _draw_list.drawn_tile_at(tile)
 	return int(_written[tile])
+
+
+## Everything a resolve of this map reads that can differ between two visits:
+## the blocks the hardware buffer draws and the tiles the screen wrote. Two
+## readings of one map that compare equal resolve alike. A scrolling band moves
+## what its rows draw under any reading, so a map with one has none.
+func live_state() -> Array:
+	if not valid() or _band_rows != Vector2i.ZERO:
+		return []
+	var blocks := PackedInt32Array()
+	var reach: int = Gen2WorldAPI.BUFFER_BLOCKS
+	for block_y: int in range(-reach, _map.height_blocks + reach):
+		for block_x: int in range(-reach, _map.width_blocks + reach):
+			blocks.append(_block_at(block_x, block_y))
+	return [_map.group, _map.number, _tileset.number, blocks, _written]
 
 
 func block_at(block_x: int, block_y: int) -> int:
@@ -195,6 +280,15 @@ func outside() -> bool:
 ## The byte the cartridge tests at a cell, off the map from the block drawn
 ## there, with the screen's writes and a recorded map's changed blocks.
 func code_at(cell: Vector2i) -> int:
+	var slot: int = _cell_slot(cell)
+	if slot < 0:
+		return _read_code(cell)
+	if _held_codes[slot] == UNREAD:
+		_held_codes[slot] = _read_code(cell)
+	return _held_codes[slot]
+
+
+func _read_code(cell: Vector2i) -> int:
 	if _map == null:
 		return -1
 	if _gen1 and _edited_any and _edited(Vector2i(cell.x * 2, cell.y * 2 + 1)):
@@ -236,7 +330,12 @@ static func _block_of(cell: Vector2i) -> Vector2i:
 func permission_at(cell: Vector2i) -> int:
 	if _map == null:
 		return Gen2WorldCollision.WALL_TILE
-	return Gen2WorldCollision.cell_permission(_data, _tileset, code_at(cell))
+	var code: int = code_at(cell)
+	if code < 0 or code >= CODES:
+		return Gen2WorldCollision.cell_permission(_data, _tileset, code)
+	if _permission_of[code] == UNREAD:
+		_permission_of[code] = Gen2WorldCollision.cell_permission(_data, _tileset, code)
+	return _permission_of[code]
 
 
 ## `Gen2WorldCollision.grass_kind` on Generation 2; on Generation 1 the
@@ -254,7 +353,12 @@ func grass_at(cell: Vector2i) -> int:
 ## A doorway in a wall: the cell is walked through and stands as tall as what
 ## is around it. A warp carpet is a floor and is not one.
 func is_door_at(cell: Vector2i) -> bool:
-	return Gen2WorldCollision.cell_is_door(_data, _tileset, code_at(cell))
+	var code: int = code_at(cell)
+	if code < 0 or code >= CODES:
+		return Gen2WorldCollision.cell_is_door(_data, _tileset, code)
+	if _door_of[code] == UNREAD:
+		_door_of[code] = int(Gen2WorldCollision.cell_is_door(_data, _tileset, code))
+	return _door_of[code] == 1
 
 
 const HOPS: Array[Vector2i] = [Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT]
@@ -264,7 +368,14 @@ const HOPS: Array[Vector2i] = [Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector
 func ledge_steps_at(cell: Vector2i) -> Array:
 	var out: Array = []
 	var here: int = code_at(cell)
-	for step: Vector2i in HOPS:
-		if Gen2WorldCollision.cell_hops(_data, _tileset, here, code_at(cell + step), step):
-			out.append(step)
+	for side: int in HOPS.size():
+		if _hops(here, code_at(cell + HOPS[side]), side):
+			out.append(HOPS[side])
 	return out
+
+
+func _hops(here: int, over: int, side: int) -> bool:
+	var key: int = ((here + 1) * (CODES + 1) + over + 1) * HOPS.size() + side
+	if not _hops_of.has(key):
+		_hops_of[key] = Gen2WorldCollision.cell_hops(_data, _tileset, here, over, HOPS[side])
+	return _hops_of[key]

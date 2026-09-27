@@ -3,7 +3,8 @@ extends SceneTree
 ## The draw list's edits under the sprites, as Voxel 3D takes them: a written
 ## tile and the S.S. Anne's band through `MapSource`, the band's own sliding
 ## pieces and the risers beside them, a battle staged on the map as it stood, a
-## Headbutt tree's model footprint, and the poison flash's flood.
+## Headbutt tree's model footprint, the ground walkers keep while a changed
+## block is measured, and the poison flash's flood.
 ##
 ##   -- <cartridge>
 
@@ -58,6 +59,7 @@ func _dock(data: GameData) -> void:
 	_written(data, map)
 	_band(data, map)
 	_battle(_staged(data, map, GANGWAY), Gen1Layout.SS_ANNE_ERASE_AT, Gen1Layout.SS_ANNE_WATER_BLOCK)
+	_measured_aside(_staged(data, map, GANGWAY), Gen1Layout.SS_ANNE_ERASE_AT, Gen1Layout.SS_ANNE_WATER_BLOCK)
 
 
 func _written(data: GameData, map: Gen2WorldMap) -> void:
@@ -149,6 +151,28 @@ func _battle(world: Gen2WorldAPI, at: Vector2i, block: int) -> void:
 			source.tile_at(written.x, written.y) == Gen1Layout.SS_ANNE_WATER_TILE)
 
 
+## A changed block is measured in a mesher of its own, and until its terrain
+## stands the walkers keep the ground of the terrain shown. Measured in place,
+## the arrays under them were half reset for the whole resolve.
+func _measured_aside(world: Gen2WorldAPI, at: Vector2i, block: int) -> void:
+	var renderer: Control = (load("%s/world/renderer.gd" % MOD) as GDScript).new()
+	renderer.set_draw_list(Gen2WorldDrawList.new(world, Gen2WorldEffects.new()))
+	renderer.set_world(world)
+	var cells: Vector2i = world.map_size_cells()
+	var before: Array[Vector3] = []
+	for y: int in cells.y:
+		for x: int in cells.x:
+			before.append(renderer._ground(Vector2(x, y)))
+	world.change_block(at.x, at.y, block)
+	renderer.refresh()
+	var kept: bool = renderer._resolving or renderer._building
+	for y: int in cells.y:
+		for x: int in cells.x:
+			kept = kept and renderer._ground(Vector2(x, y)) == before[y * cells.x + x]
+	_report("walkers keep the ground standing while a changed block is measured", kept)
+	renderer.free()
+
+
 func _has_riser(meshes: Array, foot: Rect2) -> bool:
 	for mesh: ArrayMesh in meshes:
 		if mesh.has_meta(&"scrolled"):
@@ -187,10 +211,9 @@ func _headbutt(data: GameData) -> void:
 		map.group, map.number, str(cell)], covered)
 	_hidden_tree(data, map, cell)
 	var block: Vector2i = cell / Gen2Layout.MAP_BLOCK_CELL_WIDTH
-	_battle(
-		_staged(data, map, cell + Vector2i.DOWN), block,
-		maxi((map.block_at(block.x, block.y) + 1) % tileset.block_count, 1)
-	)
+	var other: int = maxi((map.block_at(block.x, block.y) + 1) % tileset.block_count, 1)
+	_battle(_staged(data, map, cell + Vector2i.DOWN), block, other)
+	_measured_aside(_staged(data, map, cell + Vector2i.DOWN), block, other)
 
 
 ## A hidden tree is the model's to take away: the map is not built again and

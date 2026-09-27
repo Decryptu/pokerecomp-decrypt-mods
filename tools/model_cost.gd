@@ -28,7 +28,7 @@ static func _layer(name: String, meshes: Array) -> int:
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.size() < 3:
-		print("usage: <cache> <group> <number> [cell=x,y] [distance=16] [ring=]")
+		print("usage: <cache> <group> <number> [cell=x,y] [distance=16]")
 		quit(2)
 		return
 	var data: GameData = GameData.open_argument(args[0])
@@ -87,12 +87,6 @@ func _report(data: GameData, map: Gen2WorldMap, named: Dictionary) -> void:
 	animation.configure_tileset(data, tileset, Gen2WorldPalette.TIME_DAY)
 	atlas.build(data, map, tileset, Gen2WorldPalette.TIME_DAY, animation)
 	mesher.resolve(source, shape)
-	var ring: float = float(named.get("ring", "0"))
-	if ring > 0.0:
-		var at: Vector2i = _cell(map, named)
-		mesher.set_detail_ring(Vector3(
-			(float(at.x) + 0.5) * 16.0, 0.0, (float(at.y) + 0.5) * 16.0
-		), ring * 16.0)
 	var window: Rect2i = _window(map, named)
 	var terrain: int = _layer("terrain", mesher.emit(atlas, window))
 	var water: int = _layer("water", mesher.take_water())

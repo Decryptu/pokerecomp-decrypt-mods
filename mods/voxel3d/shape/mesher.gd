@@ -185,7 +185,9 @@ var _houses: Array = []
 var _house_covered := PackedByteArray()
 var _house_over: Dictionary = {}
 var _house_done: Dictionary = {}
-var _house_plans: Dictionary = {}
+## A house's plans by its paint, which is all a plan is read from, so every
+## mesher shares them across maps and cartridges.
+static var _house_plans: Dictionary = {}
 var _house_where: Dictionary = {}
 var _offer_spots: Array = []
 var _plan: Dictionary = {}
@@ -278,7 +280,15 @@ var _split_keys: Dictionary = {}
 var _structure_owner: Dictionary = {}
 
 
-func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
+const NO_FOCUS := Vector2i.MAX
+
+
+## Queues the chunks [param window] holds, nearest the map tile [param focus]
+## first when there is one, so the ground under the camera stands before the
+## window's edge.
+func begin_emit(
+	atlas: RefCounted, window: Rect2i = Rect2i(), focus: Vector2i = NO_FOCUS
+) -> bool:
 	_emit_atlas = null
 	_chunks = []
 	_chunk_keys = []
@@ -331,8 +341,26 @@ func begin_emit(atlas: RefCounted, window: Rect2i = Rect2i()) -> bool:
 	if _chunks.is_empty():
 		return not _ready.is_empty() or not _water_ready.is_empty() \
 			or not _tuft_ready.is_empty()
+	if focus != NO_FOCUS:
+		_order_from(Vector2(focus + _margin))
 	_open_chunk()
 	return true
+
+
+func _order_from(focus: Vector2) -> void:
+	var order: Array = range(_chunks.size())
+	var away: Array[float] = []
+	for piece: Rect2i in _chunks:
+		away.append(Rect2(piece).get_center().distance_squared_to(focus))
+	order.sort_custom(func(a: int, b: int) -> bool:
+		return away[a] < away[b] or (away[a] == away[b] and a < b))
+	var chunks: Array[Rect2i] = []
+	var keys: Array[Vector2i] = []
+	for index: int in order:
+		chunks.append(_chunks[index])
+		keys.append(_chunk_keys[index])
+	_chunks = chunks
+	_chunk_keys = keys
 
 
 ## A chunk whole, or its pieces either side of a scrolled band. Only the band's
@@ -395,23 +423,7 @@ func _reusable(at: Vector2i, chunk: Rect2i) -> bool:
 	if not _chunk_cache.has(at):
 		return false
 	var held: Dictionary = _chunk_cache[at]
-	if held["rect"] != chunk:
-		return false
-	return _inside_ring(chunk, held["ring_at"], held["ring_reach"]) \
-		and _inside_ring(chunk, _ring_at, _ring_reach)
-
-
-func _inside_ring(chunk: Rect2i, centre: Vector3, reach: float) -> bool:
-	if reach <= 0.0:
-		return true
-	var here := Vector2(centre.x, centre.z)
-	for corner: Vector2i in [
-		chunk.position, Vector2i(chunk.end.x, chunk.position.y),
-		Vector2i(chunk.position.x, chunk.end.y), chunk.end,
-	]:
-		if Vector2(_world_x(corner.x), _world_z(corner.y)).distance_to(here) >= reach:
-			return false
-	return true
+	return held["rect"] == chunk
 
 
 func _reuse(at: Vector2i) -> void:
@@ -613,7 +625,6 @@ func _close_chunk() -> void:
 		"houses": _chunk_houses, "objects": _chunk_objects,
 		"stairs": _chunk_stairs, "fences": _chunk_fences,
 		"skirt_fences": _chunk_skirt_fences, "spots": _chunk_spots,
-		"ring_at": _ring_at, "ring_reach": _ring_reach,
 	}
 
 
@@ -965,8 +976,6 @@ func _forget() -> void:
 		_sweep_seen, _sweep_members, _shelf_stack, _ground_memo
 	]:
 		held.clear()
-	# `_house_plans` is not among them: a plan is read off the drawing alone and
-	# every drawing has its own id, so it outlives the map it was first met on.
 
 
 func _size_grid(source: RefCounted, shape: RefCounted) -> void:
@@ -4739,20 +4748,14 @@ func _place_model(tx: int, ty: int, atlas: RefCounted, base: float = INF) -> voi
 				+ (_hash_spot(anchor + Vector2i(37, 0)) - 0.5) * wander.y
 		)
 		var turn: float = floorf(_hash_spot(anchor + Vector2i(0, 91)) * 4.0) * PI * 0.5
-		var worn: String = key
-		if _ring_reach > 0.0 and _model_measures.has(key) \
-				and Vector2(spot.x, spot.z).distance_to(
-					Vector2(_ring_at.x, _ring_at.z)
-				) > _ring_reach:
-			worn = _far_key(key)
 		var placed: Array = [
 			Transform3D(Basis(Vector3(0.0, 1.0, 0.0), turn), spot),
 			_hash_spot(anchor + Vector2i(0, 53)),
 			_model_chunk(start),
 			Rect2i(start - _margin, across),
 		]
-		(_model_spots[worn] as Dictionary)[str(start)] = placed
-		_chunk_spots.append([worn, str(start), placed])
+		(_model_spots[key] as Dictionary)[str(start)] = placed
+		_chunk_spots.append([key, str(start), placed])
 
 
 func _same_class_across(at: int, box: Rect2i, step: Vector2i) -> bool:
@@ -4841,13 +4844,6 @@ var _recolour_at: int = 0
 var _recolour_atlas: RefCounted = null
 var _model_cutouts: Dictionary = {}
 const IMPOSTOR_SUFFIX: String = "~far"
-var _ring_at := Vector3.ZERO
-var _ring_reach: float = 0.0
-
-
-func set_detail_ring(at: Vector3, reach: float) -> void:
-	_ring_at = at
-	_ring_reach = maxf(reach, 0.0)
 
 
 func begin_recolour(atlas: RefCounted) -> void:
@@ -4930,7 +4926,6 @@ func _far_key(key: String) -> String:
 		var measured: RefCounted = _model_measures[key]
 		_model_meshes[far] = model.sprite(measured) \
 			if _model_cutouts.get(key) != null else model.impostor(measured)
-		_model_spots[far] = {}
 	return far
 
 
@@ -5037,15 +5032,16 @@ static func _model_chunk(start: Vector2i) -> Vector2i:
 	)
 
 
+## Per model chunk, its placements under the solid mesh and, for a model with a
+## far form, again under that form. The last entry says which: `&"near"` and
+## `&"far"` are the pair the stage chooses between by the camera's distance, and
+## `&"whole"` stands at any distance.
 func take_models() -> Array:
 	var out: Array = []
-	for key: String in _model_meshes:
-		var groups: Dictionary = {}
-		for entry: Array in (_model_spots.get(key, {}) as Dictionary).values():
-			var cell: Vector2i = entry[2]
-			if not groups.has(cell):
-				groups[cell] = []
-			(groups[cell] as Array).append(entry)
+	for key: String in _model_spots:
+		var groups: Dictionary = _spots_by_chunk(key)
+		var far: String = _far_key(key) \
+			if _model_measures.has(key) and not groups.is_empty() else ""
 		for cell: Vector2i in groups:
 			var placed: Array[Transform3D] = []
 			var phases := PackedFloat32Array()
@@ -5054,13 +5050,25 @@ func take_models() -> Array:
 				placed.append(entry[0] as Transform3D)
 				phases.append(float(entry[1]))
 				footprints.append(entry[3] as Rect2i)
+			if far.is_empty():
+				out.append([_model_meshes[key], placed, phases, null, footprints, &"whole"])
+				continue
+			out.append([_model_meshes[key], placed, phases, null, footprints, &"near"])
 			out.append([
-				_model_meshes[key], placed, phases,
-				_model_cutouts.get(key.trim_suffix(IMPOSTOR_SUFFIX)) \
-					if key.ends_with(IMPOSTOR_SUFFIX) else null,
-				footprints,
+				_model_meshes[far], placed, phases, _model_cutouts.get(key),
+				footprints, &"far",
 			])
 	return out
+
+
+func _spots_by_chunk(key: String) -> Dictionary:
+	var groups: Dictionary = {}
+	for entry: Array in (_model_spots[key] as Dictionary).values():
+		var cell: Vector2i = entry[2]
+		if not groups.has(cell):
+			groups[cell] = []
+		(groups[cell] as Array).append(entry)
+	return groups
 
 
 func _object_texel(
@@ -6685,20 +6693,15 @@ func _object_model(
 const HOUSE_BODY_MIN: int = 32
 
 
-func _house_id(house: Dictionary) -> int:
-	return int(house.get("id", -1))
-
-
-## House plans depend on the drawing, so maps share the cached plan.
 func _house_plan(house: Dictionary) -> Array:
-	return _house_plans.get(_house_id(house), [])
+	return _house_plans.get(house["paint"], [])
 
 
 ## Building it is 40 ms on the largest drawing, which is five slices: the two
 ## masks, a flood each, the boxes, then the bodies.
 func _plan_house(house: Dictionary) -> bool:
-	var id: int = _house_id(house)
-	if _offer_spots.is_empty() or _house_plans.has(id):
+	var paint: Array = house["paint"]
+	if _offer_spots.is_empty() or _house_plans.has(paint):
 		return false
 	var stage: int = int(_plan.get(&"stage", 0))
 	match stage:
@@ -6706,9 +6709,9 @@ func _plan_house(house: Dictionary) -> bool:
 		1: _plan[&"owner"] = _house_flood(_plan[&"wall"], int(_plan[&"cols"]))
 		2: _plan[&"terrace"] = _house_flood(_plan[&"all"], int(_plan[&"cols"]))
 		3: _plan_boxes()
-		_: _plan_bodies(id)
+		_: _plan_bodies(paint)
 	_plan[&"stage"] = stage + 1
-	return not _house_plans.has(id)
+	return not _house_plans.has(paint)
 
 
 func _plan_masks(house: Dictionary) -> void:
@@ -6734,8 +6737,7 @@ func _plan_boxes() -> void:
 	_plan[&"count"] = count
 
 
-func _plan_bodies(id: int) -> void:
-	var paint: Array = _plan[&"paint"]
+func _plan_bodies(paint: Array) -> void:
 	var cols: int = int(_plan[&"cols"])
 	var plans: Array = []
 	for body: int in int(_plan[&"count"]):
@@ -6745,7 +6747,7 @@ func _plan_bodies(id: int) -> void:
 		)
 		if not plan.is_empty():
 			plans.append(plan)
-	_house_plans[id] = plans
+	_house_plans[paint] = plans
 	_plan = {}
 
 

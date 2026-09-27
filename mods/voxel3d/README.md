@@ -108,12 +108,25 @@ largest shot in the game, 5.39M triangles in 116 draws becomes 1.26M in 166.
 A town can take about 200 ms of geometry work. Builds and map measurements
 run over several frames while the current scene stays visible. A battle keeps
 the map it resolved, so a second fight on a route pays for geometry alone. A
-`changeblock` (a Cut tree, an opened door or gate) resolves the map again.
+`changeblock` (a Cut tree, an opened door or gate) resolves the map again, in a
+mesher of its own: the terrain standing, and the ground everyone walks on, stay
+until the replacement stands.
+
+The meshers of the last two maps left are kept with what they read: the blocks
+the hardware buffer draws and the tiles the screen wrote. Walking back out of a
+building finds the map it left and stands it on the frame it loads, before the
+fade in starts. A map read the same way twice resolves alike, so a match is the
+whole test. A map is read once per resolve, each cell and tile from the host a
+single time, which also keeps a resolve sliced over frames to one state of it.
 
 Walking out of the middle of the window rebuilds it around you: the map is
 resolved once and only the geometry emitted again, with a margin of a third of
-the draw distance so this is not most steps. Chunks follow map coordinates, so
-a rebuild reuses about four fifths of them and costs roughly 3 to 30 ms.
+the draw distance so this is not most steps. At the default pitch the window's
+edge stays out of frame through the whole margin, and at a low one the far field
+carries on past it. Chunks follow map coordinates, so a rebuild reuses about four
+fifths of them and costs roughly 3 to 30 ms. They are emitted nearest the player
+first, so on a map's first build the ground under the camera stands before the
+window's edge.
 
 A cached chunk may not depend on its neighbours, and a house, an object, a
 staircase or a fence can each cross a chunk edge. Each structure has one owner,
@@ -692,8 +705,13 @@ out of time. Route 32, the thickest wood in the game, goes from 1,096,319
 triangles to 470,943 at the same camera.
 
 The ring is on the eye and not the player, because a ring round the player spends
-half itself behind the shot. It moves when the window rebuilds rather than when
-the camera swings.
+half itself behind the shot. Each model chunk is stood twice over the same
+placements, turned and as the drawing, and Godot's visibility range shows the one
+the chunk's distance from the eye calls for, so the ring follows every step and
+every swing of the camera at no cost to the mesh. Godot measures that distance
+from the eye itself, so the range is the ring lifted by the eye's height: looking
+down from high, where crossed quads would show edge on, everything in frame is
+turned.
 
 ## The sky, the hour and the sun
 

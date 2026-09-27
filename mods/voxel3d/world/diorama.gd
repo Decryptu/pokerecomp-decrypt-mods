@@ -75,6 +75,16 @@ var _placements: Array = []
 var _footprints: Array = []
 var _felled_cells: Array = []
 var _felled: Array = []
+## Per model instance, `&"near"`, `&"far"` or `&"whole"` from `take_models`.
+var _model_kinds: Array[StringName] = []
+
+## How far from the camera's ground point a model keeps its solid mesh before it
+## wears its far form, or none for solid everywhere. Godot measures a visibility
+## range from the camera itself, so the range is this reach lifted by the
+## camera's height, which keeps a view looking down from wearing far forms.
+static var solid_cells: float = 35.0
+const REACH_STEP: float = CELL * 0.5
+var _solid_reach: float = -1.0
 
 
 func _init() -> void:
@@ -340,6 +350,7 @@ func set_models(models: Array) -> void:
 	_felled.clear()
 	_placements.resize(models.size())
 	_footprints.resize(models.size())
+	_model_kinds.resize(models.size())
 	for index: int in models.size():
 		if index >= _models.size():
 			var instance := MultiMeshInstance3D.new()
@@ -358,13 +369,14 @@ func set_models(models: Array) -> void:
 		var phases: PackedFloat32Array = models[index][2]
 		_placements[index] = placements
 		_footprints[index] = models[index][4] if models[index].size() > 4 else []
+		_model_kinds[index] = models[index][5] if models[index].size() > 5 else &"whole"
 		multi.instance_count = placements.size()
 		for spot: int in placements.size():
 			multi.set_instance_transform(spot, placements[spot])
 			multi.set_instance_custom_data(spot, Color(phases[spot], 0.0, 0.0, 0.0))
 			multi.set_instance_color(spot, Color.WHITE)
 		_models[index].multimesh = multi
-		_models[index].visible = true
+		_wear_reach(index)
 	for index: int in range(models.size(), _models.size()):
 		_models[index].multimesh = null
 		_models[index].visible = false
@@ -511,8 +523,39 @@ func aim_camera(eye: Vector3, target: Vector3) -> void:
 	if Grid.is_vertical(direction):
 		up = Vector3.FORWARD
 	camera.look_at_from_position(eye, target, up)
+	_lift_reach(eye.y - target.y)
 	if _frame.wants_eye():
 		set_eye_for_depth_of_field(eye, target)
+
+
+func _lift_reach(height: float) -> void:
+	var reach: float = Vector2(solid_cells * CELL, maxf(height, 0.0)).length() \
+		if solid_cells > 0.0 else 0.0
+	if _solid_reach >= 0.0 and absf(reach - _solid_reach) < REACH_STEP:
+		return
+	_solid_reach = reach
+	for index: int in _model_kinds.size():
+		if _models[index].multimesh != null:
+			_wear_reach(index)
+
+
+func _wear_reach(index: int) -> void:
+	var instance: MultiMeshInstance3D = _models[index]
+	var reach: float = maxf(_solid_reach, 0.0)
+	match _model_kinds[index]:
+		&"near":
+			instance.visibility_range_begin = 0.0
+			instance.visibility_range_end = reach
+			instance.visible = true
+		&"far":
+			instance.visibility_range_begin = reach
+			instance.visibility_range_end = 0.0
+			instance.visible = reach > 0.0
+		_:
+			instance.visibility_range_begin = 0.0
+			instance.visibility_range_end = 0.0
+			instance.visible = true
+
 
 var _cards: Array[Sprite3D] = []
 var _cards_used: int = 0

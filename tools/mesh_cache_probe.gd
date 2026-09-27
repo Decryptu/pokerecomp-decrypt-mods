@@ -1,8 +1,6 @@
 extends SceneTree
 
 const MOD := "user://mods/voxel3d"
-const CELL: int = 16
-const RING_CELLS: float = 35.0
 const SMALLEST_CELLS: int = 8
 
 
@@ -80,11 +78,7 @@ func _emit(
 		(centre - Vector2i(draw_cells, draw_cells)) * Gen2Layout.MAP_BLOCK_CELL_WIDTH,
 		Vector2i(span, span) * Gen2Layout.MAP_BLOCK_CELL_WIDTH
 	)
-	mesher.set_detail_ring(
-		Vector3(float(centre.x * CELL), 0.0, float(centre.y * CELL)),
-		RING_CELLS * float(CELL)
-	)
-	mesher.begin_emit(atlas, window)
+	mesher.begin_emit(atlas, window, centre * Gen2Layout.MAP_BLOCK_CELL_WIDTH)
 	while not mesher.emit_step(0):
 		pass
 	var out: Dictionary = {

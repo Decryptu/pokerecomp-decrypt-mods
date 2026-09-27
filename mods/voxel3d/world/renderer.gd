@@ -66,6 +66,15 @@ var _transition_order: int = Gen2BattleTransition.IDENTITY
 var _pending_hole := Rect2()
 const NO_MAP := Vector2i(-1, -1)
 var _resolved_map := NO_MAP
+## What the working mesher read, and the meshers last replaced with theirs,
+## most recent last, so walking back out of a building stands the map it left
+## without measuring it again. A measure always starts in a mesher of its own.
+const KEPT_MAPS: int = 2
+var _mesher_state: Array = []
+var _kept: Array = []
+## The mesher whose terrain is on the stage, which walkers stand on while the
+## working one measures, or none while the stage is empty.
+var _stood: RefCounted = null
 
 
 func _init() -> void:
@@ -346,15 +355,47 @@ func _resolve() -> void:
 		_stage.set_texture(_atlas.texture)
 	_stage.far_field().configure(_world, _time_of_day, _outside, _atlas)
 	_stage.set_time_of_day(_time_of_day)
-	_mesher.begin_resolve(source, _shape)
+	_measure(source)
 	_window_centre = Vector2i.MAX
 	_resolving = true
 	_advance_resolve()
 
 
+## A mesher that read this state already keeps its measure, and one taken back
+## from the kept list only wears the atlas again. Anything else is measured in a
+## new mesher, so the one standing is never measured under the walkers.
+func _measure(source: RefCounted) -> void:
+	var state: Array = source.live_state()
+	if not state.is_empty() and state == _mesher_state:
+		return
+	if not _mesher_state.is_empty():
+		_kept.append([_mesher_state, _mesher])
+	_mesher_state = state
+	_mesher = _take_kept(state)
+	if _mesher != null:
+		_mesher.begin_recolour(_atlas)
+		_recolouring = true
+		return
+	_mesher = MesherScript.new()
+	_mesher.begin_resolve(source, _shape)
+
+
+func _take_kept(state: Array) -> RefCounted:
+	var found: RefCounted = null
+	for index: int in range(_kept.size() - 1, -1, -1):
+		if _kept[index][0] == state:
+			found = _kept[index][1]
+			_kept.remove_at(index)
+			break
+	while _kept.size() > KEPT_MAPS:
+		_kept.pop_front()
+	return found
+
+
 ## Another map's terrain no longer describes the world, and would wear this
 ## map's atlas until the new one stands, so it goes when the new map is read.
 func _clear_stage() -> void:
+	_stood = null
 	_stage.set_terrain([])
 	_stage.set_water([])
 	_stage.set_tufts([])
@@ -397,7 +438,6 @@ func _recentre_window() -> void:
 		if _window_centre == Vector2i.MAX:
 			_window_centre = Vector2i.ZERO
 			_stage.set_view_distance(0.0)
-			_ring_on(_world.player_position_cells())
 			_begin_terrain(Rect2i())
 		return
 	var at := Vector2i(_world.player_position_cells().floor())
@@ -407,15 +447,12 @@ func _recentre_window() -> void:
 			and absi(at.y - _window_centre.y) <= margin:
 		return
 	_window_centre = at
-	_ring_on(_world.player_position_cells())
 	var span: int = _draw_cells * 2 + 1
 	_stage.set_view_distance(float(_draw_cells) * CELL, true)
 	_begin_terrain(Rect2i(
 		(at - Vector2i(_draw_cells, _draw_cells)) * Gen2Layout.MAP_BLOCK_CELL_WIDTH,
 		Vector2i(span, span) * Gen2Layout.MAP_BLOCK_CELL_WIDTH
 	))
-
-static var solid_cells: float = 35.0
 
 static var far_trees: bool = true
 
@@ -441,18 +478,16 @@ func _dress_far_field() -> void:
 		far.set_far_tree(null, null)
 
 
-func _ring_on(cells: Vector2) -> void:
-	var here := Vector3(cells.x * CELL, 0.0, cells.y * CELL)
-	_mesher.set_detail_ring(here + _rig.offset(), solid_cells * CELL)
-
-
 func _begin_terrain(window: Rect2i) -> void:
 	_chunks = []
 	_water = []
 	_tufts = []
 	_stage.far_field().set_stamped_bounds(_stamped_pixels())
-	if not _mesher.begin_emit(_atlas, window):
+	var focus: Vector2i = Vector2i(_world.player_position_cells().floor()) \
+		* Gen2Layout.MAP_BLOCK_CELL_WIDTH
+	if not _mesher.begin_emit(_atlas, window, focus):
 		_pending_hole = Rect2()
+		_stood = _mesher
 		_stage.set_terrain([])
 		_stage.set_water([])
 		_stage.set_tufts([])
@@ -478,6 +513,7 @@ func _advance_build() -> void:
 		if done or not _first_build:
 			break
 	if done or not _standing:
+		_stood = _mesher
 		_stage.far_field().set_hole(_pending_hole)
 		_stage.set_terrain(_chunks)
 		_stage.set_water(_water)
@@ -546,12 +582,12 @@ func _ground(
 	cells: Vector2, span: Dictionary = {}, shift: Vector2 = Vector2.ZERO
 ) -> Vector3:
 	var at: Vector2 = cells + shift
-	if _mesher == null:
+	if _stood == null:
 		return Vector3(at.x * CELL + CELL * 0.5, 0.0, at.y * CELL + CELL * 0.5)
 	if span.is_empty():
-		return _mesher.standing_at(at)
-	return _mesher.standing_at(Vector2(span["from"] as Vector2i) + shift).lerp(
-		_mesher.standing_at(Vector2(span["to"] as Vector2i) + shift),
+		return _stood.standing_at(at)
+	return _stood.standing_at(Vector2(span["from"] as Vector2i) + shift).lerp(
+		_stood.standing_at(Vector2(span["to"] as Vector2i) + shift),
 		float(span["progress"])
 	)
 
