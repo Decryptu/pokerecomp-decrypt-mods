@@ -31,13 +31,15 @@ func begin() -> void:
 	_used = 0
 
 
+## Stands [param buildings] but those the mesh draws: any that meet [param clear],
+## and any that [param held] holds whole.
 func place(
 	map: Gen2WorldMap, origin: Vector2, sheet: RefCounted, buildings: Array,
-	clear: Rect2 = Rect2()
+	clear: Rect2 = Rect2(), held: Rect2 = Rect2()
 ) -> void:
 	if not root.visible or map == null or sheet == null or buildings.is_empty():
 		return
-	var made: Array = _mesh_of(map, sheet, buildings, clear, origin)
+	var made: Array = _mesh_of(map, sheet, buildings, [clear, held], origin)
 	if made.size() != 2:
 		return
 	var node: MeshInstance3D = _instance()
@@ -67,13 +69,13 @@ func _instance() -> MeshInstance3D:
 
 
 func _mesh_of(
-	map: Gen2WorldMap, sheet: RefCounted, buildings: Array, clear: Rect2,
+	map: Gen2WorldMap, sheet: RefCounted, buildings: Array, drawn: Array,
 	origin: Vector2
 ) -> Array:
 	var key: String = "%d,%d" % [map.group, map.number]
-	var held: Array = _built.get(key, [])
-	if held.size() == 3 and held[2] == clear:
-		return [] if held[0] == null else [held[0], held[1]]
+	var cached: Array = _built.get(key, [])
+	if cached.size() == 3 and cached[2] == drawn:
+		return [] if cached[0] == null else [cached[0], cached[1]]
 	if _built.size() >= MAP_LIMIT:
 		_built.clear()
 	var surface := SurfaceTool.new()
@@ -84,11 +86,11 @@ func _mesh_of(
 		var stood := Rect2(
 			origin + Vector2(rect.position) * TILE, Vector2(rect.size) * TILE
 		)
-		if clear.has_area() and clear.intersects(stood):
+		if _drawn(stood, drawn[0], drawn[1]):
 			continue
 		any = _box(surface, sheet, building) or any
 	if not any:
-		_built[key] = [null, null, clear]
+		_built[key] = [null, null, drawn]
 		return []
 	surface.generate_tangents()
 	var mesh: ArrayMesh = surface.commit()
@@ -98,8 +100,14 @@ func _mesh_of(
 	material.vertex_color_use_as_albedo = true
 	material.roughness = 1.0
 	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	_built[key] = [mesh, material, clear]
+	_built[key] = [mesh, material, drawn]
 	return [mesh, material]
+
+
+static func _drawn(stood: Rect2, clear: Rect2, held: Rect2) -> bool:
+	if clear.has_area() and clear.intersects(stood):
+		return true
+	return held.has_area() and held.encloses(stood)
 
 
 func _box(surface: SurfaceTool, sheet: RefCounted, building: Dictionary) -> bool:

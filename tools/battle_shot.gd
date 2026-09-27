@@ -236,6 +236,10 @@ func _battlers(moment: String, data: GameData) -> Dictionary:
 				0.0, float(Gen2BattleScreenMap.FAINT_ROWS * PokeTiles.TILE_WIDTH) * 0.5
 			)
 			return {"player": _mon_side(int(_view["player_species"])), "enemy": mon}
+		"lunge":
+			var lunging: Dictionary = _mon_side(int(_view["player_species"]))
+			lunging["offset_pixels"] = Vector2(float(PokeTiles.TILE_WIDTH * 2), 0.0)
+			return {"player": lunging, "enemy": mon}
 		"gone":
 			var hidden: Dictionary = _mon_side(int(_view["player_species"]))
 			hidden["visible"] = false

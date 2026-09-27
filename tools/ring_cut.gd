@@ -1,8 +1,10 @@
 extends SceneTree
 
-## WHERE THE RING'S OUTER EDGE CUTS A DRAWING, and how much deeper the ring
-## would have to reach to clear it. `mesher.gd:_ring_side` grows a side while its
-## outermost row carries a wall or a roof and gives up past `RING_GROWTH`.
+## WHERE THE RING'S OUTER EDGE CUTS A BUILDING, and how much deeper the ring
+## would have to reach to clear it. `mesher.gd:_ring_side` grows a side while a
+## building on its outermost row carries on past it and gives up past
+## `RING_GROWTH`; a building the edge still cuts lies flat and the far field
+## stands it whole.
 
 const MOD := "user://mods/voxel3d"
 const SIDES: Array[Vector2i] = [
@@ -83,11 +85,11 @@ func _asks(
 	var depth: int = base
 	while depth <= base + CAP \
 			and mesher._ring_cuts(source, shape, base, depth, out):
-		depth += mesher.CELL_TILES
+		depth += mesher.RING_STEP
 	return depth - base
 
 
-## How many tiles of the outermost row carry a wall or a roof.
+## How many tiles of the outermost row a building crosses.
 func _cut_tiles(
 	mesher: RefCounted, source: RefCounted, shape: RefCounted, base: int,
 	out: Vector2i
@@ -97,17 +99,17 @@ func _cut_tiles(
 	if out.y != 0:
 		var ty: int = -base if out.y < 0 else size.y + base - 1
 		for tx: int in range(-base, size.x + base):
-			count += int(mesher._ring_building(source, shape, tx, ty))
+			count += int(mesher._built_across(source, shape, Vector2i(tx, ty), out))
 		return count
 	var tx: int = -base if out.x < 0 else size.x + base - 1
 	for ty: int in range(-base, size.y + base):
-		count += int(mesher._ring_building(source, shape, tx, ty))
+		count += int(mesher._built_across(source, shape, Vector2i(tx, ty), out))
 	return count
 
 
 func _report(mesher: RefCounted, grown: int, refused: Array) -> void:
 	print("RING_GROWTH is %d tiles and a side grows %d at a time" % [
-		mesher.RING_GROWTH, mesher.CELL_TILES
+		mesher.RING_GROWTH, mesher.RING_STEP
 	])
 	print("%d sides grow and clear" % grown)
 	var maps: Dictionary = {}
@@ -119,6 +121,6 @@ func _report(mesher: RefCounted, grown: int, refused: Array) -> void:
 		print("  %-6s %-6s asks %3d more tiles, %2d cut" % [
 			row[0], row[1], row[2], row[3]
 		])
-	print("%d maps hold a drawing the edge cuts, %d tiles over %d sides" % [
+	print("%d maps lay a cut building flat, %d edge tiles over %d sides" % [
 		maps.size(), tiles, refused.size()
 	])

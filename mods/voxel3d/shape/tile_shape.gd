@@ -91,6 +91,10 @@ func is_rock(shape_class: StringName) -> bool:
 	return bool(Classes.ROCK.get(shape_class, false))
 
 
+func is_wet(shape_class: StringName) -> bool:
+	return bool(Classes.WET.get(shape_class, false))
+
+
 func is_column(shape_class: StringName) -> bool:
 	return bool(Classes.COLUMN.get(shape_class, false))
 
@@ -119,6 +123,16 @@ func stem_rows(shape_class: StringName) -> Array:
 
 func building_part(shape_class: StringName) -> StringName:
 	return StringName(Classes.BUILDING.get(shape_class, &""))
+
+
+## Whether what [param source] draws at [param tile], a map tile, is a building's
+## wall or roof. It reads past the map, into the next one or the border block.
+func is_built(source: RefCounted, tile: Vector2i) -> bool:
+	var drawn: int = source.tile_at(tile.x, tile.y)
+	if drawn < 0:
+		return false
+	var permission: int = source.permission_at(Vector2i(tile.x >> 1, tile.y >> 1))
+	return building_part(at(drawn, permission)) != &""
 
 
 func roof_drop(shape_class: StringName) -> int:

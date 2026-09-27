@@ -83,16 +83,48 @@ static func of_map(
 							klass[at] = known[pair]
 	var named_by_id: Array = _named_by_id(ids)
 	out["drawings"] = _walk(shape, tiles, klass, named_by_id, size, origin)
-	out["buildings"] = _buildings(shape, tiles, klass, named_by_id, size, origin)
+	var past := Callable()
+	if grid.size != Vector2i.ZERO:
+		past = func(tile: Vector2i) -> bool: return shape.is_built(source, tile)
+	out["buildings"] = _buildings(
+		shape, tiles, klass, named_by_id, size, origin, past
+	)
 	return out
 
 
+## `past`, given while walking a grid, answers whether a map tile beyond it is
+## built. A building that carries on past the grid's edge is left out: the ring
+## lays it flat (`mesher.gd:_lay_cut_buildings`) and the map it is drawn on
+## stands it whole.
 static func _buildings(
 	shape: RefCounted, tiles: PackedInt32Array, klass: PackedInt32Array,
-	named_by_id: Array, size: Vector2i, origin: Vector2i
+	named_by_id: Array, size: Vector2i, origin: Vector2i, past: Callable
 ) -> Array:
+	var part: PackedByteArray = _parts(shape, klass, named_by_id)
+	var out: Array = []
+	if part.is_empty():
+		return out
+	var seen := PackedByteArray()
+	seen.resize(size.x * size.y)
+	for ty: int in size.y:
+		for tx: int in size.x:
+			var at: int = ty * size.x + tx
+			if part[at] == 0 or seen[at] == 1:
+				continue
+			var found: Dictionary = _flood_building(
+				part, seen, size, Vector2i(tx, ty), origin, past
+			)
+			if not found["cut"]:
+				out.append(_building(tiles, size, origin, found))
+	return out
+
+
+## 2 for a roof tile, 1 for a wall, 0 for neither; empty where nothing is built.
+static func _parts(
+	shape: RefCounted, klass: PackedInt32Array, named_by_id: Array
+) -> PackedByteArray:
 	var part := PackedByteArray()
-	part.resize(size.x * size.y)
+	part.resize(klass.size())
 	var any: bool = false
 	var known: Dictionary = {}
 	for at: int in klass.size():
@@ -103,54 +135,75 @@ static func _buildings(
 			known[klass[at]] = 2 if built == &"roof" else int(built == &"wall")
 		part[at] = known[klass[at]]
 		any = any or part[at] > 0
-	var out: Array = []
-	if not any:
-		return out
-	var seen := PackedByteArray()
-	seen.resize(size.x * size.y)
-	for ty: int in size.y:
-		for tx: int in size.x:
-			var at: int = ty * size.x + tx
-			if part[at] == 0 or seen[at] == 1:
-				continue
-			seen[at] = 1
-			var stack: Array = [Vector2i(tx, ty)]
-			var box := Rect2i(tx, ty, 1, 1)
-			var roofs: Dictionary = {}
-			var walls: Dictionary = {}
-			while not stack.is_empty():
-				var here: Vector2i = stack.pop_back()
-				box = box.expand(here).expand(here + Vector2i.ONE)
-				if part[here.y * size.x + here.x] == 2:
-					roofs[here.y] = true
-				else:
-					walls[here.y] = true
-				for way: Vector2i in [
-					Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN
-				]:
-					var next: Vector2i = here + way
-					if next.x < 0 or next.y < 0 or next.x >= size.x or next.y >= size.y:
-						continue
-					var index: int = next.y * size.x + next.x
-					if part[index] == 0 or seen[index] == 1:
-						continue
-					seen[index] = 1
-					stack.append(next)
-			var drawn: Array = []
-			var rows := PackedByteArray()
-			rows.resize(box.size.y)
-			for row: int in box.size.y:
-				rows[row] = 2 if roofs.has(box.position.y + row) \
-					else int(walls.has(box.position.y + row))
-				for column: int in box.size.x:
-					drawn.append(_tile_at(
-						tiles, size, box.position.x + column, box.position.y + row
-					))
-			out.append({
-				"rect": Rect2i(box.position + origin, box.size),
-				"rows": rows, "tiles": drawn,
-			})
-	return out
+	return part if any else PackedByteArray()
+
+
+## One building's box and the rows it has roof and wall on, and whether it
+## carries on past the walk's edge.
+static func _flood_building(
+	part: PackedByteArray, seen: PackedByteArray, size: Vector2i,
+	start: Vector2i, origin: Vector2i, past: Callable
+) -> Dictionary:
+	seen[start.y * size.x + start.x] = 1
+	var stack: Array = [start]
+	var found: Dictionary = {
+		"box": Rect2i(start, Vector2i.ONE), "roofs": {}, "walls": {}, "cut": false,
+	}
+	while not stack.is_empty():
+		var here: Vector2i = stack.pop_back()
+		found["box"] = (found["box"] as Rect2i).expand(here).expand(here + Vector2i.ONE)
+		var rows: Dictionary = found["roofs"] if part[here.y * size.x + here.x] == 2 \
+			else found["walls"]
+		rows[here.y] = true
+		if _spread_building(part, seen, size, here, stack) and past.is_valid():
+			found["cut"] = found["cut"] or _runs_past(here, size, origin, past)
+	return found
+
+
+## Pushes the unseen built tiles beside [param here] and answers whether it
+## stands on the walk's edge.
+static func _spread_building(
+	part: PackedByteArray, seen: PackedByteArray, size: Vector2i, here: Vector2i,
+	stack: Array
+) -> bool:
+	var on_edge: bool = false
+	for way: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+		var next: Vector2i = here + way
+		if not Rect2i(Vector2i.ZERO, size).has_point(next):
+			on_edge = true
+			continue
+		var index: int = next.y * size.x + next.x
+		if part[index] == 0 or seen[index] == 1:
+			continue
+		seen[index] = 1
+		stack.append(next)
+	return on_edge
+
+
+static func _runs_past(
+	here: Vector2i, size: Vector2i, origin: Vector2i, past: Callable
+) -> bool:
+	for way: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+		var next: Vector2i = here + way
+		if not Rect2i(Vector2i.ZERO, size).has_point(next) and past.call(next + origin):
+			return true
+	return false
+
+
+static func _building(
+	tiles: PackedInt32Array, size: Vector2i, origin: Vector2i, found: Dictionary
+) -> Dictionary:
+	var box: Rect2i = found["box"]
+	var drawn: Array = []
+	var rows := PackedByteArray()
+	rows.resize(box.size.y)
+	for row: int in box.size.y:
+		var y: int = box.position.y + row
+		rows[row] = 2 if (found["roofs"] as Dictionary).has(y) \
+			else int((found["walls"] as Dictionary).has(y))
+		for column: int in box.size.x:
+			drawn.append(_tile_at(tiles, size, box.position.x + column, y))
+	return {"rect": Rect2i(box.position + origin, box.size), "rows": rows, "tiles": drawn}
 
 
 static func of_border(

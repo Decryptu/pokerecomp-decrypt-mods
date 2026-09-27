@@ -111,8 +111,9 @@ var _on_furniture := PackedByteArray()
 var _swaying := PackedByteArray()
 var _klass := PackedInt32Array()
 var _class_ids: Dictionary = {}
-## Water the paint lifted onto an upper storey, which no longer sits below zero.
-var _lifted := PackedByteArray()
+## A tile laid as water: a wet class, or a void sunk below zero. Height does not
+## say it, since the paint or a shore can stand water on any storey.
+var _wet := PackedByteArray()
 ## The floor height the paint gives each tile, or `Levels.NOTHING`; empty on a
 ## map nobody painted.
 var _painted := PackedInt32Array()
@@ -156,6 +157,7 @@ const FACT_LIP: int = 27
 const FACT_HEIGHT: int = 28
 const FACT_POTTED: int = 29
 const FACT_SWAYS: int = 30
+const FACT_WET: int = 31
 
 var _object_covered := PackedByteArray()
 var _object_over: Dictionary = {}
@@ -814,11 +816,14 @@ func _margin_cells() -> Vector2i:
 
 
 func _tile_fact(shape: RefCounted, tile: int, permission: int) -> Array:
-	var shape_class: StringName = shape.at(tile, permission)
+	return _class_fact(shape, shape.at(tile, permission), tile)
+
+
+func _class_fact(shape: RefCounted, shape_class: StringName, tile: int) -> Array:
 	if not _class_ids.has(shape_class):
 		_class_ids[shape_class] = _class_ids.size()
 	var fact: Array = []
-	fact.resize(FACT_SWAYS + 1)
+	fact.resize(FACT_WET + 1)
 	fact[FACT_KLASS] = int(_class_ids[shape_class])
 	fact[FACT_ART] = _art_mode(shape.art(shape_class))
 	fact[FACT_DEPTH] = clampi(shape.depth(shape_class), 1, 16)
@@ -840,6 +845,7 @@ func _tile_fact(shape: RefCounted, tile: int, permission: int) -> Array:
 	fact[FACT_LYING] = int(shape.is_lying(shape_class))
 	fact[FACT_ON_FURNITURE] = int(shape_class == &"on_furniture")
 	fact[FACT_VOID] = int(shape_class == &"void")
+	fact[FACT_WET] = int(shape.is_wet(shape_class))
 	_fact_stem(fact, shape, shape_class)
 	_fact_building(fact, shape, shape_class, tile)
 	_fact_cliff(fact, shape, shape_class, tile)
@@ -919,7 +925,8 @@ func begin_resolve(source: RefCounted, shape: RefCounted) -> void:
 	if source == null or not source.valid():
 		return
 	_outside = source.outside()
-	_room_wall = [] if _outside else shape.room_wall()
+	_room_wall = [] if _outside else _room_course(source, shape)
+	_lid_of = null
 	_ground_table = shape.ground_table()
 	_size_grid(source, shape)
 	var band: Vector2i = source.band_rows()
@@ -990,7 +997,7 @@ func _size_grid(source: RefCounted, shape: RefCounted) -> void:
 	_ledge.fill(LEDGE_NONE)
 	_stair_at.resize(count)
 	_stair_at.fill(-1)
-	for cleared: Variant in [_shelf, _shelf_foot, _doorway, _room, _lifted]:
+	for cleared: Variant in [_shelf, _shelf_foot, _doorway, _room, _wet]:
 		cleared.resize(count)
 		cleared.fill(0)
 	_folds = []
@@ -1036,37 +1043,7 @@ func _fill_row(source: RefCounted, shape: RefCounted, ty: int) -> void:
 		if fact.is_empty():
 			fact = _tile_fact(shape, tile, permission)
 			_facts[key] = fact
-		_art[at] = fact[FACT_ART]
-		_depths[at] = fact[FACT_DEPTH]
-		_round[at] = fact[FACT_ROUND]
-		_filled[at] = fact[FACT_FILLED]
-		_stem[at] = fact[FACT_STEM]
-		_stem_rise[at] = fact[FACT_STEM_RISE]
-		_outlined[at] = fact[FACT_OUTLINED]
-		_modelled[at] = fact[FACT_MODELLED]
-		_shrub[at] = fact[FACT_SHRUB]
-		_rock[at] = fact[FACT_ROCK]
-		_potted[at] = fact[FACT_POTTED]
-		_column[at] = fact[FACT_COLUMN]
-		_stretch[at] = fact[FACT_STRETCH]
-		_swaying[at] = fact[FACT_SWAYS]
-		_lying[at] = fact[FACT_LYING]
-		_on_furniture[at] = fact[FACT_ON_FURNITURE]
-		_span_x[at] = fact[FACT_SPAN_X]
-		_span_y[at] = fact[FACT_SPAN_Y]
-		_span_cut[at] = 0
-		_klass[at] = fact[FACT_KLASS]
-		_part[at] = fact[FACT_PART]
-		_drop[at] = fact[FACT_DROP]
-		_slope[at] = fact[FACT_SLOPE]
-		_void[at] = fact[FACT_VOID]
-		_margin_left[at] = fact[FACT_MARGIN_LEFT]
-		_margin_right[at] = fact[FACT_MARGIN_RIGHT]
-		_volume[at] = fact[FACT_VOLUME]
-		_cliff[at] = fact[FACT_CLIFF]
-		_front[at] = fact[FACT_FRONT]
-		_lip[at] = fact[FACT_LIP]
-		_heights[at] = fact[FACT_HEIGHT]
+		_lay_fact(at, fact)
 		var grass: int = source.grass_at(cell)
 		_tufted[at] = int(
 			fact[FACT_TUFTED] == 1
@@ -1075,8 +1052,98 @@ func _fill_row(source: RefCounted, shape: RefCounted, ty: int) -> void:
 		_long_grass[at] = int(grass == Gen2WorldCollision.GRASS_LONG)
 
 
+func _lay_fact(at: int, fact: Array) -> void:
+	_art[at] = fact[FACT_ART]
+	_depths[at] = fact[FACT_DEPTH]
+	_round[at] = fact[FACT_ROUND]
+	_filled[at] = fact[FACT_FILLED]
+	_stem[at] = fact[FACT_STEM]
+	_stem_rise[at] = fact[FACT_STEM_RISE]
+	_outlined[at] = fact[FACT_OUTLINED]
+	_modelled[at] = fact[FACT_MODELLED]
+	_shrub[at] = fact[FACT_SHRUB]
+	_rock[at] = fact[FACT_ROCK]
+	_potted[at] = fact[FACT_POTTED]
+	_column[at] = fact[FACT_COLUMN]
+	_stretch[at] = fact[FACT_STRETCH]
+	_swaying[at] = fact[FACT_SWAYS]
+	_lying[at] = fact[FACT_LYING]
+	_on_furniture[at] = fact[FACT_ON_FURNITURE]
+	_span_x[at] = fact[FACT_SPAN_X]
+	_span_y[at] = fact[FACT_SPAN_Y]
+	_span_cut[at] = 0
+	_klass[at] = fact[FACT_KLASS]
+	_part[at] = fact[FACT_PART]
+	_drop[at] = fact[FACT_DROP]
+	_slope[at] = fact[FACT_SLOPE]
+	_void[at] = fact[FACT_VOID]
+	_wet[at] = fact[FACT_WET]
+	_margin_left[at] = fact[FACT_MARGIN_LEFT]
+	_margin_right[at] = fact[FACT_MARGIN_RIGHT]
+	_volume[at] = fact[FACT_VOLUME]
+	_cliff[at] = fact[FACT_CLIFF]
+	_front[at] = fact[FACT_FRONT]
+	_lip[at] = fact[FACT_LIP]
+	_heights[at] = fact[FACT_HEIGHT]
+
+
+## Where a fact for a tile laid flat as ground is kept, past every permission.
+const FACT_GROUND_SLOT: int = FACT_STRIDE - 1
+
+
+## A building the grid's outer edge cuts lies flat as ground: the far field stands
+## it whole from the map it is drawn on, where the ring holds only part of it.
+## `far_drawings.gd` leaves it out of the ring's own walk for the same reason.
+func _lay_cut_buildings(source: RefCounted, shape: RefCounted) -> void:
+	if not _outside:
+		return
+	var seen := PackedByteArray()
+	seen.resize(_size.x * _size.y)
+	var built: Callable = func(at: int) -> bool:
+		return _tiles[at] >= 0 and _part[at] != PART_NONE
+	for at: int in _edge_tiles():
+		if seen[at] == 1 or not built.call(at):
+			continue
+		var members: PackedInt32Array = _spread(at, seen, built)
+		if not _runs_past_grid(source, shape, members):
+			continue
+		for member: int in members:
+			_lay_fact(member, _ground_fact(shape, _tiles[member]))
+
+
+func _runs_past_grid(
+	source: RefCounted, shape: RefCounted, members: PackedInt32Array
+) -> bool:
+	for at: int in members:
+		var tile: Vector2i = _tile_of(at)
+		for step: Vector2i in STEPS:
+			if _index_of(tile + step) < 0 \
+					and shape.is_built(source, tile + step - _margin):
+				return true
+	return false
+
+
+func _edge_tiles() -> PackedInt32Array:
+	var edge := PackedInt32Array()
+	for tx: int in _size.x:
+		edge.append(tx)
+		edge.append((_size.y - 1) * _size.x + tx)
+	for ty: int in range(1, _size.y - 1):
+		edge.append(ty * _size.x)
+		edge.append(ty * _size.x + _size.x - 1)
+	return edge
+
+
+func _ground_fact(shape: RefCounted, tile: int) -> Array:
+	var key: int = tile * FACT_STRIDE + FACT_GROUND_SLOT
+	if not _facts.has(key):
+		_facts[key] = _class_fact(shape, &"ground", tile)
+	return _facts[key]
+
+
 func _blank_tile(at: int) -> void:
 	_heights[at] = 0
+	_wet[at] = 0
 	_volume[at] = 0
 	_art[at] = ART_FLAT
 	_part[at] = PART_NONE
@@ -1087,6 +1154,7 @@ func _blank_tile(at: int) -> void:
 func _passes(source: RefCounted, shape: RefCounted) -> Array[Callable]:
 	var passes: Array[Callable] = [_mark_shell]
 	_band_rows(passes, _fill_rows.bind(source, shape))
+	passes.append(_lay_cut_buildings.bind(source, shape))
 	_band_houses(passes, source, shape)
 	passes.append(_open_hops)
 	_band_cells(passes, _read_hops.bind(source))
@@ -1231,7 +1299,6 @@ func _apply_levels(source: RefCounted, shape: RefCounted) -> void:
 		if _heights[at] >= 0:
 			_heights[at] = lift[at]
 			continue
-		_lifted[at] = 1
 		_heights[at] += lift[at]
 
 
@@ -2548,11 +2615,11 @@ func surface_height_at_position(position: Vector3) -> int:
 	var ty: int = _row_at(position.z)
 	if tx < 0 or ty < 0 or tx >= _size.x or ty >= _size.y:
 		return 0
-	var column: int = _height_at(tx, ty)
-	var object: int = _surface[ty * _size.x + tx]
-	if object > column:
-		return object
-	return column - WATER_DRAUGHT if column < 0 else column
+	var at: int = ty * _size.x + tx
+	var column: int = _heights[at]
+	if _surface[at] > column:
+		return _surface[at]
+	return column - WATER_DRAUGHT if _is_water(at) else column
 
 const MOUND_HIGH: int = 16
 const MOUND_MAX: int = 256
@@ -3159,13 +3226,12 @@ func _is_bed_floor(at: int) -> bool:
 var _bed_kerb: int = -1
 
 
-## Flat art below zero, which is water's own signature and is how a sea rock and
-## a flight cut into the floor are sunk into it too, or a lake the paint stood on
-## an upper storey. Every pass that asks about water asks here.
+## A wet class still laid flat, at whatever height the paint, a shore or the
+## floor a void sank to put it. Every pass that asks about water asks here.
 func _is_water(at: int) -> bool:
 	return (
-		_tiles[at] >= 0 and _art[at] == ART_FLAT and _stair_at[at] < 0
-		and (_heights[at] < 0 or _lifted[at] == 1)
+		_wet[at] == 1 and _tiles[at] >= 0 and _art[at] == ART_FLAT
+		and _stair_at[at] < 0
 	)
 
 
@@ -3314,10 +3380,12 @@ func _settle_void() -> void:
 			continue
 		for at: int in members:
 			_heights[at] = floor_height
+			_wet[at] = 1
 
 
 ## The void drops to the lowest measured floor around it, so a hole reads as a
-## hole rather than as ground at zero.
+## hole rather than as ground at zero. A void sunk below zero is laid as water,
+## as the skirt past the map's edge is.
 func _void_floor(members: PackedInt32Array) -> int:
 	var floor_height: int = 0
 	for at: int in members:
@@ -3595,6 +3663,8 @@ func _object_front(
 ) -> float:
 	var window: Rect2i = object[&"window"]
 	var front: float = _world_z(start.y) + float(window.position.y + window.size.y)
+	if int(object.get(&"rise", 0)) > 0:
+		return front + _carrier_fold(start, across)
 	if source == null or not object.has(&"depth"):
 		return front
 	var deep: float = float(object[&"depth"])
@@ -3612,6 +3682,21 @@ func _object_front(
 			or _stands_on_floor(source, left, right, edge - deep, edge):
 		return front
 	return edge
+
+
+## An object that rises onto another stands where that one's lid lays its art:
+## as far from the drawing as the carrier's lid stands from its own. A till on
+## a counter and a terminal on a desk move with them.
+func _carrier_fold(start: Vector2i, across: Vector2i) -> float:
+	var foot: int = _index(start.x, start.y + across.y - 1)
+	for carrier: int in _object_over.get(foot, PackedInt32Array()):
+		var entry: Array = _objects[carrier]
+		var object: Dictionary = entry[0]
+		var lid_back: float = float(entry[3]) - float(object.get(&"depth", 0))
+		var drawn_back: float = _world_z((entry[1] as Vector2i).y) \
+			+ float((object[&"window"] as Rect2i).position.y)
+		return lid_back - drawn_back
+	return 0.0
 
 
 func _stands_on_floor(
@@ -3686,7 +3771,12 @@ func _cover_object(
 	object: Dictionary, index: int, tile: Vector2i, floor_height: int
 ) -> void:
 	var at: int = tile.y * _size.x + tile.x
+	var over: PackedInt32Array = _object_over.get(at, PackedInt32Array())
+	over.append(index)
+	_object_over[at] = over
 	_object_covered[at] = 1
+	if _is_water(at):
+		return
 	_art[at] = ART_CUTOUT
 	_modelled[at] = 0
 	_volume[at] = 0
@@ -3699,9 +3789,6 @@ func _cover_object(
 		if stood.x >= 0:
 			_heights[at] = stood.y
 			_floor_art[at] = stood
-	var over: PackedInt32Array = _object_over.get(at, PackedInt32Array())
-	over.append(index)
-	_object_over[at] = over
 
 
 const STAIR_RISE: int = 16
@@ -5121,6 +5208,8 @@ func _object_built(
 		)
 	elif bool(object.get(&"tower", false)):
 		_object_tower(object, it.start, it.across, it.tiles, it.window, atlas)
+	elif bool(object.get(&"jet", false)):
+		_object_jet(object, it, atlas)
 	else:
 		return false
 	return true
@@ -5448,6 +5537,40 @@ func _object_lid(object: Dictionary, it: Standing, atlas: RefCounted) -> void:
 			Vector3(right, it.high, it.back), Vector3(left, it.high, it.back),
 			Vector3.UP, texel, SHADE_TOP_FLAT
 		)
+
+
+## A jet of water the drawing shows only as its splash, seen from above: a column
+## over the splash's middle, as wide as `depth`, in the splash's palest shade.
+func _object_jet(object: Dictionary, it: Standing, atlas: RefCounted) -> void:
+	var middle := Vector2(
+		_world_x(it.start.x) + float(it.window.position.x) + float(it.window.size.x) * 0.5,
+		_world_z(it.start.y) + float(it.window.position.y) + float(it.window.size.y) * 0.5
+	)
+	var half: float = float(object[&"depth"]) * 0.5
+	var base: float = _object_base(object, it.start, it.across)
+	var foam: Rect2 = _palest_texel(atlas, it.tiles, it.across, it.window)
+	_box(
+		middle.x - half, middle.x + half, base, base + float(object[&"height"]),
+		middle.y - half, middle.y + half, foam
+	)
+	_lid(
+		middle.x - half, middle.x + half, base + float(object[&"height"]),
+		middle.y - half, middle.y + half, foam
+	)
+
+
+func _palest_texel(
+	atlas: RefCounted, tiles: Array, across: Vector2i, window: Rect2i
+) -> Rect2:
+	for py: int in range(window.position.y, window.end.y):
+		for px: int in range(window.position.x, window.end.x):
+			@warning_ignore("integer_division")
+			var tile: int = int(tiles[(py / int(TILE)) * across.x + px / int(TILE)])
+			var order: PackedInt32Array = atlas.shade_order(tile)
+			if not order.is_empty() \
+					and atlas.pixel(tile, px % int(TILE), py % int(TILE)) == order[-1]:
+				return atlas.uv_box(tile, Rect2i(px % int(TILE), py % int(TILE), 1, 1))
+	return atlas.uv(int(tiles[0]))
 
 
 func _object_row_runs(it: Standing, py: int) -> Array[Vector2i]:
@@ -7823,10 +7946,7 @@ func _cutout(
 	var box: Rect2i = _span_box(at, tx, ty)
 	var across: Vector2i = box.size
 	var start: Vector2i = box.position
-	var tiles: Array = []
-	for row: int in across.y:
-		for column: int in across.x:
-			tiles.append(_tile_at(start.x + column, start.y + row))
+	var tiles: Array = _cutout_tiles(box, ground_tile)
 	var span := across * int(TILE)
 	var key: String = _mask_key(tiles, filled, outline)
 	var mask: PackedByteArray = _structure_mask(tiles, across, atlas, filled, outline)
@@ -7902,6 +8022,21 @@ func _cutout(
 			_stem_shapes[int(_stem[at]) - 1] as Array, atlas)
 	if swaying:
 		_sink = SINK_TERRAIN
+
+
+## The drawing a cutout's mask is cut from: its box, with a kerb in it read as
+## the floor the cutout stands on. A kerb rings a bed and shares its outer walk
+## cells with the planting, and read as ground it floods the planting's own
+## ground as drawing.
+func _cutout_tiles(box: Rect2i, ground_tile: int) -> Array:
+	var tiles: Array = []
+	for row: int in box.size.y:
+		for column: int in box.size.x:
+			var at: int = _index(box.position.x + column, box.position.y + row)
+			var kerb: bool = at >= 0 and _bed_kerb >= 0 and _klass[at] == _bed_kerb
+			tiles.append(ground_tile if kerb \
+				else _tile_at(box.position.x + column, box.position.y + row))
+	return tiles
 
 
 func _stem_post(
@@ -8574,25 +8709,49 @@ func _emit_body(tx: int, ty: int, at: int, tile: int, atlas: RefCounted) -> void
 
 
 ## The room's own shell south of the map draws no cap: the camera looks over it
-## from inside, and a lid there would roof the room.
+## from inside, and a lid there would roof the room. Elsewhere the shell and the
+## fill are the dark outside the room, so their lid is the room's darkest shade.
 func _emit_cap(
 	tx: int, ty: int, at: int, here: int, cap: int, tilted: bool,
 	is_volume: bool, atlas: RefCounted
 ) -> void:
-	if not _room.is_empty() and _room[at] == ROOM_SHELL and ty >= _map_end.y:
+	var room: int = 0 if _room.is_empty() else _room[at]
+	if room == ROOM_SHELL and ty >= _map_end.y:
 		return
+	var uv: Rect2 = _room_lid(atlas) if room == ROOM_SHELL or room == ROOM_FILL \
+		else atlas.uv(cap)
 	if tilted:
-		_face_roof(tx, ty, atlas.uv(cap), SHADE_TOP_FLAT)
+		_face_roof(tx, ty, uv, SHADE_TOP_FLAT)
 		return
 	_face_top(
-		tx, ty, float(here), atlas.uv(cap),
-		SHADE_TOP_VOLUME if is_volume else SHADE_TOP_FLAT
+		tx, ty, float(here), uv, SHADE_TOP_VOLUME if is_volume else SHADE_TOP_FLAT
 	)
+
+
+var _lid_of: RefCounted = null
+var _lid_uv := Rect2()
+
+
+## The darkest shade the room draws anywhere: a course drawn without its
+## palette's darkest colour would lid the room in a pale one.
+func _room_lid(atlas: RefCounted) -> Rect2:
+	if _lid_of != atlas:
+		var drawn: Dictionary = {}
+		for tile: int in _tiles:
+			if tile >= 0:
+				drawn[tile] = true
+		_lid_uv = atlas.darkest_uv(drawn.keys())
+		_lid_of = atlas
+	return _lid_uv
 
 
 func _emit_on_top(
 	tx: int, ty: int, at: int, here: int, atlas: RefCounted
 ) -> void:
+	if _object_covered[at] == 1:
+		_emit_covering(
+			at, atlas, _object_over, _object_done, _chunk_objects, "o", false
+		)
 	if _tufted[at] == 1:
 		_tufts(tx, ty, float(here), atlas, _long_grass[at] == 1)
 	if _modelled[at] == 1:
@@ -8900,6 +9059,9 @@ func _ring_depth(source: RefCounted, shape: RefCounted) -> int:
 	return RING_TILES_MODELLED
 
 const RING_GROWTH: int = 8
+## A side grows a block at a time, so its edge stays where the cartridge's blocks
+## begin and a drawing two cells tall is never split across it.
+const RING_STEP: int = Gen2Layout.MAP_BLOCK_TILE_WIDTH
 
 
 func _ring_side(
@@ -8909,7 +9071,7 @@ func _ring_side(
 		return base
 	var depth: int = base
 	while _ring_cuts(source, shape, base, depth, out):
-		depth += CELL_TILES
+		depth += RING_STEP
 		if depth > base + RING_GROWTH:
 			return base
 	return depth
@@ -8921,26 +9083,65 @@ func _ring_cuts(
 	if out.y != 0:
 		var ty: int = -depth if out.y < 0 else _map_size.y + depth - 1
 		for tx: int in range(-base, _map_size.x + base):
-			if _ring_building(source, shape, tx, ty):
+			if _built_across(source, shape, Vector2i(tx, ty), out):
 				return true
 		return false
 	var tx: int = -depth if out.x < 0 else _map_size.x + depth - 1
 	for ty: int in range(-base, _map_size.y + base):
-		if _ring_building(source, shape, tx, ty):
+		if _built_across(source, shape, Vector2i(tx, ty), out):
 			return true
 	return false
 
 
-func _ring_building(
-	source: RefCounted, shape: RefCounted, tx: int, ty: int
+## A building on the ring's outer row that carries on past it, which an edge
+## there would cut.
+static func _built_across(
+	source: RefCounted, shape: RefCounted, tile: Vector2i, out: Vector2i
 ) -> bool:
-	var tile: int = source.tile_at(tx, ty)
-	if tile < 0:
-		return false
-	var part: StringName = shape.building_part(
-		shape.at(tile, source.permission_at(Vector2i(tx >> 1, ty >> 1)))
-	)
-	return part == &"wall" or part == &"roof"
+	return shape.is_built(source, tile) and shape.is_built(source, tile + out)
+
+
+## The course a room's shell wears: its tileset's pinned course where the room's
+## back wall draws it, and otherwise the course that wall draws most, since rooms
+## sharing a tileset draw different walls. No pin, no shell.
+func _room_course(source: RefCounted, shape: RefCounted) -> Array:
+	var pinned: Array = shape.room_wall()
+	if pinned.is_empty() or _room_draws(source, pinned):
+		return pinned
+	var drawn: Array = _back_course(source, shape)
+	return pinned if drawn.is_empty() else drawn
+
+
+func _room_draws(source: RefCounted, course: Array) -> bool:
+	var tiles: Dictionary = {}
+	for row: Array in course:
+		for tile: int in row:
+			tiles[tile] = true
+	for ty: int in CELL_TILES:
+		for tx: int in source.size_cells().x * CELL_TILES:
+			if tiles.has(source.tile_at(tx, ty)):
+				return true
+	return false
+
+
+## The commonest cell on the room's top row whose lower half stands as a wall,
+## as a two-by-two course.
+func _back_course(source: RefCounted, shape: RefCounted) -> Array:
+	var counts: Dictionary = {}
+	var best: Array = []
+	for cx: int in source.size_cells().x:
+		var tx: int = cx * CELL_TILES
+		var foot: int = source.tile_at(tx, 1)
+		if shape.at(foot, source.permission_at(Vector2i(cx, 0))) != &"wall":
+			continue
+		var course: Array = [
+			[source.tile_at(tx, 0), source.tile_at(tx + 1, 0)],
+			[foot, source.tile_at(tx + 1, 1)],
+		]
+		counts[course] = int(counts.get(course, 0)) + 1
+		if best.is_empty() or int(counts[course]) > int(counts[best]):
+			best = course
+	return best
 
 
 func _measure_room_behind() -> void:

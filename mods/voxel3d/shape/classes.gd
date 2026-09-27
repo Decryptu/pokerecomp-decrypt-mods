@@ -168,6 +168,13 @@ const ROCK: Dictionary = {
 	&"post": true,
 }
 
+## Classes whose tile is laid as a water surface, whatever height a pass
+## settles it at.
+const WET: Dictionary = {
+	&"water": true,
+	&"sea_rock": true,
+}
+
 const COLUMN: Dictionary = {
 	&"post": true,
 }
