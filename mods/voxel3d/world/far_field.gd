@@ -232,7 +232,7 @@ func advance(focus: Vector3, reach: float) -> void:
 		_stand(layer, origin, size, NEAR_DEPTH)
 		var found: Dictionary = _walk_of(near, Rect2i())
 		_foliage.place(_world.data, near, origin, sheet, found.get("drawings", {}), _stamped)
-		_houses.place(near, origin, sheet, found.get("buildings", []), _stamped)
+		_houses.place(near, origin, sheet, found.get("buildings", []), Rect2(), _stamped)
 
 	var here: ImageTexture = _here_texture(map)
 	if here != null:

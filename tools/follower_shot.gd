@@ -11,10 +11,13 @@ const SETTLE_FRAMES: int = 60
 const TURN_FRAMES: int = 4
 const CAPTURE_ON: int = 150
 const PET_LEAD: int = 6
+const WAYS: Dictionary = {
+	"u": Vector2i.UP, "d": Vector2i.DOWN, "l": Vector2i.LEFT, "r": Vector2i.RIGHT,
+}
 
 var _screen: Gen2WorldScreen = null
 var _output_path: String = ""
-var _steps: int = 2
+var _path: String = "dd"
 var _pet: bool = false
 var _clean: bool = false
 var _scale: int = 1
@@ -25,7 +28,8 @@ var _cell := Vector2i(4, 4)
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.size() < 4:
-		print("usage: -- <game> <group> <map> <out.png> [species] [steps] [view] [pet,clean,xN,at=x:y]")
+		print("usage: -- <game> <group> <map> <out.png> [species] [steps] [view]"
+			+ " [pet,clean,xN,at=x:y,path=udlr]")
 		quit(2)
 		return
 	var data: GameData = GameData.open_argument(args[0])
@@ -38,7 +42,7 @@ func _initialize() -> void:
 		quit(2)
 		return
 	var species: int = int(args[4]) if args.size() > 4 else 155
-	_steps = int(args[5]) if args.size() > 5 else 2
+	_path = "d".repeat(int(args[5]) if args.size() > 5 else 2)
 	var options: PackedStringArray = args[7].split(",", false) if args.size() > 7 \
 		else PackedStringArray()
 	_pet = options.has("pet")
@@ -46,6 +50,8 @@ func _initialize() -> void:
 	for option: String in options:
 		if option.begins_with("x"):
 			_scale = maxi(int(option.substr(1)), 1)
+		elif option.begins_with("path="):
+			_path = option.substr(5)
 		elif option.begins_with("at="):
 			var pair: PackedStringArray = option.substr(3).split(":")
 			_cell = Vector2i(int(pair[0]), int(pair[1])) if pair.size() == 2 else _cell
@@ -86,9 +92,9 @@ func _process(_delta: float) -> bool:
 			return false
 		return _capture()
 	_screen.advance_frames(SETTLE_FRAMES)
-	for step: int in _steps:
-		_screen.move_down()
-		var last: bool = step == _steps - 1
+	for step: int in _path.length():
+		_screen.move_player(WAYS.get(_path[step], Vector2i.DOWN))
+		var last: bool = step == _path.length() - 1
 		_screen.advance_frames(STEP_FRAMES if _pet or not last else CAUGHT_AT)
 		print("step %d    player cell %s" % [
 			step + 1, str((_screen.world_snapshot() as Dictionary).get("player_cell")),

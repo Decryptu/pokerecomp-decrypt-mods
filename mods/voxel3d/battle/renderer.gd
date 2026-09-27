@@ -349,16 +349,22 @@ func _pin(
 	rect.size = drawn
 	rect.position = at - Vector2(drawn.x * 0.5, drawn.y) + offset * float(_hud_scale())
 	rect.visible = true
-	if _stands_on_its_square(offset, picture_scale):
-		_stage.add_shadow_caster(texture, ground, _caster_scale(ground, texture.get_height()))
+	_cast(texture, ground, offset, picture_scale.y)
 	return slot + 1
 
-const SHADOW_OFFSET_LIMIT: float = float(PokeTiles.TILE_WIDTH)
 
-
-func _stands_on_its_square(offset: Vector2, picture_scale: Vector2) -> bool:
-	return offset.length() < SHADOW_OFFSET_LIMIT \
-		and picture_scale.is_equal_approx(Vector2.ONE)
+## The shadow of the picture as it is drawn: a shift across the screen moves
+## it along the ground, a shift down sinks it through the floor, which a faint
+## is, a shift up lifts it, and a scale scales it.
+func _cast(texture: Texture2D, ground: Vector3, offset: Vector2, grown: float) -> void:
+	var per_pixel: float = _caster_scale(ground, texture.get_height()) * grown
+	var across: Vector3 = _stage.camera.global_basis.x
+	across.y = 0.0
+	var foot: Vector3 = ground + across.normalized() * offset.x * per_pixel
+	var anchor := Vector2(
+		float(texture.get_width()) * 0.5, float(texture.get_height()) - offset.y / grown
+	)
+	_stage.add_shadow_caster(texture, foot, per_pixel, anchor)
 
 
 func _caster_scale(ground: Vector3, height: int) -> float:

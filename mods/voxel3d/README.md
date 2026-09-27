@@ -191,7 +191,10 @@ height, so a tree cannot be picked as open foreground.
 A pinned picture is not in the 3D scene, so each battler hands the sun an upright
 card of the same drawing, drawn into the shadow pass only. The shadow is the
 animal's own silhouette: it lands on the floor, climbs a wall and drapes over a
-ledge. Overworld cards get theirs the same way.
+ledge. It follows the picture as the screen moves it: a lunge carries it along
+the floor, a faint sinks it through the floor so the shadow shrinks with what is
+left above it, and a picture growing out of its ball grows its shadow. Overworld
+cards get theirs the same way.
 
 The eye breathes rather than sitting still, since a flat picture has no parallax
 until something moves: a one degree orbit with a smaller dolly under it, on a
@@ -242,6 +245,11 @@ classify each tile by the surface it depicts, then apply the matching geometry.
 | flat | ground, water | one quad. Water is recessed, so a shoreline shows a lip |
 | top art | ledges, roofs, beds | a box wearing its art on the TOP face |
 | volume | walls, canopies, facades | a box whose SOUTH face folds the art upright, 8px band by band |
+
+Water is a class, `water` or a stone drawn in it, and not a height: the paint
+and a pond settled level with its shore both stand water above zero, and it is
+still laid as water. A void sunk below the floor round it is laid as water too,
+as the skirt past the map is.
 
 The fold is the whole trick. Most of Generation II is drawn face-on, so standing
 the drawing up is what turns a wall into a wall.
@@ -497,7 +505,19 @@ cliff front, so the floor inside lifts as a rock patch and its edges slope 45
 degrees, and the steps in the rim are a two-tile flight.
 
 A **kerb** is terrain rather than an object: one course of masonry standing half a
-cell, which rings a flower bed and holds the water in a fountain. A **sea rock**
+cell, which rings a flower bed and holds the water in a fountain. A kerb shares
+the bed's outer walk cells with the planting, so a flower's mask reads it as the
+floor the flower stands on; read as ground it made the planting's own ground
+drawing, and every bloom beside a kerb stood as a slab.
+
+A **jet** is the one object the cartridge draws only as its splash: National
+Park's spout is a ring on the water seen from above, and it stands as a column
+over the ring's middle in the ring's palest shade. An object over water leaves
+the water under it whole, so the pond keeps its surface and its bank.
+
+An object that **rises** onto another, a till on a counter or a terminal on a
+desk, stands where that one's lid lays its art rather than where it is drawn,
+and the carrier wears plain art under it so the drawing is not shown twice. A **sea rock**
 is stone drawn in the water rather than standing on it, so the tile stays flat
 water and the stone stands out of it; read as a boulder it goes looking for a
 floor and always finds one.
@@ -549,13 +569,18 @@ is a stamped model, since a tree emits no geometry at all and a route can really
 end in a wood. A carved drawing stays at one block, since a hedge bush is about
 170 triangles a tile.
 
-Then a SIDE grows, a walk cell at a time and at most two blocks, while its own
-outer edge would cut a drawing in half. A ring that ends in the middle of a house
-stands the half it can see up as though it were whole, roofless and wearing its
-own wall on the lid; Saffron ends four tiles short of the roof of Route 5's gate.
-Per side, because the grid is what costs: clearing that one gate by deepening
+Then a SIDE grows, a block at a time and at most two blocks, while a building on
+its outer row carries on past it. A block at a time keeps the edge where the
+cartridge's blocks begin, so no two-cell drawing is split across it. Per side,
+because the grid is what costs: clearing Route 5's gate from Saffron by deepening
 every side is a fifth of the game's resolve and deepening the north alone is a
-twenty-fifth of Saffron's. Sixteen maps grow one.
+twenty-fifth of Saffron's. Eighteen sides on Crystal grow and clear.
+
+A building the grown edge still cuts, on eight Crystal maps and five on Red, lies
+flat in the ring, and the far field stands it whole from the map it is drawn on:
+a ring that ends in the middle of a house stood the half it could see up as
+though it were whole, roofless and wearing its own wall on the lid. The ring's
+own far walk leaves such a building out, so it stands once.
 
 **The ring is the map next door** wherever there is one, since the host places
 the whole neighbouring map on the connection graph: 1977 blocks on 68 of
@@ -578,6 +603,11 @@ ringed one cell deep and two cells tall with the blank wall course that tileset
 is drawn with, and the wall the cartridge does draw is raised to meet it.
 Twenty-nine tilesets name that course on Crystal, covering 308 of its 311
 interiors, and twenty-one on Red, Blue and Yellow, covering 185 of Yellow's 191.
+Rooms sharing a tileset draw different walls, so a room that never draws its
+tileset's course wears the course its own back wall draws most: a gym, a
+mansion or a battle room on a shared tileset wears its own wall. The shell and
+the fill outside the room are lidded in the darkest shade the room draws, the
+dark round a room, rather than wearing the wall's art on top.
 A cavern gets a ring cut from its own rock face. The interiors with no shell are
 a gym whose perimeter the cartridge really does draw, maps the game files as
 caves and paints as forest, and the open dock the S.S. Anne lies at.

@@ -3,7 +3,6 @@ mods/randomizer/plan.gd:_randomize_learnsets
 mods/randomizer/plan.gd:build
 mods/voxel3d/battle/arena.gd:_find_ground
 mods/voxel3d/shape/atlas.gd:build
-mods/voxel3d/shape/far_drawings.gd:_buildings
 mods/voxel3d/shape/far_drawings.gd:of_map
 mods/voxel3d/shape/mesher.gd:_ball
 mods/voxel3d/shape/mesher.gd:_bodies

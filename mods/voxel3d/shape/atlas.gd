@@ -185,6 +185,31 @@ func shade_order(tile: int) -> PackedInt32Array:
 	return order
 
 
+## The middle of one texel in the darkest shade any of [param tiles] draws
+## with, as a UV box clear of its neighbours: a face wearing it is one colour.
+func darkest_uv(tiles: Array) -> Rect2:
+	var best := Vector3i(-1, 0, 0)
+	var best_light: float = INF
+	for tile: int in tiles:
+		for y: int in TILE:
+			for x: int in TILE:
+				var index: int = pixel(tile, x, y)
+				if index < 0:
+					continue
+				var light: float = color_of(tile, index).get_luminance()
+				if light < best_light:
+					best_light = light
+					best = Vector3i(tile, x, y)
+	if best.x < 0:
+		return Rect2()
+	var whole: Rect2 = uv(best.x)
+	var per_pixel: Vector2 = whole.size / float(TILE)
+	return Rect2(
+		whole.position + (Vector2(best.y, best.z) + Vector2(0.25, 0.25)) * per_pixel,
+		per_pixel * 0.5
+	)
+
+
 func is_dark(tile: int, index: int, count: int) -> bool:
 	var order: PackedInt32Array = shade_order(tile)
 	for rank: int in mini(count, order.size()):

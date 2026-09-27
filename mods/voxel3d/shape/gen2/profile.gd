@@ -188,6 +188,7 @@ const OBJECTS: Dictionary = {
 		{
 			&"name": &"bench",
 			&"tiles": [[10, 11, 12, 13], [26, 27, 28, 29], [37, 38, 38, 39]],
+			&"art": [[5, 6, 12, 13], [21, 22, 28, 29], [37, 38, 38, 39]],
 			&"window": Rect2i(0, 0, 32, 24),
 			&"top": 16,
 			&"depth": 16,
@@ -279,6 +280,14 @@ const OBJECTS: Dictionary = {
 		},
 	],
 	&"PARK": [
+		{
+			&"name": &"spout",
+			&"tiles": [[128, 129], [144, 145]],
+			&"window": Rect2i(3, 5, 10, 6),
+			&"depth": 3,
+			&"height": 14,
+			&"jet": true,
+		},
 		{
 			&"name": &"fountain",
 			&"tiles": [[76, 77, 78], [92, 93, 94]],
@@ -567,11 +576,21 @@ const OBJECTS: Dictionary = {
 		{
 			&"name": &"counter_till",
 			&"tiles": [[3, 37], [19, 53], [70, 71]],
+			&"art": [[52, 15], [52, 15], [70, 71]],
 			&"window": Rect2i(0, 0, 16, 24),
 			&"solid": true,
 			&"top": 16,
 			&"depth": 16,
 			&"height": 8,
+		},
+		{
+			&"name": &"till",
+			&"tiles": [[3, 37], [19, 53]],
+			&"window": Rect2i(0, 0, 16, 16),
+			&"top": 12,
+			&"depth": 12,
+			&"height": 4,
+			&"rise": 8,
 		},
 		{
 			&"name": &"counter_wall",
@@ -684,11 +703,24 @@ const OBJECTS: Dictionary = {
 				[42, 43], [62, 63], [62, 63], [32, 33], [48, 49], [62, 63], [62, 63],
 				[30, 47], [26, 25],
 			],
+			&"art": [
+				[42, 43], [62, 63], [62, 63], [62, 63], [62, 63], [62, 63], [62, 63],
+				[30, 47], [26, 25],
+			],
 			&"window": Rect2i(0, 0, 16, 72),
 			&"solid": true,
 			&"top": 64,
 			&"depth": 64,
 			&"height": 8,
+		},
+		{
+			&"name": &"till",
+			&"tiles": [[32, 33], [48, 49]],
+			&"window": Rect2i(0, 0, 16, 16),
+			&"top": 12,
+			&"depth": 12,
+			&"height": 4,
+			&"rise": 8,
 		},
 		{
 			&"name": &"counter_hidden",
@@ -1266,6 +1298,7 @@ const TILESETS: Dictionary = {
 }
 
 const UNPINNED: Dictionary = {
+	&"ELITE_FOUR_ROOM": [36, 80],
 	&"MANSION": [162],
 	&"TRAIN_STATION": [55, 56],
 	&"TOWER": [80, 81],
