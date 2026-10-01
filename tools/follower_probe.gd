@@ -92,6 +92,7 @@ func _initialize() -> void:
 	failures += _rules(trail_script)
 	failures += _sliding(trail_script)
 	failures += _hopping(trail_script)
+	failures += _scripted(trail_script)
 	failures += _crossing(trail_script)
 	failures += _petting(trail_script)
 	failures += _finding(finder)
@@ -319,6 +320,28 @@ func _rules(trail_script: GDScript) -> int:
 			if not _report("%s (%s)" % [check[0], ", ".join(route)], bool(check[1])):
 				failures += 1
 	return failures
+
+
+## `applymovement` commits the whole path to the player's cell before the first
+## step is drawn, and the span walks it a cell at a time. Following the cell
+## leaves the follower where the walk began (pokerecomp#821).
+func _scripted(trail_script: GDScript) -> int:
+	var trail: RefCounted = trail_script.new()
+	var start := Vector2i(5, 5)
+	var end: Vector2i = start + Vector2i.RIGHT * 3
+	var facing: int = Gen2WorldSprite.FACING_RIGHT
+	trail.observe(_observation(HOME, start, facing, {}))
+	var kept_up: bool = true
+	for step: int in 3:
+		var landing: Vector2i = start + Vector2i.RIGHT * (step + 1)
+		var pose: Dictionary = {}
+		for frame: int in STEP_FRAMES:
+			pose = trail.observe(_observation(
+				HOME, end, facing, _span(landing, Vector2i.RIGHT, _part(frame))
+			))
+		if (pose["cell"] as Vector2i) != landing + Vector2i.LEFT or not bool(pose["out"]):
+			kept_up = false
+	return 0 if _report("the follower walks a scripted path a cell behind", kept_up) else 1
 
 
 ## One pose said two ways, since a grid view moves to the position and a view
