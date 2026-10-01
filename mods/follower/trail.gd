@@ -24,9 +24,10 @@ var _placed: bool = false
 
 func observe(observation: Dictionary) -> Dictionary:
 	var map: Vector2i = observation.get("map", Vector2i.ZERO)
-	var player_cell: Vector2i = observation.get("cell", Vector2i.ZERO)
-	var player_facing: int = int(observation.get("facing", Gen2WorldSprite.FACING_DOWN))
 	var span: Dictionary = observation.get("span", {})
+	## `applymovement` commits a scripted path whole; the step in flight lands here.
+	var player_cell: Vector2i = span.get("to", observation.get("cell", Vector2i.ZERO))
+	var player_facing: int = int(observation.get("facing", Gen2WorldSprite.FACING_DOWN))
 
 	if map != _map:
 		_map = map
