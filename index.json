@@ -25,10 +25,10 @@
 		{
 			"id": "follower",
 			"name": "Follower",
-			"version": "0.5.1",
+			"version": "0.5.2",
 			"games": ["red", "blue", "yellow", "gold", "silver", "crystal"],
 			"description": "One of your Pokemon walks behind you, drawn with its own party icon. Pick which one from its party menu, choose whether it stays out on a bike or on water, and put it away with one key. Face it and press A to pet it. It can also pick up hidden items.",
-			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.5.1/follower-0.5.1.zip",
+			"download": "https://github.com/Decryptu/pokerecomp-decrypt-mods/releases/download/follower-0.5.2/follower-0.5.2.zip",
 			"icon": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/follower/icon.png",
 			"thumbnail": "https://raw.githubusercontent.com/Decryptu/pokerecomp-decrypt-mods/main/mods/follower/thumbnail.webp"
 		},
